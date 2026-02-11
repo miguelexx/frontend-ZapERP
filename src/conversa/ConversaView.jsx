@@ -1,0 +1,2435 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useConversaStore } from "./conversaStore";
+import { enviarMensagem, excluirMensagem } from "./conversaService";
+import { isGroupConversation } from "../utils/conversaUtils";
+import "./conversa.css";
+import api from "../api/http";
+import { useAuthStore } from "../auth/authStore";
+import { canGerenciarSetores, canTag } from "../auth/permissions";
+import AtendimentoActions from "../atendimento/AtendimentoActions";
+import { useChatStore } from "../chats/chatsStore";
+import {
+  listarTags,
+  adicionarTagConversa,
+  removerTagConversa,
+} from "../api/tagService";
+import * as cfg from "../api/configService";
+import SidebarCliente from "./SidebarCliente";
+
+/* =========================================================
+   Utils
+========================================================= */
+
+function parseToDate(ts) {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if (typeof ts === "number") return new Date(ts);
+  const s = String(ts).trim();
+  if (!s) return null;
+  // Se vier sem timezone (ex.: "2026-02-10T20:36:00"), assuma UTC (Supabase timestamp sem TZ)
+  const noTzIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/;
+  const hasTz = /Z$|[+-]\d{2}:\d{2}$/.test(s);
+  const normalized = !hasTz && noTzIso.test(s) ? `${s}Z` : s;
+  const d = new Date(normalized);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatHora(ts) {
+  const d = parseToDate(ts);
+  if (!d) return "";
+  try {
+    return d.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
+    });
+  } catch {
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+}
+
+function formatDia(ts) {
+  if (!ts) return "";
+  try {
+    const d = parseToDate(ts) || new Date(ts);
+    return d.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "America/Sao_Paulo",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function sameDay(a, b) {
+  try {
+    const da = parseToDate(a) || new Date(a);
+    const db = parseToDate(b) || new Date(b);
+    return (
+      da.getFullYear() === db.getFullYear() &&
+      da.getMonth() === db.getMonth() &&
+      da.getDate() === db.getDate()
+    );
+  } catch {
+    return false;
+  }
+}
+
+function safeString(v) {
+  return String(v ?? "").trim();
+}
+
+function formatHoraCurta(ts) {
+  if (!ts) return "";
+  try {
+    const d = parseToDate(ts) || new Date(ts);
+    return d.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function timelineEventLabel(a) {
+  const acao = safeString(a?.acao).toLowerCase();
+  const quem = a?.usuario_nome || "Sistema";
+  const paraQuem = a?.para_usuario_nome;
+  if (acao === "assumiu") return `${quem} assumiu`;
+  if (acao === "transferiu") return paraQuem ? `${quem} transferiu para ${paraQuem}` : `${quem} transferiu`;
+  if (acao === "transferiu_setor") return a?.observacao ? `${quem} transferiu setor: ${a.observacao}` : `${quem} transferiu setor`;
+  if (acao === "encerrou") return "Atendimento finalizado";
+  if (acao === "reabriu") return "Conversa reaberta";
+  return quem;
+}
+
+function initials(nome = "") {
+  const parts = safeString(nome).split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const a = parts[0]?.[0] || "?";
+  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+  return (a + b).toUpperCase();
+}
+
+function normalizeTelefone(v) {
+  const raw = safeString(v);
+  const digits = raw.replace(/\D+/g, "");
+  return digits;
+}
+
+function statusBadge(status) {
+  const s = safeString(status).toLowerCase();
+
+  if (s === "em_atendimento") {
+    return {
+      text: "Em atendimento",
+      bg: "rgba(59,130,246,0.12)",
+      color: "var(--wa-status-blue)",
+      border: "rgba(59,130,246,0.18)",
+      dot: "var(--wa-status-blue)",
+    };
+  }
+  if (s === "fechada") {
+    return {
+      text: "Finalizada",
+      bg: "rgba(245,158,11,0.12)",
+      color: "var(--wa-status-orange)",
+      border: "rgba(245,158,11,0.18)",
+      dot: "var(--wa-status-orange)",
+    };
+  }
+  return {
+    text: "Aberta",
+    bg: "rgba(34,197,94,0.12)",
+    color: "var(--wa-status-green)",
+    border: "rgba(34,197,94,0.18)",
+    dot: "var(--wa-status-green)",
+  };
+}
+
+function isImageFile(file) {
+  if (!file) return false;
+  const t = String(file.type || "").toLowerCase();
+  if (t.startsWith("image/")) return true;
+  const name = String(file.name || "").toLowerCase();
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name);
+}
+
+function isAudioFile(file) {
+  if (!file) return false;
+  const t = String(file.type || "").toLowerCase();
+  if (t.startsWith("audio/")) return true;
+  const name = String(file.name || "").toLowerCase();
+  return /\.(mp3|ogg|wav|m4a|webm|aac|opus)$/i.test(name);
+}
+
+function getMediaUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const base = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "");
+  return base.replace(/\/$/, "") + (url.startsWith("/") ? url : "/" + url);
+}
+
+function fileToPreviewURL(file) {
+  try {
+    return URL.createObjectURL(file);
+  } catch {
+    return null;
+  }
+}
+
+/* =========================================================
+   Icons — finos (stroke ~1.5px), minimalistas
+========================================================= */
+
+function IconClock(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </svg>
+  );
+}
+
+function IconMore(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" {...props}>
+      <circle cx="12" cy="6" r="1.25" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.25" fill="currentColor" />
+      <circle cx="12" cy="18" r="1.25" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconAttach(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
+function IconSend(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="m22 2-7 20-4-9-9-4L22 2z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+function IconClose(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function IconTag(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+      <path d="M7 7h.01" />
+    </svg>
+  );
+}
+
+function IconClipboard(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </svg>
+  );
+}
+
+/* =========================================================
+   UI helpers
+========================================================= */
+
+function Toast({ toast, onClose }) {
+  if (!toast) return null;
+  return (
+    <div className={`wa-toast ${toast.type || "info"}`} role="status" aria-live="polite">
+      <div className="wa-toast-title">{toast.title || "Aviso"}</div>
+      {toast.message ? <div className="wa-toast-message">{toast.message}</div> : null}
+      <button className="wa-toast-close" type="button" onClick={onClose} title="Fechar">
+        <IconClose />
+      </button>
+    </div>
+  );
+}
+
+function SkeletonLine({ w = "100%" }) {
+  return <div className="wa-skeleton-line" style={{ width: w }} />;
+}
+
+function DaySeparator({ label }) {
+  return (
+    <div className="wa-daySep" role="separator" aria-label={`Mensagens do dia ${label}`}>
+      <span className="wa-daySep-pill">{label}</span>
+    </div>
+  );
+}
+
+/**
+ * Status ✓ / ✓✓ / ✓✓ azul
+ * - tenta inferir por campos comuns (status, lida_em, lidaEm, read_at, etc.)
+ */
+function MessageTicks({ msg }) {
+  const out = msg?.direcao === "out";
+  if (!out) return null;
+
+  const rawStatus = safeString(msg?.status_mensagem || msg?.status || msg?.situacao).toLowerCase();
+  const hasReadAt = !!(msg?.lida_em || msg?.lidaEm || msg?.read_at || msg?.readAt);
+  const hasDeliveredAt = !!(msg?.entregue_em || msg?.entregueEm || msg?.delivered_at || msg?.deliveredAt);
+
+  const isRead =
+    rawStatus === "lida" ||
+    rawStatus === "read" ||
+    rawStatus === "seen" ||
+    rawStatus === "visualizada" ||
+    hasReadAt;
+
+  const isDelivered =
+    isRead ||
+    rawStatus === "entregue" ||
+    rawStatus === "delivered" ||
+    rawStatus === "enviada" ||
+    rawStatus === "sent" ||
+    hasDeliveredAt;
+
+  return (
+    <span className={`wa-ticks ${isDelivered ? "isDelivered" : ""} ${isRead ? "isRead" : ""}`}>
+      {isDelivered ? "✓✓" : "✓"}
+    </span>
+  );
+}
+
+async function copyTextToClipboard(text) {
+  const t = safeString(text);
+  if (!t) return false;
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch (_) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = t;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function snippetFromMsg(msg) {
+  const t = safeString(msg?.texto);
+  if (t) return t.length > 80 ? `${t.slice(0, 80)}…` : t;
+  const tipo = safeString(msg?.tipo);
+  if (tipo === "audio") return "(áudio)";
+  if (tipo === "imagem") return "(foto)";
+  if (tipo === "video") return "(vídeo)";
+  if (tipo === "sticker") return "(figurinha)";
+  if (tipo === "arquivo") return msg?.nome_arquivo ? String(msg.nome_arquivo) : "(arquivo)";
+  return "(mídia)";
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function formatMmSs(totalSeconds) {
+  const s = Number(totalSeconds);
+  if (!Number.isFinite(s) || s < 0) return "0:00";
+  const sec = Math.floor(s);
+  const mm = Math.floor(sec / 60);
+  const ss = sec % 60;
+  return `${mm}:${String(ss).padStart(2, "0")}`;
+}
+
+function seedFromAny(v) {
+  const s = String(v ?? "");
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function makeWaveBars(count, seed) {
+  let x = seed || 1;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    // xorshift32
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    const r = (x >>> 0) / 4294967295;
+    // barras com variação "bonita"
+    const v = 0.25 + 0.75 * Math.pow(r, 0.55);
+    out.push(v);
+  }
+  return out;
+}
+
+let __waCurrentAudio = null;
+
+function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [dur, setDur] = useState(0);
+  const [cur, setCur] = useState(0);
+  const bars = useMemo(() => makeWaveBars(34, seedFromAny(msgKey)), [msgKey]);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const onLoaded = () => {
+      const d = Number(el.duration);
+      if (Number.isFinite(d) && d > 0) setDur(d);
+    };
+    const onTime = () => setCur(Number(el.currentTime || 0));
+    const onEnded = () => {
+      setPlaying(false);
+      setCur(0);
+    };
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+
+    el.addEventListener("loadedmetadata", onLoaded);
+    el.addEventListener("timeupdate", onTime);
+    el.addEventListener("ended", onEnded);
+    el.addEventListener("play", onPlay);
+    el.addEventListener("pause", onPause);
+    return () => {
+      el.removeEventListener("loadedmetadata", onLoaded);
+      el.removeEventListener("timeupdate", onTime);
+      el.removeEventListener("ended", onEnded);
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("pause", onPause);
+    };
+  }, [src]);
+
+  const toggle = useCallback(async () => {
+    const el = audioRef.current;
+    if (!el) return;
+    try {
+      if (__waCurrentAudio && __waCurrentAudio !== el) {
+        try { __waCurrentAudio.pause(); } catch {}
+      }
+      __waCurrentAudio = el;
+      if (el.paused) {
+        await el.play();
+      } else {
+        el.pause();
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const seek = useCallback((e) => {
+    const el = audioRef.current;
+    if (!el) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const frac = rect.width > 0 ? clamp(x / rect.width, 0, 1) : 0;
+    const target = (dur || el.duration || 0) * frac;
+    if (Number.isFinite(target)) el.currentTime = target;
+  }, [dur]);
+
+  const frac = dur > 0 ? clamp(cur / dur, 0, 1) : 0;
+  const playedBars = Math.round(frac * bars.length);
+  const remaining = dur > 0 ? Math.max(0, dur - cur) : 0;
+  const durLabel = formatMmSs(playing ? cur : dur || 0);
+
+  return (
+    <div className="wa-audioPlayer">
+      <button type="button" className={`wa-audioPlayBtn ${playing ? "isPlaying" : ""}`} onClick={toggle} aria-label={playing ? "Pausar áudio" : "Tocar áudio"}>
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div className="wa-audioMid">
+        <div className="wa-audioWave" role="slider" aria-label="Progresso do áudio" onClick={seek}>
+          {bars.map((v, i) => (
+            <div
+              key={i}
+              className={`wa-audioBar ${i < playedBars ? "isPlayed" : ""}`}
+              style={{ height: `${Math.round(5 + v * 14)}px` }}
+            />
+          ))}
+          <div className="wa-audioDot" style={{ left: `${Math.round(frac * 100)}%` }} aria-hidden="true" />
+        </div>
+        <div className="wa-audioSub">
+          <span className="wa-audioDur" title={`${formatMmSs(cur)} / ${formatMmSs(dur || 0)}`}>
+            {durLabel}
+          </span>
+          {playing ? <span className="wa-audioRemain">-{formatMmSs(remaining)}</span> : null}
+        </div>
+      </div>
+      {avatarUrl ? (
+        <span className="wa-audioAvatarWrap" aria-hidden="true">
+          <img
+            className="wa-audioAvatar"
+            src={avatarUrl}
+            alt={avatarLabel ? `Foto de ${avatarLabel}` : "Foto do contato"}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+          />
+        </span>
+      ) : null}
+      <audio ref={audioRef} src={src} preload="metadata" className="wa-audioElHidden" />
+    </div>
+  );
+}
+
+function nameColor(seed) {
+  const s = String(seed || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  return `hsl(${hue} 70% 42%)`;
+}
+
+function Bubble({
+  msg,
+  showRemetente,
+  peerAvatarUrl,
+  peerName,
+  selectMode,
+  selected,
+  onToggleSelected,
+  onInfo,
+  onReply,
+  onCopy,
+  onForward,
+  onTogglePin,
+  onToggleStar,
+  onStartSelect,
+  onDelete,
+  isPinned,
+  isStarred,
+}) {
+  const out = msg?.direcao === "out";
+  const isImg = msg?.tipo === "imagem";
+  const isSticker = msg?.tipo === "sticker";
+  const isFile = msg?.tipo === "arquivo";
+  const isAudio = msg?.tipo === "audio";
+  const isVideo = msg?.tipo === "video";
+  const texto = safeString(msg?.texto);
+  const hasText = !!texto;
+  const mediaUrl = getMediaUrl(msg?.url);
+  const remetente = showRemetente && !out && (msg?.remetente_nome || msg?.remetente_telefone);
+  const isPlaceholderCaption =
+    !texto ||
+    texto === "(mídia)" ||
+    texto === "(mensagem vazia)" ||
+    texto === "(imagem)" ||
+    texto === "(áudio)" ||
+    texto === "(vídeo)" ||
+    texto === "(figurinha)" ||
+    texto === "(arquivo)";
+  const showCaption = (isImg || isVideo || isSticker) && hasText && !isPlaceholderCaption;
+  const showAudioText = isAudio && hasText && !isPlaceholderCaption;
+  const inlineMeta = hasText && !isImg && !isVideo && !isSticker && !isAudio && !isFile;
+
+  // pedido do usuário: setinha no hover para mensagens do cliente
+  const showMenuButton = !selectMode;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const menuElRef = useRef(null);
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e) => {
+      const a = anchorRef.current;
+      const m = menuElRef.current;
+      if (a && a.contains(e.target)) return;
+      if (m && m.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  const computeMenuPosition = useCallback(() => {
+    const a = anchorRef.current;
+    if (!a) return;
+    const rect = a.getBoundingClientRect();
+    const vw = window.innerWidth || 360;
+    const vh = window.innerHeight || 640;
+
+    const desiredW = 220;
+    const w = Math.max(180, Math.min(desiredW, vw - 16));
+
+    let left = rect.right - w;
+    left = clamp(left, 8, Math.max(8, vw - w - 8));
+
+    // posição preferida: abaixo do botão
+    let top = rect.bottom + 6;
+    const approxH = menuElRef.current?.offsetHeight || 320;
+    let placed = "down";
+
+    if (top + approxH > vh - 8) {
+      // tenta acima do botão
+      top = rect.top - approxH - 6;
+      placed = "up";
+    }
+    top = clamp(top, 8, Math.max(8, vh - 120));
+
+    const maxHeight = placed === "down" ? Math.max(160, vh - top - 8) : Math.max(160, rect.top - 8);
+
+    setMenuStyle({
+      position: "fixed",
+      top,
+      left,
+      width: w,
+      maxHeight,
+      overflowY: "auto",
+      zIndex: 9999,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const tick = () => computeMenuPosition();
+    tick();
+    // recalcula após render/medida real
+    const raf = requestAnimationFrame(tick);
+
+    const onReflow = () => computeMenuPosition();
+    window.addEventListener("resize", onReflow);
+    // captura scroll dentro do container de mensagens também
+    document.addEventListener("scroll", onReflow, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onReflow);
+      document.removeEventListener("scroll", onReflow, true);
+    };
+  }, [menuOpen, computeMenuPosition]);
+
+  const handleToggleSelect = useCallback(
+    (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      onToggleSelected?.(msg);
+    },
+    [onToggleSelected, msg]
+  );
+
+  const doCopy = useCallback(async () => {
+    const text =
+      safeString(msg?.texto) ||
+      (mediaUrl ? `${msg?.nome_arquivo ? `${msg.nome_arquivo}\n` : ""}${mediaUrl}` : "");
+    const ok = await copyTextToClipboard(text);
+    onCopy?.(ok);
+  }, [msg, mediaUrl, onCopy]);
+
+  const runAction = useCallback(
+    async (action) => {
+      setMenuOpen(false);
+      if (action === "info") onInfo?.(msg);
+      if (action === "reply") onReply?.(msg);
+      if (action === "copy") await doCopy();
+      if (action === "forward") onForward?.(msg);
+      if (action === "pin") onTogglePin?.(msg);
+      if (action === "star") onToggleStar?.(msg);
+      if (action === "select") onStartSelect?.(msg);
+      if (action === "delete") onDelete?.(msg);
+    },
+    [msg, onInfo, onReply, doCopy, onForward, onTogglePin, onToggleStar, onStartSelect, onDelete]
+  );
+
+  return (
+    <div className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}`} data-msg-id={msg?.id}>
+      {selectMode ? (
+        <button
+          type="button"
+          className={`wa-selectChk ${selected ? "isOn" : ""}`}
+          onClick={handleToggleSelect}
+          title={selected ? "Desmarcar" : "Selecionar"}
+          aria-label={selected ? "Desmarcar mensagem" : "Selecionar mensagem"}
+        >
+          {selected ? "✓" : ""}
+        </button>
+      ) : null}
+
+      <div
+        className={[
+          "wa-bubble",
+          out ? "wa-bubble-out" : "wa-bubble-in",
+          inlineMeta ? "hasInlineMeta" : "",
+          (isImg || isSticker) ? "wa-bubble-media" : "",
+          isSticker ? "wa-bubble-sticker" : "",
+          isFile ? "wa-bubble-fileWrap" : "",
+          isAudio ? "wa-bubble-audio" : "",
+          isVideo ? "wa-bubble-video" : "",
+          selected ? "isSelected" : "",
+        ].join(" ")}
+        onClick={selectMode ? handleToggleSelect : undefined}
+        role="group"
+        aria-label="Mensagem"
+      >
+        <div className="wa-bubble-body">
+          {remetente ? (
+            <div className="wa-bubble-remetente">
+              <span
+                className="wa-bubble-remetente-nome"
+                style={{ color: nameColor(msg?.remetente_telefone || remetente) }}
+              >
+                {remetente}:
+              </span>
+              {isImg || isSticker ? (
+                <div className="wa-bubble-mediaStack">
+                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
+                    <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
+                  </a>
+                  {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+                </div>
+              ) : isVideo ? (
+                <div className="wa-bubble-mediaStack">
+                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
+                    <video src={mediaUrl} controls className="wa-bubble-videoEl" />
+                  </a>
+                  {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+                </div>
+              ) : isFile ? (
+                <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-file">
+                  <span className="wa-bubble-fileIcon">📎</span>
+                  <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
+                </a>
+              ) : hasText ? (
+                inlineMeta ? (
+                  <span className="wa-bubble-text wa-bubble-textInline">
+                    {texto}
+                    <span className="wa-inlineMeta" aria-label="Horário e status">
+                      <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
+                      <MessageTicks msg={msg} />
+                    </span>
+                  </span>
+                ) : (
+                  <span className="wa-bubble-text">{texto}</span>
+                )
+              ) : (
+                <span className="wa-bubble-text wa-muted">(mídia)</span>
+              )}
+            </div>
+          ) : isImg || isSticker ? (
+            <div className="wa-bubble-mediaStack">
+              <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
+                <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
+              </a>
+              {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+            </div>
+          ) : isVideo && mediaUrl ? (
+            <div className="wa-bubble-mediaStack">
+              <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
+                <video src={mediaUrl} controls className="wa-bubble-videoEl" />
+              </a>
+              {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+            </div>
+          ) : isAudio && mediaUrl ? (
+            <div className="wa-bubble-audioStack">
+              <div className="wa-bubble-audioWrap">
+                <AudioWavePlayer
+                  src={mediaUrl}
+                  msgKey={msg?.whatsapp_id || msg?.id || mediaUrl}
+                  avatarUrl={!out ? peerAvatarUrl : null}
+                  avatarLabel={!out ? peerName : null}
+                />
+              </div>
+              {showAudioText ? <div className="wa-bubble-audioCaption">{texto}</div> : null}
+            </div>
+          ) : isFile ? (
+            <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-file">
+              <span className="wa-bubble-fileIcon">📎</span>
+              <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
+              <span className="wa-bubble-fileHint">Abrir</span>
+            </a>
+          ) : hasText ? (
+            inlineMeta ? (
+              <span className="wa-bubble-text wa-bubble-textInline">
+                {texto}
+                <span className="wa-inlineMeta" aria-label="Horário e status">
+                  <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
+                  <MessageTicks msg={msg} />
+                </span>
+              </span>
+            ) : (
+              <span className="wa-bubble-text">{texto}</span>
+            )
+          ) : (
+            <span className="wa-bubble-text wa-muted">(mensagem vazia)</span>
+          )}
+        </div>
+        <div className="wa-bubble-meta">
+          <div className="wa-bubble-metaLeft">
+            {!inlineMeta ? (
+              <>
+                <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>
+                <MessageTicks msg={msg} />
+              </>
+            ) : null}
+            {isPinned ? <span className="wa-bubble-badge" title="Fixada">📌</span> : null}
+            {isStarred ? <span className="wa-bubble-badge" title="Favorita">★</span> : null}
+          </div>
+          <div className="wa-bubble-metaRight">
+            {showMenuButton ? (
+              <button
+                ref={anchorRef}
+                type="button"
+                className={`wa-msgMenuBtn ${menuOpen ? "isOpen" : ""}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuOpen((v) => !v);
+                }}
+                title="Mais opções"
+                aria-label="Abrir opções da mensagem"
+              >
+                ▾
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {menuOpen
+        ? createPortal(
+            <div
+              ref={menuElRef}
+              className="wa-msgMenu"
+              style={menuStyle || { position: "fixed", top: -9999, left: -9999 }}
+              role="menu"
+              aria-label="Opções da mensagem"
+            >
+              {out ? (
+                <>
+                  <button type="button" className="wa-msgMenuItem" onClick={() => runAction("info")} role="menuitem">
+                    Dados da mensagem
+                  </button>
+                  <div className="wa-msgMenuSep" aria-hidden="true" />
+                </>
+              ) : null}
+              <button type="button" className="wa-msgMenuItem" onClick={() => runAction("reply")} role="menuitem">
+                Responder
+              </button>
+              <button type="button" className="wa-msgMenuItem" onClick={() => runAction("copy")} role="menuitem">
+                Copiar
+              </button>
+              <button type="button" className="wa-msgMenuItem" onClick={() => runAction("forward")} role="menuitem">
+                Encaminhar
+              </button>
+              <button type="button" className="wa-msgMenuItem" onClick={() => runAction("pin")} role="menuitem">
+                {isPinned ? "Desafixar" : "Fixar"}
+              </button>
+              <button type="button" className="wa-msgMenuItem" onClick={() => runAction("star")} role="menuitem">
+                {isStarred ? "Desfavoritar" : "Favoritar"}
+              </button>
+              <button type="button" className="wa-msgMenuItem" onClick={() => runAction("select")} role="menuitem">
+                Selecionar
+              </button>
+              <button
+                type="button"
+                className="wa-msgMenuItem wa-msgMenuItemDanger"
+                onClick={() => runAction("delete")}
+                role="menuitem"
+              >
+                Apagar
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
+/* =========================================================
+   Hooks
+========================================================= */
+
+function useStableTimeout() {
+  const ref = useRef(null);
+  const clear = useCallback(() => {
+    if (ref.current) {
+      clearTimeout(ref.current);
+      ref.current = null;
+    }
+  }, []);
+  const set = useCallback(
+    (fn, ms) => {
+      clear();
+      ref.current = setTimeout(fn, ms);
+    },
+    [clear]
+  );
+
+  useEffect(() => clear, [clear]);
+  return { set, clear };
+}
+
+function useAutoScroll({ conversaId, lastMsgId, bottomRef }) {
+  const prevConversaIdRef = useRef(null);
+  const prevLastIdRef = useRef(null);
+
+  useEffect(() => {
+    const conversaIdAtual = conversaId ? String(conversaId) : null;
+
+    // primeira conversa carregada
+    if (!prevConversaIdRef.current && conversaIdAtual) {
+      prevConversaIdRef.current = conversaIdAtual;
+      prevLastIdRef.current = lastMsgId;
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "auto" }));
+      return;
+    }
+
+    // troca de conversa
+    if (conversaIdAtual && prevConversaIdRef.current !== conversaIdAtual) {
+      prevConversaIdRef.current = conversaIdAtual;
+      prevLastIdRef.current = lastMsgId;
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "auto" }));
+      return;
+    }
+
+    // novas mensagens
+    if (lastMsgId && lastMsgId !== prevLastIdRef.current) {
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
+    }
+
+    prevLastIdRef.current = lastMsgId;
+  }, [conversaId, lastMsgId, bottomRef]);
+}
+
+function useGlobalHotkeys({ onToggleTimeline, onFocusInput, onEscape, disabled }) {
+  useEffect(() => {
+    if (disabled) return;
+
+    function onKeyDown(e) {
+      const k = String(e.key || "").toLowerCase();
+
+      if ((e.ctrlKey || e.metaKey) && k === "k") {
+        e.preventDefault();
+        onFocusInput?.();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && k === "h") {
+        e.preventDefault();
+        onToggleTimeline?.();
+      }
+
+      if (k === "escape") {
+        e.preventDefault();
+        onEscape?.();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onToggleTimeline, onFocusInput, onEscape, disabled]);
+}
+
+/* =========================================================
+   Main
+========================================================= */
+
+export default function ConversaView() {
+  const {
+    conversa,
+    mensagens,
+    loading,
+    loadError,
+    refresh,
+    carregarConversa,
+    anexarMensagem,
+    tags,
+    atendimentos,
+    atendimentosLoading,
+    carregarAtendimentos,
+    setSelectedId,
+    selectedId,
+  } = useConversaStore();
+
+  const user = useAuthStore((s) => s.user);
+  const podeGerenciarSetores = canGerenciarSetores(user);
+  const podeGerenciarTags = canTag(user);
+
+  const [texto, setTexto] = useState("");
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const [toast, setToast] = useState(null);
+  const toastT = useStableTimeout();
+
+  const [dragOver, setDragOver] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
+  const [pendingPreview, setPendingPreview] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingCanceledRef = useRef(false);
+  const recordingTimerRef = useRef(null);
+
+  const [allTags, setAllTags] = useState([]);
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagMutatingId, setTagMutatingId] = useState(null);
+  const [showClienteSide, setShowClienteSide] = useState(false);
+  const [showTransferirSetor, setShowTransferirSetor] = useState(false);
+  const [departamentos, setDepartamentos] = useState([]);
+  const [transferirSetorLoading, setTransferirSetorLoading] = useState(false);
+  const [showRespostasSalvas, setShowRespostasSalvas] = useState(false);
+  const [respostasSalvas, setRespostasSalvas] = useState([]);
+  const [respostasSalvasLoading, setRespostasSalvasLoading] = useState(false);
+
+  const chats = useChatStore((s) => s.chats);
+
+  // ações estilo WhatsApp: responder, encaminhar, fixar, favoritar, selecionar, apagar
+  const [replyTo, setReplyTo] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState({});
+  const [pinnedIds, setPinnedIds] = useState([]);
+  const [starredIds, setStarredIds] = useState([]);
+
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardMsg, setForwardMsg] = useState(null);
+  const [forwardQuery, setForwardQuery] = useState("");
+
+  const [msgInfoOpen, setMsgInfoOpen] = useState(false);
+  const [msgInfo, setMsgInfo] = useState(null);
+
+  const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const conversaId = conversa?.id || null;
+
+  const isGroup = useMemo(() => isGroupConversation(conversa), [conversa]);
+
+  const nome = useMemo(() => {
+    if (isGroup) return conversa?.nome_grupo || conversa?.contato_nome || "Grupo";
+    const n = conversa?.contato_nome ?? conversa?.cliente_nome ?? conversa?.cliente?.nome ?? "";
+    if (n && String(n).trim()) return String(n).trim();
+    const tel = conversa?.cliente_telefone ?? conversa?.telefone ?? "";
+    if (tel && String(tel).replace(/\D/g, "").length >= 10) return `+${String(tel).replace(/\D/g, "")}`;
+    return tel || "Contato";
+  }, [conversa, isGroup]);
+
+  const telefone = useMemo(() => {
+    if (isGroup) return conversa?.telefone || "";
+    return conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone || "";
+  }, [conversa, isGroup]);
+
+  const rawAvatarUrl = isGroup ? (conversa?.foto_grupo ?? null) : (conversa?.foto_perfil ?? null);
+  const avatarUrl = rawAvatarUrl && String(rawAvatarUrl).trim().startsWith("http") ? String(rawAvatarUrl).trim() : null;
+  const avatar = useMemo(() => (isGroup ? "👥" : initials(nome)), [isGroup, nome]);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+  const showAvatarImg = Boolean(avatarUrl && !avatarImgError);
+
+  const badge = useMemo(
+    () => statusBadge(conversa?.status_atendimento),
+    [conversa?.status_atendimento]
+  );
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [avatarUrl]);
+
+  const selectedTagIds = useMemo(
+    () => (Array.isArray(tags) ? tags.map((t) => t.id) : []),
+    [tags]
+  );
+
+  const lastMsgId = useMemo(
+    () => (mensagens?.length ? mensagens[mensagens.length - 1]?.id : null),
+    [mensagens]
+  );
+
+  const pinnedSet = useMemo(() => new Set((pinnedIds || []).map(String)), [pinnedIds]);
+  const starredSet = useMemo(() => new Set((starredIds || []).map(String)), [starredIds]);
+  const selectedSet = useMemo(() => new Set(Object.keys(selectedMsgIds || {}).filter((k) => selectedMsgIds[k])), [selectedMsgIds]);
+
+  const pinnedTop = useMemo(() => {
+    if (!mensagens?.length || !(pinnedIds || []).length) return null;
+    const lastPinnedId = String((pinnedIds || [])[pinnedIds.length - 1]);
+    return (mensagens || []).find((m) => String(m.id) === lastPinnedId) || null;
+  }, [mensagens, pinnedIds]);
+
+  const forwardCandidates = useMemo(() => {
+    const list = Array.isArray(chats) ? chats : [];
+    const q = safeString(forwardQuery).toLowerCase();
+    const byName = (c) => {
+      const n = safeString(c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone);
+      if (!q) return true;
+      return n.toLowerCase().includes(q) || safeString(c?.telefone).includes(q);
+    };
+    return list
+      .filter((c) => c?.id != null && String(c.id) !== String(conversaId))
+      .filter(byName)
+      .slice(0, 80);
+  }, [chats, forwardQuery, conversaId]);
+
+  useEffect(() => {
+    // reset por conversa
+    setReplyTo(null);
+    setSelectMode(false);
+    setSelectedMsgIds({});
+    setForwardOpen(false);
+    setForwardMsg(null);
+    setForwardQuery("");
+
+    if (!conversaId) {
+      setPinnedIds([]);
+      setStarredIds([]);
+      return;
+    }
+
+    try {
+      const pins = JSON.parse(localStorage.getItem(`zap:pins:${conversaId}`) || "[]");
+      const stars = JSON.parse(localStorage.getItem(`zap:stars:${conversaId}`) || "[]");
+      setPinnedIds(Array.isArray(pins) ? pins : []);
+      setStarredIds(Array.isArray(stars) ? stars : []);
+    } catch {
+      setPinnedIds([]);
+      setStarredIds([]);
+    }
+  }, [conversaId]);
+
+  const tempoSemResponder = useMemo(() => {
+    const list = Array.isArray(mensagens) ? mensagens : [];
+    const ultimaIn = [...list].reverse().find((m) => m?.direcao === "in");
+    if (!ultimaIn?.criado_em) return null;
+    const diffMs = Date.now() - new Date(ultimaIn.criado_em).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffH = Math.floor(diffMin / 60);
+    const diffD = Math.floor(diffH / 24);
+    if (diffMin < 1) return "Agora";
+    if (diffMin < 60) return `${diffMin} min`;
+    if (diffH < 24) return `${diffH}h`;
+    return `${diffD} dia(s)`;
+  }, [mensagens]);
+
+  useAutoScroll({ conversaId, lastMsgId, bottomRef });
+
+  const showToast = useCallback(
+    (next) => {
+      setToast(next);
+      toastT.set(() => setToast(null), 3500);
+    },
+    [toastT]
+  );
+
+  const clearPending = useCallback(() => {
+    if (pendingPreview) {
+      try {
+        URL.revokeObjectURL(pendingPreview);
+      } catch {}
+    }
+    setPendingFile(null);
+    setPendingPreview(null);
+  }, [pendingPreview]);
+
+  const openFilePicker = useCallback(() => {
+    if (!conversaId) return;
+    fileInputRef.current?.click();
+  }, [conversaId]);
+
+  const handleDropFile = useCallback((file) => {
+    if (!file) return;
+    setPendingFile(file);
+
+    if (isImageFile(file)) {
+      const url = fileToPreviewURL(file);
+      setPendingPreview(url);
+    } else if (isAudioFile(file)) {
+      setPendingPreview(null); // áudio: sem preview visual
+    } else {
+      setPendingPreview(null);
+    }
+  }, []);
+
+  const onDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const onDragOver = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dragOver) setDragOver(true);
+    },
+    [dragOver]
+  );
+
+  const onDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const onDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleDropFile(file);
+    },
+    [handleDropFile]
+  );
+
+  const handleEnviarArquivo = useCallback(
+    async (file) => {
+      if (!file || !conversaId) return;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setSending(true);
+      try {
+        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        clearPending();
+        if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
+          anexarMensagem(data);
+        } else {
+          await refresh({ silent: true });
+        }
+      } catch (err) {
+        console.error("Erro ao enviar arquivo:", err);
+        showToast({
+          type: "error",
+          title: "Falha ao enviar",
+          message: "Não foi possível enviar o arquivo. Tente novamente.",
+        });
+      } finally {
+        setSending(false);
+      }
+    },
+    [conversaId, refresh, showToast, clearPending, anexarMensagem]
+  );
+
+  const handleFileInputChange = useCallback(
+    (e) => {
+      const file = e.target.files?.[0];
+      if (!file) {
+        e.target.value = "";
+        return;
+      }
+      handleDropFile(file);
+      e.target.value = "";
+    },
+    [handleDropFile]
+  );
+
+  const handleConfirmSendFile = useCallback(async () => {
+    if (!pendingFile) return;
+    await handleEnviarArquivo(pendingFile);
+  }, [pendingFile, handleEnviarArquivo]);
+
+  const handleStartRecording = useCallback(async () => {
+    if (!conversaId || sending || isRecording) return;
+    recordingCanceledRef.current = false;
+    setRecordingSeconds(0);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recordingCanceledRef.current || audioChunksRef.current.length === 0) return;
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], `audio-${Date.now()}.webm`, { type: "audio/webm" });
+        await handleEnviarArquivo(file);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Erro ao iniciar gravação:", err);
+      showToast({
+        type: "error",
+        title: "Microfone",
+        message: "Não foi possível acessar o microfone. Verifique as permissões.",
+      });
+    }
+  }, [conversaId, sending, isRecording, handleEnviarArquivo, showToast]);
+
+  const handleStopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+      setRecordingSeconds(0);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  }, [isRecording]);
+
+  const handleCancelRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      recordingCanceledRef.current = true;
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+      setRecordingSeconds(0);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  }, [isRecording]);
+
+  useEffect(() => {
+    if (!isRecording) return;
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingSeconds((s) => s + 1);
+    }, 1000);
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, [isRecording]);
+
+  const toggleTimeline = useCallback(() => {
+    setShowTimeline((v) => !v);
+  }, []);
+
+  const handleCloseTimeline = useCallback(() => setShowTimeline(false), []);
+
+  const handleEnviar = useCallback(async () => {
+    if (!conversaId) return;
+
+    const t = safeString(texto);
+    if (!t) return;
+
+    // "Responder" (sem suporte nativo no backend): envia com citação no texto
+    const quote = replyTo ? snippetFromMsg(replyTo) : "";
+    const finalText = quote ? `↩️ ${quote}\n${t}` : t;
+
+    setSending(true);
+    try {
+      const res = await enviarMensagem(conversaId, finalText);
+      setTexto("");
+      setReplyTo(null);
+      if (res?.mensagem) {
+        const msg = res.mensagem;
+        const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
+        if (mesmaConversa || !msg.conversa_id) {
+          anexarMensagem({ ...msg, conversa_id: Number(conversaId) });
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao enviar mensagem:", err);
+      showToast({
+        type: "error",
+        title: "Falha ao enviar",
+        message: "Não foi possível enviar a mensagem. Verifique sua conexão.",
+      });
+    } finally {
+      setSending(false);
+    }
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem]);
+
+  const onEscape = useCallback(() => {
+    if (isRecording) handleCancelRecording();
+    if (showTimeline) setShowTimeline(false);
+    if (tagsOpen) setTagsOpen(false);
+    if (pendingFile) clearPending();
+    if (showClienteSide) setShowClienteSide(false);
+    if (showRespostasSalvas) setShowRespostasSalvas(false);
+    if (showTransferirSetor) setShowTransferirSetor(false);
+    if (forwardOpen) {
+      setForwardOpen(false);
+      setForwardMsg(null);
+      setForwardQuery("");
+    }
+    if (msgInfoOpen) {
+      setMsgInfoOpen(false);
+      setMsgInfo(null);
+    }
+    if (selectMode) {
+      setSelectMode(false);
+      setSelectedMsgIds({});
+    }
+    if (replyTo) setReplyTo(null);
+  }, [
+    isRecording,
+    handleCancelRecording,
+    showTimeline,
+    tagsOpen,
+    pendingFile,
+    clearPending,
+    showClienteSide,
+    showRespostasSalvas,
+    showTransferirSetor,
+    forwardOpen,
+    msgInfoOpen,
+    selectMode,
+    replyTo,
+  ]);
+
+  useGlobalHotkeys({
+    onToggleTimeline: () => setShowTimeline((v) => !v),
+    onFocusInput: () => inputRef.current?.focus(),
+    onEscape,
+    disabled: loading,
+  });
+
+  const handleKeyDownInput = useCallback(
+    (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleEnviar();
+      }
+    },
+    [handleEnviar]
+  );
+
+  const persistPins = useCallback((next) => {
+    if (!conversaId) return;
+    try {
+      localStorage.setItem(`zap:pins:${conversaId}`, JSON.stringify(next || []));
+    } catch {}
+  }, [conversaId]);
+
+  const persistStars = useCallback((next) => {
+    if (!conversaId) return;
+    try {
+      localStorage.setItem(`zap:stars:${conversaId}`, JSON.stringify(next || []));
+    } catch {}
+  }, [conversaId]);
+
+  const togglePin = useCallback((msg) => {
+    if (!msg?.id || !conversaId) return;
+    setPinnedIds((cur) => {
+      const id = String(msg.id);
+      const has = (cur || []).map(String).includes(id);
+      const next = has ? (cur || []).filter((x) => String(x) !== id) : [...(cur || []), id];
+      persistPins(next);
+      showToast({ type: "info", title: has ? "Desafixada" : "Fixada", message: snippetFromMsg(msg) });
+      return next;
+    });
+  }, [conversaId, persistPins, showToast]);
+
+  const toggleStar = useCallback((msg) => {
+    if (!msg?.id || !conversaId) return;
+    setStarredIds((cur) => {
+      const id = String(msg.id);
+      const has = (cur || []).map(String).includes(id);
+      const next = has ? (cur || []).filter((x) => String(x) !== id) : [...(cur || []), id];
+      persistStars(next);
+      showToast({ type: "info", title: has ? "Removida dos favoritos" : "Favoritada", message: snippetFromMsg(msg) });
+      return next;
+    });
+  }, [conversaId, persistStars, showToast]);
+
+  const startSelect = useCallback((msg) => {
+    if (!msg?.id) return;
+    setSelectMode(true);
+    setSelectedMsgIds((cur) => ({ ...(cur || {}), [String(msg.id)]: true }));
+  }, []);
+
+  const toggleSelected = useCallback((msg) => {
+    if (!msg?.id) return;
+    setSelectedMsgIds((cur) => {
+      const key = String(msg.id);
+      const next = { ...(cur || {}) };
+      next[key] = !next[key];
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedMsgIds({});
+  }, []);
+
+  const handleReplyAction = useCallback((msg) => {
+    setReplyTo(msg || null);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  const handleInfoAction = useCallback((msg) => {
+    if (!msg) return;
+    setMsgInfo(msg);
+    setMsgInfoOpen(true);
+  }, []);
+
+  const handleCopyResult = useCallback((ok) => {
+    showToast({
+      type: ok ? "success" : "error",
+      title: ok ? "Copiado" : "Falha ao copiar",
+      message: ok ? "Mensagem copiada para a área de transferência." : "Não foi possível copiar. Tente novamente.",
+    });
+  }, [showToast]);
+
+  function buildForwardText(m) {
+    if (!m) return "";
+    const t = safeString(m?.texto);
+    if (t) return `[Encaminhado]\n${t}`;
+    const url = getMediaUrl(m?.url);
+    const nome = safeString(m?.nome_arquivo);
+    if (url) return `[Encaminhado]\n${nome ? `${nome}\n` : ""}${url}`;
+    return "[Encaminhado]\n(mídia)";
+  }
+
+  const handleForwardAction = useCallback((msg) => {
+    setForwardMsg(msg || null);
+    setForwardQuery("");
+    setForwardOpen(true);
+  }, []);
+
+  const handleDeleteAction = useCallback(async (msg) => {
+    if (!conversaId || !msg?.id) return;
+    const ok = window.confirm("Apagar esta mensagem do sistema? Essa ação não pode ser desfeita.");
+    if (!ok) return;
+    try {
+      await excluirMensagem(conversaId, msg.id);
+      showToast({ type: "success", title: "Apagada", message: "Mensagem removida." });
+    } catch (e) {
+      console.error("Erro ao excluir mensagem:", e);
+      showToast({ type: "error", title: "Falha ao apagar", message: "Não foi possível apagar a mensagem." });
+    }
+  }, [conversaId, showToast]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (!conversaId) return;
+    const ids = Array.from(selectedSet);
+    if (ids.length === 0) return;
+    const ok = window.confirm(`Apagar ${ids.length} mensagem(ns) selecionada(s) do sistema?`);
+    if (!ok) return;
+    try {
+      for (const id of ids) {
+        // eslint-disable-next-line no-await-in-loop
+        await excluirMensagem(conversaId, id);
+      }
+      showToast({ type: "success", title: "Apagadas", message: `${ids.length} mensagem(ns) removida(s).` });
+      exitSelectMode();
+    } catch (e) {
+      console.error("Erro ao excluir selecionadas:", e);
+      showToast({ type: "error", title: "Falha ao apagar", message: "Algumas mensagens podem não ter sido apagadas." });
+    }
+  }, [conversaId, selectedSet, exitSelectMode, showToast]);
+
+  const scrollToMsg = useCallback((msgId) => {
+    if (!msgId) return;
+    const el = document.querySelector(`[data-msg-id="${String(msgId)}"]`);
+    el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, []);
+
+  const closeForward = useCallback(() => {
+    setForwardOpen(false);
+    setForwardMsg(null);
+    setForwardQuery("");
+  }, []);
+
+  const confirmForwardTo = useCallback(async (destConversaId) => {
+    if (!destConversaId || !forwardMsg) return;
+    try {
+      await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+      showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
+      closeForward();
+    } catch (e) {
+      console.error("Erro ao encaminhar:", e);
+      showToast({ type: "error", title: "Falha ao encaminhar", message: "Não foi possível encaminhar a mensagem." });
+    }
+  }, [forwardMsg, showToast, closeForward]);
+
+  useEffect(() => {
+    if (showTimeline && conversaId) {
+      carregarAtendimentos(conversaId);
+    }
+  }, [showTimeline, conversaId, carregarAtendimentos]);
+
+  useEffect(() => {
+    clearPending();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversaId]);
+
+  const mensagensComSeparadores = useMemo(() => {
+    const list = Array.isArray(mensagens) ? mensagens : [];
+    const out = [];
+
+    for (let i = 0; i < list.length; i++) {
+      const msg = list[i];
+      const prev = list[i - 1];
+
+      if (i === 0 || !sameDay(prev?.criado_em, msg?.criado_em)) {
+        const label = formatDia(msg?.criado_em) || "Data";
+        out.push({ __type: "day", id: `day-${label}-${i}`, label });
+      }
+
+      out.push({ __type: "msg", ...msg });
+    }
+
+    return out;
+  }, [mensagens]);
+
+  const headerSubtitle = useMemo(() => {
+    const tel = normalizeTelefone(telefone);
+    if (tel.length >= 10) return `+${tel}`;
+    if (safeString(telefone)) return safeString(telefone);
+    return "Online";
+  }, [telefone]);
+
+  const setorAtual = conversa?.setor ?? conversa?.departamentos?.nome ?? null;
+
+  const carregarDepartamentos = useCallback(async () => {
+    try {
+      const { data } = await api.get("/dashboard/departamentos");
+      setDepartamentos(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Erro ao carregar departamentos:", e);
+      setDepartamentos([]);
+    }
+  }, []);
+
+  const handleOpenTransferirSetor = useCallback(() => {
+    setShowTransferirSetor(true);
+    carregarDepartamentos();
+  }, [carregarDepartamentos]);
+
+  const carregarRespostasSalvas = useCallback(async () => {
+    try {
+      setRespostasSalvasLoading(true);
+      const depId = conversa?.departamento_id || null;
+      const list = await cfg.getRespostasSalvas(depId);
+      setRespostasSalvas(Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.error("Erro ao carregar respostas salvas:", e);
+      setRespostasSalvas([]);
+    } finally {
+      setRespostasSalvasLoading(false);
+    }
+  }, [conversa?.departamento_id]);
+
+  const handleOpenRespostasSalvas = useCallback(() => {
+    setShowRespostasSalvas(true);
+    carregarRespostasSalvas();
+  }, [carregarRespostasSalvas]);
+
+  const handleInserirResposta = useCallback(
+    (texto) => {
+      if (!texto) return;
+      setTexto((prev) => (prev ? prev + "\n" + texto : texto));
+      setShowRespostasSalvas(false);
+      inputRef.current?.focus();
+    },
+    []
+  );
+
+  const handleTransferirSetor = useCallback(
+    async (departamentoId) => {
+      if (!conversaId || !departamentoId || transferirSetorLoading) return;
+      setTransferirSetorLoading(true);
+      try {
+        await api.put(`/chats/${conversaId}/departamento`, {
+          departamento_id: Number(departamentoId),
+        });
+        await refresh({ silent: true });
+        setShowTransferirSetor(false);
+      } catch (e) {
+        console.error("Erro ao transferir setor:", e);
+        showToast({
+          type: "error",
+          title: "Falha ao transferir setor",
+          message: e?.response?.data?.error || "Tente novamente.",
+        });
+      } finally {
+        setTransferirSetorLoading(false);
+      }
+    },
+    [conversaId, refresh, showToast, transferirSetorLoading]
+  );
+
+  const carregarTags = useCallback(
+    async (opts = {}) => {
+      const showError = opts.showErrorToUser !== false;
+      try {
+        setTagsLoading(true);
+        const data = await listarTags();
+        setAllTags(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Erro ao listar tags:", err);
+        if (showError) {
+          showToast({
+            type: "error",
+            title: "Falha ao carregar tags",
+            message: "Não foi possível carregar as tags disponíveis.",
+          });
+        }
+      } finally {
+        setTagsLoading(false);
+      }
+    },
+    [showToast]
+  );
+
+  const handleToggleTagPanel = useCallback(() => {
+    setTagsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        // ao abrir o painel, carrega tags e mostra toast só se falhar (usuário está vendo o painel)
+        carregarTags({ showErrorToUser: true });
+      }
+      return next;
+    });
+  }, [carregarTags]);
+
+  const handleToggleTag = useCallback(
+    async (tag) => {
+      if (!conversaId || !tag?.id) return;
+      const alreadySelected = selectedTagIds.includes(tag.id);
+      try {
+        setTagMutatingId(tag.id);
+        if (alreadySelected) {
+          await removerTagConversa(conversaId, tag.id);
+        } else {
+          await adicionarTagConversa(conversaId, tag.id);
+        }
+        await refresh({ silent: true });
+      } catch (err) {
+        console.error("Erro ao atualizar tag da conversa:", err);
+        showToast({
+          type: "error",
+          title: "Falha ao atualizar tag",
+          message: "Não foi possível atualizar as tags desta conversa.",
+        });
+      } finally {
+        setTagMutatingId(null);
+      }
+    },
+    [conversaId, selectedTagIds, refresh, showToast]
+  );
+
+  // Tags: só carregamos ao abrir o painel (evita toast "falha ao carregar" em background)
+  // handleToggleTagPanel já chama carregarTags() ao abrir quando allTags está vazio
+
+  if (loading) {
+    return (
+      <div className="wa-empty">
+        <div className="wa-empty-card wa-empty-card-loading">
+          <div className="wa-empty-title">Carregando conversa…</div>
+          <div className="wa-empty-skel">
+            <SkeletonLine w="70%" />
+            <SkeletonLine w="92%" />
+            <SkeletonLine w="84%" />
+            <SkeletonLine w="60%" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Selecionou uma conversa mas ainda carregando
+  if (selectedId && !conversa && loading) {
+    return (
+      <div className="wa-empty">
+        <div className="wa-empty-card wa-empty-card-loading">
+          <div className="wa-empty-title">Carregando conversa…</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Erro ao carregar ou conversa não encontrada — permite tentar de novo
+  if (selectedId && !conversa && !loading) {
+    return (
+      <div className="wa-empty">
+        <div className="wa-empty-card">
+          <div className="wa-empty-title">Não foi possível abrir a conversa</div>
+          <div className="wa-empty-sub">
+            {loadError || "Selecione outra na lista ou tente novamente."}
+          </div>
+          <button type="button" className="wa-btn wa-btn-primary" style={{ marginTop: 12 }} onClick={() => carregarConversa(selectedId)}>
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Nenhuma conversa selecionada
+  if (!conversa) {
+    return (
+      <div className="wa-empty">
+        <div className="wa-empty-card">
+          <div className="wa-empty-title">Selecione uma conversa</div>
+          <div className="wa-empty-sub">Abra uma conversa na lista para visualizar as mensagens.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wa-shell" onDragEnter={onDragEnter}>
+        <Toast toast={toast} onClose={() => setToast(null)} />
+
+        {dragOver ? (
+          <div
+            className="wa-dropOverlay"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            role="presentation"
+          >
+            <div className="wa-dropCard">
+              <div className="wa-dropTitle">Solte para anexar</div>
+              <div className="wa-dropSub">Envie imagens e arquivos diretamente na conversa.</div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* HEADER — nome do contato + status discreto + ações */}
+        <div className="wa-header">
+          <button
+            type="button"
+            className="wa-header-back"
+            onClick={() => setSelectedId(null)}
+            aria-label="Voltar para lista de conversas"
+            title="Voltar"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          </button>
+          <div className="wa-header-left">
+            <div className="wa-avatarWrap">
+              <div className="wa-avatar" aria-hidden="true">
+                {showAvatarImg ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="wa-avatar-img"
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarImgError(true)}
+                  />
+                ) : (
+                  avatar
+                )}
+              </div>
+            </div>
+            <div className="wa-header-info">
+              <div className="wa-header-nameRow">
+                <span className="wa-header-name" title={nome}>
+                  {nome}
+                </span>
+                <span
+                  className="wa-status-pill"
+                  style={{
+                    background: badge.bg,
+                    borderColor: badge.border,
+                    color: badge.color,
+                  }}
+                  title={badge.text}
+                >
+                  {badge.text}
+                </span>
+              </div>
+              {!isGroup && (setorAtual ? (
+                <div className="wa-header-setorRow">
+                  <span className="wa-header-setor">Setor: {setorAtual}</span>
+                  {podeGerenciarSetores && (
+                    <button
+                      type="button"
+                      className="wa-header-setorBtn"
+                      onClick={handleOpenTransferirSetor}
+                      title="Transferir para outro setor"
+                    >
+                      Transferir setor
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="wa-header-setorRow">
+                  <span className="wa-header-setor wa-muted">Sem setor</span>
+                  {podeGerenciarSetores && (
+                    <button
+                      type="button"
+                      className="wa-header-setorBtn"
+                      onClick={handleOpenTransferirSetor}
+                      title="Definir setor"
+                    >
+                      Definir setor
+                    </button>
+                  )}
+                </div>
+              ))}
+              {isGroup && (
+                <div className="wa-header-setorRow">
+                  <span className="wa-header-setor wa-muted">Grupo</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="wa-header-right">
+            {!isGroup && podeGerenciarTags && (
+              <button
+                type="button"
+                className={`wa-header-btn wa-tagsBtn ${tagsOpen ? "isActive" : ""}`}
+                onClick={handleToggleTagPanel}
+                disabled={!conversaId}
+                title="Tags do cliente"
+                aria-label="Tags do cliente"
+              >
+                <IconTag />
+              </button>
+            )}
+
+            <button
+              onClick={toggleTimeline}
+              title="Histórico de atendimentos (Ctrl/Cmd + H)"
+              className={`wa-header-btn ${showTimeline ? "isActive" : ""}`}
+              type="button"
+              aria-label="Histórico"
+            >
+              <IconClock />
+            </button>
+
+            <div className="wa-actions">
+              <AtendimentoActions />
+            </div>
+
+            <button
+              title="Mais opções"
+              className="wa-header-btn"
+              type="button"
+              onClick={() => setShowClienteSide(true)}
+              aria-label="Mais opções"
+            >
+              <IconMore />
+            </button>
+          </div>
+        </div>
+
+        {!isGroup && podeGerenciarSetores && showTransferirSetor && (
+          <div
+            className="wa-tagsPanel"
+            role="dialog"
+            aria-label="Transferir setor"
+            style={{ minWidth: 260 }}
+          >
+            <div className="wa-tagsPanel-head">
+              <span className="wa-tagsPanel-title">Transferir setor</span>
+              <button
+                type="button"
+                className="wa-iconBtn"
+                onClick={() => setShowTransferirSetor(false)}
+                title="Fechar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="wa-tagsPanel-body">
+              {departamentos.length === 0 ? (
+                <div className="wa-muted">Carregando setores...</div>
+              ) : (
+                <div className="wa-tagsList">
+                  {departamentos.map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      className="wa-tagItem"
+                      onClick={() => handleTransferirSetor(d.id)}
+                      disabled={transferirSetorLoading || Number(d.id) === Number(conversa?.departamento_id)}
+                    >
+                      {d.nome}
+                      {Number(d.id) === Number(conversa?.departamento_id) ? " (atual)" : ""}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {transferirSetorLoading && (
+                <div className="wa-muted" style={{ marginTop: 8 }}>Salvando...</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!isGroup && podeGerenciarTags && tagsOpen && (
+          <div className="wa-tagsPanel" role="dialog" aria-label="Tags da conversa">
+            <div className="wa-tagsPanel-head">
+              <span className="wa-tagsPanel-title">Tags do cliente</span>
+              <button
+                type="button"
+                className="wa-iconBtn"
+                onClick={handleToggleTagPanel}
+                title="Fechar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="wa-tagsPanel-body">
+              {tagsLoading && allTags.length === 0 ? (
+                <div className="wa-muted">Carregando tags...</div>
+              ) : allTags.length === 0 ? (
+                <div className="wa-muted">Nenhuma tag cadastrada.</div>
+              ) : (
+                <div className="wa-tagsList">
+                  {allTags.map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
+                    const busy = tagMutatingId === tag.id;
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        className={`wa-tagChip ${selected ? "isSelected" : ""}`}
+                        onClick={() => handleToggleTag(tag)}
+                        disabled={busy}
+                      >
+                        <span className="wa-tagChip-label">{tag.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <SidebarCliente
+          open={!!showClienteSide}
+          onClose={() => setShowClienteSide(false)}
+          conversa={conversa}
+          isGroup={isGroup}
+          tags={tags}
+          tempoSemResponder={tempoSemResponder}
+          onObservacaoSaved={refresh}
+        />
+
+        {/* TIMELINE */}
+        {showTimeline ? (
+          <div className="wa-timeline" role="region" aria-label="Historico do atendimento">
+            <div className="wa-timeline-head">
+              <div className="wa-timeline-headLeft">
+                <span className="wa-timeline-title">Histórico</span>
+                <span className="wa-timeline-sub">Eventos, transferências e notas desta conversa (Esc para fechar)</span>
+              </div>
+
+              <button onClick={handleCloseTimeline} className="wa-iconBtn" title="Fechar (Esc)" type="button">
+                <IconClose />
+              </button>
+            </div>
+
+            <div className="wa-timeline-body">
+              {atendimentosLoading ? (
+                <div className="wa-muted">Carregando...</div>
+              ) : (atendimentos || []).length === 0 ? (
+                <div className="wa-muted">Sem histórico ainda.</div>
+              ) : (
+                <div className="wa-timeline-list">
+                  {(atendimentos || []).map((a) => (
+                    <div key={a.id || `${a.acao}-${a.criado_em}`} className="wa-timeline-card">
+                      <div className="wa-timeline-row">
+                        <span className="wa-timeline-time">{formatHoraCurta(a.criado_em)}</span>
+                        <span className="wa-timeline-label">{timelineEventLabel(a)}</span>
+                      </div>
+                      {a.observacao ? (
+                        <div className="wa-timeline-nota">Nota interna: {a.observacao}</div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {/* MENSAGENS */}
+        <div
+          className="wa-messages"
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          onDragLeave={onDragLeave}
+          role="log"
+          aria-label="Mensagens"
+        >
+          {selectMode ? (
+            <div className="wa-selectBar" role="region" aria-label="Modo seleção">
+              <div className="wa-selectBar-left">
+                <button type="button" className="wa-btn wa-btn-ghost" onClick={exitSelectMode}>
+                  Cancelar
+                </button>
+                <span className="wa-selectBar-count">{selectedSet.size} selecionada(s)</span>
+              </div>
+              <button
+                type="button"
+                className="wa-btn wa-btn-danger"
+                onClick={handleDeleteSelected}
+                disabled={selectedSet.size === 0}
+              >
+                Apagar
+              </button>
+            </div>
+          ) : pinnedTop ? (
+            <div className="wa-pinBar" role="button" tabIndex={0} onClick={() => scrollToMsg(pinnedTop.id)}>
+              <span className="wa-pinBar-ic" aria-hidden="true">📌</span>
+              <span className="wa-pinBar-text">Fixada: {snippetFromMsg(pinnedTop)}</span>
+              <span className="wa-pinBar-hint">Ver</span>
+            </div>
+          ) : null}
+
+          {mensagensComSeparadores.length === 0 ? (
+            <div className="wa-messages-empty">
+              <div className="wa-messages-emptyCard">Sem mensagens ainda.</div>
+            </div>
+          ) : (
+            mensagensComSeparadores.map((item) => {
+              if (item.__type === "day") return <DaySeparator key={item.id} label={item.label} />;
+              return (
+                <Bubble
+                  key={item.id}
+                  msg={item}
+                  showRemetente={isGroup}
+                  peerAvatarUrl={avatarUrl}
+                  peerName={nome}
+                  selectMode={selectMode}
+                  selected={selectedSet.has(String(item.id))}
+                  onToggleSelected={toggleSelected}
+                  onInfo={handleInfoAction}
+                  onReply={handleReplyAction}
+                  onCopy={handleCopyResult}
+                  onForward={handleForwardAction}
+                  onTogglePin={togglePin}
+                  onToggleStar={toggleStar}
+                  onStartSelect={startSelect}
+                  onDelete={handleDeleteAction}
+                  isPinned={pinnedSet.has(String(item.id))}
+                  isStarred={starredSet.has(String(item.id))}
+                />
+              );
+            })
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* PREVIEW / PENDENCIA DE ARQUIVO */}
+        {pendingFile ? (
+          <div className="wa-pending">
+            <div className="wa-pending-card">
+              <div className="wa-pending-left">
+                {pendingPreview ? (
+                  <img src={pendingPreview} alt="preview" className="wa-pending-img" />
+                ) : (
+                  <div className="wa-pending-fileIcon" aria-hidden="true">
+                    📎
+                  </div>
+                )}
+
+                <div className="wa-pending-meta">
+                  <div className="wa-pending-name">{pendingFile.name}</div>
+                  <div className="wa-pending-sub">
+                    {isImageFile(pendingFile) ? "Imagem pronta para envio" : isAudioFile(pendingFile) ? "Áudio pronto para envio" : "Arquivo pronto para envio"}
+                    <span className="wa-dotSep">•</span>
+                    {(pendingFile.size / 1024 / 1024).toFixed(2)} MB
+                  </div>
+                </div>
+              </div>
+
+              <div className="wa-pending-right">
+                <button type="button" className="wa-btn wa-btn-ghost" onClick={clearPending} disabled={sending}>
+                  Cancelar
+                </button>
+
+                <button type="button" className="wa-btn wa-btn-primary" onClick={handleConfirmSendFile} disabled={sending}>
+                  {sending ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {showRespostasSalvas && (
+          <div
+            className="wa-tagsPanel"
+            role="dialog"
+            aria-label="Respostas salvas"
+            style={{ bottom: "100%", left: 0, right: 0, maxHeight: 220 }}
+          >
+            <div className="wa-tagsPanel-head">
+              <span className="wa-tagsPanel-title">Respostas rápidas</span>
+              <button
+                type="button"
+                className="wa-iconBtn"
+                onClick={() => setShowRespostasSalvas(false)}
+                title="Fechar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="wa-tagsPanel-body" style={{ maxHeight: 160, overflowY: "auto" }}>
+              {respostasSalvasLoading ? (
+                <div className="wa-muted">Carregando...</div>
+              ) : respostasSalvas.length === 0 ? (
+                <div className="wa-muted">Nenhuma resposta salva. Configure em Configurações &gt; Respostas salvas.</div>
+              ) : (
+                <div className="wa-tagsList">
+                  {respostasSalvas.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className="wa-tagItem"
+                      onClick={() => handleInserirResposta(r.texto)}
+                      title={r.titulo}
+                    >
+                      <strong>{r.titulo}</strong>
+                      <span className="wa-muted" style={{ fontSize: 12, marginTop: 2, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {String(r.texto || "").slice(0, 60)}
+                        {(r.texto || "").length > 60 ? "…" : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {forwardOpen && forwardMsg && (
+          <div
+            className="wa-tagsPanel"
+            role="dialog"
+            aria-label="Encaminhar mensagem"
+            style={{ bottom: "100%", left: 0, right: 0, maxHeight: 300 }}
+          >
+            <div className="wa-tagsPanel-head">
+              <span className="wa-tagsPanel-title">Encaminhar</span>
+              <button
+                type="button"
+                className="wa-iconBtn"
+                onClick={closeForward}
+                title="Fechar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="wa-tagsPanel-body" style={{ maxHeight: 260, overflowY: "auto" }}>
+              <div className="wa-forwardHint">
+                <div className="wa-forwardPreview">{snippetFromMsg(forwardMsg)}</div>
+                <div className="wa-forwardSub">Escolha a conversa para encaminhar (Esc para fechar)</div>
+              </div>
+
+              <input
+                className="wa-input wa-forwardSearch"
+                value={forwardQuery}
+                onChange={(e) => setForwardQuery(e.target.value)}
+                placeholder="Buscar conversa..."
+                aria-label="Buscar conversa"
+              />
+
+              {forwardCandidates.length === 0 ? (
+                <div className="wa-muted" style={{ padding: "10px 4px" }}>Nenhuma conversa encontrada.</div>
+              ) : (
+                <div className="wa-forwardList">
+                  {forwardCandidates.map((c) => {
+                    const n = safeString(c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone) || "Conversa";
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="wa-forwardItem"
+                        onClick={() => confirmForwardTo(c.id)}
+                        title={`Encaminhar para ${n}`}
+                      >
+                        <div className="wa-forwardItem-name">{n}</div>
+                        {c?.telefone ? <div className="wa-forwardItem-sub">{String(c.telefone)}</div> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {replyTo && !isRecording ? (
+          <div className="wa-replyBar" role="region" aria-label="Respondendo">
+            <div className="wa-replyBar-left">
+              <div className="wa-replyBar-title">Respondendo</div>
+              <div className="wa-replyBar-text">{snippetFromMsg(replyTo)}</div>
+            </div>
+            <button
+              type="button"
+              className="wa-iconBtn"
+              onClick={() => setReplyTo(null)}
+              title="Cancelar resposta"
+              aria-label="Cancelar resposta"
+              disabled={sending}
+            >
+              <IconClose />
+            </button>
+          </div>
+        ) : null}
+
+        {msgInfoOpen && msgInfo ? createPortal(
+          <div className="wa-modalOverlay" role="dialog" aria-label="Dados da mensagem" onMouseDown={() => { setMsgInfoOpen(false); setMsgInfo(null); }}>
+            <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Dados da mensagem</div>
+                <button type="button" className="wa-iconBtn" onClick={() => { setMsgInfoOpen(false); setMsgInfo(null); }} title="Fechar">
+                  <IconClose />
+                </button>
+              </div>
+
+              <div className="wa-modal-body">
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Conteúdo</span>
+                  <span className="wa-modal-value">{snippetFromMsg(msgInfo)}</span>
+                </div>
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Horário</span>
+                  <span className="wa-modal-value">{formatDia(msgInfo?.criado_em)} {formatHora(msgInfo?.criado_em)}</span>
+                </div>
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Status</span>
+                  <span className="wa-modal-value">{safeString(msgInfo?.status_mensagem || msgInfo?.status) || "enviada"}</span>
+                </div>
+                {safeString(msgInfo?.whatsapp_id) ? (
+                  <div className="wa-modal-row">
+                    <span className="wa-modal-label">ID WhatsApp</span>
+                    <span className="wa-modal-value wa-mono">{String(msgInfo.whatsapp_id)}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
+        <div className="wa-footer">
+          {isRecording ? (
+            <div className="wa-recording-bar">
+              <button
+                type="button"
+                className="wa-recording-cancel"
+                onClick={handleCancelRecording}
+                title="Cancelar"
+                aria-label="Cancelar gravação"
+              >
+                <IconClose />
+              </button>
+              <div className="wa-recording-timer">
+                <span className="wa-recording-dot" aria-hidden="true" />
+                <span className="wa-recording-time">
+                  {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, "0")}
+                </span>
+              </div>
+              <span className="wa-recording-hint">Toque para enviar</span>
+              <button
+                type="button"
+                className="wa-recording-send"
+                onClick={handleStopRecording}
+                title="Enviar áudio"
+                aria-label="Enviar áudio"
+              >
+                <IconSend />
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handleOpenRespostasSalvas}
+                className="wa-iconBtn"
+                title="Respostas rápidas"
+                type="button"
+                disabled={sending || !conversaId}
+                aria-label="Respostas rápidas"
+              >
+                <IconClipboard />
+              </button>
+              <button
+                onClick={openFilePicker}
+                className="wa-iconBtn"
+                title="Anexar arquivo ou áudio"
+                type="button"
+                disabled={sending || !conversaId}
+                aria-label="Anexar"
+              >
+                <IconAttach />
+              </button>
+              <button
+                ref={fileInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+                onChange={handleFileInputChange}
+              />
+
+              <input
+                ref={inputRef}
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                placeholder="Digite uma mensagem"
+                className="wa-input"
+                onKeyDown={handleKeyDownInput}
+                disabled={sending || !conversaId}
+                aria-label="Digite sua resposta. Enter para enviar, Esc para fechar painéis."
+              />
+
+              <button
+                onClick={handleEnviar}
+                disabled={sending || !safeString(texto) || !conversaId}
+                className="wa-sendBtn"
+                title="Enviar"
+                type="button"
+              >
+                {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* ESC handler central */}
+        <button
+          type="button"
+          className="wa-escCatcher"
+          aria-hidden="true"
+          tabIndex={-1}
+          onClick={onEscape}
+          style={{ display: "none" }}
+        />
+    </div>
+  );
+}

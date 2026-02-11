@@ -1,0 +1,18 @@
+:root {
+  --green-dark: #0F6B5C;
+  --green: #22C55E;
+  --green-soft: #DFF3EC;
+
+  --bg: #F5F4F2;
+  --chip: #D6D2CC;
+  --chip-text: #555;
+
+  --input-bg: #E5E1DB;
+
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+
+  --tag-bg: #E9E5DF;
+
+  --border-radius-lg: 14px;
+}
