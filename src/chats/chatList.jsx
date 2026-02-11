@@ -91,7 +91,9 @@ function getLastMessage(chat) {
 function getMediaUrl(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const base = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "");
+  const base =
+    import.meta.env.VITE_API_URL ||
+    "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io";
   return base.replace(/\/$/, "") + (url.startsWith("/") ? url : "/" + url);
 }
 

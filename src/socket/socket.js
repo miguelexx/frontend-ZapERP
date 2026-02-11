@@ -37,7 +37,7 @@ export function initSocket(token) {
 
   const base =
     import.meta.env.VITE_API_URL ||
-    (import.meta.env.DEV ? "http://localhost:3000" : window.location.origin)
+    "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io"
 
   socket = io(base, {
     auth: { token },

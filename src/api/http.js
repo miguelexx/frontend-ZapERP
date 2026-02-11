@@ -1,8 +1,9 @@
 import axios from "axios"
 
-// Em PROD (build servido pelo backend), use mesma origem ("") por padrão.
-// Em DEV, mantenha localhost:3000 para não depender de proxy.
-const baseURL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "")
+// Se `VITE_API_URL` não existir, usamos um fallback fixo (ambiente externo/preview).
+// Obs.: `.env` só é lido pelo Vite ao iniciar (reinicie o `npm run dev` após alterar).
+const FALLBACK_API_URL = "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io"
+const baseURL = import.meta.env.VITE_API_URL || FALLBACK_API_URL
 
 const api = axios.create({
   baseURL,
