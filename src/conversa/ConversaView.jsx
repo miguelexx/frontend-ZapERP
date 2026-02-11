@@ -9,6 +9,7 @@ import { useAuthStore } from "../auth/authStore";
 import { canGerenciarSetores, canTag } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
+import { getApiBaseUrl } from "../api/baseUrl";
 import {
   listarTags,
   adicionarTagConversa,
@@ -171,9 +172,7 @@ function isAudioFile(file) {
 function getMediaUrl(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const base =
-    import.meta.env.VITE_API_URL ||
-    "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io";
+  const base = getApiBaseUrl();
   return base.replace(/\/$/, "") + (url.startsWith("/") ? url : "/" + url);
 }
 

@@ -2,6 +2,7 @@ import { io } from "socket.io-client"
 import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
+import { getApiBaseUrl } from "../api/baseUrl"
 
 const audio = new Audio("/notification.mp3")
 audio.volume = 0.6
@@ -35,9 +36,7 @@ let socket = null
 export function initSocket(token) {
   if (socket) return socket
 
-  const base =
-    import.meta.env.VITE_API_URL ||
-    "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io"
+  const base = getApiBaseUrl()
 
   socket = io(base, {
     auth: { token },

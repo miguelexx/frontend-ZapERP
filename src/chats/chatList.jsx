@@ -7,6 +7,7 @@ import { listarTags } from "../api/tagService";
 import { useAuthStore } from "../auth/authStore";
 import { isGroupConversation } from "../utils/conversaUtils";
 import api from "../api/http";
+import { getApiBaseUrl } from "../api/baseUrl";
 import { useNavigate } from "react-router-dom";
 import "./chatList.css";
 
@@ -91,9 +92,7 @@ function getLastMessage(chat) {
 function getMediaUrl(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const base =
-    import.meta.env.VITE_API_URL ||
-    "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io";
+  const base = getApiBaseUrl();
   return base.replace(/\/$/, "") + (url.startsWith("/") ? url : "/" + url);
 }
 

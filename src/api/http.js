@@ -1,9 +1,7 @@
 import axios from "axios"
+import { getApiBaseUrl } from "./baseUrl"
 
-// Se `VITE_API_URL` não existir, usamos um fallback fixo (ambiente externo/preview).
-// Obs.: `.env` só é lido pelo Vite ao iniciar (reinicie o `npm run dev` após alterar).
-const FALLBACK_API_URL = "http://wksos40okks4cccoogwwc8co.72.60.147.139.sslip.io"
-const baseURL = import.meta.env.VITE_API_URL || FALLBACK_API_URL
+const baseURL = getApiBaseUrl()
 
 const api = axios.create({
   baseURL,
