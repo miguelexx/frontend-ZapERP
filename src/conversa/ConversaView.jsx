@@ -256,6 +256,23 @@ function IconCamera(props) {
   );
 }
 
+function IconPlay(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M8 5v14l12-7-12-7Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconPause(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M7 5h3v14H7z" fill="currentColor" stroke="none" />
+      <path d="M14 5h3v14h-3z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function IconClose(props) {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
@@ -339,9 +356,42 @@ function MessageTicks({ msg }) {
     rawStatus === "sent" ||
     hasDeliveredAt;
 
+  // Ticks finos e minimalistas (estilo WhatsApp Web)
+  const TickSvg = ({ double }) => (
+    <svg
+      className="wa-ticksSvg"
+      viewBox="0 0 18 12"
+      width="18"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {/* primeiro tick */}
+      <path
+        d="M2.2 6.2 5.2 9.1 10.4 3.1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.55"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* segundo tick (bem colado) */}
+      {double ? (
+        <path
+          d="M7.0 6.2 10.0 9.1 15.2 3.1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.55"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
+    </svg>
+  );
+
   return (
     <span className={`wa-ticks ${isDelivered ? "isDelivered" : ""} ${isRead ? "isRead" : ""}`}>
-      {isDelivered ? "✓✓" : "✓"}
+      <TickSvg double={isDelivered} />
     </span>
   );
 }
@@ -435,6 +485,8 @@ function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
   const [playing, setPlaying] = useState(false);
   const [dur, setDur] = useState(0);
   const [cur, setCur] = useState(0);
+  const rafRef = useRef(null);
+  const rafLastRef = useRef(0);
   const bars = useMemo(() => makeWaveBars(34, seedFromAny(msgKey)), [msgKey]);
 
   useEffect(() => {
@@ -467,6 +519,28 @@ function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
     };
   }, [src]);
 
+  // Progresso mais fluido (rAF com throttle leve) enquanto toca
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !playing) return;
+
+    const tick = (t) => {
+      if (!audioRef.current) return;
+      const last = rafLastRef.current || 0;
+      if (!last || t - last >= 66) {
+        rafLastRef.current = t;
+        setCur(Number(audioRef.current.currentTime || 0));
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      rafLastRef.current = 0;
+    };
+  }, [playing]);
+
   const toggle = useCallback(async () => {
     const el = audioRef.current;
     if (!el) return;
@@ -498,29 +572,44 @@ function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
   const frac = dur > 0 ? clamp(cur / dur, 0, 1) : 0;
   const playedBars = Math.round(frac * bars.length);
   const remaining = dur > 0 ? Math.max(0, dur - cur) : 0;
-  const durLabel = formatMmSs(playing ? cur : dur || 0);
+  const pLabel = `${Math.round(frac * 100)}%`;
 
   return (
-    <div className="wa-audioPlayer">
-      <button type="button" className={`wa-audioPlayBtn ${playing ? "isPlaying" : ""}`} onClick={toggle} aria-label={playing ? "Pausar áudio" : "Tocar áudio"}>
-        {playing ? "❚❚" : "▶"}
+    <div className={`wa-audioPlayer ${playing ? "isPlaying" : ""}`}>
+      <button
+        type="button"
+        className={`wa-audioPlayBtn ${playing ? "isPlaying" : ""}`}
+        onClick={toggle}
+        aria-label={playing ? "Pausar áudio" : "Tocar áudio"}
+      >
+        <span className="wa-audioPlayIcon wa-audioPlayIcon--play" aria-hidden="true">
+          <IconPlay />
+        </span>
+        <span className="wa-audioPlayIcon wa-audioPlayIcon--pause" aria-hidden="true">
+          <IconPause />
+        </span>
       </button>
       <div className="wa-audioMid">
-        <div className="wa-audioWave" role="slider" aria-label="Progresso do áudio" onClick={seek}>
+        <div
+          className="wa-audioWave"
+          role="slider"
+          aria-label="Progresso do áudio"
+          onClick={seek}
+          style={{ "--p": pLabel }}
+        >
           {bars.map((v, i) => (
             <div
               key={i}
               className={`wa-audioBar ${i < playedBars ? "isPlayed" : ""}`}
-              style={{ height: `${Math.round(5 + v * 14)}px` }}
+              style={{ height: `${Math.round(6 + v * 14)}px`, "--i": i }}
             />
           ))}
           <div className="wa-audioDot" style={{ left: `${Math.round(frac * 100)}%` }} aria-hidden="true" />
         </div>
         <div className="wa-audioSub">
-          <span className="wa-audioDur" title={`${formatMmSs(cur)} / ${formatMmSs(dur || 0)}`}>
-            {durLabel}
-          </span>
-          {playing ? <span className="wa-audioRemain">-{formatMmSs(remaining)}</span> : null}
+          <span className="wa-audioTime wa-audioTime--cur" title={formatMmSs(cur)}>{formatMmSs(cur)}</span>
+          <span className="wa-audioTime wa-audioTime--dur" title={formatMmSs(dur || 0)}>{formatMmSs(dur || 0)}</span>
+          {playing ? <span className="wa-audioRemain" title={`Restante ${formatMmSs(remaining)}`}>-{formatMmSs(remaining)}</span> : null}
         </div>
       </div>
       {avatarUrl ? (
@@ -1563,7 +1652,7 @@ export default function ConversaView() {
 
     setSending(true);
     try {
-      const res = await enviarMensagem(conversaId, t);
+      const res = await enviarMensagem(conversaId, t, replyMeta || undefined);
       setTexto("");
       setReplyTo(null);
       if (res?.mensagem) {

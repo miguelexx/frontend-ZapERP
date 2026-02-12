@@ -29,8 +29,10 @@ export async function fetchConversa(conversaId) {
   return getChatById(conversaId);
 }
 
-export async function enviarMensagem(conversaId, texto) {
-  const { data } = await api.post(`/chats/${conversaId}/mensagens`, { texto });
+export async function enviarMensagem(conversaId, texto, reply_meta) {
+  const body = { texto };
+  if (reply_meta && typeof reply_meta === "object") body.reply_meta = reply_meta;
+  const { data } = await api.post(`/chats/${conversaId}/mensagens`, body);
   return data;
 }
 
