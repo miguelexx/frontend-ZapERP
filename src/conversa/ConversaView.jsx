@@ -224,6 +224,28 @@ function IconSend(props) {
   );
 }
 
+function IconMic(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" />
+      <path d="M19 11a7 7 0 0 1-14 0" />
+      <path d="M12 18v3" />
+      <path d="M8 21h8" />
+    </svg>
+  );
+}
+
+function IconEmoji(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.5 14.5s1.5 2 3.5 2 3.5-2 3.5-2" />
+      <path d="M9 10h.01" />
+      <path d="M15 10h.01" />
+    </svg>
+  );
+}
+
 function IconClose(props) {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
@@ -389,6 +411,12 @@ function makeWaveBars(count, seed) {
   }
   return out;
 }
+
+const __WA_EMOJIS = [
+  "😀","😁","😂","🤣","😊","😍","😘","😅","😎","🙂","🤝","🙏","👏","🔥","✅","❌","⚠️","⭐","🎉","💡","📎","📌","📞","🎧",
+  "👍","👎","👌","🤌","✌️","🤞","🫶","💪","🧠","🕒","📍","📅","💬","📷","🎥","🎙️","🎵","🗂️","🧾",
+  "❤️","💛","💚","💙","🤍","🖤","💔",
+];
 
 let __waCurrentAudio = null;
 
@@ -984,6 +1012,11 @@ export default function ConversaView() {
   const [showTimeline, setShowTimeline] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiQuery, setEmojiQuery] = useState("");
+  const emojiPanelRef = useRef(null);
+  const emojiSearchRef = useRef(null);
+
   const [toast, setToast] = useState(null);
   const toastT = useStableTimeout();
 
@@ -1160,6 +1193,43 @@ export default function ConversaView() {
     if (!conversaId) return;
     fileInputRef.current?.click();
   }, [conversaId]);
+
+  const insertEmoji = useCallback((emoji) => {
+    const em = String(emoji || "");
+    if (!em) return;
+    const el = inputRef.current;
+    if (!el) {
+      setTexto((prev) => (prev ? prev + em : em));
+      return;
+    }
+
+    const cur = String(texto || "");
+    const start = typeof el.selectionStart === "number" ? el.selectionStart : cur.length;
+    const end = typeof el.selectionEnd === "number" ? el.selectionEnd : cur.length;
+    const next = cur.slice(0, start) + em + cur.slice(end);
+    setTexto(next);
+    requestAnimationFrame(() => {
+      try {
+        el.focus();
+        const pos = start + em.length;
+        el.setSelectionRange?.(pos, pos);
+      } catch {}
+    });
+  }, [texto]);
+
+  // Fecha o painel de emoji ao clicar fora e foca busca ao abrir
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const onDoc = (e) => {
+      const panel = emojiPanelRef.current;
+      if (panel && panel.contains(e.target)) return;
+      setEmojiOpen(false);
+      setEmojiQuery("");
+    };
+    document.addEventListener("mousedown", onDoc);
+    requestAnimationFrame(() => emojiSearchRef.current?.focus?.());
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [emojiOpen]);
 
   const handleDropFile = useCallback((file) => {
     if (!file) return;
@@ -1374,6 +1444,10 @@ export default function ConversaView() {
     if (isRecording) handleCancelRecording();
     if (showTimeline) setShowTimeline(false);
     if (tagsOpen) setTagsOpen(false);
+    if (emojiOpen) {
+      setEmojiOpen(false);
+      setEmojiQuery("");
+    }
     if (pendingFile) clearPending();
     if (showClienteSide) setShowClienteSide(false);
     if (showRespostasSalvas) setShowRespostasSalvas(false);
@@ -1397,6 +1471,7 @@ export default function ConversaView() {
     handleCancelRecording,
     showTimeline,
     tagsOpen,
+    emojiOpen,
     pendingFile,
     clearPending,
     showClienteSide,
@@ -2371,6 +2446,16 @@ export default function ConversaView() {
           ) : (
             <>
               <button
+                type="button"
+                className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
+                onClick={() => setEmojiOpen((v) => !v)}
+                title="Emojis"
+                aria-label="Emojis"
+                disabled={sending || !conversaId}
+              >
+                <IconEmoji />
+              </button>
+              <button
                 onClick={handleOpenRespostasSalvas}
                 className="wa-iconBtn"
                 title="Respostas rápidas"
@@ -2390,7 +2475,7 @@ export default function ConversaView() {
               >
                 <IconAttach />
               </button>
-              <button
+              <input
                 ref={fileInputRef}
                 type="file"
                 style={{ display: "none" }}
@@ -2409,18 +2494,82 @@ export default function ConversaView() {
                 aria-label="Digite sua resposta. Enter para enviar, Esc para fechar painéis."
               />
 
-              <button
-                onClick={handleEnviar}
-                disabled={sending || !safeString(texto) || !conversaId}
-                className="wa-sendBtn"
-                title="Enviar"
-                type="button"
-              >
-                {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
-              </button>
+              {safeString(texto) ? (
+                <button
+                  onClick={handleEnviar}
+                  disabled={sending || !safeString(texto) || !conversaId}
+                  className="wa-sendBtn"
+                  title="Enviar"
+                  type="button"
+                >
+                  {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartRecording}
+                  disabled={sending || !conversaId}
+                  className="wa-micBtn"
+                  title="Gravar áudio"
+                  type="button"
+                  aria-label="Gravar áudio"
+                >
+                  <IconMic />
+                </button>
+              )}
             </>
           )}
         </div>
+
+        {/* Emoji picker — simples e leve (sem libs) */}
+        {!isRecording && emojiOpen ? createPortal(
+          <div
+            ref={emojiPanelRef}
+            className="wa-emojiPanel"
+            role="dialog"
+            aria-label="Selecionar emoji"
+          >
+            <div className="wa-emojiHead">
+              <input
+                ref={emojiSearchRef}
+                className="wa-emojiSearch"
+                value={emojiQuery}
+                onChange={(e) => setEmojiQuery(e.target.value)}
+                placeholder="Buscar emoji..."
+                aria-label="Buscar emoji"
+              />
+              <button
+                type="button"
+                className="wa-iconBtn"
+                onClick={() => { setEmojiOpen(false); setEmojiQuery(""); }}
+                title="Fechar"
+                aria-label="Fechar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="wa-emojiGrid" role="list">
+              {__WA_EMOJIS
+                .filter((e) => !safeString(emojiQuery) || e.includes(safeString(emojiQuery)))
+                .map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    className="wa-emojiBtn"
+                    onClick={() => insertEmoji(e)}
+                    role="listitem"
+                    aria-label={`Emoji ${e}`}
+                    title={e}
+                  >
+                    {e}
+                  </button>
+                ))}
+            </div>
+            <div className="wa-emojiFoot">
+              <span className="wa-muted">Dica: clique para inserir no cursor.</span>
+            </div>
+          </div>,
+          document.body
+        ) : null}
 
         {/* ESC handler central */}
         <button

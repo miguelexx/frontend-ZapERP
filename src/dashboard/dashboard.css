@@ -397,6 +397,10 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .dash-table th,
@@ -408,8 +412,16 @@
 
 .dash-table th {
   font-weight: 600;
-  color: var(--dash-muted);
-  background: var(--dash-bg);
+  color: #334155;
+  background: #f8fafc;
+}
+
+.dash-table tbody tr:nth-child(even) td{
+  background: #fcfcfd;
+}
+
+.dash-table tbody tr:hover td{
+  background: #f1f5f9;
 }
 
 .dash-table-empty {
@@ -417,6 +429,42 @@
   font-style: italic;
   text-align: center;
   padding: 24px;
+}
+
+/* Banner (sucesso/erro) — usado em SLA e Respostas */
+.dash-banner{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.dash-banner--err{
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+.dash-banner--ok{
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+.dash-banner-close{
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  color: inherit;
+  opacity: .9;
+}
+.dash-banner-close:hover{
+  opacity: 1;
 }
 
 /* Respostas salvas */

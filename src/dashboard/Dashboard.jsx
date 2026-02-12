@@ -347,19 +347,28 @@ function DashboardRespostasSalvas() {
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ titulo: '', texto: '', departamento_id: '' })
   const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+  const [ok, setOk] = useState('')
 
   async function loadDept() {
-    const list = await dashboardApi.getDepartamentos()
-    setDepartamentos(list || [])
+    try {
+      const list = await dashboardApi.getDepartamentos()
+      setDepartamentos(list || [])
+    } catch (e) {
+      setDepartamentos([])
+      setErro('Erro ao carregar setores.')
+    }
   }
 
   async function loadRespostas() {
     setLoading(true)
+    setErro('')
     try {
       const list = await dashboardApi.getRespostasSalvas(departamentoId || null)
       setRespostas(list)
     } catch (e) {
-      console.error(e)
+      setRespostas([])
+      setErro(e?.response?.data?.error || 'Erro ao carregar respostas salvas.')
     } finally {
       setLoading(false)
     }
@@ -377,6 +386,8 @@ function DashboardRespostasSalvas() {
     e.preventDefault()
     if (!form.titulo?.trim() || !form.texto?.trim()) return
     setSaving(true)
+    setErro('')
+    setOk('')
     try {
       await dashboardApi.criarRespostaSalva({
         titulo: form.titulo.trim(),
@@ -384,9 +395,10 @@ function DashboardRespostasSalvas() {
         departamento_id: form.departamento_id || null,
       })
       setForm({ titulo: '', texto: '', departamento_id: '' })
+      setOk('Resposta salva criada com sucesso.')
       loadRespostas()
     } catch (err) {
-      console.error(err)
+      setErro(err?.response?.data?.error || 'Erro ao salvar resposta.')
     } finally {
       setSaving(false)
     }
@@ -394,6 +406,14 @@ function DashboardRespostasSalvas() {
 
   return (
     <div className="dash-respostas">
+      {(erro || ok) && (
+        <div className={`dash-banner ${ok ? 'dash-banner--ok' : 'dash-banner--err'}`} role="alert">
+          <span>{erro || ok}</span>
+          <button type="button" className="dash-banner-close" onClick={() => { setErro(''); setOk('') }} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+      )}
       <div className="dash-respostas-filters">
         <label>
           Setor (departamento):
@@ -481,15 +501,18 @@ function DashboardSLA({ navigate }) {
   const [loadingAlertas, setLoadingAlertas] = useState(true)
   const [saving, setSaving] = useState(false)
   const [minutosInput, setMinutosInput] = useState('')
+  const [erro, setErro] = useState('')
+  const [ok, setOk] = useState('')
 
   async function loadConfig() {
     setLoadingConfig(true)
+    setErro('')
     try {
       const c = await dashboardApi.getSlaConfig()
       setConfig(c)
       setMinutosInput(String(c.sla_minutos_sem_resposta ?? 30))
     } catch (e) {
-      console.error(e)
+      setErro(e?.response?.data?.error || 'Erro ao carregar configuração de SLA.')
     } finally {
       setLoadingConfig(false)
     }
@@ -497,11 +520,12 @@ function DashboardSLA({ navigate }) {
 
   async function loadAlertas() {
     setLoadingAlertas(true)
+    setErro('')
     try {
       const a = await dashboardApi.getSlaAlertas()
       setAlertas(a)
     } catch (e) {
-      console.error(e)
+      setErro(e?.response?.data?.error || 'Erro ao carregar alertas de SLA.')
     } finally {
       setLoadingAlertas(false)
     }
@@ -520,12 +544,15 @@ function DashboardSLA({ navigate }) {
   async function salvarSla() {
     const min = Math.max(1, Math.min(1440, parseInt(minutosInput, 10) || 30))
     setSaving(true)
+    setErro('')
+    setOk('')
     try {
       await dashboardApi.setSlaConfig(min)
       setConfig({ sla_minutos_sem_resposta: min })
       loadAlertas()
+      setOk('Configuração de SLA salva.')
     } catch (e) {
-      console.error(e)
+      setErro(e?.response?.data?.error || 'Erro ao salvar configuração de SLA.')
     } finally {
       setSaving(false)
     }
@@ -537,6 +564,14 @@ function DashboardSLA({ navigate }) {
 
   return (
     <div className="dash-sla">
+      {(erro || ok) && (
+        <div className={`dash-banner ${ok ? 'dash-banner--ok' : 'dash-banner--err'}`} role="alert">
+          <span>{erro || ok}</span>
+          <button type="button" className="dash-banner-close" onClick={() => { setErro(''); setOk('') }} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+      )}
       <section className="dash-sla-config dash-card">
         <h4>Configuração do SLA</h4>
         <p className="dash-muted">

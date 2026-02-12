@@ -6,6 +6,7 @@ import { useConversaStore } from "../conversa/conversaStore";
 import api from "../api/http";
 import * as cfg from "../api/configService";
 import * as chatService from "../chats/chatService";
+import { canAcessarConfiguracoes } from "../auth/permissions";
 import "./IA.css";
 import "./Configuracoes.css";
 
@@ -36,7 +37,7 @@ export default function Configuracoes() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
-  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
+  const isAdmin = canAcessarConfiguracoes(user);
 
   const tabFromUrl = searchParams.get("tab");
   const [tab, setTab] = useState(tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : "geral");
@@ -222,12 +223,19 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh }) {
   const [v, setV] = useState(empresa || {});
   useEffect(() => setV(empresa || {}), [empresa]);
   const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null); // { type: "ok"|"err", text }
 
   if (!empresa) return <p className="ia-muted">Carregando...</p>;
 
   return (
     <div className="ia-section">
       <h4>Dados da empresa</h4>
+      {msg ? (
+        <div className={`ia-error-banner ${msg.type === "ok" ? "is-ok" : ""}`} role="alert" style={{ marginBottom: 12 }}>
+          {msg.text}
+          <button type="button" onClick={() => setMsg(null)}>×</button>
+        </div>
+      ) : null}
       <div className="ia-field">
         <label>Nome</label>
         <input
@@ -332,7 +340,18 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh }) {
       <div className="ia-btn-row">
         <button
           className="ia-btn ia-btn--primary"
-          onClick={async () => { setSaving(true); await onSave(v); setSaving(false); }}
+          onClick={async () => {
+            setSaving(true);
+            setMsg(null);
+            try {
+              await onSave(v);
+              setMsg({ type: "ok", text: "Configurações salvas com sucesso." });
+            } catch (e) {
+              setMsg({ type: "err", text: e?.response?.data?.error || "Erro ao salvar configurações." });
+            } finally {
+              setSaving(false);
+            }
+          }}
           disabled={saving}
         >
           {saving ? "Salvando..." : "Salvar"}
@@ -544,17 +563,22 @@ function SecaoTags({ tags, onRefresh }) {
   const [nome, setNome] = useState("");
   const [cor, setCor] = useState("#6366f1");
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [okMsg, setOkMsg] = useState(null);
 
   const handleCriar = async (e) => {
     e.preventDefault();
     if (!nome.trim()) return;
     setSaving(true);
+    setErrorMsg(null);
+    setOkMsg(null);
     try {
       await cfg.criarTag(nome.trim(), cor);
       setNome("");
+      setOkMsg("Tag criada com sucesso.");
       onRefresh();
     } catch (e) {
-      console.error(e);
+      setErrorMsg(e?.response?.data?.error || "Erro ao criar tag.");
     } finally {
       setSaving(false);
     }
@@ -562,17 +586,26 @@ function SecaoTags({ tags, onRefresh }) {
 
   const handleExcluir = async (id) => {
     if (!confirm("Excluir esta tag?")) return;
+    setErrorMsg(null);
+    setOkMsg(null);
     try {
       await cfg.excluirTag(id);
+      setOkMsg("Tag excluída.");
       onRefresh();
     } catch (e) {
-      console.error(e);
+      setErrorMsg(e?.response?.data?.error || "Erro ao excluir tag.");
     }
   };
 
   return (
     <div className="ia-section">
       <h4>Tags / Etiquetas</h4>
+      {(errorMsg || okMsg) && (
+        <div className={`ia-error-banner ${okMsg ? "is-ok" : ""}`} role="alert" style={{ marginBottom: 12 }}>
+          {errorMsg || okMsg}
+          <button type="button" onClick={() => { setErrorMsg(null); setOkMsg(null); }}>×</button>
+        </div>
+      )}
       <form onSubmit={handleCriar} style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <input className="ia-input" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome" style={{ width: 160 }} />
         <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} style={{ width: 48, height: 38, padding: 2, border: "1px solid #e2e8f0", borderRadius: 8 }} />
@@ -598,18 +631,23 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
   const [texto, setTexto] = useState("");
   const [depId, setDepId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [okMsg, setOkMsg] = useState(null);
 
   const handleCriar = async (e) => {
     e.preventDefault();
     if (!titulo.trim() || !texto.trim()) return;
     setSaving(true);
+    setErrorMsg(null);
+    setOkMsg(null);
     try {
       await cfg.criarRespostaSalva({ titulo: titulo.trim(), texto: texto.trim(), departamento_id: depId || null });
       setTitulo("");
       setTexto("");
+      setOkMsg("Resposta salva criada.");
       onRefresh();
     } catch (e) {
-      console.error(e);
+      setErrorMsg(e?.response?.data?.error || "Erro ao criar resposta salva.");
     } finally {
       setSaving(false);
     }
@@ -617,17 +655,26 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
 
   const handleExcluir = async (id) => {
     if (!confirm("Excluir esta resposta?")) return;
+    setErrorMsg(null);
+    setOkMsg(null);
     try {
       await cfg.excluirRespostaSalva(id);
+      setOkMsg("Resposta removida.");
       onRefresh();
     } catch (e) {
-      console.error(e);
+      setErrorMsg(e?.response?.data?.error || "Erro ao excluir resposta.");
     }
   };
 
   return (
     <div className="ia-section">
       <h4>Respostas salvas</h4>
+      {(errorMsg || okMsg) && (
+        <div className={`ia-error-banner ${okMsg ? "is-ok" : ""}`} role="alert" style={{ marginBottom: 12 }}>
+          {errorMsg || okMsg}
+          <button type="button" onClick={() => { setErrorMsg(null); setOkMsg(null); }}>×</button>
+        </div>
+      )}
       <form onSubmit={handleCriar}>
         <div className="ia-field">
           <label>Título</label>
@@ -673,6 +720,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
   const [searching, setSearching] = useState(false);
   const [abrindoId, setAbrindoId] = useState(null);
   const [excluindoId, setExcluindoId] = useState(null);
+  const [clienteModal, setClienteModal] = useState(null); // { mode: "new"|"edit", data }
 
   useEffect(() => {
     if (!onSearchClientes) return;
@@ -752,7 +800,16 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
 
   return (
     <div className="ia-section">
-      <h4>Clientes</h4>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <h4 style={{ margin: 0 }}>Clientes</h4>
+        <button
+          type="button"
+          className="ia-btn ia-btn--primary"
+          onClick={() => setClienteModal({ mode: "new", data: null })}
+        >
+          Novo cliente
+        </button>
+      </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
         <p className="ia-muted">Importe nomes e fotos de perfil do WhatsApp conectado (celular).</p>
         <button
@@ -875,6 +932,14 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
                       <button
                         type="button"
                         className="ia-btn ia-btn--small ia-btn--outline"
+                        onClick={() => setClienteModal({ mode: "edit", data: c })}
+                        title="Editar cliente"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="ia-btn ia-btn--small ia-btn--outline"
                         disabled={excluindoId === c.id}
                         onClick={() => handleExcluirCliente(c)}
                         title="Excluir cliente"
@@ -890,6 +955,15 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
         </table>
       </div>
       {clientes.length > 200 && <p className="ia-muted">Exibindo 200 de {clientes.length}</p>}
+
+      {clienteModal ? (
+        <ModalCliente
+          mode={clienteModal.mode}
+          cliente={clienteModal.data}
+          onClose={() => setClienteModal(null)}
+          onSaved={() => { setClienteModal(null); onRefresh?.(); }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1026,6 +1100,90 @@ function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
           <div className="ia-btn-row" style={{ marginTop: 16 }}>
             <button type="submit" className="ia-btn ia-btn--primary" disabled={saving}>{saving ? "Salvando..." : "Salvar"}</button>
             <button type="button" className="ia-btn ia-btn--outline" onClick={onClose}>Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ModalCliente({ mode, cliente, onClose, onSaved }) {
+  const isNew = mode === "new";
+  const [nome, setNome] = useState(cliente?.nome || "");
+  const [telefone, setTelefone] = useState(cliente?.telefone || "");
+  const [observacoes, setObservacoes] = useState(cliente?.observacoes || "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setNome(cliente?.nome || "");
+    setTelefone(cliente?.telefone || "");
+    setObservacoes(cliente?.observacoes || "");
+  }, [cliente?.id]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (isNew) {
+        if (!String(telefone || "").trim()) {
+          alert("Telefone é obrigatório para criar cliente.");
+          return;
+        }
+        await cfg.criarCliente({
+          telefone: String(telefone || "").trim(),
+          nome: String(nome || "").trim() || null,
+          observacoes: String(observacoes || "").trim() || null,
+        });
+      } else {
+        await cfg.atualizarCliente(cliente.id, {
+          nome: String(nome || "").trim() || null,
+          observacoes: String(observacoes || "").trim() || null,
+        });
+      }
+      onSaved?.();
+    } catch (e) {
+      const msg = e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao salvar cliente.";
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      onClick={onClose}
+    >
+      <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: 440, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
+        <h4 style={{ margin: "0 0 16px 0" }}>{isNew ? "Novo cliente" : "Editar cliente"}</h4>
+        <form onSubmit={handleSubmit}>
+          <div className="ia-field">
+            <label>Nome</label>
+            <input className="ia-input" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do cliente (opcional)" />
+          </div>
+          <div className="ia-field">
+            <label>Telefone</label>
+            <input
+              className="ia-input"
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+              placeholder="+55 11 99999-9999"
+              disabled={!isNew}
+              required={isNew}
+            />
+            {!isNew ? <span className="ia-muted" style={{ fontSize: 12, marginTop: 4, display: "block" }}>Telefone não é editável (use sincronização/novo cadastro se necessário).</span> : null}
+          </div>
+          <div className="ia-field">
+            <label>Observações</label>
+            <textarea className="ia-textarea" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={3} placeholder="Observações internas sobre o cliente..." />
+          </div>
+          <div className="ia-btn-row" style={{ marginTop: 16 }}>
+            <button type="submit" className="ia-btn ia-btn--primary" disabled={saving}>
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+            <button type="button" className="ia-btn ia-btn--outline" onClick={onClose} disabled={saving}>
+              Cancelar
+            </button>
           </div>
         </form>
       </div>

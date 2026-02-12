@@ -47,3 +47,61 @@
   font-size: 14px;
 }
 
+/* ===========================
+   Visual premium (contraste)
+   - tabelas e listas da Config
+=========================== */
+.config-wrap .ia-content{
+  border-color: #cbd5e1; /* mais contraste */
+}
+
+.config-wrap .ia-table {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.config-wrap .ia-table thead th {
+  background: #f8fafc;
+  color: #334155;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.config-wrap .ia-table tbody td {
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+.config-wrap .ia-table tbody tr:nth-child(even) td {
+  background: #fcfcfd;
+}
+
+.config-wrap .ia-table tbody tr:hover td {
+  background: #f1f5f9;
+}
+
+.config-wrap .ia-list-item{
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.config-wrap .ia-list-item + .ia-list-item{
+  margin-top: 10px;
+}
+
+.config-wrap .ia-error-banner.is-ok{
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.config-wrap .ia-btn--outline{
+  border-color: #cbd5e1;
+}
+
+.config-wrap .ia-btn--outline:hover:not(:disabled){
+  background: #f8fafc;
+}
+
