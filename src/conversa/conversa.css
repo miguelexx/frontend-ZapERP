@@ -21,6 +21,12 @@
   --wa-radius: 12px;
   --wa-radius-sm: 8px;
   --wa-bubble-radius: 14px;
+  --wa-bubble-radius-lg: 16px;
+  --wa-bubble-min-width: 88px;
+  --wa-bubble-min-width-with-meta: 130px;
+  --wa-bubble-max-width: 68%;
+  --wa-bubble-padding-x: 12px;
+  --wa-bubble-padding-y: 10px;
   --wa-shadow-subtle: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   --wa-shadow-bubble: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   --wa-status-green: #25a366;
@@ -692,21 +698,28 @@
   justify-content: flex-end;
 }
 
+/* =========================================================
+   BOLHAS (BUBBLES) — WhatsApp Web premium
+   Largura mínima confortável, máx 68%, padding generoso,
+   bordas suaves, nunca magrelos. Quebra de linha automática.
+========================================================= */
+
 .wa-bubble {
   position: relative;
   width: fit-content;
-  max-width: 70%;
-  min-width: 0;
-  padding: 4px 8px 8px 8px;
-  border-radius: var(--wa-bubble-radius);
+  min-width: var(--wa-bubble-min-width);
+  max-width: var(--wa-bubble-max-width);
+  padding: var(--wa-bubble-padding-y) var(--wa-bubble-padding-x);
+  border-radius: var(--wa-bubble-radius-lg);
   box-shadow: var(--wa-shadow-bubble);
-  line-height: 1.35;
+  line-height: 1.4;
   font-size: 14px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  /* não cortar horário/ticks em mensagens curtas + mantém “cauda” visível */
+  justify-content: center;
   overflow: visible;
+  box-sizing: border-box;
 }
 
 .wa-bubble-in {
@@ -747,25 +760,28 @@
   min-width: 0;
   word-break: break-word;
   white-space: pre-wrap;
+  overflow-wrap: break-word;
   padding-bottom: 0;
-  overflow-wrap: break-word; /* não cria “vazio” extra */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .wa-bubble-text {
   font-size: 14px;
-  line-height: 1.35;
-  padding-right: 0; /* meta fica em baixo (não sobrepõe texto) */
+  line-height: 1.4;
+  padding-right: 0;
 }
 
-/* Mensagens curtas: largura mínima para caber horário + setas sem cortar */
-.wa-bubble.hasInlineMeta{
-  padding-bottom: 4px;
-  min-width: 156px;
+/* Mensagens curtas com horário + setas: largura mínima confortável (bubbles “gordinhas”) */
+.wa-bubble.hasInlineMeta {
+  min-width: var(--wa-bubble-min-width-with-meta);
+  padding-bottom: 6px;
 }
-.wa-bubble-textInline{
+.wa-bubble-textInline {
   display: block;
-  padding-bottom: 14px; /* espaço mínimo para horário + seta no canto inferior */
-  padding-right: 4px; /* folga para alinhar com o bloco do horário */
+  padding-bottom: 18px;
+  padding-right: 6px;
 }
 .wa-bubble-textInline::after{
   content:"";
@@ -2523,7 +2539,8 @@
 
   .wa-bubble {
     max-width: 85%;
-    padding: 6px 8px 14px 8px;
+    min-width: var(--wa-bubble-min-width);
+    padding: 10px 12px 12px 12px;
   }
 
   .wa-bubble-meta { font-size: 9px; padding: 0 8px; }
