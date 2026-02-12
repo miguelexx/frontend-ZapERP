@@ -705,7 +705,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  overflow: hidden;
+  /* não cortar horário/ticks em mensagens curtas + mantém “cauda” visível */
+  overflow: visible;
 }
 
 .wa-bubble-in {
@@ -756,12 +757,15 @@
   padding-right: 0; /* meta fica em baixo (não sobrepõe texto) */
 }
 
+/* Mensagens curtas: largura mínima para caber horário + setas sem cortar */
 .wa-bubble.hasInlineMeta{
   padding-bottom: 4px;
+  min-width: 156px;
 }
 .wa-bubble-textInline{
   display: block;
   padding-bottom: 14px; /* espaço mínimo para horário + seta no canto inferior */
+  padding-right: 4px; /* folga para alinhar com o bloco do horário */
 }
 .wa-bubble-textInline::after{
   content:"";
@@ -772,11 +776,12 @@
 .wa-bubble.hasInlineMeta .wa-inlineMeta{
   float: none;
   position: absolute;
-  right: 6px;
+  right: 8px;
   bottom: 3px;
   margin-left: 0;
   top: auto;
-  max-width: calc(100% - 12px);
+  max-width: calc(100% - 16px);
+  white-space: nowrap;
 }
 .wa-inlineMeta{
   float:right;
