@@ -246,6 +246,15 @@ function IconEmoji(props) {
   );
 }
 
+function IconCamera(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2Z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+
 function IconClose(props) {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
@@ -1060,6 +1069,8 @@ export default function ConversaView() {
 
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const audioPickInputRef = useRef(null);
   const inputRef = useRef(null);
 
   const conversaId = conversa?.id || null;
@@ -1194,6 +1205,16 @@ export default function ConversaView() {
     fileInputRef.current?.click();
   }, [conversaId]);
 
+  const openCameraPicker = useCallback(() => {
+    if (!conversaId) return;
+    cameraInputRef.current?.click();
+  }, [conversaId]);
+
+  const openAudioPicker = useCallback(() => {
+    if (!conversaId) return;
+    audioPickInputRef.current?.click();
+  }, [conversaId]);
+
   const insertEmoji = useCallback((emoji) => {
     const em = String(emoji || "");
     if (!em) return;
@@ -1324,6 +1345,32 @@ export default function ConversaView() {
     [handleDropFile]
   );
 
+  const handleCameraInputChange = useCallback(
+    (e) => {
+      const file = e.target.files?.[0];
+      if (!file) {
+        e.target.value = "";
+        return;
+      }
+      handleDropFile(file);
+      e.target.value = "";
+    },
+    [handleDropFile]
+  );
+
+  const handleAudioPickChange = useCallback(
+    (e) => {
+      const file = e.target.files?.[0];
+      if (!file) {
+        e.target.value = "";
+        return;
+      }
+      handleDropFile(file);
+      e.target.value = "";
+    },
+    [handleDropFile]
+  );
+
   const handleConfirmSendFile = useCallback(async () => {
     if (!pendingFile) return;
     await handleEnviarArquivo(pendingFile);
@@ -1334,8 +1381,53 @@ export default function ConversaView() {
     recordingCanceledRef.current = false;
     setRecordingSeconds(0);
     try {
+      if (!window.isSecureContext) {
+        showToast({
+          type: "error",
+          title: "Microfone",
+          message: "Para gravar áudio, acesse via HTTPS (ou localhost). Em HTTP o navegador bloqueia o microfone.",
+        });
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        showToast({
+          type: "error",
+          title: "Microfone",
+          message: "Seu navegador não suporta gravação de áudio (getUserMedia indisponível).",
+        });
+        return;
+      }
+
+      // Se o navegador suportar, checa estado de permissão antes de pedir
+      try {
+        const perm = await navigator.permissions?.query?.({ name: "microphone" });
+        if (perm?.state === "denied") {
+          showToast({
+            type: "error",
+            title: "Microfone bloqueado",
+            message: "O microfone está bloqueado para este site. Clique no cadeado do navegador e permita o microfone.",
+          });
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+
+      // Escolhe o melhor mimeType disponível (melhora compatibilidade)
+      const preferred = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      const mimeType =
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported
+          ? preferred.find((t) => MediaRecorder.isTypeSupported(t))
+          : null;
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -1345,8 +1437,10 @@ export default function ConversaView() {
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         if (recordingCanceledRef.current || audioChunksRef.current.length === 0) return;
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const file = new File([blob], `audio-${Date.now()}.webm`, { type: "audio/webm" });
+        const finalType = recorder.mimeType || mimeType || "audio/webm";
+        const ext = finalType.includes("ogg") ? "ogg" : "webm";
+        const blob = new Blob(audioChunksRef.current, { type: finalType });
+        const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: finalType });
         await handleEnviarArquivo(file);
       };
 
@@ -1355,17 +1449,28 @@ export default function ConversaView() {
       setIsRecording(true);
     } catch (err) {
       console.error("Erro ao iniciar gravação:", err);
+      const name = String(err?.name || "");
+      const msg =
+        name === "NotAllowedError"
+          ? "Permissão negada. Clique no cadeado do navegador e permita o microfone."
+          : name === "NotFoundError"
+            ? "Nenhum microfone foi encontrado no dispositivo."
+            : "Não foi possível acessar o microfone. Verifique as permissões.";
       showToast({
         type: "error",
         title: "Microfone",
-        message: "Não foi possível acessar o microfone. Verifique as permissões.",
+        message: msg,
       });
     }
   }, [conversaId, sending, isRecording, handleEnviarArquivo, showToast]);
 
   const handleStopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch {}
       mediaRecorderRef.current = null;
       setIsRecording(false);
       setRecordingSeconds(0);
@@ -1379,7 +1484,11 @@ export default function ConversaView() {
   const handleCancelRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       recordingCanceledRef.current = true;
-      mediaRecorderRef.current.stop();
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch {}
       mediaRecorderRef.current = null;
       setIsRecording(false);
       setRecordingSeconds(0);
@@ -2456,6 +2565,16 @@ export default function ConversaView() {
                 <IconEmoji />
               </button>
               <button
+                onClick={openCameraPicker}
+                className="wa-iconBtn"
+                title="Câmera / Foto / Vídeo"
+                type="button"
+                disabled={sending || !conversaId}
+                aria-label="Câmera"
+              >
+                <IconCamera />
+              </button>
+              <button
                 onClick={handleOpenRespostasSalvas}
                 className="wa-iconBtn"
                 title="Respostas rápidas"
@@ -2468,7 +2587,7 @@ export default function ConversaView() {
               <button
                 onClick={openFilePicker}
                 className="wa-iconBtn"
-                title="Anexar arquivo ou áudio"
+                title="Anexar arquivo"
                 type="button"
                 disabled={sending || !conversaId}
                 aria-label="Anexar"
@@ -2482,6 +2601,21 @@ export default function ConversaView() {
                 accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
                 onChange={handleFileInputChange}
               />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="image/*,video/*"
+                capture="environment"
+                onChange={handleCameraInputChange}
+              />
+              <input
+                ref={audioPickInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="audio/*"
+                onChange={handleAudioPickChange}
+              />
 
               <input
                 ref={inputRef}
@@ -2494,17 +2628,17 @@ export default function ConversaView() {
                 aria-label="Digite sua resposta. Enter para enviar, Esc para fechar painéis."
               />
 
-              {safeString(texto) ? (
+              <div className="wa-footer-right">
                 <button
-                  onClick={handleEnviar}
-                  disabled={sending || !safeString(texto) || !conversaId}
-                  className="wa-sendBtn"
-                  title="Enviar"
+                  onClick={openAudioPicker}
+                  disabled={sending || !conversaId}
+                  className="wa-iconBtn"
+                  title="Selecionar áudio"
                   type="button"
+                  aria-label="Selecionar áudio"
                 >
-                  {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
+                  <IconMic />
                 </button>
-              ) : (
                 <button
                   onClick={handleStartRecording}
                   disabled={sending || !conversaId}
@@ -2515,7 +2649,17 @@ export default function ConversaView() {
                 >
                   <IconMic />
                 </button>
-              )}
+                <button
+                  onClick={handleEnviar}
+                  disabled={sending || !safeString(texto) || !conversaId}
+                  className="wa-sendBtn"
+                  title="Enviar"
+                  type="button"
+                  aria-label="Enviar mensagem"
+                >
+                  {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
+                </button>
+              </div>
             </>
           )}
         </div>

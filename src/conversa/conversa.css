@@ -1702,6 +1702,13 @@
   flex-shrink: 0;
 }
 
+.wa-footer-right{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-shrink:0;
+}
+
 .wa-footer .wa-iconBtn {
   flex-shrink: 0;
   color: var(--wa-text-muted);
@@ -1888,6 +1895,17 @@
   opacity:.55;
   cursor:not-allowed;
   transform:none;
+}
+
+/* Mic (gravar) como ação principal */
+.wa-micBtn{
+  background: rgba(0,168,132,.10);
+  border-color: rgba(0,168,132,.18);
+  color: var(--wa-green);
+}
+.wa-micBtn:hover:not(:disabled){
+  background: rgba(0,168,132,.18);
+  color: var(--wa-green);
 }
 
 /* Emoji picker — leve, profissional, não bloqueia a UI */
