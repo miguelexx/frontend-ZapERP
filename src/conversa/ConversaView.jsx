@@ -660,7 +660,8 @@ function Bubble({
   onTogglePin,
   onToggleStar,
   onStartSelect,
-  onDelete,
+  onDeleteForMe,
+  onDeleteForEveryone,
   isPinned,
   isStarred,
 }) {
@@ -799,9 +800,10 @@ function Bubble({
       if (action === "pin") onTogglePin?.(msg);
       if (action === "star") onToggleStar?.(msg);
       if (action === "select") onStartSelect?.(msg);
-      if (action === "delete") onDelete?.(msg);
+      if (action === "deleteForMe") onDeleteForMe?.(msg);
+      if (action === "deleteForEveryone") onDeleteForEveryone?.(msg);
     },
-    [msg, onInfo, onReply, doCopy, onForward, onTogglePin, onToggleStar, onStartSelect, onDelete]
+    [msg, onInfo, onReply, doCopy, onForward, onTogglePin, onToggleStar, onStartSelect, onDeleteForMe, onDeleteForEveryone]
   );
 
   return (
@@ -1031,13 +1033,22 @@ function Bubble({
               <button type="button" className="wa-msgMenuItem" onClick={() => runAction("select")} role="menuitem">
                 Selecionar
               </button>
+              <div className="wa-msgMenuSep" aria-hidden="true" />
+              <button
+                type="button"
+                className="wa-msgMenuItem"
+                onClick={() => runAction("deleteForMe")}
+                role="menuitem"
+              >
+                Apagar para mim
+              </button>
               <button
                 type="button"
                 className="wa-msgMenuItem wa-msgMenuItemDanger"
-                onClick={() => runAction("delete")}
+                onClick={() => runAction("deleteForEveryone")}
                 role="menuitem"
               >
-                Apagar
+                Apagar para todos
               </button>
             </div>,
             document.body
@@ -1144,6 +1155,7 @@ export default function ConversaView() {
     refresh,
     carregarConversa,
     anexarMensagem,
+    removerMensagem,
     tags,
     atendimentos,
     atendimentosLoading,
@@ -1202,6 +1214,7 @@ export default function ConversaView() {
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState(null);
   const [forwardQuery, setForwardQuery] = useState("");
+  const [forwardSending, setForwardSending] = useState(false);
 
   const [msgInfoOpen, setMsgInfoOpen] = useState(false);
   const [msgInfo, setMsgInfo] = useState(null);
@@ -1832,18 +1845,31 @@ export default function ConversaView() {
     setForwardOpen(true);
   }, []);
 
-  const handleDeleteAction = useCallback(async (msg) => {
-    if (!conversaId || !msg?.id) return;
-    const ok = window.confirm("Apagar esta mensagem do sistema? Essa ação não pode ser desfeita.");
-    if (!ok) return;
-    try {
-      await excluirMensagem(conversaId, msg.id);
-      showToast({ type: "success", title: "Apagada", message: "Mensagem removida." });
-    } catch (e) {
-      console.error("Erro ao excluir mensagem:", e);
-      showToast({ type: "error", title: "Falha ao apagar", message: "Não foi possível apagar a mensagem." });
-    }
-  }, [conversaId, showToast]);
+  const handleDeleteForMe = useCallback(
+    (msg) => {
+      if (!msg?.id) return;
+      removerMensagem(msg.id);
+      showToast({ type: "success", title: "Apagada para mim", message: "A mensagem foi removida da sua visualização." });
+    },
+    [showToast, removerMensagem]
+  );
+
+  const handleDeleteForEveryone = useCallback(
+    async (msg) => {
+      if (!conversaId || !msg?.id) return;
+      const ok = window.confirm("Apagar esta mensagem para todos? Ela será removida para você e para o contato.");
+      if (!ok) return;
+      try {
+        await excluirMensagem(conversaId, msg.id);
+        removerMensagem(msg.id);
+        showToast({ type: "success", title: "Apagada para todos", message: "Mensagem removida da conversa." });
+      } catch (e) {
+        console.error("Erro ao excluir mensagem:", e);
+        showToast({ type: "error", title: "Falha ao apagar", message: "Não foi possível apagar a mensagem." });
+      }
+    },
+    [conversaId, showToast, removerMensagem]
+  );
 
   const handleDeleteSelected = useCallback(async () => {
     if (!conversaId) return;
@@ -1874,19 +1900,26 @@ export default function ConversaView() {
     setForwardOpen(false);
     setForwardMsg(null);
     setForwardQuery("");
+    setForwardSending(false);
   }, []);
 
-  const confirmForwardTo = useCallback(async (destConversaId) => {
-    if (!destConversaId || !forwardMsg) return;
-    try {
-      await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
-      showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
-      closeForward();
-    } catch (e) {
-      console.error("Erro ao encaminhar:", e);
-      showToast({ type: "error", title: "Falha ao encaminhar", message: "Não foi possível encaminhar a mensagem." });
-    }
-  }, [forwardMsg, showToast, closeForward]);
+  const confirmForwardTo = useCallback(
+    async (destConversaId) => {
+      if (!destConversaId || !forwardMsg || forwardSending) return;
+      setForwardSending(true);
+      try {
+        await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+        showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
+        closeForward();
+      } catch (e) {
+        console.error("Erro ao encaminhar:", e);
+        showToast({ type: "error", title: "Falha ao encaminhar", message: "Não foi possível encaminhar a mensagem." });
+      } finally {
+        setForwardSending(false);
+      }
+    },
+    [forwardMsg, forwardSending, showToast, closeForward]
+  );
 
   useEffect(() => {
     if (showTimeline && conversaId) {
@@ -2448,7 +2481,8 @@ export default function ConversaView() {
                   onTogglePin={togglePin}
                   onToggleStar={toggleStar}
                   onStartSelect={startSelect}
-                  onDelete={handleDeleteAction}
+                  onDeleteForMe={handleDeleteForMe}
+                  onDeleteForEveryone={handleDeleteForEveryone}
                   isPinned={pinnedSet.has(String(item.id))}
                   isStarred={starredSet.has(String(item.id))}
                 />
@@ -2574,7 +2608,9 @@ export default function ConversaView() {
               />
 
               {forwardCandidates.length === 0 ? (
-                <div className="wa-muted" style={{ padding: "10px 4px" }}>Nenhuma conversa encontrada.</div>
+                <div className="wa-muted" style={{ padding: "10px 4px" }}>
+                  {forwardQuery.trim() ? "Nenhuma conversa encontrada." : "Carregue os contatos ou busque por nome/telefone."}
+                </div>
               ) : (
                 <div className="wa-forwardList">
                   {forwardCandidates.map((c) => {
@@ -2586,6 +2622,7 @@ export default function ConversaView() {
                         className="wa-forwardItem"
                         onClick={() => confirmForwardTo(c.id)}
                         title={`Encaminhar para ${n}`}
+                        disabled={forwardSending}
                       >
                         <div className="wa-forwardItem-name">{n}</div>
                         {c?.telefone ? <div className="wa-forwardItem-sub">{String(c.telefone)}</div> : null}

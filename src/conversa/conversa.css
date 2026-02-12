@@ -694,8 +694,10 @@
 
 .wa-bubble {
   position: relative;
+  width: fit-content;
   max-width: 70%;
-  padding: 6px 8px 12px 8px; /* compacto: só o necessário p/ meta */
+  min-width: 0;
+  padding: 4px 8px 8px 8px;
   border-radius: var(--wa-bubble-radius);
   box-shadow: var(--wa-shadow-bubble);
   line-height: 1.35;
@@ -703,6 +705,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  overflow: hidden;
 }
 
 .wa-bubble-in {
@@ -740,10 +743,11 @@
 
 .wa-bubble-body {
   width: 100%;
+  min-width: 0;
   word-break: break-word;
   white-space: pre-wrap;
-  min-width: 0;
-  padding-bottom: 0; /* não cria “vazio” extra */
+  padding-bottom: 0;
+  overflow-wrap: break-word; /* não cria “vazio” extra */
 }
 
 .wa-bubble-text {
@@ -753,25 +757,26 @@
 }
 
 .wa-bubble.hasInlineMeta{
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 .wa-bubble-textInline{
   display: block;
-  padding-bottom: 20px; /* espaço para horário + seta no canto inferior */
+  padding-bottom: 14px; /* espaço mínimo para horário + seta no canto inferior */
 }
 .wa-bubble-textInline::after{
   content:"";
   display:block;
   clear: both;
 }
-/* Horário e seta no canto inferior direito da mensagem (sem agrupar ao texto) */
+/* Horário e seta no canto inferior direito, sempre dentro do campo da mensagem */
 .wa-bubble.hasInlineMeta .wa-inlineMeta{
   float: none;
   position: absolute;
-  right: 8px;
-  bottom: 4px;
+  right: 6px;
+  bottom: 3px;
   margin-left: 0;
   top: auto;
+  max-width: calc(100% - 12px);
 }
 .wa-inlineMeta{
   float:right;
@@ -912,15 +917,14 @@
   opacity: 0.8;
 }
 
-/* Áudio — player nativo */
+/* Áudio — player alinhado, proporcional, sem cortes */
 .wa-bubble-audio {
-  padding: 8px 12px 8px 12px;
+  padding: 8px 12px;
 }
 
 .wa-bubble-audioWrap {
-  /* largura maior para waveform + tempos alinhados e proporcionais */
-  min-width: 260px;
-  max-width: min(400px, 82vw);
+  min-width: 300px;
+  max-width: min(440px, 88vw);
 }
 
 .wa-bubble-audioStack{
@@ -937,13 +941,14 @@
   word-break: break-word;
 }
 
-/* Player custom (waveform estilo WhatsApp) */
+/* Player custom (waveform estilo WhatsApp) — organizado, com espaço entre campos */
 .wa-audioPlayer{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  width:100%;
-  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px 10px 14px;
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(255,255,255,.74), rgba(255,255,255,.50));
   border: 1px solid var(--wa-audio-border-in);
@@ -1005,20 +1010,20 @@
 
 .wa-audioWave{
   position: relative;
-  flex:1;
-  min-width:0;
-  height: clamp(22px, 2.4vw, 28px);
-  display:flex;
-  align-items:flex-end;
-  gap: 2px;
-  padding: 0 4px;
-  cursor:pointer;
+  flex: 1;
+  min-width: 100px;
+  height: clamp(24px, 2.6vw, 30px);
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 0 6px;
+  cursor: pointer;
 }
 .wa-audioWave::before{
-  content:"";
-  position:absolute;
-  left: 4px;
-  right: 4px;
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
   top: 50%;
   height: 2px;
   transform: translateY(-50%);
@@ -1030,9 +1035,9 @@
   background: var(--wa-audio-track-out);
 }
 .wa-audioWave::after{
-  content:"";
-  position:absolute;
-  left: 4px;
+  content: "";
+  position: absolute;
+  left: 6px;
   top: 50%;
   height: 2px;
   transform: translateY(-50%);
@@ -1081,26 +1086,33 @@
 }
 
 .wa-audioMid{
-  flex:1;
-  min-width:0;
-  display:flex;
-  flex-direction:column;
-  gap: 6px;
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
 }
 .wa-audioSub{
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   width: 100%;
-  gap: 8px;
-  font-size: 10px;
+  gap: 12px;
+  font-size: 11px;
   color: rgba(102,119,129,.92);
   font-variant-numeric: tabular-nums;
+  min-height: 18px;
 }
-.wa-audioTime{ flex: 0 0 auto; opacity: .9; }
+.wa-audioTime{
+  flex: 0 0 auto;
+  opacity: .9;
+  white-space: nowrap;
+}
 .wa-audioTime--cur{ opacity: .75; }
 .wa-audioTime--dur{ opacity: .9; margin-left: auto; }
-.wa-audioRemain{ flex: 0 0 auto; opacity: .9; }
+.wa-audioRemain{ flex: 0 0 auto; opacity: .9; white-space: nowrap; }
 
 /* Micro-anim: "respiração" leve nas barras quando tocando (sem ficar chamativo) */
 .wa-audioPlayer.isPlaying .wa-audioBar{
@@ -1113,21 +1125,22 @@
 }
 
 .wa-audioElHidden{
-  display:none;
+  display: none;
 }
 
 .wa-audioAvatarWrap{
-  position: relative;
   flex: 0 0 auto;
-  width:32px;
-  height:32px;
+  width: 36px;
+  height: 36px;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 .wa-audioAvatar{
-  width:32px;
-  height:32px;
-  border-radius:999px;
-  object-fit:cover;
-  display:block;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
   box-shadow: 0 1px 2px rgba(0,0,0,.15);
 }
 .wa-audioMicBadge{
@@ -1141,18 +1154,30 @@
 }
 
 @media (max-width: 480px) {
+  .wa-bubble-audioWrap {
+    min-width: 280px;
+    max-width: 92vw;
+  }
   .wa-audioPlayer{
-    padding: 7px 9px;
+    padding: 9px 10px 9px 12px;
+    gap: 12px;
     border-radius: 16px;
   }
   .wa-audioPlayBtn{
     width: 36px;
     height: 36px;
   }
+  .wa-audioMid{
+    min-width: 90px;
+  }
+  .wa-audioSub{
+    gap: 8px;
+    font-size: 10px;
+  }
   .wa-audioAvatarWrap,
   .wa-audioAvatar{
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -1175,24 +1200,19 @@
   border-radius: 6px;
 }
 
-/* Linha única: hora + ticks alinhados proporcionalmente (sempre à direita da bolha) */
+/* Hora + ticks no canto inferior direito, sempre dentro da bolha */
 .wa-bubble-meta {
   position: absolute;
-
-  right: 8px;     /* cola no canto direito */
-  bottom: 4px;
-
-  display: inline-flex;  /* NÃO flex 100% */
+  right: 6px;
+  bottom: 3px;
+  display: inline-flex;
   align-items: center;
-
-  gap: 3px;       /* ticks bem juntinhos */
-
-  width: auto;    /* remove largura total */
+  gap: 3px;
+  width: auto;
+  max-width: calc(100% - 12px);
   padding: 0;
-
   font-size: 11px;
   color: var(--wa-text-light);
-
   pointer-events: none;
 }
 
