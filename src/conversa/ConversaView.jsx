@@ -10,6 +10,7 @@ import { canGerenciarSetores, canTag } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
 import { getApiBaseUrl } from "../api/baseUrl";
+import { saveReplyMeta } from "./replyMeta";
 import {
   listarTags,
   adicionarTagConversa,
@@ -538,6 +539,15 @@ function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
   );
 }
 
+function getReplySenderLabel(replyMsg, peerName) {
+  if (!replyMsg) return "Contato";
+  const out = String(replyMsg?.direcao || "").toLowerCase() === "out";
+  if (out) return "Você";
+  const groupSender = safeString(replyMsg?.remetente_nome || replyMsg?.remetente_telefone);
+  if (groupSender) return groupSender;
+  return safeString(peerName) || "Contato";
+}
+
 function nameColor(seed) {
   const s = String(seed || "");
   let h = 0;
@@ -587,6 +597,8 @@ function Bubble({
   const showCaption = (isImg || isVideo || isSticker) && hasText && !isPlaceholderCaption;
   const showAudioText = isAudio && hasText && !isPlaceholderCaption;
   const inlineMeta = hasText && !isImg && !isVideo && !isSticker && !isAudio && !isFile;
+  const replyMeta = msg?.reply_meta || null;
+  const hasReply = !!(replyMeta && (replyMeta.name || replyMeta.snippet));
 
   // pedido do usuário: setinha no hover para mensagens do cliente
   const showMenuButton = !selectMode;
@@ -742,6 +754,12 @@ function Bubble({
               >
                 {remetente}:
               </span>
+              {hasReply ? (
+                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
+                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
+                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
+                </div>
+              ) : null}
               {isImg || isSticker ? (
                 <div className="wa-bubble-mediaStack">
                   <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
@@ -779,6 +797,12 @@ function Bubble({
             </div>
           ) : isImg || isSticker ? (
             <div className="wa-bubble-mediaStack">
+              {hasReply ? (
+                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
+                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
+                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
+                </div>
+              ) : null}
               <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
                 <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
               </a>
@@ -786,6 +810,12 @@ function Bubble({
             </div>
           ) : isVideo && mediaUrl ? (
             <div className="wa-bubble-mediaStack">
+              {hasReply ? (
+                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
+                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
+                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
+                </div>
+              ) : null}
               <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
                 <video src={mediaUrl} controls className="wa-bubble-videoEl" />
               </a>
@@ -793,6 +823,12 @@ function Bubble({
             </div>
           ) : isAudio && mediaUrl ? (
             <div className="wa-bubble-audioStack">
+              {hasReply ? (
+                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
+                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
+                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
+                </div>
+              ) : null}
               <div className="wa-bubble-audioWrap">
                 <AudioWavePlayer
                   src={mediaUrl}
@@ -812,6 +848,12 @@ function Bubble({
           ) : hasText ? (
             inlineMeta ? (
               <span className="wa-bubble-text wa-bubble-textInline">
+                {hasReply ? (
+                  <span className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
+                    <span className="wa-replyCtx-name">{replyMeta.name}</span>
+                    <span className="wa-replyCtx-snippet">{replyMeta.snippet}</span>
+                  </span>
+                ) : null}
                 {texto}
                 <span className="wa-inlineMeta" aria-label="Horário e status">
                   <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
@@ -819,7 +861,15 @@ function Bubble({
                 </span>
               </span>
             ) : (
-              <span className="wa-bubble-text">{texto}</span>
+              <span className="wa-bubble-text">
+                {hasReply ? (
+                  <span className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
+                    <span className="wa-replyCtx-name">{replyMeta.name}</span>
+                    <span className="wa-replyCtx-snippet">{replyMeta.snippet}</span>
+                  </span>
+                ) : null}
+                {texto}
+              </span>
             )
           ) : (
             <span className="wa-bubble-text wa-muted">(mensagem vazia)</span>
@@ -1501,21 +1551,30 @@ export default function ConversaView() {
 
     const t = safeString(texto);
     if (!t) return;
-
-    // "Responder" (sem suporte nativo no backend): envia com citação no texto
-    const quote = replyTo ? snippetFromMsg(replyTo) : "";
-    const finalText = quote ? `↩️ ${quote}\n${t}` : t;
+    const replyMeta =
+      replyTo
+        ? {
+            name: getReplySenderLabel(replyTo, nome),
+            snippet: snippetFromMsg(replyTo),
+            ts: Date.now(),
+            replyToId: replyTo?.id,
+          }
+        : null;
 
     setSending(true);
     try {
-      const res = await enviarMensagem(conversaId, finalText);
+      const res = await enviarMensagem(conversaId, t);
       setTexto("");
       setReplyTo(null);
       if (res?.mensagem) {
         const msg = res.mensagem;
         const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
         if (mesmaConversa || !msg.conversa_id) {
-          anexarMensagem({ ...msg, conversa_id: Number(conversaId) });
+          const patched = replyMeta ? { ...msg, conversa_id: Number(conversaId), reply_meta: replyMeta } : { ...msg, conversa_id: Number(conversaId) };
+          anexarMensagem(patched);
+          if (replyMeta && msg?.id) {
+            saveReplyMeta(conversaId, msg.id, replyMeta);
+          }
         }
       }
     } catch (err) {
@@ -1528,7 +1587,7 @@ export default function ConversaView() {
     } finally {
       setSending(false);
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, nome]);
 
   const onEscape = useCallback(() => {
     if (isRecording) handleCancelRecording();
@@ -2452,8 +2511,9 @@ export default function ConversaView() {
 
         {replyTo && !isRecording ? (
           <div className="wa-replyBar" role="region" aria-label="Respondendo">
+            <div className="wa-replyBar-bar" aria-hidden="true" />
             <div className="wa-replyBar-left">
-              <div className="wa-replyBar-title">Respondendo</div>
+              <div className="wa-replyBar-title">{getReplySenderLabel(replyTo, nome)}</div>
               <div className="wa-replyBar-text">{snippetFromMsg(replyTo)}</div>
             </div>
             <button

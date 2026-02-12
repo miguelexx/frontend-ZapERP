@@ -8,6 +8,7 @@ import {
   listarAtendimentos,
 } from "./conversaService"
 import { getSocket } from "../socket/socket"
+import { attachReplyMeta } from "./replyMeta"
 
 const PAGE_LIMIT = 50
 
@@ -89,6 +90,7 @@ export const useConversaStore = create((set, get) => ({
       } else {
         mensagens = []
       }
+      mensagens = attachReplyMeta(normalizedId, mensagens)
 
       set({
         conversa,
@@ -142,6 +144,7 @@ export const useConversaStore = create((set, get) => ({
       } else {
         mensagens = []
       }
+      mensagens = attachReplyMeta(id, mensagens)
 
       set({
         conversa,
@@ -192,7 +195,7 @@ export const useConversaStore = create((set, get) => ({
             (Number(a.id) - Number(b.id))
         )
         return {
-          mensagens: sorted,
+          mensagens: attachReplyMeta(selectedId, sorted),
           cursor: nextCursor,
           hasMore: !!nextCursor,
           loadingMore: false,
