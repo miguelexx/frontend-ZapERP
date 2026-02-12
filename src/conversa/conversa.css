@@ -638,7 +638,6 @@
   gap: 3px;
   min-height: 0;
   background: var(--wa-bg);
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4d0c8' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
 }
 
 .wa-messages::-webkit-scrollbar {
@@ -754,28 +753,38 @@
 }
 
 .wa-bubble.hasInlineMeta{
-  padding-bottom: 6px; /* altura mínima (meta inline no texto) */
+  padding-bottom: 6px;
 }
 .wa-bubble-textInline{
-  display:block; /* permite float do meta */
+  display: block;
+  padding-bottom: 20px; /* espaço para horário + seta no canto inferior */
 }
 .wa-bubble-textInline::after{
   content:"";
   display:block;
   clear: both;
 }
+/* Horário e seta no canto inferior direito da mensagem (sem agrupar ao texto) */
+.wa-bubble.hasInlineMeta .wa-inlineMeta{
+  float: none;
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  margin-left: 0;
+  top: auto;
+}
 .wa-inlineMeta{
   float:right;
   display:inline-flex;
   align-items:center;
-  gap:1px; /* WhatsApp: mínimo entre hora e ticks */
+  gap:3px;
   margin-left:8px;
   font-size: 10px;
   color: var(--wa-text-light);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   position: relative;
-  top: 1px; /* alinhado com a última linha do texto */
+  top: 1px;
 }
 .wa-inlineMeta .wa-ticks{
   display:inline-flex;
@@ -796,8 +805,9 @@
 /* Ticks (SVG) — finos, leves, compactos */
 .wa-ticksSvg{
   display:block;
-  width: 18px;
-  height: 12px;
+  width: 14px;
+  height: 10px;
+  opacity:.9;
 }
 .wa-ticks.isDelivered{
   opacity: .92;
@@ -908,9 +918,9 @@
 }
 
 .wa-bubble-audioWrap {
-  /* um pouco mais largo para caber waveform + tempos sem quebrar */
-  min-width: 210px;
-  max-width: min(340px, 78vw);
+  /* largura maior para waveform + tempos alinhados e proporcionais */
+  min-width: 260px;
+  max-width: min(400px, 82vw);
 }
 
 .wa-bubble-audioStack{
@@ -1078,18 +1088,19 @@
   gap: 6px;
 }
 .wa-audioSub{
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
   font-size: 10px;
   color: rgba(102,119,129,.92);
   font-variant-numeric: tabular-nums;
 }
 .wa-audioTime{ flex: 0 0 auto; opacity: .9; }
 .wa-audioTime--cur{ opacity: .75; }
-.wa-audioTime--dur{ opacity: .9; }
-.wa-audioRemain{ flex: 0 0 auto; opacity:.9; }
+.wa-audioTime--dur{ opacity: .9; margin-left: auto; }
+.wa-audioRemain{ flex: 0 0 auto; opacity: .9; }
 
 /* Micro-anim: "respiração" leve nas barras quando tocando (sem ficar chamativo) */
 .wa-audioPlayer.isPlaying .wa-audioBar{
