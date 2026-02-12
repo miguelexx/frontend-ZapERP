@@ -878,8 +878,9 @@
 }
 
 .wa-bubble-audioWrap {
-  min-width: 150px;
-  max-width: 240px;
+  /* um pouco mais largo para caber waveform + tempos sem quebrar */
+  min-width: 210px;
+  max-width: min(340px, 78vw);
 }
 
 .wa-bubble-audioStack{

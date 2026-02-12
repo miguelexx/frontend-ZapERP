@@ -1070,7 +1070,6 @@ export default function ConversaView() {
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
-  const audioPickInputRef = useRef(null);
   const inputRef = useRef(null);
 
   const conversaId = conversa?.id || null;
@@ -1210,11 +1209,6 @@ export default function ConversaView() {
     cameraInputRef.current?.click();
   }, [conversaId]);
 
-  const openAudioPicker = useCallback(() => {
-    if (!conversaId) return;
-    audioPickInputRef.current?.click();
-  }, [conversaId]);
-
   const insertEmoji = useCallback((emoji) => {
     const em = String(emoji || "");
     if (!em) return;
@@ -1346,19 +1340,6 @@ export default function ConversaView() {
   );
 
   const handleCameraInputChange = useCallback(
-    (e) => {
-      const file = e.target.files?.[0];
-      if (!file) {
-        e.target.value = "";
-        return;
-      }
-      handleDropFile(file);
-      e.target.value = "";
-    },
-    [handleDropFile]
-  );
-
-  const handleAudioPickChange = useCallback(
     (e) => {
       const file = e.target.files?.[0];
       if (!file) {
@@ -2609,13 +2590,6 @@ export default function ConversaView() {
                 capture="environment"
                 onChange={handleCameraInputChange}
               />
-              <input
-                ref={audioPickInputRef}
-                type="file"
-                style={{ display: "none" }}
-                accept="audio/*"
-                onChange={handleAudioPickChange}
-              />
 
               <input
                 ref={inputRef}
@@ -2629,16 +2603,6 @@ export default function ConversaView() {
               />
 
               <div className="wa-footer-right">
-                <button
-                  onClick={openAudioPicker}
-                  disabled={sending || !conversaId}
-                  className="wa-iconBtn"
-                  title="Selecionar áudio"
-                  type="button"
-                  aria-label="Selecionar áudio"
-                >
-                  <IconMic />
-                </button>
                 <button
                   onClick={handleStartRecording}
                   disabled={sending || !conversaId}
