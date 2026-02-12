@@ -42,7 +42,8 @@
   height: 100vh;
   width: 100%;
   display: grid;
-  grid-template-columns: clamp(300px, 26vw, 360px) 1fr;
+  /* Mais “WhatsApp Web”: sidebar um pouco maior, responsiva */
+  grid-template-columns: clamp(340px, 30vw, 440px) 1fr;
   background: #e9edef;
   overflow: hidden;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
