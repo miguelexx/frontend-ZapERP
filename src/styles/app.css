@@ -51,18 +51,33 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* =========================================================
+   MOBILE (768px) — Uma tela por vez, estilo WhatsApp
+   Lista OU conversa; sem colunas; layout 100% viewport
+========================================================= */
 @media (max-width: 768px) {
   .atendimento-layout {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
+    width: 100%;
+    max-width: 100vw;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
   }
 
   .atendimento-layout .atendimento-sidebar {
     display: flex;
+    width: 100%;
+    min-width: 0;
   }
 
   .atendimento-layout .atendimento-chat-area {
     display: none;
+    width: 100%;
+    min-width: 0;
   }
 
   .atendimento-layout.conversation-open .atendimento-sidebar {
@@ -71,6 +86,24 @@
 
   .atendimento-layout.conversation-open .atendimento-chat-area {
     display: flex;
+  }
+}
+
+/* Mobile estreito (480px) — 100% tela, safe-area, visual WhatsApp */
+@media (max-width: 480px) {
+  .atendimento-layout {
+    width: 100%;
+    max-width: 100vw;
+    height: 100%;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .atendimento-sidebar,
+  .atendimento-chat-area {
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
   }
 }
 
@@ -92,6 +125,23 @@
   overflow: hidden;
   background: #efeae2;
   position: relative;
+}
+
+/* Mobile: sidebar e chat-area preenchem 100% da tela fixa */
+@media (max-width: 768px) {
+  .atendimento-sidebar,
+  .atendimento-chat-area {
+    height: 100%;
+    min-height: 0;
+  }
+
+  /* Shell da conversa ocupa toda a área e mostra o cabeçalho no topo */
+  .atendimento-chat-area > * {
+    flex: 1 1 0%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 /* ==============================
@@ -143,6 +193,41 @@ body {
   font-family: "Segoe UI", Arial;
   background: var(--bg-app);
   color: var(--text);
+}
+
+/* Mobile: viewport fixa, sem scroll da página, visual app */
+@media (max-width: 768px) {
+  html {
+    height: 100%;
+    overflow: hidden;
+    overflow-x: hidden;
+  }
+
+  body {
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #root {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 480px) {
+  html,
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
 }
 
 /* ==============================
@@ -424,9 +509,26 @@ body {
     flex: 0 0 auto;
   }
 
+  .app-layout {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .main-content {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0));
-    min-height: 100vh;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    overflow-x: hidden;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+    height: 100%;
+  }
+
+  /* Atendimento ocupa toda a área disponível, tela fixa */
+  .main-content .atendimento-layout {
+    height: 100%;
+    min-height: 0;
   }
 
   [data-theme="dark"] .sidebar {

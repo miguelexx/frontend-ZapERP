@@ -158,10 +158,15 @@ export function initSocket(token) {
     const s = status != null ? String(status) : null
 
     const convStore = useConversaStore.getState()
-    if (conversa_id && convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
+    // Se veio conversa_id, aplica somente se for a conversa aberta.
+    // Se NÃO veio conversa_id (alguns emits antigos), tenta aplicar na conversa aberta mesmo assim
+    // (o client só recebe esse evento da room da conversa atual).
+    if (conversa_id) {
+      if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
+        convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s })
+      }
+    } else if (convStore.selectedId) {
       convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s })
-    } else {
-      // mesmo se não for a conversa aberta, ainda pode atualizar preview se for última
     }
 
     if (conversa_id) {

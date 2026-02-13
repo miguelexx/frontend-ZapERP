@@ -1,7 +1,7 @@
 import api from './http'
 
-export async function getOverview() {
-  const { data } = await api.get('/dashboard/overview')
+export async function getOverview(params = {}) {
+  const { data } = await api.get('/dashboard/overview', { params })
   return data
 }
 
@@ -23,6 +23,11 @@ export async function criarRespostaSalva(payload) {
 
 export async function getRelatorioConversas(params = {}) {
   const { data } = await api.get('/dashboard/relatorios/conversas', { params })
+  return data || []
+}
+
+export async function getRelatorioMensagens(params = {}) {
+  const { data } = await api.get('/dashboard/relatorios/mensagens', { params })
   return data || []
 }
 

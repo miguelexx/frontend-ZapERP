@@ -66,6 +66,17 @@ export default function Configuracoes() {
     if (t && TABS.some(x => x.id === t)) setTab(t);
   }, [searchParams]);
 
+  const setTabAndUrl = useCallback((nextTab) => {
+    setTab(nextTab);
+    try {
+      const sp = new URLSearchParams(searchParams);
+      sp.set("tab", nextTab);
+      navigate({ search: `?${sp.toString()}` }, { replace: true });
+    } catch {
+      // ignore
+    }
+  }, [navigate, searchParams]);
+
   const loadAll = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
@@ -148,7 +159,7 @@ export default function Configuracoes() {
             key={t.id}
             type="button"
             className={`ia-tab ${tab === t.id ? "ia-tab--active" : ""}`}
-            onClick={() => setTab(t.id)}
+            onClick={() => setTabAndUrl(t.id)}
           >
             {t.label}
           </button>
@@ -364,9 +375,17 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh }) {
 function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew }) {
   return (
     <div className="ia-section">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h4>Usuários / Atendentes</h4>
-        <button className="ia-btn ia-btn--primary" onClick={onNew}>Novo usuário</button>
+      <div className="config-headRow">
+        <div>
+          <h4 style={{ margin: 0 }}>Usuários / Atendentes</h4>
+          <p className="ia-muted" style={{ margin: "6px 0 0" }}>
+            {usuarios.length} usuário(s). Perfis definem acesso e o setor limita as conversas visíveis.
+          </p>
+        </div>
+        <div className="config-headActions">
+          <button className="ia-btn ia-btn--outline" type="button" onClick={onRefresh}>Atualizar</button>
+          <button className="ia-btn ia-btn--primary" type="button" onClick={onNew}>Novo usuário</button>
+        </div>
       </div>
       <table className="ia-table">
         <thead>
@@ -380,6 +399,13 @@ function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew }) {
           </tr>
         </thead>
         <tbody>
+          {usuarios.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="config-emptyCell">
+                Nenhum usuário encontrado. Clique em <strong>Novo usuário</strong> para cadastrar o primeiro atendente.
+              </td>
+            </tr>
+          ) : null}
           {usuarios.map((u) => (
             <tr key={u.id}>
               <td>{u.nome}</td>
@@ -565,6 +591,9 @@ function SecaoTags({ tags, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [okMsg, setOkMsg] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editNome, setEditNome] = useState("");
+  const [editCor, setEditCor] = useState("#6366f1");
 
   const handleCriar = async (e) => {
     e.preventDefault();
@@ -597,9 +626,41 @@ function SecaoTags({ tags, onRefresh }) {
     }
   };
 
+  const startEdit = (t) => {
+    setEditingId(t.id);
+    setEditNome(t.nome || "");
+    setEditCor(t.cor || "#6366f1");
+    setErrorMsg(null);
+    setOkMsg(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditNome("");
+    setEditCor("#6366f1");
+  };
+
+  const handleSalvarEdicao = async () => {
+    if (!editingId || !editNome.trim()) return;
+    setSaving(true);
+    setErrorMsg(null);
+    setOkMsg(null);
+    try {
+      await cfg.atualizarTag(editingId, editNome.trim(), editCor);
+      setOkMsg("Tag atualizada.");
+      cancelEdit();
+      onRefresh();
+    } catch (e) {
+      setErrorMsg(e?.response?.data?.error || "Erro ao atualizar tag.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="ia-section">
       <h4>Tags / Etiquetas</h4>
+      <p className="ia-muted">Use tags para organizar conversas e criar filtros (ex.: “Prioridade”, “Cobrança”, “Novo lead”).</p>
       {(errorMsg || okMsg) && (
         <div className={`ia-error-banner ${okMsg ? "is-ok" : ""}`} role="alert" style={{ marginBottom: 12 }}>
           {errorMsg || okMsg}
@@ -612,13 +673,38 @@ function SecaoTags({ tags, onRefresh }) {
         <button type="submit" className="ia-btn ia-btn--primary" disabled={saving}>{saving ? "Salvando..." : "Salvar"}</button>
       </form>
       <ul className="ia-list">
+        {tags.length === 0 ? (
+          <li className="config-emptyRow">
+            Nenhuma tag cadastrada. Crie a primeira acima.
+          </li>
+        ) : null}
         {tags.map((t) => (
           <li key={t.id} className="ia-list-item">
-            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 4, background: t.cor || "#94a3b8" }} />
-              {t.nome}
-            </span>
-            <button className="ia-btn ia-btn--small ia-btn--outline" onClick={() => handleExcluir(t.id)}>Excluir</button>
+            {editingId === t.id ? (
+              <div className="config-inlineEdit">
+                <input className="ia-input" value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" style={{ width: 180 }} autoFocus />
+                <input type="color" value={editCor} onChange={(e) => setEditCor(e.target.value)} style={{ width: 48, height: 38, padding: 2, border: "1px solid #e2e8f0", borderRadius: 8 }} />
+                <div className="config-inlineEditActions">
+                  <button type="button" className="ia-btn ia-btn--small ia-btn--primary" onClick={handleSalvarEdicao} disabled={saving}>
+                    {saving ? "Salvando…" : "Salvar"}
+                  </button>
+                  <button type="button" className="ia-btn ia-btn--small ia-btn--outline" onClick={cancelEdit} disabled={saving}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 4, background: t.cor || "#94a3b8" }} />
+                  {t.nome}
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="ia-btn ia-btn--small ia-btn--outline" type="button" onClick={() => startEdit(t)}>Editar</button>
+                  <button className="ia-btn ia-btn--small ia-btn--outline" type="button" onClick={() => handleExcluir(t.id)}>Excluir</button>
+                </div>
+              </>
+            )}
           </li>
         ))}
       </ul>
@@ -633,6 +719,10 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [okMsg, setOkMsg] = useState(null);
+  const [filterDepId, setFilterDepId] = useState("");
+  const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [edit, setEdit] = useState({ titulo: "", texto: "", departamento_id: "" });
 
   const handleCriar = async (e) => {
     e.preventDefault();
@@ -666,9 +756,67 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
     }
   };
 
+  const startEdit = (r) => {
+    setEditingId(r.id);
+    setEdit({
+      titulo: r.titulo || "",
+      texto: r.texto || "",
+      departamento_id: r.departamento_id != null ? String(r.departamento_id) : "",
+    });
+    setErrorMsg(null);
+    setOkMsg(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEdit({ titulo: "", texto: "", departamento_id: "" });
+  };
+
+  const handleSalvarEdicao = async () => {
+    if (!editingId || !edit.titulo.trim() || !edit.texto.trim()) return;
+    setSaving(true);
+    setErrorMsg(null);
+    setOkMsg(null);
+    try {
+      await cfg.atualizarRespostaSalva(editingId, {
+        titulo: edit.titulo.trim(),
+        texto: edit.texto.trim(),
+        departamento_id: edit.departamento_id || null,
+      });
+      setOkMsg("Resposta salva atualizada.");
+      cancelEdit();
+      onRefresh();
+    } catch (e) {
+      setErrorMsg(e?.response?.data?.error || "Erro ao atualizar resposta salva.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyToClipboard = async (t) => {
+    try {
+      await navigator.clipboard.writeText(String(t || ""));
+      setOkMsg("Copiado para a área de transferência.");
+    } catch {
+      setErrorMsg("Não foi possível copiar.");
+    }
+  };
+
+  const filtered = useMemo(() => {
+    const list = Array.isArray(respostas) ? respostas : [];
+    const q = String(query || "").trim().toLowerCase();
+    return list.filter((r) => {
+      if (filterDepId && String(r.departamento_id || "") !== String(filterDepId)) return false;
+      if (!q) return true;
+      const t = `${r.titulo || ""} ${r.texto || ""}`.toLowerCase();
+      return t.includes(q);
+    });
+  }, [respostas, filterDepId, query]);
+
   return (
     <div className="ia-section">
       <h4>Respostas salvas</h4>
+      <p className="ia-muted">Modelos prontos para respostas rápidas (por setor ou globais). Você pode editar, copiar e excluir.</p>
       {(errorMsg || okMsg) && (
         <div className={`ia-error-banner ${okMsg ? "is-ok" : ""}`} role="alert" style={{ marginBottom: 12 }}>
           {errorMsg || okMsg}
@@ -693,16 +841,94 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
         </div>
         <button type="submit" className="ia-btn ia-btn--primary" disabled={saving}>{saving ? "Salvando..." : "Salvar"}</button>
       </form>
-      <ul className="ia-list" style={{ marginTop: 20 }}>
-        {respostas.map((r) => (
-          <li key={r.id} className="ia-list-item">
-            <div>
-              <strong>{r.titulo}</strong>
-              {r.departamentos?.nome && <span className="ia-muted" style={{ marginLeft: 8 }}>({r.departamentos.nome})</span>}
-            </div>
-            <button className="ia-btn ia-btn--small ia-btn--outline" onClick={() => handleExcluir(r.id)}>Excluir</button>
+      <div className="config-toolbar" style={{ marginTop: 18 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <label className="config-inlineLabel">
+            Setor:
+            <select className="ia-select" value={filterDepId} onChange={(e) => setFilterDepId(e.target.value)} style={{ marginLeft: 8, minWidth: 180 }}>
+              <option value="">Todos</option>
+              {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+            </select>
+          </label>
+          <input
+            className="ia-input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por título ou texto…"
+            style={{ minWidth: 240 }}
+          />
+          <span className="ia-muted">{filtered.length} resultado(s)</span>
+        </div>
+      </div>
+
+      <ul className="ia-list" style={{ marginTop: 12 }}>
+        {filtered.length === 0 ? (
+          <li className="config-emptyRow">
+            Nenhuma resposta salva encontrada para este filtro.
           </li>
-        ))}
+        ) : null}
+        {filtered.map((r) => {
+          const snippet = String(r.texto || "").trim().slice(0, 140);
+          const depNome = r.departamentos?.nome ? String(r.departamentos.nome) : null;
+          return (
+            <li key={r.id} className="ia-list-item">
+              {editingId === r.id ? (
+                <div style={{ width: "100%" }}>
+                  <div className="config-inlineEdit" style={{ alignItems: "flex-start" }}>
+                    <div style={{ flex: 1, minWidth: 240 }}>
+                      <div className="ia-field" style={{ marginBottom: 10 }}>
+                        <label>Título</label>
+                        <input className="ia-input" value={edit.titulo} onChange={(e) => setEdit((c) => ({ ...c, titulo: e.target.value }))} />
+                      </div>
+                      <div className="ia-field" style={{ marginBottom: 10 }}>
+                        <label>Texto</label>
+                        <textarea className="ia-textarea" rows={3} value={edit.texto} onChange={(e) => setEdit((c) => ({ ...c, texto: e.target.value }))} />
+                      </div>
+                      <div className="ia-field" style={{ marginBottom: 0 }}>
+                        <label>Setor (opcional)</label>
+                        <select className="ia-select" value={edit.departamento_id} onChange={(e) => setEdit((c) => ({ ...c, departamento_id: e.target.value }))}>
+                          <option value="">Todos</option>
+                          {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="config-inlineEditActions">
+                      <button type="button" className="ia-btn ia-btn--small ia-btn--primary" onClick={handleSalvarEdicao} disabled={saving}>
+                        {saving ? "Salvando…" : "Salvar"}
+                      </button>
+                      <button type="button" className="ia-btn ia-btn--small ia-btn--outline" onClick={cancelEdit} disabled={saving}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                      <strong>{r.titulo}</strong>
+                      {depNome ? <span className="config-pill">{depNome}</span> : <span className="config-pill config-pill--muted">Global</span>}
+                    </div>
+                    <div className="ia-muted" style={{ marginTop: 6 }}>
+                      {snippet}{String(r.texto || "").length > 140 ? "…" : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button className="ia-btn ia-btn--small ia-btn--outline" type="button" onClick={() => copyToClipboard(r.texto)} title="Copiar texto">
+                      Copiar
+                    </button>
+                    <button className="ia-btn ia-btn--small ia-btn--outline" type="button" onClick={() => startEdit(r)} title="Editar">
+                      Editar
+                    </button>
+                    <button className="ia-btn ia-btn--small ia-btn--outline" type="button" onClick={() => handleExcluir(r.id)} title="Excluir">
+                      Excluir
+                    </button>
+                  </div>
+                </>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

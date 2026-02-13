@@ -105,3 +105,86 @@
   background: #f8fafc;
 }
 
+/* =========================================================
+   Premium helpers (Configurações)
+========================================================= */
+
+.config-headRow{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.config-headActions{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.config-emptyCell{
+  padding: 18px 12px !important;
+  text-align: center;
+  color: #475569;
+  font-style: italic;
+}
+
+.config-emptyRow{
+  padding: 14px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.config-toolbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.config-inlineLabel{
+  font-size: 13px;
+  color: #475569;
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+}
+
+.config-inlineEdit{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.config-inlineEditActions{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items:center;
+}
+
+.config-pill{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+.config-pill--muted{
+  background: #f8fafc;
+  color: #64748b;
+}
+

@@ -11,6 +11,7 @@
   --dash-radius: 12px;
   --dash-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   --dash-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --dash-surface: rgba(255,255,255,.72);
 }
 
 .dash-wrap {
@@ -21,6 +22,30 @@
 
 .dash-header {
   margin-bottom: 24px;
+}
+
+.dash-header-row{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap: 14px;
+}
+.dash-header-actions{
+  display:flex;
+  align-items:flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dash-field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width: 180px;
+}
+.dash-field-label{
+  font-size: 12px;
+  color: var(--dash-muted);
+  font-weight: 600;
 }
 
 .dash-title {
@@ -96,6 +121,13 @@
   font-weight: 600;
   color: var(--dash-text);
   margin: 0 0 16px 0;
+}
+
+.dash-card-hint{
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--dash-muted);
+  line-height: 1.3;
 }
 
 .dash-charts {
@@ -304,6 +336,163 @@
   box-shadow: var(--dash-shadow);
   max-height: calc(100vh - 220px);
   overflow-y: auto;
+}
+
+/* Nota explicativa (clareza do dashboard) */
+.dash-note{
+  background: linear-gradient(180deg, rgba(37,99,235,.06), rgba(37,99,235,.03));
+  border: 1px solid rgba(37,99,235,.14);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.dash-note--compact{
+  margin-bottom: 10px;
+}
+.dash-note-title{
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(15,23,42,.92);
+  margin-bottom: 4px;
+}
+.dash-note-text{
+  font-size: 13px;
+  color: rgba(51,65,85,.92);
+  line-height: 1.35;
+}
+
+/* Blocos premium (overview) */
+.dash-split{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+@media (max-width: 900px){
+  .dash-split{ grid-template-columns: 1fr; }
+}
+.dash-panel{
+  background: var(--dash-card);
+  border: 1px solid var(--dash-border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--dash-shadow);
+}
+.dash-panel-head{
+  margin-bottom: 10px;
+}
+.dash-panel-title{
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dash-text);
+}
+.dash-panel-sub{
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--dash-muted);
+}
+.dash-miniGrid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 12px 0;
+}
+@media (max-width: 520px){
+  .dash-miniGrid{ grid-template-columns: 1fr; }
+}
+.dash-mini{
+  border: 1px solid var(--dash-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--dash-surface);
+}
+.dash-mini-label{
+  font-size: 12px;
+  color: var(--dash-muted);
+}
+.dash-mini-value{
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--dash-text);
+}
+.dash-footnote{
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--dash-muted);
+}
+
+/* Bar list (relatórios rápidos) */
+.dash-barlist{
+  margin-top: 10px;
+}
+.dash-barlist-title{
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dash-text);
+  margin-bottom: 10px;
+}
+.dash-barlist-empty{
+  font-size: 13px;
+  color: var(--dash-muted);
+  padding: 8px 0;
+}
+.dash-baritem{
+  margin-bottom: 10px;
+}
+.dash-baritem-top{
+  display:flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.dash-baritem-label{
+  font-size: 13px;
+  color: rgba(15,23,42,.92);
+  font-weight: 600;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-baritem-value{
+  font-size: 12px;
+  color: var(--dash-muted);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+.dash-bartrack{
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(2,6,23,.08);
+  overflow:hidden;
+}
+.dash-barfill{
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(37,99,235,.55), rgba(37,99,235,.95));
+}
+
+/* Subtabs de relatórios */
+.dash-rel-subtabs{
+  display:flex;
+  gap: 8px;
+}
+.dash-rel-subtab{
+  border: 1px solid var(--dash-border);
+  background: #fff;
+  color: var(--dash-muted);
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor:pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dash-rel-subtab.isActive{
+  color: rgba(37,99,235,.95);
+  border-color: rgba(37,99,235,.25);
+  background: rgba(37,99,235,.06);
 }
 
 /* Buttons */

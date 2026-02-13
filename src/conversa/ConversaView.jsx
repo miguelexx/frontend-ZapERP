@@ -341,23 +341,31 @@ function MessageTicks({ msg }) {
   const hasReadAt = !!(msg?.lida_em || msg?.lidaEm || msg?.read_at || msg?.readAt);
   const hasDeliveredAt = !!(msg?.entregue_em || msg?.entregueEm || msg?.delivered_at || msg?.deliveredAt);
 
+  // Normalização de status (canonical)
+  const s = rawStatus;
+  const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou";
+  const isPending = s === "pending" || s === "enviando" || s === "sending";
   const isRead =
-    rawStatus === "lida" ||
-    rawStatus === "read" ||
-    rawStatus === "seen" ||
-    rawStatus === "visualizada" ||
+    s === "lida" ||
+    s === "read" ||
+    s === "seen" ||
+    s === "visualizada" ||
+    s === "played" ||
     hasReadAt;
-
   const isDelivered =
     isRead ||
-    rawStatus === "entregue" ||
-    rawStatus === "delivered" ||
-    rawStatus === "enviada" ||
-    rawStatus === "sent" ||
+    s === "entregue" ||
+    s === "delivered" ||
+    s === "received" ||
     hasDeliveredAt;
+  const isSent =
+    isDelivered ||
+    isRead
+      ? false
+      : (!s || s === "sent" || s === "enviada" || s === "enviado");
 
   // Ticks finos e minimalistas (estilo WhatsApp Web)
-  const TickSvg = ({ double }) => (
+  const TickSvg = ({ kind }) => (
     <svg
       className="wa-ticksSvg"
       viewBox="0 0 18 12"
@@ -367,16 +375,18 @@ function MessageTicks({ msg }) {
       focusable="false"
     >
       {/* primeiro tick */}
-      <path
-        d="M2.2 6.2 5.2 9.1 10.4 3.1"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.55"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {kind === "sent" || kind === "delivered" || kind === "read" ? (
+        <path
+          d="M2.2 6.2 5.2 9.1 10.4 3.1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.55"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
       {/* segundo tick (bem colado) */}
-      {double ? (
+      {kind === "delivered" || kind === "read" ? (
         <path
           d="M7.0 6.2 10.0 9.1 15.2 3.1"
           fill="none"
@@ -386,12 +396,27 @@ function MessageTicks({ msg }) {
           strokeLinejoin="round"
         />
       ) : null}
+      {/* relógio (pending) */}
+      {kind === "pending" ? (
+        <>
+          <circle cx="9" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.35" opacity="0.9" />
+          <path d="M9 3.8v2.5l1.6 1.0" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : null}
+      {/* erro */}
+      {kind === "err" ? (
+        <>
+          <circle cx="9" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.35" opacity="0.9" />
+          <path d="M9 3.6v3.2" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+          <circle cx="9" cy="10" r="0.8" fill="currentColor" />
+        </>
+      ) : null}
     </svg>
   );
 
   return (
-    <span className={`wa-ticks ${isDelivered ? "isDelivered" : ""} ${isRead ? "isRead" : ""}`}>
-      <TickSvg double={isDelivered} />
+    <span className={`wa-ticks ${isDelivered ? "isDelivered" : ""} ${isRead ? "isRead" : ""} ${isErr ? "isErr" : ""} ${isPending ? "isPending" : ""}`}>
+      <TickSvg kind={isErr ? "err" : isPending ? "pending" : isRead ? "read" : isDelivered ? "delivered" : isSent ? "sent" : "sent"} />
     </span>
   );
 }
