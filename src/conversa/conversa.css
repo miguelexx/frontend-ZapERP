@@ -773,44 +773,31 @@
   padding-right: 0;
 }
 
-/* Mensagens curtas com horário + setas: largura mínima confortável (bubbles “gordinhas”) */
+/* =========================================================
+   Texto + horário + ticks inline (WhatsApp Web)
+   - Faz o balão ser proporcional ao conteúdo (sem min-width fixo)
+   - Horário/ticks entram no cálculo de largura → não corta em "oi"
+========================================================= */
 .wa-bubble.hasInlineMeta {
-  min-width: var(--wa-bubble-min-width-with-meta);
-  padding-bottom: 6px;
+  min-width: 0;
+  padding-bottom: 0;
 }
 .wa-bubble-textInline {
-  display: block;
-  padding-bottom: 18px;
-  padding-right: 6px;
-}
-.wa-bubble-textInline::after{
-  content:"";
-  display:block;
-  clear: both;
-}
-/* Horário e seta no canto inferior direito, sempre dentro do campo da mensagem */
-.wa-bubble.hasInlineMeta .wa-inlineMeta{
-  float: none;
-  position: absolute;
-  right: 8px;
-  bottom: 3px;
-  margin-left: 0;
-  top: auto;
-  max-width: calc(100% - 16px);
-  white-space: nowrap;
+  display: inline; /* mantém horário/ticks na última linha */
 }
 .wa-inlineMeta{
-  float:right;
+  float: none;
   display:inline-flex;
   align-items:center;
-  gap:3px;
-  margin-left:8px;
+  gap:1px;
+  margin-left: 8px;
   font-size: 10px;
   color: var(--wa-text-light);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  vertical-align: baseline;
   position: relative;
-  top: 1px;
+  top: 0.5px;
 }
 .wa-inlineMeta .wa-ticks{
   display:inline-flex;
