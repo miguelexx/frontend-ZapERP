@@ -28,6 +28,20 @@
   color: #475569;
 }
 
+/* Linha Modo escuro: label + switch + hint */
+.config-appearance-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-appearance-row .ia-muted.config-appearance-hint {
+  width: 100%;
+  margin-top: 0;
+  font-size: 12px;
+}
+
 .config-wrap .ia-muted {
   color: #475569;
 }

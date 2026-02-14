@@ -230,17 +230,48 @@ export default function Configuracoes() {
   );
 }
 
+const THEME_KEY = "theme";
+
+function getStoredTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) || "light";
+  } catch {
+    return "light";
+  }
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {}
+}
+
 function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh }) {
   const [v, setV] = useState(empresa || {});
   useEffect(() => setV(empresa || {}), [empresa]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null); // { type: "ok"|"err", text }
+  const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
+
+  const handleDarkModeToggle = (on) => {
+    const theme = on ? "dark" : "light";
+    setDarkMode(on);
+    applyTheme(theme);
+  };
 
   if (!empresa) return <p className="ia-muted">Carregando...</p>;
 
   return (
     <div className="ia-section">
-      <h4>Dados da empresa</h4>
+      <h4>Aparência</h4>
+      <div className="ia-field config-appearance-row">
+        <label>Modo escuro</label>
+        <Switch checked={darkMode} onChange={handleDarkModeToggle} />
+        <span className="ia-muted config-appearance-hint">Altera apenas cores e contraste da interface.</span>
+      </div>
+
+      <h4 style={{ marginTop: 24 }}>Dados da empresa</h4>
       {msg ? (
         <div className={`ia-error-banner ${msg.type === "ok" ? "is-ok" : ""}`} role="alert" style={{ marginBottom: 12 }}>
           {msg.text}

@@ -1,9 +1,40 @@
 /* ==============================
-   CHAT THEME — Dark Clean · WhatsApp Web Premium
-   #111b21 · #202c33 · #2a3942 · #00a884
+   TEMA — Modo claro (padrão) e modo escuro (data-theme="dark")
+   Apenas visual; troca via Configurações > Geral > Modo escuro
 ============================== */
 
-:root {
+/* Tema claro (padrão e data-theme="light") */
+:root,
+[data-theme="light"] {
+  --bg-app: #f0f2f5;
+  --bg-surface: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-sidebar: #f0f2f5;
+
+  --text: #111827;
+  --text-soft: #4b5563;
+  --text-muted: #6b7280;
+
+  --border: #e5e7eb;
+  --border-subtle: rgba(0,0,0,0.06);
+  --hover: rgba(0,0,0,0.04);
+
+  --green: #00a884;
+  --green-soft: rgba(0,168,132,0.12);
+  --green-hover: #02c39a;
+
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 10px;
+  --transition: 0.18s ease;
+
+  --shadow-subtle: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.1);
+  --font-chat: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+/* Tema escuro (só visual) */
+[data-theme="dark"] {
   --bg-app: #0a0e12;
   --bg-surface: #111b21;
   --bg-panel: #202c33;
@@ -17,24 +48,8 @@
   --border-subtle: rgba(255,255,255,0.06);
   --hover: rgba(255,255,255,0.04);
 
-  --green: #00a884;
-  --green-soft: rgba(0,168,132,0.12);
-  --green-hover: #02c39a;
-
-  --radius: 8px;
-  --radius-sm: 6px;
-  --radius-lg: 10px;
-  --transition: 0.18s ease;
-
   --shadow-subtle: 0 1px 3px rgba(0,0,0,0.2);
   --shadow-card: 0 2px 8px rgba(0,0,0,0.25);
-  --font-chat: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-}
-
-[data-theme="dark"] {
-  --bg-app: #0a0e12;
-  --bg-surface: #111b21;
-  --bg-panel: #202c33;
 }
 
 /* Atendimento Layout */
