@@ -1,0 +1,409 @@
+/* ==========================================================================
+   ZapERPLogo — Premium Tech / Interativo (SVG + CSS)
+   Destaques:
+   - Conic ring premium + edge shine
+   - Spotlight seguindo o mouse (--zpl-mx/--zpl-my)
+   - Tilt 3D
+   - Ripple no clique
+   - Partículas, grid, scanline, glow inteligente
+   ========================================================================== */
+
+   :root {
+    --zpl-primary: #0d9488;
+    --zpl-primary-dark: #0f766e;
+    --zpl-primary-soft: rgba(13, 148, 136, 0.12);
+  
+    --zpl-dark: #0f172a;
+    --zpl-dark-soft: #334155;
+    --zpl-light: #f8fafc;
+    --zpl-muted: #64748b;
+  
+    --zpl-bg: #ffffff;
+    --zpl-font: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+    --zpl-gap: 12px;
+    --zpl-radius: 14px;
+  
+    /* vars de interação */
+    --zpl-rx: 0deg;
+    --zpl-ry: 0deg;
+    --zpl-mx: 50%;
+    --zpl-my: 50%;
+    --zpl-energy: 0;  /* 0..1 */
+    --zpl-click: 0;   /* 0/1 */
+  }
+  
+  [data-theme="dark"] {
+    --zpl-dark: #f1f5f9;
+    --zpl-dark-soft: #cbd5e1;
+    --zpl-light: #1e293b;
+    --zpl-muted: #94a3b8;
+    --zpl-bg: #0f172a;
+    --zpl-primary-soft: rgba(13, 148, 136, 0.2);
+  }
+  
+  .zpl {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--zpl-gap);
+    font-family: var(--zpl-font);
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  .zpl--compact .zpl-word { display: none; }
+  .zpl--wordmark .zpl-mark { display: none; }
+  
+  .zpl--horizontal .zpl-word {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    line-height: 1.2;
+  }
+  
+  /* Tamanhos */
+  .zpl--sm { --zpl-gap: 8px; }
+  .zpl--md { --zpl-gap: 12px; }
+  .zpl--lg { --zpl-gap: 14px; }
+  
+  .zpl--sm .zpl-mark { width: 38px; height: 38px; }
+  .zpl--md .zpl-mark { width: 46px; height: 46px; }
+  .zpl--lg .zpl-mark { width: 56px; height: 56px; }
+  
+  .zpl--sm .zpl-name { font-size: 18px; }
+  .zpl--md .zpl-name { font-size: 21px; }
+  .zpl--lg .zpl-name { font-size: 26px; }
+  
+  .zpl--sm .zpl-tagline { font-size: 11px; }
+  .zpl--md .zpl-tagline { font-size: 12px; }
+  .zpl--lg .zpl-tagline { font-size: 13px; }
+  
+  .zpl--mode-light {
+    --zpl-dark: #0f172a;
+    --zpl-dark-soft: #334155;
+    --zpl-muted: #64748b;
+    --zpl-bg: #ffffff;
+    --zpl-light: #f8fafc;
+  }
+  
+  .zpl--mode-dark {
+    --zpl-dark: #f1f5f9;
+    --zpl-dark-soft: #cbd5e1;
+    --zpl-muted: #94a3b8;
+    --zpl-bg: #0f172a;
+    --zpl-light: #1e293b;
+  }
+  
+  .zpl--tone-mono {
+    --zpl-primary: var(--zpl-dark);
+    --zpl-primary-dark: var(--zpl-dark);
+  }
+  
+  /* --------------------------------------------------------------------------
+     MARK (ícone) — camadas premium
+     -------------------------------------------------------------------------- */
+  
+  .zpl-mark {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: var(--zpl-radius);
+    overflow: hidden;
+  
+    background: linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.35));
+    box-shadow:
+      0 10px 28px rgba(2, 6, 23, 0.10),
+      0 1px 0 rgba(255,255,255,0.55) inset;
+  
+    transform-style: preserve-3d;
+    transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms ease, filter 260ms ease;
+    will-change: transform, box-shadow, filter;
+  }
+  
+  .zpl--interactive .zpl-mark {
+    transform: perspective(720px) rotateX(var(--zpl-rx)) rotateY(var(--zpl-ry)) translateZ(0);
+  }
+  
+  .zpl--interactive:hover .zpl-mark {
+    box-shadow:
+      0 18px 46px rgba(13, 148, 136, 0.18),
+      0 10px 28px rgba(2, 6, 23, 0.12),
+      0 1px 0 rgba(255,255,255,0.6) inset;
+    filter: saturate(1.06);
+  }
+  
+  /* SVG */
+  .zpl-svg {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    display: block;
+    transform: translateZ(14px);
+  }
+  
+  .zpl-bubble {
+    transition: filter 260ms ease;
+  }
+  
+  .zpl--interactive:hover .zpl-bubble {
+    filter: drop-shadow(0 0 14px rgba(13, 148, 136, 0.36));
+  }
+  
+  .zpl-tick {
+    opacity: 0.0;
+    transform-origin: center;
+    transform: translateZ(18px);
+    transition: opacity 240ms ease, transform 240ms ease;
+  }
+  
+  .zpl--interactive:hover .zpl-tick {
+    opacity: 1;
+  }
+  
+  /* --------------------------------------------------------------------------
+     Camadas Tech
+     -------------------------------------------------------------------------- */
+  
+  /* glow base (inteligente com energy + click) */
+  .zpl-underGlow {
+    position: absolute;
+    inset: -35%;
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse 70% 70% at 50% 50%,
+      rgba(13,148,136,0.42),
+      rgba(15,118,110,0.18),
+      transparent 64%
+    );
+    opacity: calc(0.55 + (var(--zpl-energy) * 0.25) + (var(--zpl-click) * 0.2));
+    animation: zplPulse 2.6s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  /* conic ring premium */
+  .zpl-conicRing {
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    background: conic-gradient(
+      from 180deg,
+      transparent 0deg,
+      rgba(13,148,136,0.65) 45deg,
+      rgba(255,255,255,0.45) 90deg,
+      rgba(13,148,136,0.70) 140deg,
+      transparent 220deg,
+      rgba(13,148,136,0.55) 300deg,
+      transparent 360deg
+    );
+    filter: blur(0.2px);
+    animation: zplConic 3.2s linear infinite;
+    pointer-events: none;
+    z-index: 2;
+  
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    padding: 2px;
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  
+  /* grid sutil */
+  .zpl-grid {
+    position: absolute;
+    inset: -18%;
+    background-image:
+      linear-gradient(rgba(13,148,136,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(13,148,136,0.08) 1px, transparent 1px);
+    background-size: 6px 6px;
+    opacity: 0.75;
+    animation: zplGrid 8s linear infinite;
+    pointer-events: none;
+    z-index: 3;
+  }
+  
+  /* partículas (pontinhos com drift) */
+  .zpl-particles {
+    position: absolute;
+    inset: -25%;
+    background-image:
+      radial-gradient(rgba(255,255,255,0.60) 1px, transparent 2px),
+      radial-gradient(rgba(13,148,136,0.40) 1px, transparent 2px);
+    background-size: 26px 26px, 34px 34px;
+    background-position: 0 0, 10px 16px;
+    opacity: 0.25;
+    animation: zplParticles 10s linear infinite;
+    pointer-events: none;
+    z-index: 4;
+  }
+  
+  /* scanline (overlay) */
+  .zpl-scanline {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(13,148,136,0.10) 48%,
+      rgba(255,255,255,0.20) 50%,
+      rgba(13,148,136,0.10) 52%,
+      transparent 100%
+    );
+    background-size: 100% 64px;
+    animation: zplScan 2.1s linear infinite;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0.85;
+  }
+  
+  /* spotlight que segue o mouse */
+  .zpl-spotlight {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(
+        circle 110px at var(--zpl-mx) var(--zpl-my),
+        rgba(255,255,255,0.35),
+        rgba(13,148,136,0.16),
+        transparent 62%
+      );
+    opacity: calc(0.25 + (var(--zpl-energy) * 0.25) + (var(--zpl-click) * 0.25));
+    pointer-events: none;
+    z-index: 7;
+    transition: opacity 180ms ease;
+  }
+  
+  /* brilho de borda (edge shine) */
+  .zpl-edgeShine {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.45),
+      transparent 40%,
+      rgba(255,255,255,0.10) 70%,
+      rgba(13,148,136,0.18)
+    );
+    opacity: 0.45;
+    transform: translateZ(8px);
+    pointer-events: none;
+    z-index: 8;
+  }
+  
+  /* ripple no clique */
+  .zpl-ripple {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    left: 50%;
+    top: 50%;
+    z-index: 9;
+    pointer-events: none;
+  
+    background: radial-gradient(circle, rgba(255,255,255,0.55), rgba(13,148,136,0.30), transparent 70%);
+    animation: zplRipple 520ms ease-out forwards;
+  }
+  
+  /* --------------------------------------------------------------------------
+     Tipografia (wordmark) — premium
+     -------------------------------------------------------------------------- */
+  
+  .zpl-word { min-width: 0; }
+  
+  .zpl-name {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1.06;
+  
+    /* depth sutil */
+    text-shadow:
+      0 1px 0 rgba(255,255,255,0.55),
+      0 10px 26px rgba(2,6,23,0.08);
+  }
+  
+  .zpl-nameZap {
+    color: var(--zpl-dark);
+  }
+  
+  .zpl-nameERP {
+    color: var(--zpl-primary);
+    letter-spacing: -0.02em;
+  }
+  
+  .zpl-nameFull {
+    color: var(--zpl-dark);
+  }
+  
+  .zpl-tagline {
+    font-size: inherit;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    color: var(--zpl-muted);
+    line-height: 1.25;
+    opacity: 0.95;
+  }
+  
+  /* Hover do texto (bem sutil, mas premium) */
+  .zpl--interactive:hover .zpl-nameERP {
+    filter: drop-shadow(0 0 10px rgba(13,148,136,0.25));
+  }
+  
+  /* --------------------------------------------------------------------------
+     Animações
+     -------------------------------------------------------------------------- */
+  
+  @keyframes zplPulse {
+    0%, 100% { transform: scale(0.96); }
+    50% { transform: scale(1.06); }
+  }
+  
+  @keyframes zplConic {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  @keyframes zplGrid {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(6px, 6px); }
+  }
+  
+  @keyframes zplParticles {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(28px, 18px); }
+  }
+  
+  @keyframes zplScan {
+    0% { background-position: 0 -64px; }
+    100% { background-position: 0 110%; }
+  }
+  
+  @keyframes zplRipple {
+    0% { opacity: 0.0; transform: translate(-50%, -50%) scale(0.8); }
+    18% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(18); }
+  }
+  
+  /* Acessibilidade */
+  @media (prefers-reduced-motion: reduce) {
+    .zpl-underGlow,
+    .zpl-conicRing,
+    .zpl-grid,
+    .zpl-particles,
+    .zpl-scanline { animation: none !important; }
+  
+    .zpl--interactive .zpl-mark {
+      transform: none !important;
+      transition: none !important;
+    }
+  }
+  

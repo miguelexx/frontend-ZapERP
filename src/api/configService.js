@@ -123,7 +123,8 @@ export async function removeEmpresaWhatsapp(id) {
 // Clientes (conectado à tabela clientes do banco)
 export async function getClientes(params = {}) {
   const { data } = await api.get('/clientes', {
-    params: { limit: 500, ...params }
+    // backend aceita até 2000
+    params: { limit: 2000, ...params }
   })
   return data || []
 }
@@ -140,4 +141,20 @@ export async function atualizarCliente(id, payload) {
 
 export async function excluirCliente(id) {
   await api.delete(`/clientes/${id}`)
+}
+
+// Tags do cliente
+export async function getClienteTags(clienteId) {
+  const { data } = await api.get(`/clientes/${clienteId}/tags`)
+  return data || []
+}
+
+export async function addClienteTag(clienteId, tagId) {
+  const { data } = await api.post(`/clientes/${clienteId}/tags`, { tagId })
+  return data
+}
+
+export async function removeClienteTag(clienteId, tagId) {
+  const { data } = await api.delete(`/clientes/${clienteId}/tags/${tagId}`)
+  return data
 }

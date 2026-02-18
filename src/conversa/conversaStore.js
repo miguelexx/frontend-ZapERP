@@ -8,6 +8,7 @@ import {
   listarAtendimentos,
 } from "./conversaService"
 import { getSocket } from "../socket/socket"
+import { useChatStore } from "../chats/chatsStore"
 import { attachReplyMeta } from "./replyMeta"
 
 const PAGE_LIMIT = 50
@@ -33,7 +34,33 @@ export const useConversaStore = create((set, get) => ({
   atendimentosLoading: false,
   atendimentosLoadedFor: null,
 
+  // Indicador de digitação em tempo real: { [conversaId]: { usuario_id, nome, expiresAt } }
+  typing: {},
+
   setSelectedId: (id) => set({ selectedId: id }),
+
+  /** Define quem está digitando na conversa (via WebSocket typing_start). Expira em 5s. */
+  setTyping: (conversa_id, payload) => {
+    if (!conversa_id) return
+    const id = String(conversa_id)
+    const expiresAt = Date.now() + 5000
+    set((state) => ({
+      typing: {
+        ...state.typing,
+        [id]: payload ? { ...payload, expiresAt } : undefined,
+      },
+    }))
+  },
+
+  /** Remove indicador de digitação (typing_stop ou timeout). */
+  clearTyping: (conversa_id) => {
+    if (!conversa_id) return
+    set((state) => {
+      const next = { ...state.typing }
+      delete next[String(conversa_id)]
+      return { typing: next }
+    })
+  },
 
   /* =====================================================
      CARREGAR CONVERSA
@@ -103,6 +130,7 @@ export const useConversaStore = create((set, get) => ({
       })
 
       if (socket) socket.emit("join_conversa", normalizedId)
+      useChatStore.getState().clearUnread(normalizedId)
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || "Erro ao carregar conversa"
       console.error("Erro ao carregar conversa:", err)

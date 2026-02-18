@@ -208,6 +208,13 @@ export default function Configuracoes() {
             onRefresh={loadAll}
             onSyncContacts={loadAll}
             onSearchClientes={loadClientes}
+            empresa={empresa}
+            tags={tags}
+            onUpdateEmpresa={async (patch) => {
+              const updated = await cfg.putEmpresa(patch);
+              setEmpresa((prev) => updated || { ...(prev || {}), ...(patch || {}) });
+              return updated;
+            }}
           />
         )}
         {tab === "planos" && (
@@ -965,7 +972,7 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
   );
 }
 
-function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }) {
+function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, empresa, onUpdateEmpresa, tags }) {
   const navigate = useNavigate();
   const addChat = useChatStore((s) => s.addChat);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
@@ -973,6 +980,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
   const [syncResult, setSyncResult] = useState(null);
   const [syncingFotos, setSyncingFotos] = useState(false);
   const [syncFotosResult, setSyncFotosResult] = useState(null);
+  const [autoSyncSaving, setAutoSyncSaving] = useState(false);
   const [busca, setBusca] = useState("");
   const [searching, setSearching] = useState(false);
   const [abrindoId, setAbrindoId] = useState(null);
@@ -987,6 +995,32 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
     }, 300);
     return () => clearTimeout(t);
   }, [busca, onSearchClientes]);
+
+  // ✅ auto-refresh quando o backend terminar o sync on-connect (Socket → CustomEvent)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = (ev) => {
+      const detail = ev?.detail;
+      if (!detail) return;
+      setSyncResult(detail);
+      onSyncContacts?.();
+    };
+    window.addEventListener("zapi_sync_contatos", handler);
+    return () => window.removeEventListener("zapi_sync_contatos", handler);
+  }, [onSyncContacts]);
+
+  const autoSyncValue = empresa?.zapi_auto_sync_contatos ?? true;
+  const handleToggleAutoSync = async (next) => {
+    if (!onUpdateEmpresa) return;
+    setAutoSyncSaving(true);
+    try {
+      await onUpdateEmpresa({ zapi_auto_sync_contatos: !!next });
+    } catch (e) {
+      alert(e.response?.data?.error || e.message || "Erro ao salvar preferência.");
+    } finally {
+      setAutoSyncSaving(false);
+    }
+  };
 
   const handleSincronizarContatos = async () => {
     setSyncing(true);
@@ -1068,7 +1102,26 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
         </button>
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
-        <p className="ia-muted">Importe nomes e fotos de perfil do WhatsApp conectado (celular).</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <p className="ia-muted" style={{ margin: 0 }}>
+            Importe nomes e fotos de perfil do WhatsApp conectado (celular).
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="ia-muted">Auto-sync ao conectar</span>
+            <Switch
+              checked={!!autoSyncValue}
+              onChange={(v) => {
+                if (autoSyncSaving) return;
+                handleToggleAutoSync(v);
+              }}
+            />
+          </div>
+        </div>
+        {autoSyncSaving && (
+          <p className="ia-muted" style={{ marginTop: 8 }}>
+            Salvando preferência…
+          </p>
+        )}
         <button
           type="button"
           className="ia-btn ia-btn--primary"
@@ -1081,7 +1134,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
           <p className="ia-muted" style={{ marginTop: 8 }}>
             {syncResult.error
               ? syncResult.error
-              : `OK: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados.`}
+              : `OK: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados.${syncResult.fotos_atualizadas ? ` ${syncResult.fotos_atualizadas} fotos atualizadas.` : ""}`}
           </p>
         )}
       </div>
@@ -1125,12 +1178,14 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
               <th style={{ width: 52 }}></th>
               <th>Nome</th>
               <th>Telefone</th>
+              <th>Email</th>
+              <th>Empresa</th>
               <th>Observações</th>
               <th style={{ width: 200 }}>Ações</th>
             </tr>
           </thead>
           <tbody>
-            {clientes.slice(0, 200).map((c) => {
+            {clientes.map((c) => {
               const url = avatarUrl(c);
               const iniciais = [c.nome, c.telefone].filter(Boolean)[0]
                 ? String(c.nome || c.telefone || "").trim().slice(0, 2).toUpperCase()
@@ -1175,6 +1230,8 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
                   </td>
                   <td>{c.nome || "—"}</td>
                   <td>{c.telefone}</td>
+                  <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{c.email || "—"}</td>
+                  <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{c.empresa || "—"}</td>
                   <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{c.observacoes || "—"}</td>
                   <td>
                     <div className="ia-btn-row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -1217,6 +1274,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes }
         <ModalCliente
           mode={clienteModal.mode}
           cliente={clienteModal.data}
+          allTags={tags}
           onClose={() => setClienteModal(null)}
           onSaved={() => { setClienteModal(null); onRefresh?.(); }}
         />
@@ -1364,18 +1422,59 @@ function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
   );
 }
 
-function ModalCliente({ mode, cliente, onClose, onSaved }) {
+function ModalCliente({ mode, cliente, onClose, onSaved, allTags = [] }) {
   const isNew = mode === "new";
   const [nome, setNome] = useState(cliente?.nome || "");
   const [telefone, setTelefone] = useState(cliente?.telefone || "");
+  const [email, setEmail] = useState(cliente?.email || "");
+  const [empresa, setEmpresa] = useState(cliente?.empresa || "");
   const [observacoes, setObservacoes] = useState(cliente?.observacoes || "");
+  const [tagIds, setTagIds] = useState([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagBusyId, setTagBusyId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setNome(cliente?.nome || "");
     setTelefone(cliente?.telefone || "");
+    setEmail(cliente?.email || "");
+    setEmpresa(cliente?.empresa || "");
     setObservacoes(cliente?.observacoes || "");
+    setTagIds([]);
   }, [cliente?.id]);
+
+  useEffect(() => {
+    if (isNew || !cliente?.id) return;
+    setTagsLoading(true);
+    cfg.getClienteTags(cliente.id)
+      .then((list) => {
+        const ids = (Array.isArray(list) ? list : []).map((t) => String(t.id));
+        setTagIds(ids);
+      })
+      .catch(() => setTagIds([]))
+      .finally(() => setTagsLoading(false));
+  }, [isNew, cliente?.id]);
+
+  const toggleTag = async (tag) => {
+    if (!cliente?.id || !tag?.id || tagBusyId) return;
+    const tid = String(tag.id);
+    const has = tagIds.includes(tid);
+    setTagBusyId(tid);
+    try {
+      if (has) {
+        await cfg.removeClienteTag(cliente.id, tag.id);
+        setTagIds((cur) => (cur || []).filter((x) => x !== tid));
+      } else {
+        await cfg.addClienteTag(cliente.id, tag.id);
+        setTagIds((cur) => [...new Set([...(cur || []), tid])]);
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao atualizar tags do cliente.";
+      alert(msg);
+    } finally {
+      setTagBusyId(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1389,11 +1488,15 @@ function ModalCliente({ mode, cliente, onClose, onSaved }) {
         await cfg.criarCliente({
           telefone: String(telefone || "").trim(),
           nome: String(nome || "").trim() || null,
+          email: String(email || "").trim() || null,
+          empresa: String(empresa || "").trim() || null,
           observacoes: String(observacoes || "").trim() || null,
         });
       } else {
         await cfg.atualizarCliente(cliente.id, {
           nome: String(nome || "").trim() || null,
+          email: String(email || "").trim() || null,
+          empresa: String(empresa || "").trim() || null,
           observacoes: String(observacoes || "").trim() || null,
         });
       }
@@ -1431,9 +1534,55 @@ function ModalCliente({ mode, cliente, onClose, onSaved }) {
             {!isNew ? <span className="ia-muted" style={{ fontSize: 12, marginTop: 4, display: "block" }}>Telefone não é editável (use sincronização/novo cadastro se necessário).</span> : null}
           </div>
           <div className="ia-field">
+            <label>Email</label>
+            <input
+              className="ia-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@empresa.com (opcional)"
+              inputMode="email"
+              autoComplete="email"
+            />
+          </div>
+          <div className="ia-field">
+            <label>Empresa</label>
+            <input className="ia-input" value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Nome da empresa (opcional)" />
+          </div>
+          <div className="ia-field">
             <label>Observações</label>
             <textarea className="ia-textarea" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={3} placeholder="Observações internas sobre o cliente..." />
           </div>
+          {!isNew ? (
+            <div className="ia-field">
+              <label>Tags do contato</label>
+              <div className="ia-muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                {tagsLoading ? "Carregando tags..." : "Clique para adicionar/remover tags deste contato."}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {(Array.isArray(allTags) ? allTags : []).length === 0 ? (
+                  <span className="ia-muted" style={{ fontSize: 12 }}>Nenhuma tag cadastrada (Configurações → Tags).</span>
+                ) : (
+                  (allTags || []).map((t) => {
+                    const on = tagIds.includes(String(t.id));
+                    const busy = tagBusyId === String(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`ia-btn ia-btn--small ${on ? "ia-btn--primary" : "ia-btn--outline"}`}
+                        style={on ? { background: t.cor || undefined, borderColor: t.cor || undefined } : undefined}
+                        onClick={() => toggleTag(t)}
+                        disabled={busy || tagsLoading}
+                        title={on ? "Remover tag" : "Adicionar tag"}
+                      >
+                        {t.nome}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ) : null}
           <div className="ia-btn-row" style={{ marginTop: 16 }}>
             <button type="submit" className="ia-btn ia-btn--primary" disabled={saving}>
               {saving ? "Salvando..." : "Salvar"}

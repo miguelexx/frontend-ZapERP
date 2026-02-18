@@ -5,60 +5,78 @@ import { useAuthStore } from "../auth/authStore"
 export default function Login() {
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
+  const loading = useAuthStore((s) => s.loading)
 
   const [email, setEmail] = useState("")
   const [senha, setSenha] = useState("")
   const [erro, setErro] = useState("")
-  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setErro("")
-    setLoading(true)
 
     try {
-      await login(email, senha)
-
-      const raw = localStorage.getItem("zap_erp_auth")
-      console.log("✅ zap_erp_auth salvo:", raw)
-
+      await login(email.trim(), senha)
       navigate("/", { replace: true })
     } catch (err) {
-      console.error("ERRO LOGIN:", err)
-      setErro(err?.response?.data?.error || err?.message || "Falha no login")
-    } finally {
-      setLoading(false)
+      setErro(
+        err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Falha no login. Verifique e-mail e senha."
+      )
     }
   }
 
   return (
     <div className="login-wrap">
+      <div className="login-bg" aria-hidden="true">
+        <span className="login-bg-grid" />
+        <span className="login-bg-scanline" />
+        <span className="login-bg-glow" />
+      </div>
       <form
         onSubmit={handleSubmit}
         className="login-form"
+        noValidate
+        aria-label="Formulário de login"
       >
-        <h2 style={{ margin: 0, marginBottom: 12 }}>Zap ERP • Login</h2>
+        <h2 className="login-title">ZapERP · Login</h2>
 
-        <label>E-mail</label>
+        <label htmlFor="login-email">E-mail</label>
         <input
+          id="login-email"
+          type="email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="seu@email.com"
+          disabled={loading}
+          aria-invalid={!!erro}
+          aria-describedby={erro ? "login-error" : undefined}
         />
 
-        <label>Senha</label>
+        <label htmlFor="login-senha">Senha</label>
         <input
+          id="login-senha"
           type="password"
+          autoComplete="current-password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
           placeholder="••••••••"
+          disabled={loading}
+          aria-invalid={!!erro}
         />
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Entrando..." : "Entrar"}
+        <button type="submit" disabled={loading} aria-busy={loading}>
+          {loading ? "Entrando…" : "Entrar"}
         </button>
 
-        {erro && <div style={{ marginTop: 10, color: "crimson" }}>{erro}</div>}
+        {erro && (
+          <p id="login-error" className="login-error" role="alert">
+            {erro}
+          </p>
+        )}
       </form>
     </div>
   )

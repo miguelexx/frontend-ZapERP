@@ -9,7 +9,9 @@ import { useAuthStore } from "../auth/authStore";
 import { canGerenciarSetores, canTag } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
+import { fetchChats, abrirConversaCliente } from "../chats/chatService";
 import { getApiBaseUrl } from "../api/baseUrl";
+import { getSocket } from "../socket/socket";
 import { saveReplyMeta } from "./replyMeta";
 import {
   listarTags,
@@ -689,8 +691,15 @@ function Bubble({
   onDeleteForEveryone,
   isPinned,
   isStarred,
+  currentUserId,
 }) {
   const out = msg?.direcao === "out";
+  const canDeleteForEveryone = useMemo(() => {
+    if (!out) return false;
+    if (currentUserId == null) return false;
+    if (msg?.autor_usuario_id == null) return false;
+    return String(msg.autor_usuario_id) === String(currentUserId);
+  }, [out, currentUserId, msg?.autor_usuario_id]);
   const isImg = msg?.tipo === "imagem";
   const isSticker = msg?.tipo === "sticker";
   const isFile = msg?.tipo === "arquivo";
@@ -1067,14 +1076,16 @@ function Bubble({
               >
                 Apagar para mim
               </button>
-              <button
-                type="button"
-                className="wa-msgMenuItem wa-msgMenuItemDanger"
-                onClick={() => runAction("deleteForEveryone")}
-                role="menuitem"
-              >
-                Apagar para todos
-              </button>
+              {canDeleteForEveryone ? (
+                <button
+                  type="button"
+                  className="wa-msgMenuItem wa-msgMenuItemDanger"
+                  onClick={() => runAction("deleteForEveryone")}
+                  role="menuitem"
+                >
+                  Apagar para todos
+                </button>
+              ) : null}
             </div>,
             document.body
           )
@@ -1187,9 +1198,12 @@ export default function ConversaView() {
     carregarAtendimentos,
     setSelectedId,
     selectedId,
+    typing,
+    clearTyping,
   } = useConversaStore();
 
   const user = useAuthStore((s) => s.user);
+  const myUserId = user?.id != null ? Number(user.id) : null;
   const podeGerenciarSetores = canGerenciarSetores(user);
   const podeGerenciarTags = canTag(user);
 
@@ -1240,6 +1254,8 @@ export default function ConversaView() {
   const [forwardMsg, setForwardMsg] = useState(null);
   const [forwardQuery, setForwardQuery] = useState("");
   const [forwardSending, setForwardSending] = useState(false);
+  const [forwardClientes, setForwardClientes] = useState([]);
+  const [forwardClientesLoading, setForwardClientesLoading] = useState(false);
 
   const [msgInfoOpen, setMsgInfoOpen] = useState(false);
   const [msgInfo, setMsgInfo] = useState(null);
@@ -1248,8 +1264,15 @@ export default function ConversaView() {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const inputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const conversaId = conversa?.id || null;
+  const typingInfo = conversaId ? typing[String(conversaId)] : null;
+  const isSomeoneTyping = Boolean(
+    typingInfo &&
+    typingInfo.usuario_id !== myUserId &&
+    (typingInfo.expiresAt == null || typingInfo.expiresAt > Date.now())
+  );
 
   const isGroup = useMemo(() => isGroupConversation(conversa), [conversa]);
 
@@ -1315,6 +1338,52 @@ export default function ConversaView() {
       .filter(byName)
       .slice(0, 80);
   }, [chats, forwardQuery, conversaId]);
+
+  // Encaminhar: garante lista de conversas + busca de clientes (contatos)
+  useEffect(() => {
+    if (!forwardOpen) {
+      setForwardClientes([]);
+      setForwardClientesLoading(false);
+      return;
+    }
+
+    // 1) garante conversas carregadas para listar "Contatos"
+    if (!Array.isArray(chats) || chats.length === 0) {
+      (async () => {
+        try {
+          const list = await fetchChats({ incluir_todos_clientes: true });
+          useChatStore.getState().setChats(Array.isArray(list) ? list : []);
+        } catch (_) {
+          // ignora (segue só com busca de clientes)
+        }
+      })();
+    }
+
+    // 2) busca clientes no banco por palavra (opcional)
+    const q = safeString(forwardQuery).trim();
+    if (q.length < 2) {
+      setForwardClientes([]);
+      setForwardClientesLoading(false);
+      return;
+    }
+
+    setForwardClientesLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const list = await cfg.getClientes({ palavra: q, limit: 60 });
+        const arr = Array.isArray(list) ? list : [];
+        // evita sugerir o cliente desta conversa atual
+        const curClienteId = conversa?.cliente_id != null ? String(conversa.cliente_id) : null;
+        setForwardClientes(curClienteId ? arr.filter((c) => String(c.id) !== curClienteId) : arr);
+      } catch (_) {
+        setForwardClientes([]);
+      } finally {
+        setForwardClientesLoading(false);
+      }
+    }, 260);
+
+    return () => clearTimeout(t);
+  }, [forwardOpen, forwardQuery, chats, conversaId, conversa?.cliente_id]);
 
   useEffect(() => {
     // reset por conversa
@@ -1673,11 +1742,58 @@ export default function ConversaView() {
 
   const handleCloseTimeline = useCallback(() => setShowTimeline(false), []);
 
+  const emitTypingStop = useCallback(() => {
+    if (!conversaId) return;
+    const socket = getSocket();
+    if (socket?.connected) socket.emit("typing_stop", { conversa_id: conversaId });
+  }, [conversaId]);
+
+  const emitTypingStart = useCallback(() => {
+    if (!conversaId) return;
+    const socket = getSocket();
+    if (socket?.connected) socket.emit("typing_start", { conversa_id: conversaId });
+  }, [conversaId]);
+
+  useEffect(() => {
+    if (!conversaId) return;
+    if (!safeString(texto)) {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      emitTypingStop();
+      return;
+    }
+    const t = typingTimeoutRef.current;
+    if (t) clearTimeout(t);
+    typingTimeoutRef.current = setTimeout(() => {
+      typingTimeoutRef.current = null;
+      emitTypingStart();
+    }, 400);
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    };
+  }, [conversaId, texto, emitTypingStart, emitTypingStop]);
+
+  useEffect(() => {
+    return () => {
+      if (conversaId) {
+        const socket = getSocket();
+        if (socket?.connected) socket.emit("typing_stop", { conversa_id: conversaId });
+        clearTyping(conversaId);
+      }
+    };
+  }, [conversaId, clearTyping]);
+
   const handleEnviar = useCallback(async () => {
     if (!conversaId) return;
 
     const t = safeString(texto);
     if (!t) return;
+    emitTypingStop();
     const replyMeta =
       replyTo
         ? {
@@ -1714,7 +1830,7 @@ export default function ConversaView() {
     } finally {
       setSending(false);
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem, nome]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, nome, emitTypingStop]);
 
   const onEscape = useCallback(() => {
     if (isRecording) handleCancelRecording();
@@ -1871,17 +1987,32 @@ export default function ConversaView() {
   }, []);
 
   const handleDeleteForMe = useCallback(
-    (msg) => {
-      if (!msg?.id) return;
-      removerMensagem(msg.id);
-      showToast({ type: "success", title: "Apagada para mim", message: "A mensagem foi removida da sua visualização." });
+    async (msg) => {
+      if (!conversaId || !msg?.id) return;
+      try {
+        await excluirMensagem(conversaId, msg.id, { scope: "me" });
+        removerMensagem(msg.id);
+        showToast({ type: "success", title: "Apagada para mim", message: "A mensagem foi removida da sua visualização." });
+      } catch (e) {
+        console.error("Erro ao apagar pra mim:", e);
+        showToast({ type: "error", title: "Falha ao apagar", message: e.response?.data?.error || "Não foi possível apagar a mensagem." });
+      }
     },
-    [showToast, removerMensagem]
+    [conversaId, showToast, removerMensagem]
   );
 
   const handleDeleteForEveryone = useCallback(
     async (msg) => {
       if (!conversaId || !msg?.id) return;
+      // regra: "para todos" somente para mensagens enviadas por mim
+      if (!myUserId || msg?.autor_usuario_id == null || String(msg.autor_usuario_id) !== String(myUserId)) {
+        showToast({
+          type: "info",
+          title: "Somente suas mensagens",
+          message: "Você só pode apagar para todos mensagens enviadas por você.",
+        });
+        return;
+      }
       const ok = window.confirm("Apagar esta mensagem para todos? Ela será removida para você e para o contato.");
       if (!ok) return;
       try {
@@ -1893,7 +2024,7 @@ export default function ConversaView() {
         showToast({ type: "error", title: "Falha ao apagar", message: "Não foi possível apagar a mensagem." });
       }
     },
-    [conversaId, showToast, removerMensagem]
+    [conversaId, myUserId, showToast, removerMensagem]
   );
 
   const handleDeleteSelected = useCallback(async () => {
@@ -1939,6 +2070,30 @@ export default function ConversaView() {
       } catch (e) {
         console.error("Erro ao encaminhar:", e);
         showToast({ type: "error", title: "Falha ao encaminhar", message: "Não foi possível encaminhar a mensagem." });
+      } finally {
+        setForwardSending(false);
+      }
+    },
+    [forwardMsg, forwardSending, showToast, closeForward]
+  );
+
+  const confirmForwardToCliente = useCallback(
+    async (cliente) => {
+      if (!cliente?.id || !forwardMsg || forwardSending) return;
+      setForwardSending(true);
+      try {
+        const data = await abrirConversaCliente(cliente.id);
+        const conv = data?.conversa || data || null;
+        const destId = conv?.id || null;
+        if (!destId) throw new Error("Não foi possível abrir a conversa do cliente.");
+        // garante na lista (opcional)
+        try { useChatStore.getState().addChat(conv); } catch {}
+        await enviarMensagem(destId, buildForwardText(forwardMsg));
+        showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
+        closeForward();
+      } catch (e) {
+        console.error("Erro ao encaminhar (cliente):", e);
+        showToast({ type: "error", title: "Falha ao encaminhar", message: e.response?.data?.error || e.message || "Não foi possível encaminhar." });
       } finally {
         setForwardSending(false);
       }
@@ -2272,6 +2427,18 @@ export default function ConversaView() {
                   <span className="wa-header-setor wa-muted">Grupo</span>
                 </div>
               )}
+              {isSomeoneTyping && (
+                <div className="wa-header-typingRow">
+                  <span className="wa-typing-dots">
+                    digitando
+                    <span className="wa-typing-dots-inner">
+                      <span className="wa-typing-dot">.</span>
+                      <span className="wa-typing-dot">.</span>
+                      <span className="wa-typing-dot">.</span>
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2510,6 +2677,7 @@ export default function ConversaView() {
                   onDeleteForEveryone={handleDeleteForEveryone}
                   isPinned={pinnedSet.has(String(item.id))}
                   isStarred={starredSet.has(String(item.id))}
+                  currentUserId={myUserId}
                 />
               );
             })
@@ -2600,65 +2768,92 @@ export default function ConversaView() {
           </div>
         )}
 
-        {forwardOpen && forwardMsg && (
-          <div
-            className="wa-tagsPanel"
-            role="dialog"
-            aria-label="Encaminhar mensagem"
-            style={{ bottom: "100%", left: 0, right: 0, maxHeight: 300 }}
-          >
-            <div className="wa-tagsPanel-head">
-              <span className="wa-tagsPanel-title">Encaminhar</span>
-              <button
-                type="button"
-                className="wa-iconBtn"
-                onClick={closeForward}
-                title="Fechar"
-              >
-                <IconClose />
-              </button>
-            </div>
-            <div className="wa-tagsPanel-body" style={{ maxHeight: 260, overflowY: "auto" }}>
-              <div className="wa-forwardHint">
-                <div className="wa-forwardPreview">{snippetFromMsg(forwardMsg)}</div>
-                <div className="wa-forwardSub">Escolha a conversa para encaminhar (Esc para fechar)</div>
+        {forwardOpen && forwardMsg ? createPortal(
+          <div className="wa-modalOverlay" role="dialog" aria-label="Encaminhar mensagem" onMouseDown={closeForward}>
+            <div className="wa-modal wa-forwardModal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Encaminhar</div>
+                <button type="button" className="wa-iconBtn" onClick={closeForward} title="Fechar">
+                  <IconClose />
+                </button>
               </div>
-
-              <input
-                className="wa-input wa-forwardSearch"
-                value={forwardQuery}
-                onChange={(e) => setForwardQuery(e.target.value)}
-                placeholder="Buscar conversa..."
-                aria-label="Buscar conversa"
-              />
-
-              {forwardCandidates.length === 0 ? (
-                <div className="wa-muted" style={{ padding: "10px 4px" }}>
-                  {forwardQuery.trim() ? "Nenhuma conversa encontrada." : "Carregue os contatos ou busque por nome/telefone."}
+              <div className="wa-modal-body wa-forwardBody">
+                <div className="wa-forwardHint">
+                  <div className="wa-forwardPreview">{snippetFromMsg(forwardMsg)}</div>
+                  <div className="wa-forwardSub">Selecione um contato ou conversa para encaminhar.</div>
                 </div>
-              ) : (
-                <div className="wa-forwardList">
-                  {forwardCandidates.map((c) => {
-                    const n = safeString(c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone) || "Conversa";
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="wa-forwardItem"
-                        onClick={() => confirmForwardTo(c.id)}
-                        title={`Encaminhar para ${n}`}
-                        disabled={forwardSending}
-                      >
-                        <div className="wa-forwardItem-name">{n}</div>
-                        {c?.telefone ? <div className="wa-forwardItem-sub">{String(c.telefone)}</div> : null}
-                      </button>
-                    );
-                  })}
+
+                <input
+                  className="wa-input wa-forwardSearch"
+                  value={forwardQuery}
+                  onChange={(e) => setForwardQuery(e.target.value)}
+                  placeholder="Buscar por nome/telefone..."
+                  aria-label="Buscar contato"
+                  autoFocus
+                />
+
+                <div className="wa-forwardSection">
+                  <div className="wa-forwardSectionTitle">Conversas</div>
+                  {forwardCandidates.length === 0 ? (
+                    <div className="wa-muted" style={{ padding: "10px 4px" }}>
+                      {forwardQuery.trim() ? "Nenhuma conversa encontrada." : "Carregando conversas…"}
+                    </div>
+                  ) : (
+                    <div className="wa-forwardList">
+                      {forwardCandidates.map((c) => {
+                        const n = safeString(c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone) || "Conversa";
+                        return (
+                          <button
+                            key={`conv-${c.id}`}
+                            type="button"
+                            className="wa-forwardItem"
+                            onClick={() => confirmForwardTo(c.id)}
+                            title={`Encaminhar para ${n}`}
+                            disabled={forwardSending}
+                          >
+                            <div className="wa-forwardItem-name">{n}</div>
+                            {c?.telefone ? <div className="wa-forwardItem-sub">{String(c.telefone)}</div> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <div className="wa-forwardSection" style={{ marginTop: 14 }}>
+                  <div className="wa-forwardSectionTitle">Clientes</div>
+                  {forwardClientesLoading ? (
+                    <div className="wa-muted" style={{ padding: "10px 4px" }}>Buscando…</div>
+                  ) : forwardClientes.length === 0 ? (
+                    <div className="wa-muted" style={{ padding: "10px 4px" }}>
+                      {safeString(forwardQuery).trim().length >= 2 ? "Nenhum cliente encontrado." : "Digite pelo menos 2 caracteres para buscar."}
+                    </div>
+                  ) : (
+                    <div className="wa-forwardList">
+                      {forwardClientes.slice(0, 60).map((c) => {
+                        const n = safeString(c?.nome || c?.telefone) || "Cliente";
+                        return (
+                          <button
+                            key={`cli-${c.id}`}
+                            type="button"
+                            className="wa-forwardItem"
+                            onClick={() => confirmForwardToCliente(c)}
+                            title={`Encaminhar para ${n}`}
+                            disabled={forwardSending}
+                          >
+                            <div className="wa-forwardItem-name">{n}</div>
+                            {c?.telefone ? <div className="wa-forwardItem-sub">{String(c.telefone)}</div> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          </div>,
+          document.body
+        ) : null}
 
         {replyTo && !isRecording ? (
           <div className="wa-replyBar" role="region" aria-label="Respondendo">
@@ -2806,6 +3001,7 @@ export default function ConversaView() {
                 ref={inputRef}
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
+                onBlur={emitTypingStop}
                 placeholder="Digite uma mensagem"
                 className="wa-input"
                 onKeyDown={handleKeyDownInput}

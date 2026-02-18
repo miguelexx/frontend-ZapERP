@@ -3,12 +3,19 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import ChatList from "../chats/chatList";
 import ConversaView from "../conversa/ConversaView";
 import { useConversaStore } from "../conversa/conversaStore";
+import { useChatStore } from "../chats/chatsStore";
+import { updateDocumentTitleFromChats } from "../socket/socket";
 
 export default function Atendimento() {
   const location = useLocation();
   const navigate = useNavigate();
   const carregarConversa = useConversaStore((s) => s.carregarConversa);
   const selectedId = useConversaStore((s) => s.selectedId);
+  const chats = useChatStore((s) => s.chats);
+
+  useEffect(() => {
+    updateDocumentTitleFromChats();
+  }, [chats]);
 
   const isRoot = location.pathname === "/atendimento";
   const openConversaId = location.state?.openConversaId;

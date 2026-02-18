@@ -9,6 +9,7 @@ import { isGroupConversation } from "../utils/conversaUtils";
 import api from "../api/http";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { useNavigate } from "react-router-dom";
+import ZapERPLogo from "../brand/ZapERPLogo";
 import "./chatList.css";
 
 /* =====================================================
@@ -1000,25 +1001,12 @@ export default function ChatList() {
     <div className="chat-list-root">
       <header className="chat-list-header">
         <div className="chat-list-header-left">
-          <div className="chat-list-header-icon" aria-hidden>
-            <Icon size={16}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M20 15a4 4 0 0 1-4 4H8l-4 3V7a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v8Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </Icon>
-          </div>
-          <div style={{ minWidth: 0 }} className="chat-list-header-brand">
-            <div className="chat-list-header-title">
-              <span className="chat-list-zap">Zap</span>
-              <span className="chat-list-erp">ERP</span>
-            </div>
-            <div className="chat-list-header-sub">Atendimento inteligente</div>
-          </div>
+          <ZapERPLogo
+            variant="horizontal"
+            size="md"
+            tagline="Atendimento inteligente"
+            title="ZapERP — Atendimento inteligente"
+          />
         </div>
 
         <div className="chat-list-header-actions">

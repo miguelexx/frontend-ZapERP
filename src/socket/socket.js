@@ -4,6 +4,21 @@ import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
 import { getApiBaseUrl } from "../api/baseUrl"
 
+const TYPING_EXPIRY_MS = 5000
+let typingExpiryTimer = null
+
+function applyDocumentTitle(unreadTotal) {
+  if (typeof document === "undefined") return
+  const base = "ZapERP — Atendimento inteligente"
+  document.title = unreadTotal > 0 ? `(${unreadTotal}) ${base}` : base
+}
+
+function updateDocumentTitleFromChats() {
+  const chats = useChatStore.getState().chats || []
+  const total = chats.reduce((acc, c) => acc + (Number(c.unread_count) || 0), 0)
+  applyDocumentTitle(total)
+}
+
 const audio = new Audio("/notification.mp3")
 audio.volume = 0.6
 
@@ -18,7 +33,8 @@ function showDesktopNotification(title, body) {
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission === "granted") {
     try {
-      const n = new Notification(title, { body, icon: "/favicon.ico" })
+      const icon = "/brand/zaperp-favicon.svg"
+      const n = new Notification(title, { body, icon })
       n.onclick = () => window.focus()
       setTimeout(() => n.close(), 5000)
     } catch (_) {}
@@ -43,8 +59,38 @@ export function initSocket(token) {
     transports: ["websocket", "polling"],
   })
 
-  socket.on("connect", () => console.log("🟢 Socket conectado:", socket.id))
-  socket.on("disconnect", () => console.log("🔴 Socket desconectado"))
+  if (import.meta.env.DEV) {
+    socket.on("connect", () => console.log("🟢 Socket conectado:", socket.id))
+    socket.on("disconnect", () => console.log("🔴 Socket desconectado"))
+  }
+
+  socket.on("connect", () => {
+    const convId = useConversaStore.getState().selectedId
+    if (convId) socket.emit("join_conversa", convId)
+    updateDocumentTitleFromChats()
+  })
+
+  /* ===========================
+     INDICADOR DE DIGITAÇÃO
+  =========================== */
+  socket.on("typing_start", ({ conversa_id, usuario_id, nome }) => {
+    if (!conversa_id) return
+    useConversaStore.getState().setTyping(conversa_id, { usuario_id, nome })
+    if (typingExpiryTimer) clearTimeout(typingExpiryTimer)
+    typingExpiryTimer = setTimeout(() => {
+      useConversaStore.getState().clearTyping(conversa_id)
+      typingExpiryTimer = null
+    }, TYPING_EXPIRY_MS)
+  })
+
+  socket.on("typing_stop", ({ conversa_id }) => {
+    if (!conversa_id) return
+    if (typingExpiryTimer) {
+      clearTimeout(typingExpiryTimer)
+      typingExpiryTimer = null
+    }
+    useConversaStore.getState().clearTyping(conversa_id)
+  })
 
   /* ===========================
      TAGS
@@ -107,10 +153,11 @@ export function initSocket(token) {
       String(convStore.selectedId) === String(conversaId)
 
     /* ----------------------------------
-       🔔 NOTIFICAÇÕES (som, desktop, toast) — somente se conversa NÃO aberta
+       🔔 NOTIFICAÇÕES (som, desktop, toast, título) — somente se conversa NÃO aberta
     ---------------------------------- */
     if (!isAberta) {
       chatStore.incUnread(conversaId, 1)
+      updateDocumentTitleFromChats()
 
       if (msg.direcao === "in") {
         const contato = getChatDisplayName(conversaId)
@@ -130,8 +177,9 @@ export function initSocket(token) {
     }
 
     /* ----------------------------------
-       conversa aberta → só anexar msg
+       conversa aberta → anexar msg e limpar indicador de digitação
     ---------------------------------- */
+    convStore.clearTyping(conversaId)
     convStore.anexarMensagem(msg)
   })
 
@@ -144,6 +192,15 @@ export function initSocket(token) {
     const chatStore = useChatStore.getState()
     chatStore.setUltimaMensagem(conversa_id, ultima_mensagem || null)
 
+    const convStore = useConversaStore.getState()
+    if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
+      convStore.removerMensagem(mensagem_id)
+    }
+  })
+
+  /* Mensagem ocultada "pra mim" (somente usuário) */
+  socket.on("mensagem_oculta", ({ conversa_id, mensagem_id }) => {
+    if (!conversa_id || !mensagem_id) return
     const convStore = useConversaStore.getState()
     if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
       convStore.removerMensagem(mensagem_id)
@@ -189,6 +246,30 @@ export function initSocket(token) {
   socket.on("mensagens_lidas", ({ conversa_id }) => {
     if (!conversa_id) return
     useChatStore.getState().setUnread(conversa_id, 0)
+    updateDocumentTitleFromChats()
+  })
+
+  /* ===========================
+     Z-API: SYNC DE CONTATOS FINALIZADO (auto)
+  =========================== */
+  socket.on("zapi_sync_contatos", (payload) => {
+    try {
+      const p = payload || {}
+      const total = p.total_contatos ?? 0
+      const criados = p.criados ?? 0
+      const atualizados = p.atualizados ?? 0
+      useNotificationStore.getState().showToast({
+        type: "success",
+        title: "Z-API",
+        message: `Contatos sincronizados: ${total} (${criados} novos, ${atualizados} atualizados).`,
+      })
+    } catch (_) {}
+
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      try {
+        window.dispatchEvent(new CustomEvent("zapi_sync_contatos", { detail: payload }))
+      } catch (_) {}
+    }
   })
 
   /* ===========================
@@ -212,8 +293,9 @@ export function initSocket(token) {
   socket.on("conversa_encerrada", patchEverywhere)
   socket.on("conversa_transferida", patchEverywhere)
   socket.on("conversa_reaberta", patchEverywhere)
-  socket.on("conversa_atribuida", () => {
-    /* Conversa atribuída a este usuário; a lista será atualizada no próximo carregamento */
+  socket.on("conversa_atribuida", (payload) => {
+    if (payload?.id) patchEverywhere(payload)
+    updateDocumentTitleFromChats()
   })
 
   /* Nome e foto do contato atualizados pela Z-API (tempo real) — uma só fonte na lista e na conversa */
@@ -237,3 +319,5 @@ export function initSocket(token) {
 export function getSocket() {
   return socket
 }
+
+export { updateDocumentTitleFromChats, applyDocumentTitle }

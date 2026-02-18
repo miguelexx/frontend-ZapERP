@@ -3,6 +3,7 @@ import { useAuthStore } from "../auth/authStore";
 
 import Login from "../pages/Login";
 import MainLayout from "../layouts/MainLayout";
+import NotFound from "../pages/NotFound";
 
 import Dashboard from "../dashboard/Dashboard";
 import Atendimento from "../pages/Atendimento";
@@ -43,8 +44,7 @@ export default function AppRoutes() {
           <Route path="/ia" element={<IA />} />
           <Route path="/atendimento/novo-grupo" element={<NovoGrupo />} />
           <Route path="/atendimento/nova-comunidade" element={<NovaComunidade />} />
-
-        
+          <Route path="*" element={<NotFound />} />
         </Route>
 
         <Route path="/login" element={<Login />} />

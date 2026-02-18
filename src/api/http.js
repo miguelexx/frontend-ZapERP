@@ -16,16 +16,10 @@ api.interceptors.request.use((config) => {
     try {
       const parsed = JSON.parse(raw)
       const token = parsed?.token
-
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-        console.log("🔐 Token injetado no axios")
-      }
-    } catch (e) {
-      console.warn("⚠️ erro ao parsear zap_erp_auth:", e)
+      if (token) config.headers.Authorization = `Bearer ${token}`
+    } catch (_) {
+      // auth inválido; próximo request pode resultar em 401
     }
-  } else {
-    console.warn("⚠️ zap_erp_auth não existe no localStorage")
   }
 
   return config
@@ -36,9 +30,8 @@ api.interceptors.response.use(
   (err) => {
     const status = err?.response?.status
     if (status === 401) {
-      console.warn("🚨 401 da API - token ausente ou inválido")
       localStorage.removeItem("zap_erp_auth")
-      if (!window.location.pathname.includes("/login")) {
+      if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
         window.location.href = "/login"
       }
     }

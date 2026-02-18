@@ -36,8 +36,10 @@ export async function enviarMensagem(conversaId, texto, reply_meta) {
   return data;
 }
 
-export async function excluirMensagem(conversaId, mensagemId) {
-  const { data } = await api.delete(`/chats/${conversaId}/mensagens/${mensagemId}`);
+export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
+  const params = {};
+  if (opts?.scope) params.scope = String(opts.scope);
+  const { data } = await api.delete(`/chats/${conversaId}/mensagens/${mensagemId}`, { params });
   return data;
 }
 
