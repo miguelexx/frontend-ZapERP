@@ -7,7 +7,19 @@
 export const FALLBACK_API_URL =
   "https://zaperpapi.wmsistemas.inf.br"
 
+function normalizeBaseUrl(raw) {
+  const s = String(raw || "").trim()
+  if (!s) return ""
+
+  // evita bugs comuns de configuração (.env com endpoint em vez de base)
+  let url = s.replace(/\/+$/, "")
+  url = url.replace(/\/usuarios\/login$/i, "")
+  return url
+}
+
 export function getApiBaseUrl() {
-  return import.meta.env.VITE_API_URL || FALLBACK_API_URL
+  const fromEnv = normalizeBaseUrl(import.meta.env.VITE_API_URL)
+  if (fromEnv) return fromEnv
+  return normalizeBaseUrl(FALLBACK_API_URL)
 }
 
