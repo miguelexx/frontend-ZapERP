@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { login as loginService } from "./authService"
-import { initSocket } from "../socket/socket"
+import { initSocket, disconnectSocket } from "../socket/socket"
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -60,8 +60,8 @@ export const useAuthStore = create((set) => ({
   logout: () => {
     localStorage.removeItem("zap_erp_auth")
 
-    // ⚠️ não chamamos disconnectSocket porque ele NÃO existe
-    // o socket será recriado no próximo login
+    // encerra a conexão para evitar “sessão fantasma” após logout
+    disconnectSocket()
 
     set({ user: null, token: null })
     window.location.href = "/login"

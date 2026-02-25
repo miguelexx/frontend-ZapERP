@@ -992,7 +992,8 @@
 
 /* Áudio — player alinhado, proporcional, sem cortes */
 .wa-bubble-audio {
-  padding: 8px 12px;
+  /* reserva espaço para o horário/ticks absolutos no canto inferior direito */
+  padding: 8px 12px 24px;
 }
 
 .wa-bubble-audioWrap {
@@ -1299,6 +1300,15 @@
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   opacity: 0.9;
+}
+
+/* Áudio: duração (mm:ss) no meta, estilo WhatsApp */
+.wa-bubble-audioDur{
+  line-height: 1;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+  margin-right: 2px;
 }
 
 .wa-bubble-metaLeft{
@@ -1754,37 +1764,82 @@
   margin-top: 2px;
 }
 
-/* Bloco de citação dentro do balão (igual WhatsApp) */
-.wa-replyCtx{
-  display: block;
-  margin: 2px 0 6px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  border-left: 4px solid rgba(0,0,0,.18);
-  background: rgba(255,255,255,.65);
+/* =========================================================
+   CITAÇÃO / REPLY — estilo WhatsApp Web
+========================================================= */
+.wa-replyCtx {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0,0,0,.06);
+  border: 1px solid rgba(0,0,0,.08);
+  cursor: pointer;
+  min-width: 0;
   max-width: 100%;
 }
-.wa-replyCtx.isOut{
-  border-left-color: rgba(0,168,132,.75);
-  background: rgba(255,255,255,.50);
+.wa-replyCtx.isOut {
+  background: rgba(0,0,0,.085);
+  border-color: rgba(0,0,0,.08);
 }
-.wa-replyCtx-name{
-  font-size: 12px;
+/* barra colorida lateral */
+.wa-replyCtx-bar {
+  width: 4px;
+  min-width: 4px;
+  border-radius: 8px 0 0 8px;
+  background: #53bdeb; /* azul — mensagem recebida */
+  flex-shrink: 0;
+}
+.wa-replyCtx.isOut .wa-replyCtx-bar {
+  background: #00a884; /* verde — mensagem enviada */
+}
+.wa-replyCtx-content {
+  flex: 1;
+  padding: 7px 10px 6px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wa-replyCtx-name {
+  font-size: 12.5px;
   font-weight: 700;
-  line-height: 1.1;
-  color: rgba(17,27,33,.88);
-  margin-bottom: 2px;
-}
-.wa-replyCtx.isOut .wa-replyCtx-name{
-  color: rgba(0, 128, 105, 0.95);
-}
-.wa-replyCtx-snippet{
-  font-size: 12px;
   line-height: 1.2;
-  color: rgba(17,27,33,.70);
+  color: #53bdeb;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.wa-replyCtx.isOut .wa-replyCtx-name {
+  /* no balão verde claro, o verde padrão fica “lavado” → escurece para manter contraste */
+  color: #0b5d4c;
+}
+.wa-replyCtx-snippet {
+  font-size: 12px;
+  line-height: 1.3;
+  /* força cor legível mesmo em bolha verde (evita ficar branco por herança) */
+  color: rgba(17, 27, 33, 0.78);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.wa-replyCtx.isOut .wa-replyCtx-snippet {
+  color: rgba(17, 27, 33, 0.74);
+}
+/* modo escuro */
+@media (prefers-color-scheme: dark) {
+  /* mantém contraste mesmo no Windows “tema escuro” (nosso balão out ainda é verde claro) */
+  .wa-replyCtx { background: rgba(0,0,0,.10); border-color: rgba(0,0,0,.14); }
+  .wa-replyCtx.isOut { background: rgba(0,0,0,.12); border-color: rgba(0,0,0,.14); }
+  .wa-replyCtx-snippet { color: rgba(17, 27, 33, 0.84); }
+  .wa-replyCtx.isOut .wa-replyCtx-snippet { color: rgba(17, 27, 33, 0.80); }
 }
 
 /* =========================================================
@@ -2604,6 +2659,142 @@
   gap: 6px;
   align-items: center;
 }
+
+.wa-sideCliente-heroMeta{
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  display:flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.wa-sideCliente-valueInline{
+  color: rgba(17,27,33,.88);
+  font-weight: 650;
+}
+
+.wa-sideCliente-heroActions{
+  margin-top: 10px;
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wa-sideCliente-actionBtn{
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  font-size: 14px;
+}
+
+.wa-sideCliente-sectionHead{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wa-sideCliente-miniPill{
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(0,0,0,.03);
+  color: rgba(17,27,33,.70);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.wa-sideCliente-miniPill.isEdit{
+  background: rgba(0,168,132,.10);
+  border-color: rgba(0,168,132,.22);
+  color: rgba(0, 92, 70, 0.95);
+}
+.wa-sideCliente-miniPill.isRead{
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.10);
+  color: rgba(17,27,33,.70);
+}
+
+.wa-sideCliente-lockHint{
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(0,0,0,.03);
+  font-size: 12px;
+  color: rgba(17,27,33,.74);
+  line-height: 1.35;
+}
+
+.wa-sideCliente-details{
+  margin-top: 12px;
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 14px;
+  background: rgba(255,255,255,.62);
+  box-shadow: var(--wa-shadow-subtle);
+  padding: 8px 10px 10px;
+}
+.wa-sideCliente-details > summary{
+  cursor:pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 850;
+  color: rgba(17,27,33,.88);
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  padding: 4px 2px;
+}
+.wa-sideCliente-details > summary::-webkit-details-marker{ display:none; }
+.wa-sideCliente-details > summary::after{
+  content:"▾";
+  opacity:.7;
+}
+.wa-sideCliente-details[open] > summary::after{
+  content:"▴";
+}
+
+.wa-sideCliente-saveBar{
+  position: sticky;
+  bottom: 0;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 -6px 18px rgba(0,0,0,.06);
+  backdrop-filter: blur(10px);
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wa-sideCliente-saveLeft{
+  min-width: 0;
+  flex: 1;
+}
+.wa-sideCliente-saveRight{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.wa-sideCliente-saveStatus{
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(17,27,33,.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wa-sideCliente-saveStatus.isOk{
+  color: rgba(0, 92, 70, 0.95);
+}
+.wa-sideCliente-saveStatus.isWarn{
+  color: rgba(17,27,33,.82);
+}
 .wa-sideCliente-dotSep{
   color: rgba(0,0,0,.25);
 }
@@ -2718,6 +2909,83 @@
 .wa-sideCliente-textarea:focus {
   border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.wa-sideCliente-field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-top: 10px;
+}
+
+.wa-sideCliente-input{
+  width:100%;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,.10);
+  background:#fff;
+  color: var(--wa-text);
+  font-size: 13px;
+  outline: none;
+}
+.wa-sideCliente-input:focus{
+  border-color: rgba(0, 168, 132, 0.35);
+  box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.14);
+}
+.wa-sideCliente-input:disabled{
+  opacity:.65;
+  cursor:not-allowed;
+  background: rgba(0,0,0,.02);
+}
+
+.wa-sideCliente-grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+@media (max-width: 520px){
+  .wa-sideCliente-grid2{ grid-template-columns: 1fr; }
+}
+
+.wa-sideCliente-subTitle{
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--wa-text);
+}
+
+.wa-sideCliente-miniActions{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wa-miniBtn{
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.10);
+  background: rgba(0,0,0,.03);
+  color: var(--wa-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor:pointer;
+  transition: background .15s ease, transform .12s ease;
+}
+.wa-miniBtn:hover:not(:disabled){
+  background: rgba(0,0,0,.06);
+  transform: translateY(-1px);
+}
+.wa-miniBtn:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+.wa-sideCliente-sep{
+  height:1px;
+  background: rgba(0,0,0,.06);
+  margin: 12px 0;
 }
 
 .wa-sideCliente-actions {

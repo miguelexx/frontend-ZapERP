@@ -31,8 +31,25 @@ api.interceptors.response.use(
     const status = err?.response?.status
     if (status === 401) {
       localStorage.removeItem("zap_erp_auth")
+      import("../socket/socket")
+        .then((m) => m.disconnectSocket && m.disconnectSocket())
+        .catch(() => {})
       if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
         window.location.href = "/login"
+      }
+      return Promise.reject(err)
+    }
+    // Feedback global para erros de servidor/rede (evita tela travada sem aviso)
+    if (typeof window !== "undefined") {
+      const show = (payload) => {
+        import("../notifications/notificationStore").then((m) => m.useNotificationStore?.getState()?.showToast(payload)).catch(() => {})
+      }
+      if (status >= 500) {
+        show({ type: "error", title: "Erro no servidor", message: err?.response?.data?.error || "Tente novamente em instantes." })
+      } else if (status === 429) {
+        show({ type: "warning", title: "Muitas requisições", message: "Aguarde um momento antes de tentar de novo." })
+      } else if (err?.message === "Network Error" || err?.code === "ECONNABORTED") {
+        show({ type: "error", title: "Sem conexão", message: "Verifique sua internet e tente novamente." })
       }
     }
     return Promise.reject(err)

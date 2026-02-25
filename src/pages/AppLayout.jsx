@@ -27,10 +27,15 @@ function GlobalNotifications() {
   }, [toast, clearToast])
 
   if (!toast) return null
+  const isError = toast.type === "error"
+  const isWarning = toast.type === "warning"
+  const borderColor = isError ? "#dc2626" : isWarning ? "#ea580c" : "#e2e8f0"
+  const titleColor = isError ? "#991b1b" : isWarning ? "#c2410c" : "#0f172a"
   return (
     <div
       role="status"
       aria-live="polite"
+      aria-label={toast.title}
       style={{
         position: "fixed",
         bottom: 24,
@@ -40,7 +45,8 @@ function GlobalNotifications() {
         padding: "14px 20px",
         borderRadius: 8,
         background: "#fff",
-        border: "1px solid #e2e8f0",
+        border: `1px solid ${borderColor}`,
+        borderLeftWidth: 4,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
         zIndex: 9999,
         display: "flex",
@@ -49,7 +55,7 @@ function GlobalNotifications() {
       }}
     >
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{toast.title}</div>
+        <div style={{ fontWeight: 600, fontSize: 14, color: titleColor }}>{toast.title}</div>
         {toast.message ? <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{toast.message}</div> : null}
       </div>
       <button

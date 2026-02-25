@@ -826,6 +826,17 @@ a { color: inherit; text-decoration: none; }
   min-width: 0;
 }
 
+.chat-list-empresa{
+  margin-top: 1px;
+  font-size: var(--cl-font-size-xs);
+  color: var(--cl-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  opacity: .92;
+}
+
 .chat-list-row-meta {
   display: flex;
   flex-direction: column;
@@ -980,6 +991,14 @@ a { color: inherit; text-decoration: none; }
   font-size: 11px;
   font-weight: 500;
   flex-shrink: 0;
+}
+
+/* Linha com mensagens não lidas (igual WhatsApp: destaque visual) */
+.chat-list-row.has-unread .chat-list-title {
+  font-weight: 600;
+}
+.chat-list-row.has-unread .chat-list-preview {
+  font-weight: 500;
 }
 
 /* -----------------------------------------------------------------------

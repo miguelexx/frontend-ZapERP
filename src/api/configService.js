@@ -20,6 +20,12 @@ export async function getAuditoria(limit = 100) {
   return data || []
 }
 
+// Auditoria (registrar ação) — se o backend suportar.
+export async function registrarAuditoria(payload) {
+  const { data } = await api.post('/config/auditoria', payload)
+  return data
+}
+
 // Usuários (admin)
 export async function getUsuarios() {
   const { data } = await api.get('/usuarios')
@@ -127,6 +133,13 @@ export async function getClientes(params = {}) {
     params: { limit: 2000, ...params }
   })
   return data || []
+}
+
+// Cliente por ID (quando o backend disponibiliza /clientes/:id).
+// Mantém fallback no caller caso o endpoint não exista.
+export async function getCliente(id) {
+  const { data } = await api.get(`/clientes/${id}`)
+  return data
 }
 
 export async function criarCliente(payload) {

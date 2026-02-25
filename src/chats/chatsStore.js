@@ -20,7 +20,13 @@ export const useChatStore = create((set, get) => ({
     if (!chat?.id) return
     let chats = get().chats || []
     const idx = chats.findIndex(c => String(c.id) === String(chat.id))
-    const merged = { ...chat, unread_count: Number(chat.unread_count ?? chat.unread) || 0 }
+    const existing = idx >= 0 ? chats[idx] : null
+    // Preserva unread_count local quando o servidor não envia (ex.: resposta de fetchChatById) — evita zerar badge após nova_mensagem
+    const unread =
+      chat.unread_count != null || chat.unread != null
+        ? Number(chat.unread_count ?? chat.unread) || 0
+        : (existing ? Number(existing.unread_count ?? existing.unread) || 0 : 0)
+    const merged = { ...chat, unread_count: unread }
     if (chat.cliente_id != null) {
       chats = chats.filter(c => !(c.sem_conversa && String(c.cliente_id) === String(chat.cliente_id)))
     }
@@ -106,7 +112,12 @@ export const useChatStore = create((set, get) => ({
     set((state) => ({
       chats: state.chats.map(c =>
         String(c.id) === String(conversa_id)
-          ? { ...c, ultima_mensagem: msg }
+          ? {
+              ...c,
+              ultima_mensagem: msg,
+              // Mantém ultima_atividade sincronizado para o sort do chatList funcionar corretamente
+              ultima_atividade: msg?.criado_em || c.ultima_atividade,
+            }
           : c
       )
     })),

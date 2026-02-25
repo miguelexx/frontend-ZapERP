@@ -322,7 +322,7 @@ function ChatTicks({ status }) {
   // 2 ✓✓ = entregue
   // 2 ✓✓ azul = visualizada (e/ou áudio "played")
   const isSent =
-    !lower || lower === "sent" || lower === "enviado" || lower === "send" || lower === "sending";
+    !lower || lower === "sent" || lower === "enviado" || lower === "enviada" || lower === "send" || lower === "sending";
   const isDelivered =
     lower === "received" ||
     lower === "delivered" ||
@@ -586,6 +586,7 @@ function ChatRow({
   const semConversa = Boolean(chat?.sem_conversa && chat?.cliente_id);
   const contact = getContactDisplay(chat);
   const { displayName, avatarUrl, phone, isGroup } = contact;
+  const empresa = String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim();
   const hasName = displayName !== phone;
   const last = getLastMessage(chat);
   const lastTxt = String(last?.conteudo || last?.body || last?.texto || "").trim();
@@ -659,7 +660,7 @@ function ChatRow({
   return (
     <button
       type="button"
-      className={`chat-list-row ${active ? "is-active" : ""} ${semConversa ? "chat-list-row-sem-conversa" : ""}`}
+      className={`chat-list-row ${active ? "is-active" : ""} ${semConversa ? "chat-list-row-sem-conversa" : ""} ${unread > 0 ? "has-unread" : ""}`}
       onClick={handleClick}
       disabled={opening}
       data-chat-id={id ?? undefined}
@@ -698,6 +699,11 @@ function ChatRow({
             {!isGroup && chat?.setor ? (
               <div className="chat-list-setor" title={`Setor: ${chat.setor}`}>
                 {chat.setor}
+              </div>
+            ) : null}
+            {!isGroup && empresa ? (
+              <div className="chat-list-empresa" title={`Empresa: ${empresa}`}>
+                {empresa}
               </div>
             ) : null}
           </div>
@@ -795,8 +801,17 @@ export default function ChatList() {
         if (!byKey.has(key)) byKey.set(key, c);
       });
       list = Array.from(byKey.values());
-      const aLast = (c) => getLastMessage(c)?.criado_em || c?.criado_em || c?.ultima_atividade;
-      list.sort((a, b) => (order === "antigas" ? new Date(aLast(a)) - new Date(aLast(b)) : new Date(aLast(b)) - new Date(aLast(a))));
+      const getTs = (c) =>
+        c?.ultima_mensagem?.criado_em ||
+        getLastMessage(c)?.criado_em ||
+        c?.ultima_atividade ||
+        c?.criado_em ||
+        0;
+      list.sort((a, b) =>
+        order === "antigas"
+          ? new Date(getTs(a)) - new Date(getTs(b))
+          : new Date(getTs(b)) - new Date(getTs(a))
+      );
       setChats(list);
     } catch (e) {
       console.error("Erro ao carregar conversas:", e);
@@ -975,10 +990,12 @@ export default function ChatList() {
         const nb = (b.contato_nome || "").toString().toLowerCase();
         return na.localeCompare(nb);
       }
-      const aLast = getLastMessage(a);
-      const bLast = getLastMessage(b);
-      const aTs = new Date(aLast?.criado_em || a?.criado_em || 0).getTime();
-      const bTs = new Date(bLast?.criado_em || b?.criado_em || 0).getTime();
+      const aTs = new Date(
+        a?.ultima_mensagem?.criado_em || getLastMessage(a)?.criado_em || a?.ultima_atividade || a?.criado_em || 0
+      ).getTime();
+      const bTs = new Date(
+        b?.ultima_mensagem?.criado_em || getLastMessage(b)?.criado_em || b?.ultima_atividade || b?.criado_em || 0
+      ).getTime();
       return order === "antigas" ? aTs - bTs : bTs - aTs;
     });
 

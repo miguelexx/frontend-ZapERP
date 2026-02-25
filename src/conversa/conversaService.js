@@ -4,6 +4,36 @@ import api from "../api/http";
 export const salvarObservacao = (id, observacao) =>
   api.put(`/chats/${id}/observacao`, { observacao });
 
+// Vincula um cliente existente a uma conversa (tenta variações comuns de rota).
+export async function vincularClienteConversa(conversaId, cliente_id) {
+  const id = conversaId != null ? String(conversaId) : "";
+  if (!id) throw new Error("conversaId inválido");
+  if (cliente_id == null || cliente_id === "") throw new Error("cliente_id inválido");
+
+  const body = { cliente_id: Number(cliente_id) || String(cliente_id) };
+  const tries = [
+    () => api.put(`/chats/${id}/cliente`, body),
+    () => api.put(`/chats/${id}/vincular-cliente`, body),
+    () => api.put(`/chats/${id}`, body),
+    () => api.patch(`/chats/${id}`, body),
+  ];
+
+  let lastErr = null;
+  for (const fn of tries) {
+    try {
+      const { data } = await fn();
+      return data;
+    } catch (e) {
+      lastErr = e;
+      const st = e?.response?.status;
+      // se for "rota não existe" ou "método não permitido", tenta a próxima
+      if (st === 404 || st === 405) continue;
+      throw e;
+    }
+  }
+  throw lastErr || new Error("Não foi possível vincular cliente à conversa.");
+}
+
 // Responsável: use assumirChat(conversaId) ou transferirChat(conversaId, usuarioId)
 // Não existe PUT /chats/:id/responsavel no backend.
 // export const salvarResponsavel = ...

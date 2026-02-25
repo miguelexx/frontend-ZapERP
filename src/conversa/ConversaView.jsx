@@ -343,28 +343,20 @@ function MessageTicks({ msg }) {
   const hasReadAt = !!(msg?.lida_em || msg?.lidaEm || msg?.read_at || msg?.readAt);
   const hasDeliveredAt = !!(msg?.entregue_em || msg?.entregueEm || msg?.delivered_at || msg?.deliveredAt);
 
-  // Normalização de status (canonical)
   const s = rawStatus;
   const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou";
   const isPending = s === "pending" || s === "enviando" || s === "sending";
   const isRead =
-    s === "lida" ||
-    s === "read" ||
-    s === "seen" ||
-    s === "visualizada" ||
-    s === "played" ||
+    s === "lida" || s === "read" || s === "seen" ||
+    s === "visualizada" || s === "played" ||
     hasReadAt;
   const isDelivered =
     isRead ||
-    s === "entregue" ||
-    s === "delivered" ||
-    s === "received" ||
+    s === "entregue" || s === "delivered" || s === "received" ||
     hasDeliveredAt;
-  const isSent =
-    isDelivered ||
-    isRead
-      ? false
-      : (!s || s === "sent" || s === "enviada" || s === "enviado");
+  // sent: mensagem confirmada pelo servidor WA mas ainda não entregue ao dispositivo
+  const isSent = !isErr && !isPending && !isDelivered && !isRead &&
+    (!s || s === "sent" || s === "enviada" || s === "enviado");
 
   // Ticks finos e minimalistas (estilo WhatsApp Web)
   const TickSvg = ({ kind }) => (
@@ -452,7 +444,19 @@ function snippetFromMsg(msg) {
   const t = safeString(msg?.texto);
   if (t) return t.length > 80 ? `${t.slice(0, 80)}…` : t;
   const tipo = safeString(msg?.tipo);
-  if (tipo === "audio") return "(áudio)";
+  if (tipo === "audio") {
+    const rawDur =
+      msg?.audio_duracao_sec ??
+      msg?.audioDuracaoSec ??
+      msg?.duracao_sec ??
+      msg?.duracao ??
+      msg?.duration ??
+      msg?.media_duration ??
+      msg?.mediaDuration ??
+      null;
+    const d = Number(rawDur);
+    return Number.isFinite(d) && d > 0 ? `(áudio · ${formatMmSs(d)})` : "(áudio)";
+  }
   if (tipo === "imagem") return "(foto)";
   if (tipo === "video") return "(vídeo)";
   if (tipo === "sticker") return "(figurinha)";
@@ -507,7 +511,7 @@ const __WA_EMOJIS = [
 
 let __waCurrentAudio = null;
 
-function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
+function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel, onDuration }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [dur, setDur] = useState(0);
@@ -522,7 +526,10 @@ function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel }) {
 
     const onLoaded = () => {
       const d = Number(el.duration);
-      if (Number.isFinite(d) && d > 0) setDur(d);
+      if (Number.isFinite(d) && d > 0) {
+        setDur(d);
+        try { onDuration?.(d); } catch {}
+      }
     };
     const onTime = () => setCur(Number(el.currentTime || 0));
     const onEnded = () => {
@@ -692,6 +699,7 @@ function Bubble({
   isPinned,
   isStarred,
   currentUserId,
+  onJumpToReply,
 }) {
   const out = msg?.direcao === "out";
   const canDeleteForEveryone = useMemo(() => {
@@ -704,6 +712,8 @@ function Bubble({
   const isSticker = msg?.tipo === "sticker";
   const isFile = msg?.tipo === "arquivo";
   const isAudio = msg?.tipo === "audio";
+  const [audioDur, setAudioDur] = useState(0);
+  const audioDurLabel = useMemo(() => (audioDur > 0 ? formatMmSs(audioDur) : null), [audioDur]);
   const isVideo = msg?.tipo === "video";
   const texto = safeString(msg?.texto);
   const hasText = !!texto;
@@ -871,6 +881,35 @@ function Bubble({
         aria-label="Mensagem"
       >
         <div className="wa-bubble-body">
+          {/* Citação (reply) — sempre no topo, antes de qualquer conteúdo */}
+          {hasReply && (
+            <div
+              className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}
+              aria-label="Mensagem citada"
+              role="button"
+              tabIndex={0}
+              title="Ver mensagem respondida"
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                const rid = replyMeta?.replyToId;
+                if (rid && onJumpToReply) onJumpToReply(rid);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rid = replyMeta?.replyToId;
+                  if (rid && onJumpToReply) onJumpToReply(rid);
+                }
+              }}
+            >
+              <div className="wa-replyCtx-bar" aria-hidden="true" />
+              <div className="wa-replyCtx-content">
+                <div className="wa-replyCtx-name">{replyMeta.name}</div>
+                <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
+              </div>
+            </div>
+          )}
           {remetente ? (
             <div className="wa-bubble-remetente">
               <span
@@ -879,12 +918,6 @@ function Bubble({
               >
                 {remetente}:
               </span>
-              {hasReply ? (
-                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
-                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
-                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
-                </div>
-              ) : null}
               {isImg || isSticker ? (
                 <div className="wa-bubble-mediaStack">
                   <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
@@ -922,12 +955,6 @@ function Bubble({
             </div>
           ) : isImg || isSticker ? (
             <div className="wa-bubble-mediaStack">
-              {hasReply ? (
-                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
-                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
-                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
-                </div>
-              ) : null}
               <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
                 <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
               </a>
@@ -935,12 +962,6 @@ function Bubble({
             </div>
           ) : isVideo && mediaUrl ? (
             <div className="wa-bubble-mediaStack">
-              {hasReply ? (
-                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
-                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
-                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
-                </div>
-              ) : null}
               <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
                 <video src={mediaUrl} controls className="wa-bubble-videoEl" />
               </a>
@@ -948,18 +969,20 @@ function Bubble({
             </div>
           ) : isAudio && mediaUrl ? (
             <div className="wa-bubble-audioStack">
-              {hasReply ? (
-                <div className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
-                  <div className="wa-replyCtx-name">{replyMeta.name}</div>
-                  <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
-                </div>
-              ) : null}
               <div className="wa-bubble-audioWrap">
                 <AudioWavePlayer
                   src={mediaUrl}
                   msgKey={msg?.whatsapp_id || msg?.id || mediaUrl}
                   avatarUrl={!out ? peerAvatarUrl : null}
                   avatarLabel={!out ? peerName : null}
+                  onDuration={(d) => {
+                    setAudioDur(d);
+                    if (msg?.id) {
+                      try {
+                        useConversaStore.getState().patchMensagem(msg.id, { audio_duracao_sec: d });
+                      } catch {}
+                    }
+                  }}
                 />
               </div>
               {showAudioText ? <div className="wa-bubble-audioCaption">{texto}</div> : null}
@@ -973,12 +996,6 @@ function Bubble({
           ) : hasText ? (
             inlineMeta ? (
               <span className="wa-bubble-text wa-bubble-textInline">
-                {hasReply ? (
-                  <span className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
-                    <span className="wa-replyCtx-name">{replyMeta.name}</span>
-                    <span className="wa-replyCtx-snippet">{replyMeta.snippet}</span>
-                  </span>
-                ) : null}
                 {texto}
                 <span className="wa-inlineMeta" aria-label="Horário e status">
                   <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
@@ -986,15 +1003,7 @@ function Bubble({
                 </span>
               </span>
             ) : (
-              <span className="wa-bubble-text">
-                {hasReply ? (
-                  <span className={`wa-replyCtx ${out ? "isOut" : "isIn"}`}>
-                    <span className="wa-replyCtx-name">{replyMeta.name}</span>
-                    <span className="wa-replyCtx-snippet">{replyMeta.snippet}</span>
-                  </span>
-                ) : null}
-                {texto}
-              </span>
+              <span className="wa-bubble-text">{texto}</span>
             )
           ) : (
             <span className="wa-bubble-text wa-muted">(mensagem vazia)</span>
@@ -1004,6 +1013,11 @@ function Bubble({
           <div className="wa-bubble-metaLeft">
             {!inlineMeta ? (
               <>
+                {isAudio && audioDurLabel ? (
+                  <span className="wa-bubble-audioDur" title={`Duração do áudio: ${audioDurLabel}`}>
+                    {audioDurLabel}
+                  </span>
+                ) : null}
                 <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>
                 <MessageTicks msg={msg} />
               </>
@@ -1800,7 +1814,8 @@ export default function ConversaView() {
             name: getReplySenderLabel(replyTo, nome),
             snippet: snippetFromMsg(replyTo),
             ts: Date.now(),
-            replyToId: replyTo?.id,
+            // Prioriza whatsapp_id para o backend enviar reply nativo ao WhatsApp via Z-API
+            replyToId: replyTo?.whatsapp_id || replyTo?.id,
           }
         : null;
 
@@ -2052,6 +2067,24 @@ export default function ConversaView() {
     el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
   }, []);
 
+  const jumpToReply = useCallback((replyToId) => {
+    const rid = safeString(replyToId);
+    if (!rid) return;
+
+    const list = Array.isArray(mensagens) ? mensagens : [];
+    const byWaId = list.find((m) => safeString(m?.whatsapp_id) && String(m.whatsapp_id) === rid);
+    if (byWaId?.id) return scrollToMsg(byWaId.id);
+
+    // fallback: se veio id numérico do banco
+    if (/^\d{1,15}$/.test(rid)) return scrollToMsg(rid);
+
+    showToast({
+      type: "info",
+      title: "Mensagem não encontrada",
+      message: "A mensagem respondida não está carregada neste histórico.",
+    });
+  }, [mensagens, scrollToMsg, showToast]);
+
   const closeForward = useCallback(() => {
     setForwardOpen(false);
     setForwardMsg(null);
@@ -2116,20 +2149,42 @@ export default function ConversaView() {
     const list = Array.isArray(mensagens) ? mensagens : [];
     const out = [];
 
+    // Chave única por remetente: telefone quando existir, senão nome (evita "nome:" vs "tel:" darem chaves diferentes).
+    const senderKey = (m) => {
+      if (!m) return "";
+      const tel = safeString(m?.remetente_telefone);
+      const n = safeString(m?.remetente_nome);
+      return tel || n || "";
+    };
+
     for (let i = 0; i < list.length; i++) {
       const msg = list[i];
+      if (!msg) continue;
       const prev = list[i - 1];
 
-      if (i === 0 || !sameDay(prev?.criado_em, msg?.criado_em)) {
+      const isNewDay = i === 0 || !sameDay(prev?.criado_em, msg?.criado_em);
+      if (isNewDay) {
         const label = formatDia(msg?.criado_em) || "Data";
         out.push({ __type: "day", id: `day-${label}-${i}`, label });
       }
 
-      out.push({ __type: "msg", ...msg });
+      const dir = String(msg?.direcao || "").toLowerCase();
+      const prevDir = String(prev?.direcao || "").toLowerCase();
+      const curSender = senderKey(msg);
+      const prevSender = senderKey(prev);
+
+      // WhatsApp-like (grupos): nome só na primeira msg do bloco; depois só as mensagens.
+      const showRemetente =
+        isGroup &&
+        dir !== "out" &&
+        Boolean(curSender) &&
+        (isNewDay || !prev || prevDir === "out" || curSender !== prevSender);
+
+      out.push({ ...msg, __type: "msg", __showRemetente: showRemetente });
     }
 
     return out;
-  }, [mensagens]);
+  }, [mensagens, isGroup]);
 
   const headerSubtitle = useMemo(() => {
     const tel = normalizeTelefone(telefone);
@@ -2660,7 +2715,7 @@ export default function ConversaView() {
                 <Bubble
                   key={item.id}
                   msg={item}
-                  showRemetente={isGroup}
+                  showRemetente={Boolean(item.__showRemetente)}
                   peerAvatarUrl={avatarUrl}
                   peerName={nome}
                   selectMode={selectMode}
@@ -2678,6 +2733,7 @@ export default function ConversaView() {
                   isPinned={pinnedSet.has(String(item.id))}
                   isStarred={starredSet.has(String(item.id))}
                   currentUserId={myUserId}
+                  onJumpToReply={jumpToReply}
                 />
               );
             })

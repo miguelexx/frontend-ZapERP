@@ -3,6 +3,7 @@ import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
 import { getApiBaseUrl } from "../api/baseUrl"
+import { fetchChatById } from "../chats/chatService"
 
 const TYPING_EXPIRY_MS = 5000
 let typingExpiryTimer = null
@@ -210,22 +211,26 @@ export function initSocket(token) {
   /* ===========================
      ✅ STATUS DA MENSAGEM (Z-API)
   =========================== */
-  socket.on("status_mensagem", ({ mensagem_id, conversa_id, status }) => {
+  socket.on("status_mensagem", ({ mensagem_id, conversa_id, status, whatsapp_id }) => {
     if (!mensagem_id) return
-    const s = status != null ? String(status) : null
+    // Normalizar para o mesmo valor em lista e mensagem (setas sincronizadas)
+    const raw = status != null ? String(status).toLowerCase().trim() : ""
+    const s =
+      raw === "enviada" || raw === "enviado" ? "sent"
+        : raw === "entregue" || raw === "received" ? "delivered"
+        : raw === "lida" || raw === "seen" || raw === "visualizada" || raw === "read_by_me" ? "read"
+        : raw || null
 
     const convStore = useConversaStore.getState()
-    // Se veio conversa_id, aplica somente se for a conversa aberta.
-    // Se NÃO veio conversa_id (alguns emits antigos), tenta aplicar na conversa aberta mesmo assim
-    // (o client só recebe esse evento da room da conversa atual).
     if (conversa_id) {
       if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
-        convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s })
+        convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
       }
     } else if (convStore.selectedId) {
-      convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s })
+      convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
     }
 
+    // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)
     if (conversa_id) {
       const chatStore = useChatStore.getState()
       const chats = chatStore.chats || []
@@ -233,15 +238,19 @@ export function initSocket(token) {
       if (idx >= 0) {
         const cur = chats[idx]
         const u = cur?.ultima_mensagem
+        const msgs = cur?.mensagens || cur?.messages || []
+        const lastFromArray = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null
         if (u && String(u.id) === String(mensagem_id)) {
           chatStore.setUltimaMensagem(conversa_id, { ...u, status_mensagem: s, status: s })
+        } else if (lastFromArray && String(lastFromArray.id) === String(mensagem_id)) {
+          chatStore.setUltimaMensagem(conversa_id, { ...lastFromArray, status_mensagem: s, status: s })
         }
       }
     }
   })
 
   /* ===========================
-     MENSAGENS LIDAS
+     MENSAGENS LIDAS (igual WhatsApp: ao abrir a conversa marca como lida e remove notificação)
   =========================== */
   socket.on("mensagens_lidas", ({ conversa_id }) => {
     if (!conversa_id) return
@@ -298,6 +307,19 @@ export function initSocket(token) {
     updateDocumentTitleFromChats()
   })
 
+  /* Sinal do webhook Z-API: conversa teve atividade (nova msg, status, etc.)
+     Busca dados frescos do backend e atualiza a lista — garante que nome, foto,
+     última mensagem e contadores fiquem corretos sem precisar de reload. */
+  socket.on("atualizar_conversa", async ({ id } = {}) => {
+    if (!id) return
+    try {
+      const data = await fetchChatById(id)
+      if (!data) return
+      const chat = data?.conversa ? data.conversa : data
+      if (chat?.id) useChatStore.getState().addChat(chat)
+    } catch (_) {}
+  })
+
   /* Nome e foto do contato atualizados pela Z-API (tempo real) — uma só fonte na lista e na conversa */
   socket.on("contato_atualizado", ({ conversa_id, contato_nome, foto_perfil }) => {
     if (conversa_id == null) return
@@ -318,6 +340,20 @@ export function initSocket(token) {
 
 export function getSocket() {
   return socket
+}
+
+export function disconnectSocket() {
+  try {
+    if (typingExpiryTimer) {
+      clearTimeout(typingExpiryTimer)
+      typingExpiryTimer = null
+    }
+  } catch (_) {}
+
+  try {
+    if (socket) socket.disconnect()
+  } catch (_) {}
+  socket = null
 }
 
 export { updateDocumentTitleFromChats, applyDocumentTitle }

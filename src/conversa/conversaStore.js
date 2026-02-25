@@ -75,6 +75,9 @@ export const useConversaStore = create((set, get) => ({
     if (socket && prevId && String(prevId) !== String(normalizedId)) {
       socket.emit("leave_conversa", prevId)
     }
+    if (socket && normalizedId) {
+      socket.emit("join_conversa", normalizedId)
+    }
 
     set({
       loading: true,
