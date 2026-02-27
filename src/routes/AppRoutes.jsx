@@ -9,6 +9,7 @@ import Dashboard from "../dashboard/Dashboard";
 import Atendimento from "../pages/Atendimento";
 import Configuracoes from "../pages/Configuracoes";
 import IA from "../pages/IA";
+import DashboardIA from "../pages/DashboardIA";
 import NovoContato from "../pages/NovoContato";
 import NovoGrupo from "../pages/NovoGrupo";
 import NovaComunidade from "../pages/NovaComunidade";
@@ -36,6 +37,7 @@ export default function AppRoutes() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/atendimento" />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/ia" element={<DashboardIA />} />
           <Route path="/atendimento" element={<Atendimento />} />
           <Route path="/chatbot" element={<Navigate to="/ia" replace />} />
           <Route path="/usuarios" element={<Navigate to="/configuracoes" replace />} />

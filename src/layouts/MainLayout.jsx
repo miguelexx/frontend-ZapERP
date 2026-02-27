@@ -21,6 +21,7 @@ export default function MainLayout() {
         </div>
         <nav className="sidebar-nav sidebar-nav--compact">
           <NavItem to="/dashboard" label="Dashboard" icon={<IconDashboard />} />
+          <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
           {isAdmin && (
             <>

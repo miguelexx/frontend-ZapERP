@@ -870,9 +870,10 @@ function Bubble({
           out ? "wa-bubble-out" : "wa-bubble-in",
           inlineMeta ? "hasInlineMeta" : "",
           (isImg || isSticker) ? "wa-bubble-media" : "",
-          isSticker ? "wa-bubble-sticker" : "",
+          isSticker ? "wa-bubble-sticker sticker-message" : "",
+          isImg && !isSticker ? "image-message" : "",
           isFile ? "wa-bubble-fileWrap" : "",
-          isAudio ? "wa-bubble-audio" : "",
+          isAudio ? "wa-bubble-audio audio-message" : "",
           isVideo ? "wa-bubble-video" : "",
           selected ? "isSelected" : "",
         ].join(" ")}
@@ -1011,13 +1012,8 @@ function Bubble({
         </div>
         <div className="wa-bubble-meta">
           <div className="wa-bubble-metaLeft">
-            {!inlineMeta ? (
+            {!inlineMeta && !isAudio ? (
               <>
-                {isAudio && audioDurLabel ? (
-                  <span className="wa-bubble-audioDur" title={`Duração do áudio: ${audioDurLabel}`}>
-                    {audioDurLabel}
-                  </span>
-                ) : null}
                 <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>
                 <MessageTicks msg={msg} />
               </>
