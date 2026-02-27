@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fetchChats, abrirConversaCliente } from "./chatService";
+import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil } from "./chatService";
 import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
@@ -778,6 +778,32 @@ export default function ChatList() {
   // todas | nao_lidas | hoje | abertas | em_atendimento | finalizadas
   const [tab, setTab] = useState("todas");
 
+  // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
+  const [zapiConnected, setZapiConnected] = useState(null);
+  const [zapiStatusLoaded, setZapiStatusLoaded] = useState(false);
+
+  // Na montagem: verificar conexão Z-API + sincronizar fotos em background
+  useEffect(() => {
+    let cancelled = false;
+
+    // Verificar status de conexão
+    getZapiStatus()
+      .then((s) => {
+        if (cancelled) return;
+        setZapiConnected(s?.connected === true);
+        setZapiStatusLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setZapiStatusLoaded(true);
+      });
+
+    // Sincronizar fotos em background (não bloqueia a UI; ignora erros)
+    sincronizarFotosPerfil().catch(() => {});
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function load() {
     setLoading(true);
     try {
@@ -1016,6 +1042,31 @@ export default function ChatList() {
 
   return (
     <div className="chat-list-root">
+      {zapiStatusLoaded && zapiConnected === false && (
+        <div
+          style={{
+            background: "#fff3cd",
+            borderBottom: "1px solid #ffc107",
+            color: "#856404",
+            fontSize: "0.78rem",
+            padding: "6px 12px",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>⚠️</span>
+          <span>
+            WhatsApp desconectado — mensagens não serão entregues.{" "}
+            <a
+              href="/configuracoes"
+              style={{ color: "#856404", fontWeight: 600, textDecoration: "underline" }}
+            >
+              Reconectar
+            </a>
+          </span>
+        </div>
+      )}
       <header className="chat-list-header">
         <div className="chat-list-header-left">
           <ZapERPLogo

@@ -73,6 +73,12 @@ export async function sincronizarFotosPerfil() {
   return data;
 }
 
+/** Verifica se a instância Z-API está conectada ao WhatsApp */
+export async function getZapiStatus() {
+  const { data } = await api.get("/chats/zapi-status");
+  return data;
+}
+
 // 🔹 DEFAULT EXPORT (usado no Atendimento.jsx e wrappers)
 const chatService = {
   listar: fetchChats,

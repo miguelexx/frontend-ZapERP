@@ -939,6 +939,16 @@
   margin-bottom: 2px;
 }
 
+/* Áudio recebido: remetente + player mais compactos */
+.wa-bubble-audio .wa-bubble-remetente,
+.wa-bubble.audio-message .wa-bubble-remetente {
+  gap: 0;
+}
+.wa-bubble-audio .wa-bubble-remetente-nome,
+.wa-bubble.audio-message .wa-bubble-remetente-nome {
+  margin-bottom: 4px;
+}
+
 .wa-bubble-media {
   padding: 4px 6px 6px 6px;
 }
@@ -1065,20 +1075,20 @@
 .wa-bubble-audio,
 .wa-bubble.audio-message {
   /* padding-top reserva espaço para o botão do menu no canto superior direito */
-  padding: 28px 12px 12px;
+  padding: 24px 8px 8px;
   min-width: 0;
 }
 
 .wa-bubble-audioWrap {
-  min-width: 280px;
-  max-width: min(420px, 85vw);
+  min-width: 200px;
+  max-width: min(320px, 82vw);
   width: 100%;
 }
 
-.wa-bubble-audioStack{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
+.wa-bubble-audioStack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .wa-bubble-audioCaption{
   font-size: 13px;
@@ -1089,15 +1099,15 @@
   word-break: break-word;
 }
 
-/* Player custom (waveform estilo WhatsApp) — organizado, com espaço entre campos */
-.wa-audioPlayer{
+/* Player custom (waveform estilo WhatsApp) — compacto */
+.wa-audioPlayer {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  padding: 10px 12px 10px 14px;
-  border-radius: 18px;
+  padding: 6px 10px 6px 10px;
+  border-radius: 14px;
   background: linear-gradient(180deg, rgba(255,255,255,.74), rgba(255,255,255,.50));
   border: 1px solid var(--wa-audio-border-in);
   box-shadow: 0 1px 0 rgba(0,0,0,.03);
@@ -1113,9 +1123,9 @@
   transform: translateY(0.5px);
 }
 
-.wa-audioPlayBtn{
-  width: 38px;
-  height: 38px;
+.wa-audioPlayBtn {
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: 1px solid rgba(0,0,0,.10);
   background:
@@ -1157,15 +1167,15 @@
 .wa-audioPlayBtn.isPlaying .wa-audioPlayIcon--play{ opacity: 0; transform: scale(.78); }
 .wa-audioPlayBtn.isPlaying .wa-audioPlayIcon--pause{ opacity: 1; transform: scale(1); }
 
-.wa-audioWave{
+.wa-audioWave {
   position: relative;
   flex: 1;
-  min-width: 100px;
-  height: clamp(24px, 2.6vw, 30px);
+  min-width: 60px;
+  height: clamp(20px, 2.2vw, 26px);
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  padding: 0 6px;
+  gap: 2px;
+  padding: 0 4px;
   cursor: pointer;
 }
 .wa-audioWave::before{
@@ -1234,25 +1244,25 @@
   50%{ transform: translate(-50%,-50%) scale(1.08); }
 }
 
-.wa-audioMid{
+.wa-audioMid {
   flex: 1;
-  min-width: 140px;
+  min-width: 80px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   overflow: hidden;
 }
-.wa-audioSub{
+.wa-audioSub {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: nowrap;
   width: 100%;
-  gap: 12px;
+  gap: 8px;
   font-size: 11px;
   color: rgba(102,119,129,.92);
   font-variant-numeric: tabular-nums;
-  min-height: 18px;
+  min-height: 16px;
 }
 .wa-audioTime{
   flex: 0 0 auto;
@@ -1277,16 +1287,16 @@
   display: none;
 }
 
-.wa-audioAvatarWrap{
+.wa-audioAvatarWrap {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  margin-left: 4px;
+  width: 30px;
+  height: 30px;
+  margin-left: 2px;
   flex-shrink: 0;
 }
-.wa-audioAvatar{
-  width: 36px;
-  height: 36px;
+.wa-audioAvatar {
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
   object-fit: cover;
   display: block;
@@ -1304,29 +1314,33 @@
 
 @media (max-width: 480px) {
   .wa-bubble-audioWrap {
-    min-width: 280px;
-    max-width: 92vw;
+    min-width: 180px;
+    max-width: 88vw;
   }
-  .wa-audioPlayer{
-    padding: 9px 10px 9px 12px;
-    gap: 12px;
-    border-radius: 16px;
+  .wa-bubble-audio,
+  .wa-bubble.audio-message {
+    padding: 22px 6px 6px;
   }
-  .wa-audioPlayBtn{
-    width: 36px;
-    height: 36px;
-  }
-  .wa-audioMid{
-    min-width: 90px;
-  }
-  .wa-audioSub{
+  .wa-audioPlayer {
+    padding: 5px 8px 5px 8px;
     gap: 8px;
+    border-radius: 12px;
+  }
+  .wa-audioPlayBtn {
+    width: 30px;
+    height: 30px;
+  }
+  .wa-audioMid {
+    min-width: 60px;
+  }
+  .wa-audioSub {
+    gap: 6px;
     font-size: 10px;
   }
   .wa-audioAvatarWrap,
-  .wa-audioAvatar{
-    width: 32px;
-    height: 32px;
+  .wa-audioAvatar {
+    width: 26px;
+    height: 26px;
   }
 }
 
