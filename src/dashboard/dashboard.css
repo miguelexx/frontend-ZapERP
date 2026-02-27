@@ -14,6 +14,21 @@
   --dash-surface: rgba(255,255,255,.72);
 }
 
+/* Tema escuro do dashboard — tokens alinhados com app */
+[data-theme="dark"] {
+  --dash-bg: #020617;
+  --dash-card: #020617;
+  --dash-border: #374151;
+  --dash-text: #f9fafb;
+  --dash-muted: #9ca3af;
+  --dash-green: #22c55e;
+  --dash-blue: #3b82f6;
+  --dash-amber: #fbbf24;
+  --dash-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  --dash-shadow-hover: 0 8px 26px rgba(0, 0, 0, 0.85);
+  --dash-surface: rgba(15, 23, 42, 0.88);
+}
+
 .dash-wrap {
   min-height: 100%;
   background: var(--dash-bg);

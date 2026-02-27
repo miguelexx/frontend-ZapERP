@@ -46,6 +46,38 @@
   --wa-audio-glow: 0 10px 24px rgba(0,0,0,.10);
 }
 
+/* Tema escuro — estilo WhatsApp Web dark / CRM */
+[data-theme="dark"] {
+  --wa-bg: #0b141a;
+  --wa-bg-pattern: #202c33;
+  --wa-header-bg: #202c33;
+  --wa-panel: #111827;
+  --wa-panel-border: rgba(148, 163, 184, 0.3);
+  --wa-input-bg: #1f2937;
+  --wa-bubble-in: #202c33;
+  --wa-bubble-out: #005c4b;
+  --wa-green: #22c55e;
+  --wa-green-send: #22c55e;
+  --wa-text: #f9fafb;
+  --wa-text-muted: #d1d5db;
+  --wa-text-light: #9ca3af;
+  --wa-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.8);
+  --wa-shadow-bubble: 0 4px 14px rgba(0, 0, 0, 0.9);
+  --wa-status-green: #22c55e;
+  --wa-status-blue: #3b82f6;
+  --wa-status-orange: #fbbf24;
+
+  --wa-audio-accent: rgba(34,197,94,.92);
+  --wa-audio-surface-in: rgba(17,24,39,.92);
+  --wa-audio-surface-out: rgba(15,23,42,.88);
+  --wa-audio-border-in: rgba(148,163,184,.45);
+  --wa-audio-border-out: rgba(55,65,81,.6);
+  --wa-audio-bar: rgba(248,250,252,0.7);
+  --wa-audio-bar-out: rgba(209,213,219,0.8);
+  --wa-audio-track: rgba(31,41,55,0.9);
+  --wa-audio-track-out: rgba(31,41,55,0.9);
+}
+
 /* =========================================================
    SHELL (full-height, três áreas definidas)
 ========================================================= */

@@ -4,6 +4,7 @@
    Bege claro + verde elegante · Flat · Ícones finos · Zero ruído
 ======================================================================================= */
 
+[data-theme="light"],
 :root {
   --cl-space-1: 4px;
   --cl-space-2: 8px;
@@ -52,6 +53,32 @@
   --cl-font-weight-medium: 500;
   --cl-font-weight-semibold: 600;
   --cl-letter-tight: -0.02em;
+}
+
+/* Tema escuro — alinhado com tokens globais */
+[data-theme="dark"] {
+  --cl-bg: #0f172a;
+  --cl-surface: #020617;
+  --cl-surface-elevated: #020617;
+
+  --cl-beige-50: #020617;
+  --cl-beige-100: #020617;
+  --cl-beige-200: #020617;
+  --cl-beige-300: #020617;
+
+  --cl-green: #22c55e;
+  --cl-green-soft: rgba(34, 197, 94, 0.16);
+  --cl-green-border: rgba(34, 197, 94, 0.5);
+  --cl-chip-active: #22c55e;
+  --cl-beige-light: #020617;
+  --cl-beige-warm: #020617;
+
+  --cl-text: #f9fafb;
+  --cl-text-secondary: #e5e7eb;
+  --cl-text-muted: #d1d5db;
+
+  --cl-border: rgba(55, 65, 81, 1);
+  --cl-border-subtle: rgba(31, 41, 55, 0.9);
 }
 
 /* -----------------------------------------------------------------------
