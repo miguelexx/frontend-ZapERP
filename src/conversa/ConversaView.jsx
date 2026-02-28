@@ -1294,7 +1294,11 @@ export default function ConversaView() {
       const g = conversa?.nome_grupo || conversa?.contato_nome || "Grupo";
       return isLidValue(g) ? "Grupo" : g;
     }
-    const n = conversa?.contato_nome ?? conversa?.cliente_nome ?? conversa?.cliente?.nome ?? "";
+    const n =
+      conversa?.contato_nome ?? conversa?.cliente_nome ?? conversa?.cliente?.nome
+      ?? (conversa?.chatName && String(conversa.chatName).trim() !== "name" ? conversa.chatName : null)
+      ?? (conversa?.senderName && String(conversa.senderName).trim() !== "name" ? conversa.senderName : null)
+      ?? "";
     if (n && String(n).trim() && !isLidValue(n)) return String(n).trim();
     const tel = conversa?.cliente_telefone ?? conversa?.telefone ?? "";
     if (tel && !isLidValue(tel) && String(tel).replace(/\D/g, "").length >= 10) return `+${String(tel).replace(/\D/g, "")}`;
@@ -1307,7 +1311,9 @@ export default function ConversaView() {
     return isLidValue(t) ? "" : (t || "");
   }, [conversa, isGroup]);
 
-  const rawAvatarUrl = isGroup ? (conversa?.foto_grupo ?? null) : (conversa?.foto_perfil ?? null);
+  const rawAvatarUrl = isGroup
+    ? (conversa?.foto_grupo ?? null)
+    : (conversa?.foto_perfil ?? conversa?.senderPhoto ?? conversa?.photo ?? null);
   const avatarUrl = rawAvatarUrl && String(rawAvatarUrl).trim().startsWith("http") ? String(rawAvatarUrl).trim() : null;
   const avatar = useMemo(() => (isGroup ? "👥" : initials(nome)), [isGroup, nome]);
   const [avatarImgError, setAvatarImgError] = useState(false);

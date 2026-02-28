@@ -30,6 +30,10 @@ export const useChatStore = create((set, get) => ({
     if (chat.cliente_id != null) {
       chats = chats.filter(c => !(c.sem_conversa && String(c.cliente_id) === String(chat.cliente_id)))
     }
+    const nomeNorm = (v) => (v != null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'name' ? String(v).trim() : null)
+    const fotoNorm = (v) => (v != null && String(v).trim().startsWith('http') ? String(v).trim() : null)
+    const mergedNome = merged.contato_nome != null && merged.contato_nome !== '' ? merged.contato_nome : nomeNorm(merged.chatName) ?? nomeNorm(merged.senderName) ?? null
+    const mergedFoto = merged.foto_perfil !== undefined && merged.foto_perfil != null ? merged.foto_perfil : fotoNorm(merged.senderPhoto) ?? fotoNorm(merged.photo) ?? null
     const newIdx = chats.findIndex(c => String(c.id) === String(chat.id))
     if (newIdx >= 0) {
       const next = [...chats]
@@ -37,13 +41,18 @@ export const useChatStore = create((set, get) => ({
       const updated = {
         ...existing,
         ...merged,
-        contato_nome: merged.contato_nome != null && merged.contato_nome !== '' ? merged.contato_nome : existing.contato_nome,
-        foto_perfil: merged.foto_perfil !== undefined && merged.foto_perfil !== null ? merged.foto_perfil : existing.foto_perfil
+        contato_nome: mergedNome ?? existing.contato_nome,
+        foto_perfil: mergedFoto !== undefined && mergedFoto !== null ? mergedFoto : existing.foto_perfil
       }
       next[newIdx] = updated
       set({ chats: [next[newIdx], ...next.filter((_, i) => i !== newIdx)] })
     } else {
-      set({ chats: [merged, ...chats] })
+      const newChat = {
+        ...merged,
+        contato_nome: mergedNome ?? merged.contato_nome ?? undefined,
+        foto_perfil: mergedFoto ?? merged.foto_perfil ?? undefined
+      }
+      set({ chats: [newChat, ...chats] })
     }
   },
 

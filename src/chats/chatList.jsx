@@ -452,7 +452,7 @@ function formatPhoneForDisplay(phone) {
   return p || "";
 }
 
-/** Uma só fonte: contato_nome (backend); grupos: nome_grupo. Nunca exibir LID (lid:xxx) como nome. */
+/** Uma só fonte: contato_nome (backend); fallback chatName/senderName (webhook). Nunca exibir LID (lid:xxx) como nome. */
 function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? "";
@@ -460,20 +460,26 @@ function getDisplayName(chat) {
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
     return getPhone(chat) || "Grupo";
   }
-  const nome = chat?.contato_nome != null ? String(chat.contato_nome).trim() : "";
-  if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
+  const nome =
+    chat?.contato_nome != null ? String(chat.contato_nome).trim()
+      : (chat?.chatName != null && String(chat.chatName).trim()) ? String(chat.chatName).trim()
+      : (chat?.senderName != null && String(chat.senderName).trim()) ? String(chat.senderName).trim()
+      : "";
+  if (nome && !nome.toLowerCase().startsWith("lid:") && nome !== "name") return nome;
   return formatPhoneForDisplay(getPhone(chat)) || "Contato";
 }
 
 /**
  * Par único nome + foto do mesmo contato (evita desalinhamento).
- * Sempre use displayName e avatarUrl deste objeto juntos na mesma linha.
+ * Usa foto_perfil (backend) ou senderPhoto/photo (webhook). Sempre use displayName e avatarUrl juntos.
  */
 function getContactDisplay(chat) {
   const isGroup = isGroupConversation(chat);
   const displayName = getDisplayName(chat);
   const phone = getPhone(chat);
-  const rawFoto = isGroup ? (chat?.foto_grupo ?? null) : (chat?.foto_perfil ?? null);
+  const rawFoto = isGroup
+    ? (chat?.foto_grupo ?? null)
+    : (chat?.foto_perfil ?? chat?.senderPhoto ?? chat?.photo ?? null);
   const avatarUrl = rawFoto && String(rawFoto).trim().startsWith("http") ? String(rawFoto).trim() : null;
   return { displayName, avatarUrl, phone, isGroup };
 }
