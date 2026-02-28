@@ -438,10 +438,12 @@ function PreviewLine({ chat, audioDurationSec }) {
    NORMALIZAÇÃO DE CONTATO (PRO) - mantido
 ===================================================== */
 
-/** Uma só fonte: telefone no topo (evita duplicação/confusão com cliente aninhado). */
+/** Uma só fonte: telefone no topo. Nunca exibir LID (lid:xxx) — backend envia telefone_exibivel null nesses casos. */
 function getPhone(chat) {
-  const tel = chat?.telefone ?? chat?.numero ?? chat?.phone ?? chat?.wa_id ?? "";
-  return String(tel || "").trim() || "";
+  const tel = chat?.telefone_exibivel ?? chat?.telefone ?? chat?.numero ?? chat?.phone ?? chat?.wa_id ?? "";
+  const s = String(tel || "").trim();
+  if (s.toLowerCase().startsWith("lid:")) return "";
+  return s;
 }
 
 function formatPhoneForDisplay(phone) {
@@ -450,15 +452,16 @@ function formatPhoneForDisplay(phone) {
   return p || "";
 }
 
-/** Uma só fonte: contato_nome (backend); grupos: nome_grupo. Evita nomes duplicados ou vindos de msg. */
+/** Uma só fonte: contato_nome (backend); grupos: nome_grupo. Nunca exibir LID (lid:xxx) como nome. */
 function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? "";
-    if (nome && String(nome).trim()) return String(nome).trim();
+    const n = String(nome || "").trim();
+    if (n && !n.toLowerCase().startsWith("lid:")) return n;
     return getPhone(chat) || "Grupo";
   }
   const nome = chat?.contato_nome != null ? String(chat.contato_nome).trim() : "";
-  if (nome) return nome;
+  if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
   return formatPhoneForDisplay(getPhone(chat)) || "Contato";
 }
 

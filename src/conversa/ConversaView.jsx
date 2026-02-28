@@ -1286,18 +1286,25 @@ export default function ConversaView() {
 
   const isGroup = useMemo(() => isGroupConversation(conversa), [conversa]);
 
+  // Nunca exibir LID (lid:xxx) como nome ou número — identificador interno do WhatsApp
+  const isLidValue = (v) => v != null && String(v).trim().toLowerCase().startsWith("lid:");
+
   const nome = useMemo(() => {
-    if (isGroup) return conversa?.nome_grupo || conversa?.contato_nome || "Grupo";
+    if (isGroup) {
+      const g = conversa?.nome_grupo || conversa?.contato_nome || "Grupo";
+      return isLidValue(g) ? "Grupo" : g;
+    }
     const n = conversa?.contato_nome ?? conversa?.cliente_nome ?? conversa?.cliente?.nome ?? "";
-    if (n && String(n).trim()) return String(n).trim();
+    if (n && String(n).trim() && !isLidValue(n)) return String(n).trim();
     const tel = conversa?.cliente_telefone ?? conversa?.telefone ?? "";
-    if (tel && String(tel).replace(/\D/g, "").length >= 10) return `+${String(tel).replace(/\D/g, "")}`;
-    return tel || "Contato";
+    if (tel && !isLidValue(tel) && String(tel).replace(/\D/g, "").length >= 10) return `+${String(tel).replace(/\D/g, "")}`;
+    return "Contato";
   }, [conversa, isGroup]);
 
   const telefone = useMemo(() => {
     if (isGroup) return conversa?.telefone || "";
-    return conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone || "";
+    const t = conversa?.cliente_telefone ?? conversa?.cliente?.telefone ?? conversa?.telefone ?? "";
+    return isLidValue(t) ? "" : (t || "");
   }, [conversa, isGroup]);
 
   const rawAvatarUrl = isGroup ? (conversa?.foto_grupo ?? null) : (conversa?.foto_perfil ?? null);
