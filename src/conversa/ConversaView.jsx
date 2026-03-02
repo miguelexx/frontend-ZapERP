@@ -700,6 +700,7 @@ function Bubble({
   isStarred,
   currentUserId,
   onJumpToReply,
+  onOpenMedia,
 }) {
   const out = msg?.direcao === "out";
   const canDeleteForEveryone = useMemo(() => {
@@ -921,9 +922,16 @@ function Bubble({
               </span>
               {isImg || isSticker ? (
                 <div className="wa-bubble-mediaStack">
-                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
+                  <button
+                    type="button"
+                    className="wa-bubble-imgLink"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenMedia?.(mediaUrl, isSticker ? "figurinha" : "imagem");
+                    }}
+                  >
                     <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
-                  </a>
+                  </button>
                   {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
                 </div>
               ) : isVideo ? (
@@ -956,9 +964,16 @@ function Bubble({
             </div>
           ) : isImg || isSticker ? (
             <div className="wa-bubble-mediaStack">
-              <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-imgLink">
+              <button
+                type="button"
+                className="wa-bubble-imgLink"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenMedia?.(mediaUrl, isSticker ? "figurinha" : "imagem");
+                }}
+              >
                 <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
-              </a>
+              </button>
               {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
             </div>
           ) : isVideo && mediaUrl ? (
@@ -1232,6 +1247,7 @@ export default function ConversaView() {
   const [dragOver, setDragOver] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
+  const [mediaViewer, setMediaViewer] = useState(null); // { url, alt }
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef(null);
@@ -1468,6 +1484,27 @@ export default function ConversaView() {
     setPendingPreview(null);
   }, [pendingPreview]);
 
+  const openMediaViewer = useCallback((url, alt) => {
+    if (!url) return;
+    setMediaViewer({ url, alt: alt || "Mídia" });
+  }, []);
+
+  const closeMediaViewer = useCallback(() => {
+    setMediaViewer(null);
+  }, []);
+
+  useEffect(() => {
+    if (!mediaViewer) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeMediaViewer();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mediaViewer, closeMediaViewer]);
+
   const openFilePicker = useCallback(() => {
     if (!conversaId) return;
     fileInputRef.current?.click();
@@ -1528,6 +1565,32 @@ export default function ConversaView() {
       setPendingPreview(null);
     }
   }, []);
+
+  const handlePaste = useCallback(
+    (e) => {
+      if (!conversaId) return;
+      const dt = e.clipboardData;
+      if (!dt) return;
+
+      const files = dt.files && dt.files.length > 0 ? Array.from(dt.files) : [];
+      const items = dt.items && dt.items.length > 0 ? Array.from(dt.items) : [];
+
+      let pickedFile = null;
+
+      if (files.length > 0) {
+        pickedFile = files.find((f) => f && isImageFile(f)) || files[0];
+      } else if (items.length > 0) {
+        const fileItem = items.find((it) => it.kind === "file" && it.type && it.type.startsWith("image/"));
+        if (fileItem) pickedFile = fileItem.getAsFile();
+      }
+
+      if (pickedFile && isImageFile(pickedFile)) {
+        e.preventDefault();
+        handleDropFile(pickedFile);
+      }
+    },
+    [conversaId, handleDropFile]
+  );
 
   const onDragEnter = useCallback((e) => {
     e.preventDefault();
@@ -2743,6 +2806,7 @@ export default function ConversaView() {
                   isStarred={starredSet.has(String(item.id))}
                   currentUserId={myUserId}
                   onJumpToReply={jumpToReply}
+                  onOpenMedia={openMediaViewer}
                 />
               );
             })
@@ -2975,6 +3039,24 @@ export default function ConversaView() {
           document.body
         ) : null}
 
+        {mediaViewer ? createPortal(
+          <div
+            className="wa-modalOverlay wa-imageViewerOverlay"
+            role="dialog"
+            aria-label="Visualizar mídia"
+            onMouseDown={closeMediaViewer}
+          >
+            <div className="wa-imageViewer" onMouseDown={(e) => e.stopPropagation()}>
+              <img
+                src={mediaViewer.url}
+                alt={mediaViewer.alt || "Mídia"}
+                className="wa-imageViewer-img"
+              />
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
         <div className="wa-footer">
           {isRecording ? (
             <div className="wa-recording-bar">
@@ -3067,6 +3149,7 @@ export default function ConversaView() {
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
                 onBlur={emitTypingStop}
+                onPaste={handlePaste}
                 placeholder="Digite uma mensagem"
                 className="wa-input"
                 onKeyDown={handleKeyDownInput}

@@ -35,11 +35,11 @@
 
 /* Tema escuro (só visual) — estilo ChatGPT / WhatsApp Web */
 [data-theme="dark"] {
-  /* Fundos */
-  --bg-app: #0f172a;       /* bg-primary */
-  --bg-surface: #111827;   /* bg-secondary */
-  --bg-panel: #1f2937;     /* bg-tertiary */
-  --bg-sidebar: #020617;
+  /* Fundos — inspirado no WhatsApp Web dark */
+  --bg-app: #0b141a;       /* fundo principal do app */
+  --bg-surface: #111b21;   /* superfícies internas */
+  --bg-panel: #202c33;     /* cards / cabeçalhos */
+  --bg-sidebar: #111b21;
 
   /* Texto */
   --text: #f9fafb;         /* text-primary */
@@ -47,9 +47,9 @@
   --text-muted: #d1d5db;   /* text-secondary */
 
   /* Bordas / hover */
-  --border: #374151;
-  --border-subtle: rgba(31, 41, 55, 0.9);
-  --hover: rgba(148, 163, 184, 0.16);
+  --border: #1f2937;
+  --border-subtle: rgba(15, 23, 42, 0.9);
+  --hover: rgba(148, 163, 184, 0.20);
 
   /* Sombras */
   --shadow-subtle: 0 1px 3px rgba(0,0,0,0.55);
@@ -157,7 +157,7 @@
 }
 
 [data-theme="dark"] .atendimento-chat-area {
-  background: #020617;
+  background: #0b141a;
 }
 
 /* Mobile: sidebar e chat-area preenchem 100% da tela fixa */

@@ -26,7 +26,7 @@
   --wa-bubble-min-width-with-meta: 130px;
   --wa-bubble-max-width: 68%;
   --wa-bubble-padding-x: 12px;
-  --wa-bubble-padding-y: 10px;
+  --wa-bubble-padding-y: 8px;
   --wa-shadow-subtle: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   --wa-shadow-bubble: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   --wa-status-green: #25a366;
@@ -725,10 +725,10 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px 18px 18px;
+  padding: 10px 18px 14px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
   min-height: 0;
   min-width: 0;
   background: var(--wa-bg);
@@ -775,7 +775,7 @@
 
 .wa-row {
   display: flex;
-  padding: 1px 0;
+  padding: 0;
   min-width: 0;
   max-width: 100%;
 }
@@ -1041,21 +1041,34 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.03);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.03);
   color: var(--wa-text);
   font-size: 13px;
   text-decoration: none;
-  transition: background 0.15s ease;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
 .wa-bubble-file:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(148, 163, 184, 0.6);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.15);
+  transform: translateY(-1px);
 }
 
 .wa-bubble-fileIcon {
-  font-size: 16px;
+  width: 32px;
+  height: 42px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ecfdf3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 .wa-bubble-fileName {
@@ -1064,12 +1077,28 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .wa-bubble-fileHint {
   font-size: 11px;
-  opacity: 0.8;
+  opacity: 0.9;
+  color: #2563eb;
 }
+
+body.dark .wa-bubble-file,
+[data-theme="dark"] .wa-bubble-file {
+  background: #202c33;
+  border-color: #202c33;
+  color: #e9edef;
+}
+
+body.dark .wa-bubble-file:hover,
+[data-theme="dark"] .wa-bubble-file:hover {
+  background: #111b21;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
 
 /* ---- Áudio (.audio-message) ---- */
 .wa-bubble-audio,
@@ -1603,6 +1632,28 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
+}
+
+.wa-imageViewerOverlay {
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.wa-imageViewer {
+  max-width: min(900px, 98vw);
+  max-height: min(90vh, 98vh);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wa-imageViewer-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .wa-modal {
