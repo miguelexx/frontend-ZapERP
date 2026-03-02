@@ -260,6 +260,277 @@
   color: var(--dash-muted, #64748b);
 }
 
+/* =========================================================
+   Conectar WhatsApp (Z-API)
+========================================================= */
+
+.zapi-card {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.zapi-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.zapi-card-title {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dash-text, #0f172a);
+}
+
+.zapi-card-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dash-muted, #64748b);
+}
+
+.zapi-statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid var(--dash-border, #e2e8f0);
+  background: #f8fafc;
+}
+
+.zapi-statusBadge-icon {
+  font-size: 14px;
+}
+
+.zapi-statusBadge--success {
+  background: #ecfdf3;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.zapi-statusBadge--warning {
+  background: #fffbeb;
+  border-color: #fef3c7;
+  color: #92400e;
+}
+
+.zapi-statusBadge--danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.zapi-statusBadge--muted {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+.zapi-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.zapi-qrColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+.zapi-qrBox {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  border: 1px dashed var(--dash-border, #e2e8f0);
+  background: radial-gradient(circle at top, #e0f2fe 0, #eff6ff 40%, #ffffff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.zapi-qrImage {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.zapi-qrPlaceholder {
+  font-size: 13px;
+  color: #0f172a;
+  text-align: center;
+  padding: 12px;
+}
+
+.zapi-qrHint {
+  margin: 0;
+}
+
+.zapi-paused {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #92400e;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  border: 1px solid #fef3c7;
+}
+
+.zapi-instructions h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.zapi-instructions ol {
+  margin: 0 0 10px 18px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--dash-text, #0f172a);
+}
+
+.zapi-instructions li + li {
+  margin-top: 4px;
+}
+
+.zapi-instructions .ia-muted {
+  margin-top: 4px;
+}
+
+.zapi-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.zapi-empty {
+  padding: 20px 16px 8px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+
+.zapi-empty h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.zapi-empty p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--dash-muted, #64748b);
+}
+
+.zapi-connectHint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--dash-border, #e2e8f0);
+  background: #f8fafc;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.zapi-connectedState {
+  padding: 18px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ecfdf3, #e0f2fe);
+  border: 1px solid #bbf7d0;
+  text-align: left;
+}
+
+.zapi-connectedState h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.zapi-connectedState .ia-muted {
+  margin: 0;
+}
+
+.zapi-connectedEmoji {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.zapi-me {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dash-border, #e2e8f0);
+  background: #f9fafb;
+}
+
+.zapi-me-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.zapi-me-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zapi-me-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dash-text, #0f172a);
+}
+
+.zapi-me-phone {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .zapi-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zapi-qrBox {
+    max-width: none;
+    align-self: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .ia-wrap {
+    padding: 16px;
+  }
+
+  .ia-content {
+    padding: 18px;
+  }
+
+  .zapi-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .zapi-actions {
+    justify-content: flex-start;
+  }
+}
+
 .ia-log-item {
   padding: 10px 12px;
   border-bottom: 1px solid var(--dash-border, #e2e8f0);

@@ -171,6 +171,7 @@ export default function Configuracoes() {
           <SecaoGeral
             empresa={empresa}
             empresasWhatsapp={empresasWhatsapp}
+            onOpenConnectWhatsapp={() => navigate("/configuracoes/whatsapp")}
             onSave={async (v) => { const updated = await cfg.putEmpresa(v); setEmpresa(updated || v); loadAll(); }}
             onRefresh={loadAll}
           />
@@ -254,7 +255,7 @@ function applyTheme(theme) {
   } catch {}
 }
 
-function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh }) {
+function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenConnectWhatsapp }) {
   const [v, setV] = useState(empresa || {});
   useEffect(() => setV(empresa || {}), [empresa]);
   const [saving, setSaving] = useState(false);
@@ -386,6 +387,21 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh }) {
       <h4 style={{ marginTop: 24 }}>WhatsApp Multi-tenant</h4>
       <p className="ia-muted">Para webhook rotear por empresa, cadastre o phone_number_id do Meta (em value.metadata do webhook).</p>
       <SecaoEmpresasWhatsapp lista={empresasWhatsapp} onRefresh={onRefresh} />
+      <div className="zapi-connectHint">
+        <div>
+          <strong>Conexão Z-API / WhatsApp</strong>
+          <p className="ia-muted" style={{ margin: "4px 0 0" }}>
+            Use a página dedicada para conectar o WhatsApp via QR Code, como no WhatsApp Web.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="ia-btn ia-btn--outline"
+          onClick={() => onOpenConnectWhatsapp?.()}
+        >
+          Conectar WhatsApp
+        </button>
+      </div>
       <div className="ia-btn-row">
         <button
           className="ia-btn ia-btn--primary"

@@ -13,6 +13,7 @@ import DashboardIA from "../pages/DashboardIA";
 import NovoContato from "../pages/NovoContato";
 import NovoGrupo from "../pages/NovoGrupo";
 import NovaComunidade from "../pages/NovaComunidade";
+import ConnectWhatsApp from "../pages/ConnectWhatsApp";
 
 
 
@@ -43,6 +44,7 @@ export default function AppRoutes() {
           <Route path="/usuarios" element={<Navigate to="/configuracoes" replace />} />
           <Route path="/atendimento/novo-contato" element={<NovoContato />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/configuracoes/whatsapp" element={<ConnectWhatsApp />} />
           <Route path="/ia" element={<IA />} />
           <Route path="/atendimento/novo-grupo" element={<NovoGrupo />} />
           <Route path="/atendimento/nova-comunidade" element={<NovaComunidade />} />
