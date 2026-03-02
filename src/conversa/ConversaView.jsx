@@ -1073,7 +1073,7 @@ function Bubble({
                 aria-label="Reagir à mensagem"
                 disabled={reactionBusy}
               >
-                🙂
+                <IconEmoji style={{ width: 16, height: 16 }} />
               </button>
             ) : null}
             {showMenuButton ? (

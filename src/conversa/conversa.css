@@ -1087,29 +1087,31 @@
 }
 
 .wa-bubble-reaction {
-  margin-top: 2px;
-  align-self: flex-end;
-  min-width: 24px;
-  height: 24px;
+  position: absolute;
+  right: 4px;
+  bottom: -6px;
+  min-width: 20px;
+  height: 20px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.06);
   color: #111b21;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
 }
 
 [data-theme="dark"] .wa-bubble-reaction {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: #e5e7eb;
 }
 
 .wa-reactionBtn {
   border: none;
   background: transparent;
-  color: var(--wa-text-light);
+  color: #111b21;
   cursor: pointer;
   padding: 0;
   width: 20px;
@@ -1135,6 +1137,7 @@
 [data-theme="dark"] .wa-reactionBtn:hover:not(:disabled),
 [data-theme="dark"] .wa-reactionBtn.isOpen {
   background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
 }
 
 .wa-reactionPicker {
