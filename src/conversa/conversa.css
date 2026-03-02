@@ -1120,11 +1120,16 @@
   justify-content: center;
   font-size: 13px;
   margin-right: 2px;
+  opacity: 0;
+  pointer-events: none;
 }
 
+.wa-bubble:hover .wa-reactionBtn,
 .wa-reactionBtn:hover:not(:disabled),
 .wa-reactionBtn.isOpen {
   background: rgba(0, 0, 0, 0.06);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 [data-theme="dark"] .wa-reactionBtn:hover:not(:disabled),

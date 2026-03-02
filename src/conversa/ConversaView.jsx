@@ -2400,7 +2400,36 @@ export default function ConversaView() {
   }, [conversaId]);
 
   const mensagensComSeparadores = useMemo(() => {
-    const list = Array.isArray(mensagens) ? mensagens : [];
+    const raw = Array.isArray(mensagens) ? mensagens : [];
+    const list = [];
+    const reactionsByMsgId = {};
+
+    // Primeiro, varre a lista original para detectar mensagens de reação (tipo='reaction')
+    // e anexar o emoji na mensagem imediatamente anterior (aproximação estilo WhatsApp).
+    for (let i = 0; i < raw.length; i++) {
+      const msg = raw[i];
+      if (!msg) continue;
+      const tipo = safeString(msg.tipo).toLowerCase();
+      if (tipo === "reaction") {
+        const text = safeString(msg.texto || msg.message || msg.body);
+        let emoji = "";
+        const m = text.match(/rea[cç][aã]o:\s*(.+)$/i);
+        if (m && m[1]) {
+          emoji = m[1].trim();
+        } else if (text) {
+          // fallback: último caractere visível
+          emoji = text.slice(-2).trim() || text.slice(-1);
+        }
+        const prevMsg = list[list.length - 1];
+        if (prevMsg && prevMsg.id != null && emoji) {
+          reactionsByMsgId[String(prevMsg.id)] = emoji;
+        }
+        // não adiciona a mensagem de reação na timeline
+        continue;
+      }
+      list.push(msg);
+    }
+
     const out = [];
 
     // Chave única por remetente: telefone quando existir, senão nome (evita "nome:" vs "tel:" darem chaves diferentes).
@@ -2434,7 +2463,9 @@ export default function ConversaView() {
         Boolean(curSender) &&
         (isNewDay || !prev || prevDir === "out" || curSender !== prevSender);
 
-      out.push({ ...msg, __type: "msg", __showRemetente: showRemetente });
+      const reaction = reactionsByMsgId[String(msg.id)];
+
+      out.push({ ...msg, __type: "msg", __showRemetente: showRemetente, __reaction: reaction });
     }
 
     return out;
@@ -2989,7 +3020,7 @@ export default function ConversaView() {
                   currentUserId={myUserId}
                   onJumpToReply={jumpToReply}
                   onOpenMedia={openMediaViewer}
-                  localReaction={localReactions[String(item.id)]}
+                  localReaction={localReactions[String(item.id)] || item.__reaction}
                   onReact={handleSendReaction}
                   onRemoveReaction={handleRemoveReaction}
                   reactionBusy={Boolean(reactionLoading[String(item.id)])}
