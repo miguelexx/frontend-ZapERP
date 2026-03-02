@@ -92,9 +92,7 @@ export default function ConnectWhatsApp() {
       } catch (err) {
         if (!mountedRef.current) return null;
         handleCommonError(err);
-        if (!error) {
-          setError(err?.response?.data?.error || "Erro ao consultar status do WhatsApp.");
-        }
+        setError(err?.response?.data?.error || "Erro ao consultar status do WhatsApp.");
         return null;
       } finally {
         if (!silent && mountedRef.current) {
@@ -102,7 +100,7 @@ export default function ConnectWhatsApp() {
         }
       }
     },
-    [handleCommonError, stopPolling, error]
+    [handleCommonError, stopPolling]
   );
 
   const fetchQr = useCallback(
@@ -132,15 +130,13 @@ export default function ConnectWhatsApp() {
       } catch (err) {
         if (!mountedRef.current) return false;
         handleCommonError(err);
-        if (!error) {
-          setError(err?.response?.data?.error || "Erro ao gerar QR Code.");
-        }
+        setError(err?.response?.data?.error || "Erro ao gerar QR Code.");
         return false;
       } finally {
         if (!silent && mountedRef.current) setLoadingQr(false);
       }
     },
-    [status?.connected, noInstance, fetchStatus, handleCommonError, error]
+    [status?.connected, noInstance, fetchStatus, handleCommonError]
   );
 
   const startPolling = useCallback(() => {
