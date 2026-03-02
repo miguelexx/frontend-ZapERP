@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConversaStore } from "./conversaStore";
-import { enviarMensagem, excluirMensagem } from "./conversaService";
+import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao } from "./conversaService";
 import { isGroupConversation } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
@@ -298,6 +298,16 @@ function IconClipboard(props) {
     <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
       <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </svg>
+  );
+}
+
+function IconContact(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5 19a7 7 0 0 1 14 0" />
+      <rect x="3" y="3" width="5" height="5" rx="1" />
     </svg>
   );
 }
@@ -701,6 +711,10 @@ function Bubble({
   currentUserId,
   onJumpToReply,
   onOpenMedia,
+  localReaction,
+  onReact,
+  onRemoveReaction,
+  reactionBusy,
 }) {
   const out = msg?.direcao === "out";
   const canDeleteForEveryone = useMemo(() => {
@@ -741,6 +755,8 @@ function Bubble({
   const anchorRef = useRef(null);
   const menuElRef = useRef(null);
   const [menuStyle, setMenuStyle] = useState(null);
+  const [reactionOpen, setReactionOpen] = useState(false);
+  const isCall = msg?.tipo === "call";
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -1009,6 +1025,13 @@ function Bubble({
               <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
               <span className="wa-bubble-fileHint">Abrir</span>
             </a>
+          ) : isCall ? (
+            <div className="wa-callBubble">
+              <div className="wa-callIcon" aria-hidden="true">📞</div>
+              <div className="wa-callText">
+                {texto || "Ligação via WhatsApp"}
+              </div>
+            </div>
           ) : hasText ? (
             inlineMeta ? (
               <span className="wa-bubble-text wa-bubble-textInline">
@@ -1037,6 +1060,22 @@ function Bubble({
             {isStarred ? <span className="wa-bubble-badge" title="Favorita">★</span> : null}
           </div>
           <div className="wa-bubble-metaRight">
+            {!isCall ? (
+              <button
+                type="button"
+                className={`wa-reactionBtn ${reactionOpen ? "isOpen" : ""}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setReactionOpen((v) => !v);
+                }}
+                title="Reagir"
+                aria-label="Reagir à mensagem"
+                disabled={reactionBusy}
+              >
+                🙂
+              </button>
+            ) : null}
             {showMenuButton ? (
               <button
                 ref={anchorRef}
@@ -1055,6 +1094,47 @@ function Bubble({
             ) : null}
           </div>
         </div>
+
+        {reactionOpen && !isCall ? (
+          <div
+            className="wa-reactionPicker"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {["❤️", "👍", "😂", "😮", "😢", "👎"].map((emo) => (
+              <button
+                key={emo}
+                type="button"
+                className="wa-reactionPicker-btn"
+                disabled={reactionBusy}
+                onClick={() => {
+                  onReact?.(msg, emo);
+                  setReactionOpen(false);
+                }}
+              >
+                {emo}
+              </button>
+            ))}
+            {localReaction ? (
+              <button
+                type="button"
+                className="wa-reactionPicker-remove"
+                disabled={reactionBusy}
+                onClick={() => {
+                  onRemoveReaction?.(msg);
+                  setReactionOpen(false);
+                }}
+              >
+                Remover reação
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {localReaction ? (
+          <div className="wa-bubble-reaction" aria-label={`Sua reação: ${localReaction}`}>
+            {localReaction}
+          </div>
+        ) : null}
       </div>
 
       {menuOpen
@@ -1248,6 +1328,18 @@ export default function ConversaView() {
   const [pendingFile, setPendingFile] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [mediaViewer, setMediaViewer] = useState(null); // { url, alt }
+  const [localReactions, setLocalReactions] = useState({});
+  const [reactionLoading, setReactionLoading] = useState({});
+
+  const [shareContactOpen, setShareContactOpen] = useState(false);
+  const [shareContactQuery, setShareContactQuery] = useState("");
+  const [shareContactList, setShareContactList] = useState([]);
+  const [shareContactLoading, setShareContactLoading] = useState(false);
+  const [shareContactSending, setShareContactSending] = useState(false);
+
+  const [callModalOpen, setCallModalOpen] = useState(false);
+  const [callDuration, setCallDuration] = useState(5);
+  const [callSending, setCallSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef(null);
@@ -1505,6 +1597,30 @@ export default function ConversaView() {
     return () => document.removeEventListener("keydown", onKey);
   }, [mediaViewer, closeMediaViewer]);
 
+  useEffect(() => {
+    if (!shareContactOpen) {
+      setShareContactList([]);
+      setShareContactQuery("");
+      setShareContactLoading(false);
+      return;
+    }
+    const q = safeString(shareContactQuery).trim().toLowerCase();
+    setShareContactLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const list = await cfg.getClientes({ palavra: q || undefined, limit: 60 });
+        const arr = Array.isArray(list) ? list : [];
+        setShareContactList(arr);
+      } catch (e) {
+        console.error("Erro ao buscar contatos:", e);
+        setShareContactList([]);
+      } finally {
+        setShareContactLoading(false);
+      }
+    }, 260);
+    return () => clearTimeout(t);
+  }, [shareContactOpen, shareContactQuery]);
+
   const openFilePicker = useCallback(() => {
     if (!conversaId) return;
     fileInputRef.current?.click();
@@ -1565,6 +1681,72 @@ export default function ConversaView() {
       setPendingPreview(null);
     }
   }, []);
+
+  const handleSendReaction = useCallback(
+    async (msg, reaction) => {
+      if (!conversaId || !msg?.id || !reaction) return;
+      const mid = String(msg.id);
+      if (reactionLoading[mid]) return;
+      setReactionLoading((prev) => ({ ...prev, [mid]: true }));
+      setLocalReactions((prev) => ({ ...prev, [mid]: reaction }));
+      try {
+        await enviarReacao(conversaId, msg.id, reaction);
+      } catch (err) {
+        console.error("Erro ao enviar reação:", err);
+        setLocalReactions((prev) => {
+          const next = { ...prev };
+          delete next[mid];
+          return next;
+        });
+        showToast({
+          type: "error",
+          title: "Falha ao reagir",
+          message: err?.response?.data?.error || "Não foi possível registrar a reação.",
+        });
+      } finally {
+        setReactionLoading((prev) => {
+          const next = { ...prev };
+          delete next[mid];
+          return next;
+        });
+      }
+    },
+    [conversaId, reactionLoading, showToast]
+  );
+
+  const handleRemoveReaction = useCallback(
+    async (msg) => {
+      if (!conversaId || !msg?.id) return;
+      const mid = String(msg.id);
+      if (reactionLoading[mid]) return;
+      if (!localReactions[mid]) return;
+      setReactionLoading((prev) => ({ ...prev, [mid]: true }));
+      const prevReaction = localReactions[mid];
+      setLocalReactions((prev) => {
+        const next = { ...prev };
+        delete next[mid];
+        return next;
+      });
+      try {
+        await removerReacao(conversaId, msg.id);
+      } catch (err) {
+        console.error("Erro ao remover reação:", err);
+        setLocalReactions((prev) => ({ ...prev, [mid]: prevReaction }));
+        showToast({
+          type: "error",
+          title: "Falha ao remover reação",
+          message: err?.response?.data?.error || "Não foi possível remover a reação.",
+        });
+      } finally {
+        setReactionLoading((prev) => {
+          const next = { ...prev };
+          delete next[mid];
+          return next;
+        });
+      }
+    },
+    [conversaId, localReactions, reactionLoading, showToast]
+  );
 
   const handlePaste = useCallback(
     (e) => {
@@ -2807,6 +2989,10 @@ export default function ConversaView() {
                   currentUserId={myUserId}
                   onJumpToReply={jumpToReply}
                   onOpenMedia={openMediaViewer}
+                  localReaction={localReactions[String(item.id)]}
+                  onReact={handleSendReaction}
+                  onRemoveReaction={handleRemoveReaction}
+                  reactionBusy={Boolean(reactionLoading[String(item.id)])}
                 />
               );
             })
@@ -3057,6 +3243,206 @@ export default function ConversaView() {
           document.body
         ) : null}
 
+        {mediaViewer ? createPortal(
+          <div
+            className="wa-modalOverlay wa-imageViewerOverlay"
+            role="dialog"
+            aria-label="Visualizar mídia"
+            onMouseDown={closeMediaViewer}
+          >
+            <div className="wa-imageViewer" onMouseDown={(e) => e.stopPropagation()}>
+              <img
+                src={mediaViewer.url}
+                alt={mediaViewer.alt || "Mídia"}
+                className="wa-imageViewer-img"
+              />
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
+        {shareContactOpen ? createPortal(
+          <div
+            className="wa-modalOverlay"
+            role="dialog"
+            aria-label="Enviar contato"
+            onMouseDown={() => {
+              if (shareContactSending) return;
+              setShareContactOpen(false);
+              setShareContactQuery("");
+              setShareContactList([]);
+            }}
+          >
+            <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Enviar contato</div>
+                <button
+                  type="button"
+                  className="wa-iconBtn"
+                  onClick={() => {
+                    if (shareContactSending) return;
+                    setShareContactOpen(false);
+                    setShareContactQuery("");
+                    setShareContactList([]);
+                  }}
+                  title="Fechar"
+                >
+                  <IconClose />
+                </button>
+              </div>
+              <div className="wa-modal-body">
+                <div className="wa-modal-row">
+                  <input
+                    className="wa-input"
+                    placeholder="Buscar cliente por nome ou telefone..."
+                    value={shareContactQuery}
+                    onChange={(e) => setShareContactQuery(e.target.value)}
+                  />
+                </div>
+                <div className="wa-modal-row" style={{ maxHeight: 260, overflowY: "auto", paddingRight: 4 }}>
+                  {shareContactLoading ? (
+                    <div className="wa-muted">Carregando contatos...</div>
+                  ) : shareContactList.length === 0 ? (
+                    <div className="wa-muted">Nenhum contato encontrado.</div>
+                  ) : (
+                    <div className="wa-forwardList">
+                      {shareContactList.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="wa-forwardItem"
+                          disabled={shareContactSending}
+                          onClick={async () => {
+                            if (!conversaId) return;
+                            setShareContactSending(true);
+                            try {
+                              await enviarContato(conversaId, c.id);
+                              setShareContactOpen(false);
+                              setShareContactQuery("");
+                              setShareContactList([]);
+                              showToast({
+                                type: "success",
+                                title: "Contato enviado",
+                                message: "O contato foi compartilhado na conversa.",
+                              });
+                            } catch (err) {
+                              console.error("Erro ao enviar contato:", err);
+                              showToast({
+                                type: "error",
+                                title: "Falha ao enviar contato",
+                                message: err?.response?.data?.error || "Não foi possível enviar o contato.",
+                              });
+                            } finally {
+                              setShareContactSending(false);
+                            }
+                          }}
+                        >
+                          <div className="wa-forwardItem-name">{safeString(c.nome || c.telefone) || "Cliente"}</div>
+                          {c.telefone ? (
+                            <div className="wa-forwardItem-sub">{String(c.telefone)}</div>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
+        {callModalOpen ? createPortal(
+          <div
+            className="wa-modalOverlay"
+            role="dialog"
+            aria-label="Registrar ligação"
+            onMouseDown={() => {
+              if (callSending) return;
+              setCallModalOpen(false);
+            }}
+          >
+            <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Ligar pelo WhatsApp</div>
+                <button
+                  type="button"
+                  className="wa-iconBtn"
+                  onClick={() => !callSending && setCallModalOpen(false)}
+                  title="Fechar"
+                >
+                  <IconClose />
+                </button>
+              </div>
+              <div className="wa-modal-body">
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Duração (segundos)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={15}
+                    className="wa-input"
+                    value={callDuration}
+                    onChange={(e) => {
+                      const v = Number(e.target.value) || 0;
+                      if (v < 1) setCallDuration(1);
+                      else if (v > 15) setCallDuration(15);
+                      else setCallDuration(v);
+                    }}
+                  />
+                </div>
+                <div className="wa-modal-row">
+                  <p className="wa-modal-value">
+                    Registraremos uma ligação via WhatsApp nesta conversa. Isso não inicia a chamada no seu dispositivo,
+                    apenas registra no histórico.
+                  </p>
+                </div>
+              </div>
+              <div className="wa-modal-body" style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-ghost"
+                  disabled={callSending}
+                  onClick={() => !callSending && setCallModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-primary"
+                  disabled={callSending || !conversaId}
+                  onClick={async () => {
+                    if (!conversaId) return;
+                    const dur = Math.min(15, Math.max(1, Number(callDuration) || 5));
+                    setCallSending(true);
+                    try {
+                      await registrarLigacao(conversaId, dur);
+                      setCallModalOpen(false);
+                      showToast({
+                        type: "success",
+                        title: "Ligação registrada",
+                        message: "A ligação via WhatsApp foi registrada na conversa.",
+                      });
+                    } catch (err) {
+                      console.error("Erro ao registrar ligação:", err);
+                      showToast({
+                        type: "error",
+                        title: "Falha ao registrar ligação",
+                        message: err?.response?.data?.error || "Não foi possível registrar a ligação.",
+                      });
+                    } finally {
+                      setCallSending(false);
+                    }
+                  }}
+                >
+                  {callSending ? "Registrando..." : "Iniciar ligação"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
         <div className="wa-footer">
           {isRecording ? (
             <div className="wa-recording-bar">
@@ -3128,6 +3514,16 @@ export default function ConversaView() {
               >
                 <IconAttach />
               </button>
+              <button
+                onClick={() => setShareContactOpen(true)}
+                className="wa-iconBtn"
+                title="Enviar contato"
+                type="button"
+                disabled={sending || !conversaId}
+                aria-label="Enviar contato"
+              >
+                <IconContact />
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -3168,6 +3564,18 @@ export default function ConversaView() {
                 >
                   <IconMic />
                 </button>
+                {!isGroup && (
+                  <button
+                    onClick={() => setCallModalOpen(true)}
+                    disabled={sending || !conversaId}
+                    className="wa-micBtn"
+                    title="Ligar pelo WhatsApp"
+                    type="button"
+                    aria-label="Ligar pelo WhatsApp"
+                  >
+                    📞
+                  </button>
+                )}
                 <button
                   onClick={handleEnviar}
                   disabled={sending || !safeString(texto) || !conversaId}

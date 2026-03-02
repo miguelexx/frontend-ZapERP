@@ -1086,6 +1086,115 @@
   color: #2563eb;
 }
 
+.wa-bubble-reaction {
+  margin-top: 2px;
+  align-self: flex-end;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #111b21;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="dark"] .wa-bubble-reaction {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5e7eb;
+}
+
+.wa-reactionBtn {
+  border: none;
+  background: transparent;
+  color: var(--wa-text-light);
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  margin-right: 2px;
+}
+
+.wa-reactionBtn:hover:not(:disabled),
+.wa-reactionBtn.isOpen {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .wa-reactionBtn:hover:not(:disabled),
+[data-theme="dark"] .wa-reactionBtn.isOpen {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wa-reactionPicker {
+  margin-top: 4px;
+  align-self: flex-end;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.wa-reactionPicker-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.wa-reactionPicker-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.wa-reactionPicker-remove {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: #6b7280;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.wa-reactionPicker-remove:hover:not(:disabled) {
+  color: #111827;
+}
+
+.wa-callBubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wa-callIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.15);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.wa-callText {
+  font-size: 13px;
+}
+
 body.dark .wa-bubble-file,
 [data-theme="dark"] .wa-bubble-file {
   background: #202c33;

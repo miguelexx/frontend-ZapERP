@@ -73,6 +73,17 @@ export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
   return data;
 }
 
+export async function enviarReacao(conversaId, mensagemId, reaction) {
+  const body = { reaction };
+  const { data } = await api.post(`/chats/${conversaId}/mensagens/${mensagemId}/reacao`, body);
+  return data;
+}
+
+export async function removerReacao(conversaId, mensagemId) {
+  const { data } = await api.delete(`/chats/${conversaId}/mensagens/${mensagemId}/reacao`);
+  return data;
+}
+
 export async function assumirChat(conversaId) {
   const { data } = await api.post(`/chats/${conversaId}/assumir`);
   return data;
@@ -107,6 +118,20 @@ export async function listarAtendimentos(conversaId) {
 export async function puxarChatFila() {
   const { data } = await api.post("/chats/puxar");
   return data; // { conversa_id }
+}
+
+export async function enviarContato(conversaId, cliente_id, messageId) {
+  const body = { cliente_id };
+  if (messageId) body.messageId = messageId;
+  const { data } = await api.post(`/chats/${conversaId}/contatos`, body);
+  return data;
+}
+
+export async function registrarLigacao(conversaId, callDuration) {
+  const body = {};
+  if (callDuration != null) body.callDuration = callDuration;
+  const { data } = await api.post(`/chats/${conversaId}/ligacao`, body);
+  return data;
 }
 
 // TAGS
