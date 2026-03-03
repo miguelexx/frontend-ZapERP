@@ -807,7 +807,7 @@
   max-width: 65%;
   width: fit-content;
   min-width: 48px;
-  padding: 6px 36px 4px 9px;
+  padding: 6px 28px 4px 9px;
   border-radius: var(--wa-bubble-radius-lg);
   box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   line-height: 1.4;
@@ -817,9 +817,9 @@
   box-sizing: border-box;
 }
 
-/* Largura bem menor para mensagens de texto */
+/* Largura menor para mensagens de texto — compacta como na referência */
 .wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
-  max-width: 200px;
+  max-width: 180px;
 }
 
 .wa-bubble:hover {
@@ -905,18 +905,16 @@
   display: inline; /* mantém horário/ticks na última linha */
 }
 .wa-inlineMeta{
-  float: none;
-  display:inline-flex;
+  float: right;
+  display: inline-flex;
   align-items:center;
-  gap:1px;
-  margin-left: 8px;
+  gap: 2px;
+  margin-left: 6px;
   font-size: 10px;
   color: var(--wa-text-light);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  vertical-align: baseline;
-  position: relative;
-  top: 1.5px; /* desce levemente: texto fica “um pouco acima” */
+  vertical-align: bottom; /* desce levemente: texto fica “um pouco acima” */
 }
 .wa-inlineMeta .wa-ticks{
   display:inline-flex;
@@ -1585,14 +1583,14 @@ body.dark .wa-bubble-file:hover,
 .wa-bubble-meta {
   position: absolute;
   right: 6px;
-  bottom: 3px;
+  bottom: 2px;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   width: auto;
   max-width: calc(100% - 12px);
   padding: 0;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--wa-text-light);
   pointer-events: none;
 }
