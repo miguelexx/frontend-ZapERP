@@ -806,8 +806,8 @@
   position: relative;
   width: fit-content;
   min-width: var(--wa-bubble-min-width);
-  max-width: 58%;
-  padding: 6px 52px 4px 10px;
+  max-width: 52%;
+  padding: 6px 46px 4px 9px;
   border-radius: var(--wa-bubble-radius-lg);
   box-shadow: var(--wa-shadow-bubble);
   line-height: 1.4;
@@ -839,26 +839,33 @@
   color: var(--wa-text);
 }
 
-/* Cauda da bolha — discreta, integrada ao canto inferior */
+/* Cauda da bolha — discreta, canto inferior, sem sombra extra */
 .wa-bubble-in::after,
 .wa-bubble-out::after {
   content: "";
   position: absolute;
-  bottom: 0;
-  width: 12px;
-  height: 12px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  opacity: 0.9;
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 .wa-bubble-in::after {
-  left: -4px;
+  left: -7px;
   background: var(--wa-bubble-in);
   clip-path: polygon(100% 0, 0 100%, 100% 100%);
 }
 
 .wa-bubble-out::after {
-  right: -4px;
+  right: -7px;
   background: var(--wa-bubble-out);
   clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+
+.wa-bubble:hover::after {
+  opacity: 1;
+  transform: translateY(-0.5px);
 }
 
 .wa-bubble-body {
@@ -1115,18 +1122,18 @@
 
 .wa-bubble-reaction {
   position: absolute;
-  right: 22px;
-  bottom: -10px;
-  min-width: 22px;
-  height: 22px;
+  right: 32px;
+  bottom: -14px;
+  min-width: 20px;
+  height: 20px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
   color: #111b21;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  font-size: 13px;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.18);
   pointer-events: none;
   z-index: 2;
 }
@@ -1141,8 +1148,8 @@
   color: #4b5563;
   cursor: pointer;
   padding: 0;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -1157,7 +1164,7 @@
 .wa-reactionBtn:hover:not(:disabled),
 .wa-reactionBtn.isOpen {
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.20);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
   opacity: 1;
   pointer-events: auto;
 }
