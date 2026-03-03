@@ -171,14 +171,14 @@ export default function DashboardIA() {
                     <div className="ia-chat-message-actions" aria-hidden="true">
                       <button
                         type="button"
-                        className="ia-chat-message-actionBtn"
+                        className="ia-chat-message-actionBtn ia-chat-message-actionBtn--menu"
                         title="Mais opções"
                       >
                         ⋯
                       </button>
                       <button
                         type="button"
-                        className="ia-chat-message-actionBtn"
+                        className="ia-chat-message-actionBtn ia-chat-message-actionBtn--emoji"
                         title="Reagir à mensagem"
                       >
                         🙂
