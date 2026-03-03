@@ -1099,6 +1099,22 @@ function Bubble({
             <span className="wa-bubble-text wa-muted">(mensagem vazia)</span>
           )}
         </div>
+        {!isCall ? (
+          <button
+            type="button"
+            className={`wa-reactionBtn ${reactionOpen ? "isOpen" : ""}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setReactionOpen((v) => !v);
+            }}
+            title="Reagir"
+            aria-label="Reagir à mensagem"
+            disabled={reactionBusy}
+          >
+            <IconEmoji style={{ width: 12, height: 12 }} />
+          </button>
+        ) : null}
         <div className="wa-bubble-meta">
           <div className="wa-bubble-metaLeft">
             {!inlineMeta && !isAudio ? (
@@ -1111,22 +1127,6 @@ function Bubble({
             {isStarred ? <span className="wa-bubble-badge" title="Favorita">★</span> : null}
           </div>
           <div className="wa-bubble-metaRight">
-            {!isCall ? (
-              <button
-                type="button"
-                className={`wa-reactionBtn ${reactionOpen ? "isOpen" : ""}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setReactionOpen((v) => !v);
-                }}
-                title="Reagir"
-                aria-label="Reagir à mensagem"
-                disabled={reactionBusy}
-              >
-                <IconEmoji style={{ width: 12, height: 12 }} />
-              </button>
-            ) : null}
             {showMenuButton ? (
               <button
                 ref={anchorRef}
