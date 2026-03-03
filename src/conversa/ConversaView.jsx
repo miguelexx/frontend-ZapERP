@@ -1173,87 +1173,6 @@ function Bubble({
           </div>
         ) : null}
 
-        {showLinkModal &&
-          createPortal(
-            <div className="wa-modalOverlay" role="dialog" aria-label="Enviar link" onMouseDown={() => !sending && setShowLinkModal(false)}>
-              <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
-                <div className="wa-modal-head">
-                  <div className="wa-modal-title">Enviar link</div>
-                  <button
-                    type="button"
-                    className="wa-iconBtn"
-                    onClick={() => setShowLinkModal(false)}
-                    title="Fechar"
-                    disabled={sending}
-                  >
-                    <IconClose />
-                  </button>
-                </div>
-                <div className="wa-modal-body">
-                  <div className="wa-field">
-                    <label className="wa-label">URL</label>
-                    <input
-                      className="wa-input"
-                      type="url"
-                      value={linkUrl}
-                      onChange={(e) => setLinkUrl(e.target.value)}
-                      placeholder="https://exemplo.com"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="wa-field">
-                    <label className="wa-label">Título (opcional)</label>
-                    <input
-                      className="wa-input"
-                      value={linkTitulo}
-                      onChange={(e) => setLinkTitulo(e.target.value)}
-                      placeholder="Título do link"
-                    />
-                  </div>
-                  <div className="wa-field">
-                    <label className="wa-label">Descrição (opcional)</label>
-                    <textarea
-                      className="wa-input"
-                      rows={3}
-                      value={linkDescricao}
-                      onChange={(e) => setLinkDescricao(e.target.value)}
-                      placeholder="Texto que acompanha o link"
-                    />
-                  </div>
-                  <div className="wa-field">
-                    <label className="wa-label">Imagem (URL opcional)</label>
-                    <input
-                      className="wa-input"
-                      type="url"
-                      value={linkImagem}
-                      onChange={(e) => setLinkImagem(e.target.value)}
-                      placeholder="https://exemplo.com/imagem.jpg"
-                    />
-                  </div>
-                </div>
-                <div className="wa-modal-footer">
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn-ghost"
-                    onClick={() => setShowLinkModal(false)}
-                    disabled={sending}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn-primary"
-                    onClick={handleEnviarLink}
-                    disabled={sending || !safeString(linkUrl)}
-                  >
-                    {sending ? "Enviando..." : "Enviar link"}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
-
         {localReaction ? (
           <div className="wa-bubble-reaction" aria-label={`Sua reação: ${localReaction}`}>
             {localReaction}
@@ -3420,6 +3339,87 @@ export default function ConversaView() {
           </div>,
           document.body
         ) : null}
+
+        {showLinkModal &&
+          createPortal(
+            <div className="wa-modalOverlay" role="dialog" aria-label="Enviar link" onMouseDown={() => !sending && setShowLinkModal(false)}>
+              <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+                <div className="wa-modal-head">
+                  <div className="wa-modal-title">Enviar link</div>
+                  <button
+                    type="button"
+                    className="wa-iconBtn"
+                    onClick={() => setShowLinkModal(false)}
+                    title="Fechar"
+                    disabled={sending}
+                  >
+                    <IconClose />
+                  </button>
+                </div>
+                <div className="wa-modal-body">
+                  <div className="wa-field">
+                    <label className="wa-label">URL</label>
+                    <input
+                      className="wa-input"
+                      type="url"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="https://exemplo.com"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Título (opcional)</label>
+                    <input
+                      className="wa-input"
+                      value={linkTitulo}
+                      onChange={(e) => setLinkTitulo(e.target.value)}
+                      placeholder="Título do link"
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Descrição (opcional)</label>
+                    <textarea
+                      className="wa-input"
+                      rows={3}
+                      value={linkDescricao}
+                      onChange={(e) => setLinkDescricao(e.target.value)}
+                      placeholder="Texto que acompanha o link"
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Imagem (URL opcional)</label>
+                    <input
+                      className="wa-input"
+                      type="url"
+                      value={linkImagem}
+                      onChange={(e) => setLinkImagem(e.target.value)}
+                      placeholder="https://exemplo.com/imagem.jpg"
+                    />
+                  </div>
+                </div>
+                <div className="wa-modal-footer">
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-ghost"
+                    onClick={() => setShowLinkModal(false)}
+                    disabled={sending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-primary"
+                    onClick={handleEnviarLink}
+                    disabled={sending || !safeString(linkUrl)}
+                  >
+                    {sending ? "Enviando..." : "Enviar link"}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
         {replyTo && !isRecording ? (
           <div className="wa-replyBar" role="region" aria-label="Respondendo">

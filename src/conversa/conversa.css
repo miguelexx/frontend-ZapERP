@@ -2364,7 +2364,8 @@ body.dark .wa-bubble-file:hover,
   border-top: 1px solid var(--wa-panel-border);
   flex-shrink: 0;
   min-width: 0;
-  overflow: hidden;
+  /* precisa ser visível para o menu de anexos (+) não ser cortado */
+  overflow: visible;
 }
 
 .wa-footer-right {
@@ -2421,8 +2422,8 @@ body.dark .wa-bubble-file:hover,
   padding: 8px 0;
   background: var(--wa-attach-menu-bg, #233138);
   border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-  z-index: 100;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 1200;
   display: flex;
   flex-direction: column;
   gap: 2px;
