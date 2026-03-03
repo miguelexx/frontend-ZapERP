@@ -804,10 +804,10 @@
 
 .wa-bubble {
   position: relative;
-  max-width: 32%;
+  max-width: 26%;
   width: fit-content;
-  min-width: 52px;
-  padding: 6px 38px 4px 9px;
+  min-width: 48px;
+  padding: 6px 36px 4px 9px;
   border-radius: var(--wa-bubble-radius-lg);
   box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   line-height: 1.4;
@@ -835,24 +835,24 @@
   color: var(--wa-text);
 }
 
-/* Cauda da bolha — estilo WhatsApp: discreta, canto inferior, sem sombra */
+/* Cauda da bolha — integrada ao canto inferior, mesma cor da bolha */
 .wa-bubble-in::after,
 .wa-bubble-out::after {
   content: "";
   position: absolute;
   bottom: 0;
-  width: 10px;
-  height: 11px;
+  width: 8px;
+  height: 9px;
 }
 
 .wa-bubble-in::after {
-  left: -4px;
+  left: -3px;
   background: var(--wa-bubble-in);
   clip-path: polygon(100% 0, 0 100%, 100% 100%);
 }
 
 .wa-bubble-out::after {
-  right: -4px;
+  right: -3px;
   background: var(--wa-bubble-out);
   clip-path: polygon(0 0, 0 100%, 100% 100%);
 }
@@ -1109,12 +1109,12 @@
   color: #2563eb;
 }
 
-/* Reação já enviada — acima da bolha, separada da seta (estilo WhatsApp) */
+/* Reação já enviada — acima da bolha, alinhada ao canto superior direito */
 .wa-bubble-reaction {
   position: absolute;
-  right: 10px;
+  right: 6px;
   bottom: 100%;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   min-width: 22px;
   height: 20px;
   padding: 0 6px;
@@ -1137,10 +1137,10 @@
 
 .wa-bubble .wa-reactionBtn {
   position: absolute;
-  top: 6px;
-  right: 36px;
-  width: 24px;
-  height: 24px;
+  top: 4px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
   margin-right: 0;
 }
 
@@ -1150,8 +1150,8 @@
   color: #667781;
   cursor: pointer;
   padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -1688,16 +1688,12 @@ body.dark .wa-bubble-file:hover,
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 32px;
-  height: 22px;
+  width: 24px;
+  height: 18px;
   border: none;
-  border-radius: 0;
-  background: linear-gradient(
-    to left,
-    rgba(17, 27, 33, 0.95) 0%,
-    rgba(17, 27, 33, 0) 100%
-  );
-  color: rgba(230, 230, 230, 0.9);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--wa-text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -1705,8 +1701,7 @@ body.dark .wa-bubble-file:hover,
   font-size: 11px;
   line-height: 1;
   opacity: 0;
-  transform: translateY(0);
-  transition: opacity .12s ease, background .12s ease;
+  transition: opacity 0.12s ease, background 0.12s ease;
   box-shadow: none;
   flex-shrink: 0;
   pointer-events: none;
@@ -1719,11 +1714,7 @@ body.dark .wa-bubble-file:hover,
 }
 
 .wa-msgMenuBtn:hover {
-  background: linear-gradient(
-    to left,
-    rgba(32, 44, 51, 1) 0%,
-    rgba(17, 27, 33, 0) 100%
-  );
+  background: rgba(0, 0, 0, 0.1);
 }
 
 @media (pointer: coarse) {

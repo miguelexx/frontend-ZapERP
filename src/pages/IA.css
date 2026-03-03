@@ -373,6 +373,11 @@
   margin: 0;
 }
 
+.zapi-qrRefreshHint {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
 .zapi-paused {
   margin-top: 8px;
   font-size: 13px;

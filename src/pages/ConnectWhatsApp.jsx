@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotificationStore } from "../notifications/notificationStore";
-import { getZapiStatus, getZapiQrCode, restartZapi, getZapiMe } from "../api/zapiIntegration";
+import {
+  getZapiConnectStatus,
+  getZapiConnectQrCode,
+  postZapiConnectRestart,
+} from "../api/zapiIntegration";
 import "./IA.css";
-
-const MAX_AUTO_ATTEMPTS = 3;
 
 function getStatusBadge(status) {
   if (!status) return { label: "Verificando…", tone: "muted", icon: "⏳" };
@@ -19,222 +21,265 @@ export default function ConnectWhatsApp() {
 
   const [status, setStatus] = useState(null);
   const [qrSrc, setQrSrc] = useState(null);
-  const [attempts, setAttempts] = useState(0);
-  const [isPolling, setIsPolling] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [attemptsLeft, setAttemptsLeft] = useState(null);
+  const [pollIntervalSeconds, setPollIntervalSeconds] = useState(15);
+  const [loadingStatus, setLoadingStatus] = useState(true);
   const [loadingQr, setLoadingQr] = useState(false);
   const [loadingRestart, setLoadingRestart] = useState(false);
   const [error, setError] = useState(null);
-  const [noInstance, setNoInstance] = useState(false);
   const [showRestartModal, setShowRestartModal] = useState(false);
-  const [meInfo, setMeInfo] = useState(null);
+  const [throttleState, setThrottleState] = useState(null); // { retryAfterSeconds, attemptsLeft, reason }
+  const [retryCountdown, setRetryCountdown] = useState(null);
+  const [lastQrUpdate, setLastQrUpdate] = useState(null);
+  const [isPolling, setIsPolling] = useState(false);
 
-  const attemptsRef = useRef(0);
-  const pollingRef = useRef(null);
-  const mountedRef = useRef(false);
+  const qrPollRef = useRef(null);
+  const countdownRef = useRef(null);
+  const isMountedRef = useRef(false);
 
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
+  const clearQrPoll = useCallback(() => {
+    if (qrPollRef.current) {
+      clearInterval(qrPollRef.current);
+      qrPollRef.current = null;
     }
     setIsPolling(false);
   }, []);
 
-  const handleCommonError = useCallback(
-    (err) => {
-      const statusCode = err?.response?.status;
-      const msg = err?.response?.data?.error || "";
+  const clearCountdown = useCallback(() => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setRetryCountdown(null);
+  }, []);
 
-      if (statusCode === 400 && msg?.toLowerCase().includes("empresa sem instância configurada")) {
-        setNoInstance(true);
-        setError("Empresa sem instância configurada.");
-        setQrSrc(null);
-        stopPolling();
-        return;
-      }
-
-      if (statusCode === 502 || err?.message === "Network Error" || err?.code === "ECONNABORTED") {
-        showToast?.({
-          type: "error",
-          title: "Falha ao comunicar com WhatsApp",
-          message: "Tente novamente em instantes.",
-        });
-      }
-    },
-    [showToast, stopPolling]
-  );
+  const clearAllTimers = useCallback(() => {
+    clearQrPoll();
+    clearCountdown();
+  }, [clearQrPoll, clearCountdown]);
 
   const fetchStatus = useCallback(
     async (options = {}) => {
       const { silent = false } = options;
-      if (!silent) {
-        setLoadingStatus(true);
-      }
+      if (!silent) setLoadingStatus(true);
       try {
-        const data = await getZapiStatus();
-        if (!mountedRef.current) return null;
+        const data = await getZapiConnectStatus();
+        if (!isMountedRef.current) return null;
         setStatus(data);
-        setNoInstance(false);
-        setError(null);
-
-        if (data?.connected) {
-          setQrSrc(null);
-          stopPolling();
-          try {
-            const me = await getZapiMe().catch(() => null);
-            if (mountedRef.current) setMeInfo(me);
-          } catch {
-            // diagnóstico opcional; ignora falha
-          }
-        }
+        setError(data?.error || null);
         return data;
       } catch (err) {
-        if (!mountedRef.current) return null;
-        handleCommonError(err);
-        setError(err?.response?.data?.error || "Erro ao consultar status do WhatsApp.");
+        if (!isMountedRef.current) return null;
+        const msg = err?.response?.data?.error || "Erro ao consultar status.";
+        setError(msg);
+        if (err?.response?.status === 401) return null;
+        showToast?.({ type: "error", title: "Erro", message: msg });
         return null;
       } finally {
-        if (!silent && mountedRef.current) {
-          setLoadingStatus(false);
-        }
+        if (!silent && isMountedRef.current) setLoadingStatus(false);
       }
     },
-    [handleCommonError, stopPolling]
+    [showToast]
   );
 
-  const fetchQr = useCallback(
+  const fetchQrCode = useCallback(
     async (options = {}) => {
       const { silent = false } = options;
-      if (status?.connected || noInstance) return false;
       if (!silent) setLoadingQr(true);
       try {
-        const data = await getZapiQrCode();
-        if (!mountedRef.current) return false;
+        const { status: resStatus, data } = await getZapiConnectQrCode();
+        if (!isMountedRef.current) return { done: true, restartPoll: false };
 
-        if (data?.alreadyConnected) {
+        if (resStatus === 401) return { done: true, restartPoll: false };
+
+        if (resStatus === 200 && data.connected === true) {
+          clearAllTimers();
+          setQrSrc(null);
+          setThrottleState(null);
           await fetchStatus({ silent: true });
-          return false;
+          return { done: true, restartPoll: false };
         }
 
-        if (data?.imageBase64) {
-          setQrSrc(`data:image/png;base64,${data.imageBase64}`);
-          setAttempts((prev) => {
-            const next = prev + 1;
-            attemptsRef.current = next;
-            return next;
-          });
-          return true;
+        if (resStatus === 409 && data.needsRestore) {
+          clearAllTimers();
+          setQrSrc(null);
+          setThrottleState(null);
+          setStatus((s) => (s ? { ...s, needsRestore: true } : { needsRestore: true }));
+          return { done: true, restartPoll: false };
         }
-        return false;
+
+        if (resStatus === 429) {
+          clearQrPoll();
+          const retrySec = data.retryAfterSeconds ?? 60;
+          setThrottleState({
+            retryAfterSeconds: retrySec,
+            attemptsLeft: data.attemptsLeft ?? 0,
+            reason: data.error || "throttled",
+          });
+          setRetryCountdown(retrySec);
+          return { done: true, restartPoll: false };
+        }
+
+        if (resStatus === 200 && data.qrBase64 && String(data.qrBase64).trim().length > 0) {
+          const sec = data.nextRefreshSeconds ?? 15;
+          const clamped = Math.max(10, Math.min(20, sec));
+          setQrSrc(`data:image/png;base64,${data.qrBase64}`);
+          setAttemptsLeft(data.attemptsLeft ?? null);
+          setPollIntervalSeconds(clamped);
+          setLastQrUpdate(Date.now());
+          setThrottleState(null);
+          return {
+            done: false,
+            restartPoll: true,
+            nextRefreshSeconds: clamped,
+          };
+        }
+
+        if (resStatus === 200 && data.connected === false && !data.qrBase64) {
+          setError("QR Code não disponível. Tente novamente em instantes.");
+          return { done: true, restartPoll: false };
+        }
+
+        setError("Resposta inesperada ao gerar QR Code.");
+        return { done: true, restartPoll: false };
       } catch (err) {
-        if (!mountedRef.current) return false;
-        handleCommonError(err);
+        if (!isMountedRef.current) return { done: true, restartPoll: false };
         setError(err?.response?.data?.error || "Erro ao gerar QR Code.");
-        return false;
+        showToast?.({ type: "error", title: "Erro", message: "Falha ao obter QR Code." });
+        return { done: true, restartPoll: false };
       } finally {
-        if (!silent && mountedRef.current) setLoadingQr(false);
+        if (!silent && isMountedRef.current) setLoadingQr(false);
       }
     },
-    [status?.connected, noInstance, fetchStatus, handleCommonError]
+    [fetchStatus, clearQrPoll, clearAllTimers, showToast]
   );
 
-  const startPolling = useCallback(() => {
-    if (pollingRef.current || noInstance) return;
-    if (attemptsRef.current >= MAX_AUTO_ATTEMPTS) return;
-    const baseInterval = 15000;
-    pollingRef.current = setInterval(async () => {
-      if (!mountedRef.current) return;
-      const currentAttempts = attemptsRef.current;
-      const st = await fetchStatus({ silent: true });
-      if (!mountedRef.current) return;
-      if (st?.connected) {
-        stopPolling();
-        return;
-      }
-      if (currentAttempts >= MAX_AUTO_ATTEMPTS) {
-        stopPolling();
-        return;
-      }
-      const ok = await fetchQr({ silent: true });
-      if (!ok && currentAttempts >= MAX_AUTO_ATTEMPTS) {
-        stopPolling();
-      }
-    }, baseInterval);
-    setIsPolling(true);
-  }, [fetchStatus, fetchQr, noInstance, stopPolling]);
-
-  const resetFlow = useCallback(() => {
-    attemptsRef.current = 0;
-    setAttempts(0);
-    setQrSrc(null);
-    setError(null);
-    setNoInstance(false);
-  }, []);
+  const startQrPolling = useCallback(
+    (intervalSeconds) => {
+      clearQrPoll();
+      const sec = Math.max(10, Math.min(20, intervalSeconds || 15)) * 1000;
+      qrPollRef.current = setInterval(async () => {
+        if (!isMountedRef.current) return;
+        const result = await fetchQrCode({ silent: true });
+        if (!isMountedRef.current) return;
+        if (result?.done) return;
+        if (result?.restartPoll && result?.nextRefreshSeconds) {
+          clearQrPoll();
+          startQrPolling(result.nextRefreshSeconds);
+        }
+      }, sec);
+      setIsPolling(true);
+    },
+    [clearQrPoll, fetchQrCode]
+  );
 
   const bootstrap = useCallback(async () => {
-    if (!mountedRef.current) return;
-    resetFlow();
+    if (!isMountedRef.current) return;
+    clearAllTimers();
+    setQrSrc(null);
+    setThrottleState(null);
+    setError(null);
     const st = await fetchStatus();
-    if (!mountedRef.current) return;
-    if (st && !st.connected && !noInstance) {
-      attemptsRef.current = 0;
-      setAttempts(0);
-      const ok = await fetchQr();
-      if (!mountedRef.current) return;
-      if (ok) {
-        startPolling();
-      }
+    if (!isMountedRef.current || !st) return;
+    if (!st.hasInstance || st.needsRestore || st.connected) return;
+    const result = await fetchQrCode();
+    if (!isMountedRef.current) return;
+    if (result?.restartPoll && result?.nextRefreshSeconds) {
+      startQrPolling(result.nextRefreshSeconds);
     }
-  }, [fetchStatus, fetchQr, resetFlow, startPolling, noInstance]);
+  }, [fetchStatus, fetchQrCode, startQrPolling, clearAllTimers]);
 
   useEffect(() => {
-    mountedRef.current = true;
+    isMountedRef.current = true;
     bootstrap();
     return () => {
-      mountedRef.current = false;
-      stopPolling();
+      isMountedRef.current = false;
+      clearAllTimers();
     };
-  }, [bootstrap, stopPolling]);
+  }, []);
 
-  const handleGenerateNewQr = async () => {
-    stopPolling();
-    resetFlow();
+  useEffect(() => {
+    if (retryCountdown == null || retryCountdown <= 0) return;
+    const id = setInterval(() => {
+      setRetryCountdown((prev) => {
+        if (prev == null || prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+    countdownRef.current = id;
+    return () => {
+      clearInterval(id);
+      countdownRef.current = null;
+    };
+  }, [retryCountdown]);
+
+  const handleGenerateQr = async () => {
+    if (throttleState != null && (retryCountdown == null || retryCountdown > 0)) return;
+    clearAllTimers();
+    setThrottleState(null);
+    setQrSrc(null);
+    setError(null);
     const st = await fetchStatus();
-    if (!st || st.connected || noInstance) return;
-    const ok = await fetchQr();
-    if (ok) {
-      startPolling();
+    if (!isMountedRef.current || !st) return;
+    if (st.connected || !st.hasInstance || st.needsRestore) return;
+    const result = await fetchQrCode();
+    if (!isMountedRef.current) return;
+    if (result?.restartPoll && result?.nextRefreshSeconds) {
+      startQrPolling(result.nextRefreshSeconds);
     }
+  };
+
+  const handleTryAgainAfterThrottle = () => {
+    if (throttleState == null || (retryCountdown != null && retryCountdown > 0)) return;
+    setThrottleState(null);
+    setRetryCountdown(null);
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    handleGenerateQr();
   };
 
   const handleRestart = async () => {
     setLoadingRestart(true);
     try {
-      await restartZapi();
+      const data = await postZapiConnectRestart();
+      if (!isMountedRef.current) return;
+      if (data) setStatus(data);
       showToast?.({
         type: "success",
         title: "Instância reiniciada",
-        message: "Reiniciamos a instância do WhatsApp. Aguarde alguns segundos.",
+        message: "Recarregando status…",
       });
+      const fresh = await fetchStatus({ silent: true });
+      if (isMountedRef.current && fresh) {
+        setStatus(fresh);
+        if (!fresh.needsRestore && !fresh.connected && fresh.hasInstance) {
+          clearAllTimers();
+          setThrottleState(null);
+          setQrSrc(null);
+        }
+      }
     } catch (err) {
       showToast?.({
         type: "error",
         title: "Falha ao reiniciar",
-        message: err?.response?.data?.error || "Não foi possível reiniciar a instância agora.",
+        message: err?.response?.data?.error || "Não foi possível reiniciar.",
       });
     } finally {
       setLoadingRestart(false);
       setShowRestartModal(false);
-      setTimeout(() => {
-        if (!mountedRef.current) return;
-        bootstrap();
-      }, 2500);
     }
   };
 
   const badge = getStatusBadge(status);
-  const reachedMaxAttempts = attemptsRef.current >= MAX_AUTO_ATTEMPTS;
+  const hasInstance = status?.hasInstance !== false;
+  const needsRestore = status?.needsRestore === true;
+  const connected = status?.connected === true;
+  const meSummary = status?.meSummary;
+  const canRetry = throttleState != null && retryCountdown !== null && retryCountdown <= 0;
+
+  const hasValidQr = qrSrc && qrSrc.startsWith("data:image/png;base64,") && qrSrc.length > 30;
 
   return (
     <div className="ia-wrap">
@@ -260,68 +305,112 @@ export default function ConnectWhatsApp() {
             </div>
           </div>
 
-          {noInstance ? (
+          {loadingStatus && !status ? (
             <div className="zapi-empty">
-              <h3>Instância não configurada</h3>
-              <p>
-                Esta empresa ainda não possui uma instância Z-API configurada no backend.
-              </p>
-              <p className="ia-muted">
-                Peça ao responsável técnico para cadastrar a instância Z-API antes de tentar conectar.
-              </p>
+              <p>Carregando status…</p>
+            </div>
+          ) : !hasInstance ? (
+            <div className="zapi-empty">
+              <h3>Sua empresa ainda não tem instância configurada</h3>
+              <p>Contate o suporte para configurar a instância Z-API da sua empresa.</p>
+            </div>
+          ) : needsRestore ? (
+            <div className="zapi-empty">
+              <h3>Instância precisa ser reiniciada</h3>
+              <p>A instância Z-API precisa ser reiniciada antes de gerar um novo QR Code.</p>
               <button
                 type="button"
                 className="ia-btn ia-btn--primary"
-                onClick={() => {
-                  showToast?.({
-                    type: "info",
-                    title: "Solicitação enviada",
-                    message: "Fale com o suporte para cadastrar sua instância Z-API.",
-                  });
-                }}
+                onClick={() => setShowRestartModal(true)}
+                disabled={loadingRestart}
               >
-                Solicitar configuração
+                {loadingRestart ? "Reiniciando…" : "Reiniciar instância"}
               </button>
+            </div>
+          ) : connected ? (
+            <div className="zapi-main">
+              <div className="zapi-qrColumn">
+                <div className="zapi-connectedState">
+                  <div className="zapi-connectedEmoji">✅</div>
+                  <h3>WhatsApp conectado</h3>
+                  <p className="ia-muted">
+                    {status?.smartphoneConnected
+                      ? "Sua instância está conectada e o celular está online."
+                      : "O celular pode estar sem internet. A conexão será restabelecida automaticamente."}
+                  </p>
+                </div>
+              </div>
+              <div className="zapi-instructions">
+                <h3>Dados da conexão</h3>
+                {meSummary && (
+                  <div className="zapi-me">
+                    <div className="zapi-me-info">
+                      <div className="zapi-me-name">{meSummary.name || "WhatsApp conectado"}</div>
+                      {meSummary.phone && (
+                        <div className="zapi-me-phone ia-muted">{meSummary.phone}</div>
+                      )}
+                      {meSummary.paymentStatus != null && (
+                        <div className="ia-muted">Status de pagamento: {meSummary.paymentStatus}</div>
+                      )}
+                      {meSummary.due != null && (
+                        <div className="ia-muted">Vencimento: {new Date(meSummary.due).toLocaleDateString()}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>
               <div className="zapi-main">
                 <div className="zapi-qrColumn">
-                  {status?.connected ? (
-                    <div className="zapi-connectedState">
-                      <div className="zapi-connectedEmoji">✅</div>
-                      <h3>WhatsApp conectado</h3>
-                      <p className="ia-muted">
-                        Sua instância Z-API está conectada ao WhatsApp deste celular.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="zapi-qrBox">
-                        {loadingQr || loadingStatus ? (
-                          <div className="zapi-qrPlaceholder">Gerando QR Code…</div>
-                        ) : qrSrc ? (
-                          <img
-                            src={qrSrc}
-                            alt="QR Code para conectar o WhatsApp"
-                            className="zapi-qrImage"
-                          />
-                        ) : (
-                          <div className="zapi-qrPlaceholder">
-                            Clique em &ldquo;Gerar novo QR Code&rdquo; para iniciar.
-                          </div>
+                  <div className="zapi-qrBox">
+                    {loadingQr && !qrSrc ? (
+                      <div className="zapi-qrPlaceholder">Gerando QR Code…</div>
+                    ) : throttleState ? (
+                      <div className="zapi-qrPlaceholder">
+                        <p>
+                          {throttleState.reason === "blocked"
+                            ? "Muitas tentativas. Aguarde antes de tentar novamente."
+                            : "Aguarde antes de solicitar outro QR Code."}
+                        </p>
+                        {retryCountdown != null && retryCountdown > 0 && (
+                          <p className="zapi-paused">
+                            Pode tentar novamente em <strong>{Math.max(0, retryCountdown)}s</strong>
+                          </p>
                         )}
                       </div>
-                      <p className="ia-muted zapi-qrHint">
-                        O QR Code expira rapidamente. Se não funcionar, gere um novo QR Code.
-                      </p>
-                      {reachedMaxAttempts && (
-                        <p className="zapi-paused">
-                          Pausamos as tentativas automáticas para evitar chamadas excessivas. Clique em{" "}
-                          <strong>Gerar novo QR Code</strong> para tentar novamente.
-                        </p>
+                    ) : hasValidQr ? (
+                      <img
+                        src={qrSrc}
+                        alt="QR Code para conectar o WhatsApp"
+                        className="zapi-qrImage"
+                      />
+                    ) : qrSrc ? (
+                      <div className="zapi-qrPlaceholder">
+                        QR Code inválido. Clique em &ldquo;Gerar QR Code&rdquo; para tentar novamente.
+                      </div>
+                    ) : (
+                      <div className="zapi-qrPlaceholder">
+                        Clique em &ldquo;Gerar QR Code&rdquo; para iniciar.
+                      </div>
+                    )}
+                  </div>
+                  <p className="ia-muted zapi-qrHint">
+                    O QR Code expira rapidamente. Se não funcionar, gere um novo.
+                  </p>
+                  {isPolling && hasValidQr && (
+                    <p className="ia-muted zapi-qrRefreshHint">
+                      Atualizando QR a cada {pollIntervalSeconds}s
+                      {lastQrUpdate && (
+                        <> · Última atualização há {Math.round((Date.now() - lastQrUpdate) / 1000)}s</>
                       )}
-                    </>
+                    </p>
+                  )}
+                  {attemptsLeft != null && attemptsLeft <= 0 && !throttleState && (
+                    <p className="zapi-paused">
+                      Clique em <strong>Gerar QR Code</strong> para tentar novamente.
+                    </p>
                   )}
                 </div>
 
@@ -334,27 +423,8 @@ export default function ConnectWhatsApp() {
                     <li>Aponte a câmera para este QR Code.</li>
                   </ol>
                   <p className="ia-muted">
-                    Assim que o WhatsApp conectar, o status será atualizado automaticamente para{" "}
-                    <strong>Conectado</strong>.
+                    O status será atualizado automaticamente quando conectar.
                   </p>
-
-                  {meInfo && status?.connected && (
-                    <div className="zapi-me">
-                      <div className="zapi-me-avatar">
-                        {meInfo.profilePicUrl ? (
-                          <img src={meInfo.profilePicUrl} alt={meInfo.pushName || "WhatsApp"} />
-                        ) : (
-                          <span>WA</span>
-                        )}
-                      </div>
-                      <div className="zapi-me-info">
-                        <div className="zapi-me-name">{meInfo.pushName || "WhatsApp conectado"}</div>
-                        {meInfo.wid && (
-                          <div className="zapi-me-phone ia-muted">{meInfo.wid}</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -375,14 +445,23 @@ export default function ConnectWhatsApp() {
                 >
                   Voltar para Configurações
                 </button>
-                {!status?.connected && (
+                {throttleState ? (
                   <button
                     type="button"
                     className="ia-btn ia-btn--primary"
-                    onClick={handleGenerateNewQr}
-                    disabled={loadingStatus || loadingQr || noInstance}
+                    onClick={handleTryAgainAfterThrottle}
+                    disabled={!canRetry}
                   >
-                    {loadingQr || loadingStatus ? "Atualizando QR Code…" : "Gerar novo QR Code"}
+                    Tentar novamente
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="ia-btn ia-btn--primary"
+                    onClick={handleGenerateQr}
+                    disabled={loadingStatus || loadingQr}
+                  >
+                    {loadingQr && !qrSrc ? "Gerando…" : "Gerar QR Code"}
                   </button>
                 )}
                 <button
@@ -454,4 +533,3 @@ export default function ConnectWhatsApp() {
     </div>
   );
 }
-
