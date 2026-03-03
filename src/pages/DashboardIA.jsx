@@ -3,10 +3,14 @@ import api from "../api/http";
 import "./DashboardIA.css";
 
 const SUGGESTIONS = [
-  "Resumo das métricas",
-  "Atendente mais lento",
-  "Clientes esperando resposta",
-  "Top atendentes",
+  "Resumo das métricas de hoje",
+  "O que os atendentes andam fazendo nas últimas 24 horas?",
+  "Quais clientes estão mais ativos neste mês?",
+  "Quais conversas estão há mais tempo sem resposta?",
+  "Crie uma planilha (em CSV) para acompanhar a produtividade dos atendentes",
+  "Escreva uma mensagem profissional para responder um cliente insatisfeito",
+  "Me dê ideias de mensagens automáticas para novos clientes",
+  "Explique como posso melhorar o atendimento da minha equipe",
 ];
 
 function createMessage(role, content) {
@@ -23,7 +27,7 @@ export default function DashboardIA() {
   const [messages, setMessages] = useState(() => [
     createMessage(
       "assistant",
-      "Olá! Eu sou o **Assistente Inteligente do ZapERP**.\n\nPosso te ajudar com métricas, atendimentos e clientes. Pergunte, por exemplo:\n\n- \"Resumo das métricas de hoje\"\n- \"Atendente mais lento da última semana\"\n- \"Clientes esperando resposta agora\"\n- \"Top atendentes do mês\""
+      "Olá! Eu sou o **Assistente Inteligente do ZapERP**.\n\nPergunte qualquer coisa sobre o seu WhatsApp corporativo, atendimentos, clientes, métricas ou rotinas internas. Eu respondo de forma clara, direta e em português.\n\nVocê pode pedir, por exemplo:\n\n- \"Resumo das métricas de hoje\"\n- \"Quais clientes estão mais ativos neste mês?\"\n- \"Crie uma planilha (em CSV) para acompanhar a produtividade dos atendentes\"\n- \"Escreva uma mensagem profissional para responder um cliente insatisfeito\""
     ),
   ]);
   const [loading, setLoading] = useState(false);
@@ -108,7 +112,7 @@ export default function DashboardIA() {
         <div>
           <h1 className="ia-chat-title">Assistente Inteligente do ZapERP</h1>
           <p className="ia-chat-subtitle">
-            Pergunte qualquer coisa sobre métricas, atendimentos e clientes. As respostas usam os dados do seu CRM.
+            Pergunte qualquer coisa sobre o seu WhatsApp corporativo, atendimentos, clientes, métricas ou rotinas internas. Eu respondo de forma clara, direta e em português.
           </p>
         </div>
       </header>
@@ -158,10 +162,28 @@ export default function DashboardIA() {
                   )}
                 </div>
                 <div className="ia-chat-message-body">
-                  <div className="ia-chat-message-content">
-                    {m.content.split("\n").map((line, idx) => (
-                      <p key={idx}>{line}</p>
-                    ))}
+                  <div className="ia-chat-message-bubble">
+                    <div className="ia-chat-message-content">
+                      {m.content.split("\n").map((line, idx) => (
+                        <p key={idx}>{line}</p>
+                      ))}
+                    </div>
+                    <div className="ia-chat-message-actions" aria-hidden="true">
+                      <button
+                        type="button"
+                        className="ia-chat-message-actionBtn"
+                        title="Mais opções"
+                      >
+                        ⋯
+                      </button>
+                      <button
+                        type="button"
+                        className="ia-chat-message-actionBtn"
+                        title="Reagir à mensagem"
+                      >
+                        🙂
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -185,7 +207,7 @@ export default function DashboardIA() {
           <input
             className="ia-chat-input"
             type="text"
-            placeholder="Digite sua pergunta sobre métricas, atendimentos ou clientes..."
+            placeholder="Digite sua pergunta sobre clientes, atendimentos, métricas ou peça qualquer ajuda (planilhas, mensagens, ideias...)"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}
