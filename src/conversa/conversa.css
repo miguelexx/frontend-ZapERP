@@ -1114,18 +1114,18 @@
   position: absolute;
   right: 6px;
   bottom: 100%;
-  margin-bottom: 3px;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.95);
+  margin-bottom: 2px;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
   color: #111b21;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
   pointer-events: none;
   z-index: 2;
 }
@@ -1136,28 +1136,26 @@
 }
 
 .wa-bubble .wa-reactionBtn {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  margin-right: 0;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .wa-reactionBtn {
   border: none;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.88);
   color: #667781;
   cursor: pointer;
   padding: 0;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  font-size: 12px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -1624,14 +1622,16 @@ body.dark .wa-bubble-file:hover,
   min-width:0;
 }
 .wa-bubble-metaRight{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   flex: 0 0 auto;
+  margin-left: 2px;
 }
 
-/* re-habilita clique apenas no botão do menu */
-.wa-bubble-metaRight .wa-msgMenuBtn{
+/* re-habilita clique nos botões do meta */
+.wa-bubble-metaRight .wa-msgMenuBtn,
+.wa-bubble-metaRight .wa-reactionBtn {
   pointer-events: auto;
 }
 
@@ -1685,20 +1685,18 @@ body.dark .wa-bubble-file:hover,
 ========================================================= */
 
 .wa-msgMenuBtn {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 24px;
+  position: relative;
+  width: 18px;
   height: 18px;
   border: none;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.06);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
   color: var(--wa-text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
   opacity: 0;
   transition: opacity 0.12s ease, background 0.12s ease;
@@ -1714,7 +1712,7 @@ body.dark .wa-bubble-file:hover,
 }
 
 .wa-msgMenuBtn:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 @media (pointer: coarse) {
