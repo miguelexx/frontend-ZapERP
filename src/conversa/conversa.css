@@ -2392,6 +2392,77 @@ body.dark .wa-bubble-file:hover,
   color: var(--wa-text);
 }
 
+/* Wrapper do botão + e menu de anexos (estilo WhatsApp) */
+.wa-attachWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.wa-attachPlus.isOpen {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--wa-text);
+}
+
+.wa-attachMenu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  padding: 8px 0;
+  background: var(--wa-attach-menu-bg, #233138);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+}
+
+[data-theme="dark"] .wa-attachMenu,
+.wa-shell[data-theme="dark"] .wa-attachMenu {
+  --wa-attach-menu-bg: #2a3942;
+}
+
+.wa-attachItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  color: var(--wa-attach-menu-text, #e9edef);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  border-radius: 0;
+}
+
+.wa-attachItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.wa-attachItem-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.wa-attachIcon-doc { background: rgba(136, 99, 207, 0.25); }
+.wa-attachIcon-gallery { background: rgba(47, 158, 226, 0.25); }
+.wa-attachIcon-camera { background: rgba(226, 68, 92, 0.25); }
+.wa-attachIcon-audio { background: rgba(207, 147, 60, 0.25); }
+.wa-attachIcon-contact { background: rgba(77, 178, 201, 0.25); }
+.wa-attachIcon-clip { background: rgba(79, 195, 127, 0.25); }
+
 /* Barra de gravação — mesma altura do input (44px) para alinhamento */
 .wa-recording-bar {
   display: flex;

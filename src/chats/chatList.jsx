@@ -479,7 +479,14 @@ function getContactDisplay(chat) {
   const phone = getPhone(chat);
   const rawFoto = isGroup
     ? (chat?.foto_grupo ?? null)
-    : (chat?.foto_perfil ?? chat?.senderPhoto ?? chat?.photo ?? null);
+    : (
+        chat?.foto_perfil ??
+        chat?.cliente?.foto_perfil ??
+        chat?.clientes?.foto_perfil ??
+        chat?.senderPhoto ??
+        chat?.photo ??
+        null
+      );
   const avatarUrl = rawFoto && String(rawFoto).trim().startsWith("http") ? String(rawFoto).trim() : null;
   return { displayName, avatarUrl, phone, isGroup };
 }

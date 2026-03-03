@@ -312,6 +312,15 @@ function IconContact(props) {
   );
 }
 
+function IconPlus(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
 /* =========================================================
    UI helpers
 ========================================================= */
@@ -1340,6 +1349,8 @@ export default function ConversaView() {
   const [callModalOpen, setCallModalOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(5);
   const [callSending, setCallSending] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const attachMenuRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef(null);
@@ -1380,6 +1391,7 @@ export default function ConversaView() {
 
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -1631,6 +1643,11 @@ export default function ConversaView() {
     cameraInputRef.current?.click();
   }, [conversaId]);
 
+  const openGalleryPicker = useCallback(() => {
+    if (!conversaId) return;
+    galleryInputRef.current?.click();
+  }, [conversaId]);
+
   const insertEmoji = useCallback((emoji) => {
     const em = String(emoji || "");
     if (!em) return;
@@ -1667,6 +1684,17 @@ export default function ConversaView() {
     requestAnimationFrame(() => emojiSearchRef.current?.focus?.());
     return () => document.removeEventListener("mousedown", onDoc);
   }, [emojiOpen]);
+
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const onDoc = (e) => {
+      const menu = attachMenuRef.current;
+      if (menu && menu.contains(e.target)) return;
+      setAttachMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [attachMenuOpen]);
 
   const handleDropFile = useCallback((file) => {
     if (!file) return;
@@ -3508,58 +3536,66 @@ export default function ConversaView() {
               <button
                 type="button"
                 className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
-                onClick={() => setEmojiOpen((v) => !v)}
+                onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); }}
                 title="Emojis"
                 aria-label="Emojis"
                 disabled={sending || !conversaId}
               >
                 <IconEmoji />
               </button>
-              <button
-                onClick={openCameraPicker}
-                className="wa-iconBtn"
-                title="Câmera / Foto / Vídeo"
-                type="button"
-                disabled={sending || !conversaId}
-                aria-label="Câmera"
-              >
-                <IconCamera />
-              </button>
-              <button
-                onClick={handleOpenRespostasSalvas}
-                className="wa-iconBtn"
-                title="Respostas rápidas"
-                type="button"
-                disabled={sending || !conversaId}
-                aria-label="Respostas rápidas"
-              >
-                <IconClipboard />
-              </button>
-              <button
-                onClick={openFilePicker}
-                className="wa-iconBtn"
-                title="Anexar arquivo"
-                type="button"
-                disabled={sending || !conversaId}
-                aria-label="Anexar"
-              >
-                <IconAttach />
-              </button>
-              <button
-                onClick={() => setShareContactOpen(true)}
-                className="wa-iconBtn"
-                title="Enviar contato"
-                type="button"
-                disabled={sending || !conversaId}
-                aria-label="Enviar contato"
-              >
-                <IconContact />
-              </button>
+              <div className="wa-attachWrap" ref={attachMenuRef}>
+                <button
+                  type="button"
+                  className={`wa-iconBtn wa-attachPlus ${attachMenuOpen ? "isOpen" : ""}`}
+                  onClick={() => { setAttachMenuOpen((v) => !v); setEmojiOpen(false); }}
+                  title="Anexos e mais"
+                  aria-label="Anexos e mais"
+                  aria-expanded={attachMenuOpen}
+                  disabled={sending || !conversaId}
+                >
+                  <IconPlus />
+                </button>
+                {attachMenuOpen ? (
+                  <div className="wa-attachMenu" role="menu" aria-label="Anexos">
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openFilePicker(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-doc" aria-hidden="true">📄</span>
+                      <span>Documento</span>
+                    </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openGalleryPicker(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">🖼</span>
+                      <span>Fotos e vídeos</span>
+                    </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openCameraPicker(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-camera" aria-hidden="true">📷</span>
+                      <span>Câmera</span>
+                    </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { handleStartRecording(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-audio" aria-hidden="true">🎤</span>
+                      <span>Áudio</span>
+                    </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { setShareContactOpen(true); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-contact" aria-hidden="true">👤</span>
+                      <span>Contato</span>
+                    </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { handleOpenRespostasSalvas(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-clip" aria-hidden="true">📋</span>
+                      <span>Respostas salvas</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
                 style={{ display: "none" }}
-                accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,image/*,audio/*,video/*"
+                onChange={handleFileInputChange}
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="image/*,video/*"
                 onChange={handleFileInputChange}
               />
               <input
