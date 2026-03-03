@@ -452,20 +452,26 @@ function formatPhoneForDisplay(phone) {
   return p || "";
 }
 
-/** Uma só fonte: contato_nome (backend); fallback chatName/senderName (webhook). Nunca exibir LID (lid:xxx) como nome. */
+/** Usa nome vindo da API (contato_nome/nome) com fallbacks. Nunca exibir LID (lid:xxx) como nome. */
 function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
-    const nome = chat?.nome_grupo ?? chat?.contato_nome ?? "";
+    const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome ?? "";
     const n = String(nome || "").trim();
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
     return getPhone(chat) || "Grupo";
   }
-  const nome =
-    chat?.contato_nome != null ? String(chat.contato_nome).trim()
-      : (chat?.chatName != null && String(chat.chatName).trim()) ? String(chat.chatName).trim()
-      : (chat?.senderName != null && String(chat.senderName).trim()) ? String(chat.senderName).trim()
-      : "";
-  if (nome && !nome.toLowerCase().startsWith("lid:") && nome !== "name") return nome;
+  const candidates = [
+    chat?.contato_nome,
+    chat?.nome,
+    chat?.cliente?.nome,
+    chat?.clientes?.nome,
+    chat?.chatName,
+    chat?.senderName,
+  ];
+  const nome = candidates
+    .map((v) => (v != null ? String(v).trim() : ""))
+    .find((v) => v && v.toLowerCase() !== "name") || "";
+  if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
   return formatPhoneForDisplay(getPhone(chat)) || "Contato";
 }
 
