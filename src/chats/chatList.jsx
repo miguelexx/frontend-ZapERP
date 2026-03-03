@@ -444,7 +444,7 @@ function PreviewLine({ chat, audioDurationSec }) {
 
 /** Uma só fonte: telefone no topo. Nunca exibir LID (lid:xxx) — backend envia telefone_exibivel null nesses casos. */
 function getPhone(chat) {
-  const tel = chat?.telefone_exibivel ?? chat?.telefone ?? chat?.numero ?? chat?.phone ?? chat?.wa_id ?? "";
+  const tel = chat?.telefone_exibivel ?? chat?.cliente_telefone ?? chat?.telefone ?? chat?.numero ?? chat?.phone ?? chat?.wa_id ?? "";
   const s = String(tel || "").trim();
   if (s.toLowerCase().startsWith("lid:")) return "";
   return s;
@@ -464,19 +464,16 @@ function getDisplayName(chat) {
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
     return getPhone(chat) || "Grupo";
   }
-  const candidates = [
-    chat?.contato_nome,
-    chat?.nome,
-    chat?.cliente?.nome,
-    chat?.clientes?.nome,
-    chat?.chatName,
-    chat?.senderName,
-  ];
-  const nome = candidates
-    .map((v) => (v != null ? String(v).trim() : ""))
-    .find((v) => v && v.toLowerCase() !== "name") || "";
+  const raw =
+    chat?.contato_nome ??
+    chat?.cliente_nome ??
+    chat?.cliente?.nome ??
+    chat?.nome ??
+    "";
+  const nome = String(raw || "").trim();
   if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
-  return formatPhoneForDisplay(getPhone(chat)) || "Contato";
+  // fallback: número exibível
+  return getPhone(chat) || "Contato";
 }
 
 /**
@@ -486,7 +483,7 @@ function getDisplayName(chat) {
 function getContactDisplay(chat) {
   const isGroup = isGroupConversation(chat);
   const displayName = getDisplayName(chat);
-  const phone = getPhone(chat);
+  const phone = chat?.telefone_exibivel || "";
   const rawFoto = isGroup
     ? (chat?.foto_grupo ?? null)
     : (

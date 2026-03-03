@@ -223,7 +223,12 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   }, [conversa?.atendente_id, conversa?.atendente_nome, user]);
 
   const clienteNome = useMemo(() => {
-    const raw = conversa?.cliente_nome || conversa?.cliente?.nome || conversa?.nome || "Contato";
+    const raw =
+      conversa?.cliente_nome ||
+      conversa?.contato_nome ||
+      conversa?.cliente?.nome ||
+      conversa?.nome ||
+      "Contato";
     const s = String(raw || "").trim();
     if (s.toLowerCase().startsWith("lid:")) return "Contato";
     return s || "Contato";
@@ -231,7 +236,12 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
 
   // Nunca exibir LID (lid:xxx) como telefone — é identificador interno do WhatsApp
   const telefone = useMemo(() => {
-    const raw = conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone || "";
+    const raw =
+      conversa?.cliente_telefone ||
+      conversa?.telefone_exibivel ||
+      conversa?.cliente?.telefone ||
+      conversa?.telefone ||
+      "";
     const s = String(raw || "").trim();
     if (s.toLowerCase().startsWith("lid:")) return "";
     return s;

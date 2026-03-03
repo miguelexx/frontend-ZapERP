@@ -1461,28 +1461,21 @@ export default function ConversaView() {
       const g = conversa?.nome_grupo || conversa?.contato_nome || conversa?.nome || "Grupo";
       return isLidValue(g) ? "Grupo" : g;
     }
-    const candidates = [
-      conversa?.contato_nome,
-      conversa?.cliente_nome,
-      conversa?.nome,
-      conversa?.cliente?.nome,
-      conversa?.clientes?.nome,
-      (conversa?.chatName && String(conversa.chatName).trim() !== "name" ? conversa.chatName : null),
-      (conversa?.senderName && String(conversa.senderName).trim() !== "name" ? conversa.senderName : null),
-    ];
-    const n =
-      candidates
-        .map((v) => (v != null ? String(v).trim() : ""))
-        .find((v) => v && v.toLowerCase() !== "name") || "";
-    if (n && String(n).trim() && !isLidValue(n)) return String(n).trim();
-    const tel = conversa?.cliente_telefone ?? conversa?.telefone ?? "";
-    if (tel && !isLidValue(tel) && String(tel).replace(/\D/g, "").length >= 10) return `+${String(tel).replace(/\D/g, "")}`;
+    const raw =
+      conversa?.contato_nome ||
+      conversa?.cliente_nome ||
+      conversa?.cliente?.nome ||
+      conversa?.nome ||
+      "";
+    const n = String(raw || "").trim();
+    if (n && !isLidValue(n)) return n;
+    const tel = conversa?.telefone_exibivel || conversa?.cliente_telefone || conversa?.telefone || "";
+    if (tel && !isLidValue(tel)) return String(tel).trim();
     return "Contato";
   }, [conversa, isGroup]);
 
   const telefone = useMemo(() => {
-    if (isGroup) return conversa?.telefone || "";
-    const t = conversa?.cliente_telefone ?? conversa?.cliente?.telefone ?? conversa?.telefone ?? "";
+    const t = conversa?.telefone_exibivel || conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone || "";
     return isLidValue(t) ? "" : (t || "");
   }, [conversa, isGroup]);
 
