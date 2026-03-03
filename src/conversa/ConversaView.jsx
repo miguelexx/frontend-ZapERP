@@ -397,16 +397,20 @@ function MessageTicks({ msg }) {
   const hasDeliveredAt = !!(msg?.entregue_em || msg?.entregueEm || msg?.delivered_at || msg?.deliveredAt);
 
   const s = rawStatus;
+  const hasReadKeyword = /lida|read|seen|visualiz|played/.test(s);
+  const hasDeliveredKeyword = /entregue|deliver|receiv/.test(s);
   const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou";
   const isPending = s === "pending" || s === "enviando" || s === "sending";
   const isRead =
     s === "lida" || s === "read" || s === "seen" ||
     s === "visualizada" || s === "played" ||
-    hasReadAt;
+    hasReadAt ||
+    hasReadKeyword;
   const isDelivered =
     isRead ||
     s === "entregue" || s === "delivered" || s === "received" ||
-    hasDeliveredAt;
+    hasDeliveredAt ||
+    hasDeliveredKeyword;
   // sent: mensagem confirmada pelo servidor WA mas ainda não entregue ao dispositivo
   const isSent = !isErr && !isPending && !isDelivered && !isRead &&
     (!s || s === "sent" || s === "enviada" || s === "enviado");
@@ -770,8 +774,6 @@ function Bubble({
   const isSticker = msg?.tipo === "sticker";
   const isFile = msg?.tipo === "arquivo";
   const isAudio = msg?.tipo === "audio";
-  const [audioDur, setAudioDur] = useState(0);
-  const audioDurLabel = useMemo(() => (audioDur > 0 ? formatMmSs(audioDur) : null), [audioDur]);
   const isVideo = msg?.tipo === "video";
   const texto = safeString(msg?.texto);
   const hasText = !!texto;
@@ -800,6 +802,8 @@ function Bubble({
   const [menuStyle, setMenuStyle] = useState(null);
   const [reactionOpen, setReactionOpen] = useState(false);
   const isCall = msg?.tipo === "call";
+  const [audioDur, setAudioDur] = useState(0);
+  const audioDurLabel = useMemo(() => (audioDur > 0 ? formatMmSs(audioDur) : null), [audioDur]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -911,7 +915,11 @@ function Bubble({
   );
 
   return (
-    <div className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}`} data-msg-id={msg?.id}>
+    <div
+      className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}`}
+      data-msg-id={msg?.id}
+      data-group-start={showRemetente && !out ? "1" : "0"}
+    >
       {selectMode ? (
         <button
           type="button"
@@ -1694,8 +1702,21 @@ export default function ConversaView() {
 
   const openCameraPicker = useCallback(() => {
     if (!conversaId) return;
+    try {
+      const hasMediaDevices = typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+      if (!hasMediaDevices) {
+        showToast({
+          type: "error",
+          title: "Câmera indisponível",
+          message: "Seu navegador não permite acesso à câmera neste dispositivo.",
+        });
+        return;
+      }
+    } catch {
+      // se der erro na detecção, apenas tenta abrir o picker
+    }
     cameraInputRef.current?.click();
-  }, [conversaId]);
+  }, [conversaId, showToast]);
 
   const openGalleryPicker = useCallback(() => {
     if (!conversaId) return;
@@ -3753,10 +3774,6 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-doc" aria-hidden="true">📄</span>
                       <span>Documento</span>
                     </button>
-                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openGalleryPicker(); setAttachMenuOpen(false); }}>
-                      <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">🖼</span>
-                      <span>Fotos e vídeos</span>
-                    </button>
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { setShowLinkModal(true); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-link" aria-hidden="true">🔗</span>
                       <span>Enviar link</span>
@@ -3765,17 +3782,9 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-camera" aria-hidden="true">📷</span>
                       <span>Câmera</span>
                     </button>
-                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { handleStartRecording(); setAttachMenuOpen(false); }}>
-                      <span className="wa-attachItem-icon wa-attachIcon-audio" aria-hidden="true">🎤</span>
-                      <span>Áudio</span>
-                    </button>
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { setShareContactOpen(true); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-contact" aria-hidden="true">👤</span>
                       <span>Contato</span>
-                    </button>
-                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { handleOpenRespostasSalvas(); setAttachMenuOpen(false); }}>
-                      <span className="wa-attachItem-icon wa-attachIcon-clip" aria-hidden="true">📋</span>
-                      <span>Respostas salvas</span>
                     </button>
                   </div>
                 ) : null}

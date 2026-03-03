@@ -10,7 +10,13 @@ export const useChatStore = create((set, get) => ({
   /* =========================================
      BASE
   ========================================= */
-  setChats: (chats) => set({ chats: chats || [] }),
+  setChats: (chats) => {
+    if (typeof chats === "function") {
+      set((state) => ({ chats: chats(state.chats || []) || [] }))
+    } else {
+      set({ chats: chats || [] })
+    }
+  },
   setLoading: (loading) => set({ loading: !!loading }),
 
   /** Adiciona ou atualiza conversa na lista (evita duplicar; remove "sem conversa" do mesmo cliente).

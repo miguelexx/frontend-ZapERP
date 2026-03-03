@@ -73,6 +73,10 @@ function initials(nome = "") {
   return (a + b).toUpperCase();
 }
 
+function digitsOnly(v) {
+  return String(v || "").replace(/\D/g, "");
+}
+
 function isToday(dateLike) {
   if (!dateLike) return false;
   const d = new Date(dateLike);
@@ -836,7 +840,6 @@ export default function ChatList() {
         atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
         data_inicio: dataInicio || undefined,
         data_fim: dataFim || undefined,
-        palavra: debouncedSearch?.trim() || undefined,
         incluir_todos_clientes: "1",
       };
       const data = await fetchChats(params);
@@ -860,7 +863,22 @@ export default function ChatList() {
           ? new Date(getTs(a)) - new Date(getTs(b))
           : new Date(getTs(b)) - new Date(getTs(a))
       );
-      setChats(list);
+      // Preserva nome/foto já conhecidos para evitar "piscadas" de Contato/# quando o backend ainda não mandou tudo.
+      setChats((prev) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        const byId = new Map(arr.map((c) => [String(c.id), c]));
+        return list.map((c) => {
+          const existing = c?.id != null ? byId.get(String(c.id)) : null;
+          if (!existing) return c;
+          return {
+            ...c,
+            contato_nome: c?.contato_nome || c?.nome || existing.contato_nome || existing.nome,
+            foto_perfil: c?.foto_perfil || existing.foto_perfil,
+            nome_grupo: c?.nome_grupo || existing.nome_grupo,
+            cliente: c?.cliente || existing.cliente,
+          };
+        });
+      });
     } catch (e) {
       console.error("Erro ao carregar conversas:", e);
       setChats([]);
@@ -1020,12 +1038,26 @@ export default function ChatList() {
     }
 
     // busca
-    const term = String(debouncedSearch || "").trim().toLowerCase();
+    const termRaw = String(debouncedSearch || "").trim();
+    const term = termRaw.toLowerCase();
+    const termDigits = digitsOnly(termRaw);
     if (term) {
       list = list.filter((c) => {
         const title = getDisplayName(c).toLowerCase();
-        const phone = String(getPhone(c)).toLowerCase();
-        return title.includes(term) || phone.includes(term);
+        const phone = String(getPhone(c) || "").toLowerCase();
+        const telRaw =
+          c?.telefone_exibivel ||
+          c?.cliente_telefone ||
+          c?.telefone ||
+          "";
+        const telDigits = digitsOnly(telRaw);
+
+        const matchName = title.includes(term);
+        const matchPhone =
+          termDigits &&
+          (digitsOnly(phone).includes(termDigits) || telDigits.includes(termDigits));
+
+        return matchName || matchPhone;
       });
     }
 

@@ -780,6 +780,14 @@
   max-width: 100%;
 }
 
+.wa-row + .wa-row {
+  margin-top: 3px;
+}
+
+.wa-row[data-group-start="1"] {
+  margin-top: 14px;
+}
+
 .wa-row-in {
   justify-content: flex-start;
 }
@@ -810,6 +818,10 @@
   justify-content: center;
   overflow: visible;
   box-sizing: border-box;
+}
+
+.wa-bubble:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 .wa-bubble-in {
@@ -861,6 +873,17 @@
   font-size: 14px;
   line-height: 1.4;
   padding-right: 0;
+}
+
+.wa-bubble-remetente {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  color: #1d9bf0;
+}
+
+[data-theme="dark"] .wa-bubble-remetente {
+  color: #53bdeb;
 }
 
 /* =========================================================
@@ -1093,18 +1116,18 @@
   min-width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
+  background: transparent;
   color: #111b21;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  box-shadow: none;
   pointer-events: none;
+  z-index: 2;
 }
 
 [data-theme="dark"] .wa-bubble-reaction {
-  background: rgba(255, 255, 255, 0.08);
   color: #e5e7eb;
 }
 
@@ -1220,14 +1243,14 @@ body.dark .wa-bubble-file:hover,
 /* ---- Áudio (.audio-message) ---- */
 .wa-bubble-audio,
 .wa-bubble.audio-message {
-  /* padding-top reserva espaço para o botão do menu no canto superior direito */
-  padding: 24px 8px 8px;
+  /* padding reduzido para deixar o player mais compacto, estilo WhatsApp */
+  padding: 12px 8px 6px;
   min-width: 0;
 }
 
 .wa-bubble-audioWrap {
-  min-width: 200px;
-  max-width: min(320px, 82vw);
+  min-width: 180px;
+  max-width: min(280px, 78vw);
   width: 100%;
 }
 
