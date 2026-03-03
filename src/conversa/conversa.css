@@ -804,27 +804,21 @@
 
 .wa-bubble {
   position: relative;
-
-  /* 🔥 MAIS IMPORTANTE */
-  max-width: 38%;            /* deixa o balão mais estreito, estilo WhatsApp */
-  width: fit-content;        
-  min-width: 60px;           /* evita bolha muito esticada */
-  
-  padding: 6px 46px 4px 9px;
+  max-width: 32%;
+  width: fit-content;
+  min-width: 52px;
+  padding: 6px 38px 4px 9px;
   border-radius: var(--wa-bubble-radius-lg);
-  box-shadow: var(--wa-shadow-bubble);
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.04);
   line-height: 1.4;
   font-size: 14px;
-
   display: inline-flex;
   flex-direction: column;
-
   box-sizing: border-box;
 }
 
 .wa-bubble:hover {
-  /* mantém só um leve destaque, sem sombra pesada nem movimento */
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   z-index: 2;
 }
 
@@ -841,31 +835,27 @@
   color: var(--wa-text);
 }
 
-/* Cauda da bolha — discreta, canto inferior, sem sombra extra */
+/* Cauda da bolha — estilo WhatsApp: discreta, canto inferior, sem sombra */
 .wa-bubble-in::after,
 .wa-bubble-out::after {
   content: "";
   position: absolute;
-  bottom: 1px;
-  width: 12px;
-  height: 12px;
-  opacity: 0.95;
-  transition: opacity 0.12s ease;
+  bottom: 0;
+  width: 10px;
+  height: 11px;
 }
 
 .wa-bubble-in::after {
-  left: -5px;
+  left: -4px;
   background: var(--wa-bubble-in);
   clip-path: polygon(100% 0, 0 100%, 100% 100%);
 }
 
 .wa-bubble-out::after {
-  right: -5px;
+  right: -4px;
   background: var(--wa-bubble-out);
   clip-path: polygon(0 0, 0 100%, 100% 100%);
 }
-
-/* não mexe na posição no hover, só mantém a mesma cauda limpa */
 
 .wa-bubble-body {
   width: 100%;
@@ -1119,51 +1109,65 @@
   color: #2563eb;
 }
 
+/* Reação já enviada — acima da bolha, separada da seta (estilo WhatsApp) */
 .wa-bubble-reaction {
   position: absolute;
-  right: 26px;               /* encosta mais no canto, mas sem sobrepor a cauda */
-  bottom: -12px;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
+  right: 10px;
+  bottom: 100%;
+  margin-bottom: 2px;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
   color: #111b21;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16); /* sombra bem suave */
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   pointer-events: none;
   z-index: 2;
 }
 
 [data-theme="dark"] .wa-bubble-reaction {
+  background: rgba(48, 54, 66, 0.9);
   color: #e5e7eb;
+}
+
+.wa-bubble .wa-reactionBtn {
+  position: absolute;
+  top: 6px;
+  right: 36px;
+  width: 24px;
+  height: 24px;
+  margin-right: 0;
 }
 
 .wa-reactionBtn {
   border: none;
-  background: transparent;
-  color: #4b5563;
+  background: rgba(255, 255, 255, 0.92);
+  color: #667781;
   cursor: pointer;
   padding: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  margin-right: 2px;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .wa-bubble:hover .wa-reactionBtn,
 .wa-reactionBtn:hover:not(:disabled),
 .wa-reactionBtn.isOpen {
   background: rgba(255, 255, 255, 0.96);       /* botão claro, sem “glow” exagerado */
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   opacity: 1;
   pointer-events: auto;
 }
