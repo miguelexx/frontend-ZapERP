@@ -2392,6 +2392,16 @@ body.dark .wa-bubble-file:hover,
   color: var(--wa-text);
 }
 
+.wa-link {
+  color: #53bdeb;
+  text-decoration: none;
+  word-break: break-word;
+}
+
+.wa-link:hover {
+  text-decoration: underline;
+}
+
 /* Wrapper do botão + e menu de anexos (estilo WhatsApp) */
 .wa-attachWrap {
   position: relative;
@@ -2458,6 +2468,7 @@ body.dark .wa-bubble-file:hover,
 
 .wa-attachIcon-doc { background: rgba(136, 99, 207, 0.25); }
 .wa-attachIcon-gallery { background: rgba(47, 158, 226, 0.25); }
+.wa-attachIcon-link { background: rgba(76, 175, 80, 0.25); }
 .wa-attachIcon-camera { background: rgba(226, 68, 92, 0.25); }
 .wa-attachIcon-audio { background: rgba(207, 147, 60, 0.25); }
 .wa-attachIcon-contact { background: rgba(77, 178, 201, 0.25); }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConversaStore } from "./conversaStore";
-import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao } from "./conversaService";
+import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao, enviarLink } from "./conversaService";
 import { isGroupConversation } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
@@ -84,6 +84,40 @@ function sameDay(a, b) {
 
 function safeString(v) {
   return String(v ?? "").trim();
+}
+
+// Deixa URLs em texto azuis e clicáveis (http/https)
+const URL_REGEX = /(https?:\/\/[^\s]+)/gi;
+
+function renderTextWithLinks(text) {
+  const s = safeString(text);
+  if (!s) return null;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  while ((match = URL_REGEX.exec(s)) !== null) {
+    const url = match[0];
+    const idx = match.index;
+    if (idx > lastIndex) {
+      parts.push(s.slice(lastIndex, idx));
+    }
+    parts.push(
+      <a
+        key={`link-${idx}-${url}`}
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="wa-link"
+      >
+        {url}
+      </a>
+    );
+    lastIndex = idx + url.length;
+  }
+  if (lastIndex < s.length) {
+    parts.push(s.slice(lastIndex));
+  }
+  return parts;
 }
 
 function formatHoraCurta(ts) {
@@ -957,14 +991,14 @@ function Bubble({
                   >
                     <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
                   </button>
-                  {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+                  {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
                 </div>
               ) : isVideo ? (
                 <div className="wa-bubble-mediaStack">
                   <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
                     <video src={mediaUrl} controls className="wa-bubble-videoEl" />
                   </a>
-                  {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+                  {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
                 </div>
               ) : isFile ? (
                 <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-file">
@@ -974,14 +1008,14 @@ function Bubble({
               ) : hasText ? (
                 inlineMeta ? (
                   <span className="wa-bubble-text wa-bubble-textInline">
-                    {texto}
+                    {renderTextWithLinks(texto)}
                     <span className="wa-inlineMeta" aria-label="Horário e status">
                       <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
                       <MessageTicks msg={msg} />
                     </span>
                   </span>
                 ) : (
-                  <span className="wa-bubble-text">{texto}</span>
+                  <span className="wa-bubble-text">{renderTextWithLinks(texto)}</span>
                 )
               ) : (
                 <span className="wa-bubble-text wa-muted">(mídia)</span>
@@ -999,14 +1033,14 @@ function Bubble({
               >
                 <img src={mediaUrl} alt={isSticker ? "figurinha" : "imagem"} className="wa-bubble-img" />
               </button>
-              {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+              {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
             </div>
           ) : isVideo && mediaUrl ? (
             <div className="wa-bubble-mediaStack">
               <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
                 <video src={mediaUrl} controls className="wa-bubble-videoEl" />
               </a>
-              {showCaption ? <div className="wa-bubble-caption">{texto}</div> : null}
+              {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
             </div>
           ) : isAudio && mediaUrl ? (
             <div className="wa-bubble-audioStack">
@@ -1026,7 +1060,7 @@ function Bubble({
                   }}
                 />
               </div>
-              {showAudioText ? <div className="wa-bubble-audioCaption">{texto}</div> : null}
+              {showAudioText ? <div className="wa-bubble-audioCaption">{renderTextWithLinks(texto)}</div> : null}
             </div>
           ) : isFile ? (
             <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-file">
@@ -1044,14 +1078,14 @@ function Bubble({
           ) : hasText ? (
             inlineMeta ? (
               <span className="wa-bubble-text wa-bubble-textInline">
-                {texto}
+                {renderTextWithLinks(texto)}
                 <span className="wa-inlineMeta" aria-label="Horário e status">
                   <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
                   <MessageTicks msg={msg} />
                 </span>
               </span>
             ) : (
-              <span className="wa-bubble-text">{texto}</span>
+              <span className="wa-bubble-text">{renderTextWithLinks(texto)}</span>
             )
           ) : (
             <span className="wa-bubble-text wa-muted">(mensagem vazia)</span>
@@ -1138,6 +1172,87 @@ function Bubble({
             ) : null}
           </div>
         ) : null}
+
+        {showLinkModal &&
+          createPortal(
+            <div className="wa-modalOverlay" role="dialog" aria-label="Enviar link" onMouseDown={() => !sending && setShowLinkModal(false)}>
+              <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+                <div className="wa-modal-head">
+                  <div className="wa-modal-title">Enviar link</div>
+                  <button
+                    type="button"
+                    className="wa-iconBtn"
+                    onClick={() => setShowLinkModal(false)}
+                    title="Fechar"
+                    disabled={sending}
+                  >
+                    <IconClose />
+                  </button>
+                </div>
+                <div className="wa-modal-body">
+                  <div className="wa-field">
+                    <label className="wa-label">URL</label>
+                    <input
+                      className="wa-input"
+                      type="url"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="https://exemplo.com"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Título (opcional)</label>
+                    <input
+                      className="wa-input"
+                      value={linkTitulo}
+                      onChange={(e) => setLinkTitulo(e.target.value)}
+                      placeholder="Título do link"
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Descrição (opcional)</label>
+                    <textarea
+                      className="wa-input"
+                      rows={3}
+                      value={linkDescricao}
+                      onChange={(e) => setLinkDescricao(e.target.value)}
+                      placeholder="Texto que acompanha o link"
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Imagem (URL opcional)</label>
+                    <input
+                      className="wa-input"
+                      type="url"
+                      value={linkImagem}
+                      onChange={(e) => setLinkImagem(e.target.value)}
+                      placeholder="https://exemplo.com/imagem.jpg"
+                    />
+                  </div>
+                </div>
+                <div className="wa-modal-footer">
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-ghost"
+                    onClick={() => setShowLinkModal(false)}
+                    disabled={sending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-primary"
+                    onClick={handleEnviarLink}
+                    disabled={sending || !safeString(linkUrl)}
+                  >
+                    {sending ? "Enviando..." : "Enviar link"}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
         {localReaction ? (
           <div className="wa-bubble-reaction" aria-label={`Sua reação: ${localReaction}`}>
@@ -1364,6 +1479,11 @@ export default function ConversaView() {
   const [tagMutatingId, setTagMutatingId] = useState(null);
   const [showClienteSide, setShowClienteSide] = useState(false);
   const [showTransferirSetor, setShowTransferirSetor] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkTitulo, setLinkTitulo] = useState("");
+  const [linkDescricao, setLinkDescricao] = useState("");
+  const [linkImagem, setLinkImagem] = useState("");
   const [departamentos, setDepartamentos] = useState([]);
   const [transferirSetorLoading, setTransferirSetorLoading] = useState(false);
   const [showRespostasSalvas, setShowRespostasSalvas] = useState(false);
@@ -1411,14 +1531,22 @@ export default function ConversaView() {
 
   const nome = useMemo(() => {
     if (isGroup) {
-      const g = conversa?.nome_grupo || conversa?.contato_nome || "Grupo";
+      const g = conversa?.nome_grupo || conversa?.contato_nome || conversa?.nome || "Grupo";
       return isLidValue(g) ? "Grupo" : g;
     }
+    const candidates = [
+      conversa?.contato_nome,
+      conversa?.cliente_nome,
+      conversa?.nome,
+      conversa?.cliente?.nome,
+      conversa?.clientes?.nome,
+      (conversa?.chatName && String(conversa.chatName).trim() !== "name" ? conversa.chatName : null),
+      (conversa?.senderName && String(conversa.senderName).trim() !== "name" ? conversa.senderName : null),
+    ];
     const n =
-      conversa?.contato_nome ?? conversa?.cliente_nome ?? conversa?.cliente?.nome
-      ?? (conversa?.chatName && String(conversa.chatName).trim() !== "name" ? conversa.chatName : null)
-      ?? (conversa?.senderName && String(conversa.senderName).trim() !== "name" ? conversa.senderName : null)
-      ?? "";
+      candidates
+        .map((v) => (v != null ? String(v).trim() : ""))
+        .find((v) => v && v.toLowerCase() !== "name") || "";
     if (n && String(n).trim() && !isLidValue(n)) return String(n).trim();
     const tel = conversa?.cliente_telefone ?? conversa?.telefone ?? "";
     if (tel && !isLidValue(tel) && String(tel).replace(/\D/g, "").length >= 10) return `+${String(tel).replace(/\D/g, "")}`;
@@ -1433,7 +1561,14 @@ export default function ConversaView() {
 
   const rawAvatarUrl = isGroup
     ? (conversa?.foto_grupo ?? null)
-    : (conversa?.foto_perfil ?? conversa?.senderPhoto ?? conversa?.photo ?? null);
+    : (
+        conversa?.foto_perfil ??
+        conversa?.cliente?.foto_perfil ??
+        conversa?.clientes?.foto_perfil ??
+        conversa?.senderPhoto ??
+        conversa?.photo ??
+        null
+      );
   const avatarUrl = rawAvatarUrl && String(rawAvatarUrl).trim().startsWith("http") ? String(rawAvatarUrl).trim() : null;
   const avatar = useMemo(() => (isGroup ? "👥" : initials(nome)), [isGroup, nome]);
   const [avatarImgError, setAvatarImgError] = useState(false);
@@ -2128,6 +2263,63 @@ export default function ConversaView() {
       setSending(false);
     }
   }, [conversaId, texto, replyTo, showToast, anexarMensagem, nome, emitTypingStop]);
+
+  const handleEnviarLink = useCallback(async () => {
+    if (!conversaId) return;
+    const url = safeString(linkUrl);
+    if (!url) return;
+    const titulo = safeString(linkTitulo);
+    const descricao = safeString(linkDescricao);
+    const imagem = safeString(linkImagem);
+
+    const replyMeta =
+      replyTo
+        ? {
+            name: getReplySenderLabel(replyTo, nome),
+            snippet: snippetFromMsg(replyTo),
+            ts: Date.now(),
+            replyToId: replyTo?.whatsapp_id || replyTo?.id,
+          }
+        : null;
+
+    setSending(true);
+    try {
+      const res = await enviarLink(conversaId, {
+        url,
+        titulo,
+        descricao,
+        imagem,
+        texto: descricao || url,
+        reply_meta: replyMeta || undefined,
+      });
+      setShowLinkModal(false);
+      setLinkUrl("");
+      setLinkTitulo("");
+      setLinkDescricao("");
+      setLinkImagem("");
+      setReplyTo(null);
+      if (res?.mensagem) {
+        const msg = res.mensagem;
+        const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
+        if (mesmaConversa || !msg.conversa_id) {
+          const patched = replyMeta ? { ...msg, conversa_id: Number(conversaId), reply_meta: replyMeta } : { ...msg, conversa_id: Number(conversaId) };
+          anexarMensagem(patched);
+          if (replyMeta && msg?.id) {
+            saveReplyMeta(conversaId, msg.id, replyMeta);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao enviar link:", err);
+      showToast({
+        type: "error",
+        title: "Falha ao enviar link",
+        message: "Não foi possível enviar o link. Verifique sua conexão.",
+      });
+    } finally {
+      setSending(false);
+    }
+  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast]);
 
   const onEscape = useCallback(() => {
     if (isRecording) handleCancelRecording();
@@ -3564,6 +3756,10 @@ export default function ConversaView() {
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openGalleryPicker(); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">🖼</span>
                       <span>Fotos e vídeos</span>
+                    </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { setShowLinkModal(true); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-link" aria-hidden="true">🔗</span>
+                      <span>Enviar link</span>
                     </button>
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openCameraPicker(); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-camera" aria-hidden="true">📷</span>

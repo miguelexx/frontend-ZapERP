@@ -136,24 +136,38 @@ export function initSocket(token) {
     const chats = chatStore.chats || []
     const jaNaLista = chats.some(c => String(c.id) === String(conversaId))
 
+    const nomeContato =
+      (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
+        ? String(msg.chatName).trim()
+        : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
+          ? String(msg.senderName).trim()
+          : null
+    const fotoContato =
+      (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
+        : (msg.photo && String(msg.photo).trim().startsWith("http")) ? String(msg.photo).trim()
+          : null
+
     if (!jaNaLista) {
-      const nomeContato =
-        (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
-          ? String(msg.chatName).trim()
-          : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
-            ? String(msg.senderName).trim()
-            : "Conversa";
-      const fotoContato =
-        (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
-          : (msg.photo && String(msg.photo).trim().startsWith("http")) ? String(msg.photo).trim()
-            : null;
       chatStore.addChat({
         id: conversaId,
-        contato_nome: nomeContato,
+        contato_nome: nomeContato || "Conversa",
         foto_perfil: fotoContato,
         unread_count: 0,
         ultima_mensagem: msg
       })
+    } else {
+      // Conversa já existe: garantir que nome/foto sejam atualizados com dados frescos do webhook (ex.: chatName, photo)
+      const existing = chats.find(c => String(c.id) === String(conversaId))
+      const patch = {}
+      if (nomeContato && nomeContato !== existing?.contato_nome) {
+        patch.contato_nome = nomeContato
+      }
+      if (fotoContato && fotoContato !== existing?.foto_perfil) {
+        patch.foto_perfil = fotoContato
+      }
+      if (Object.keys(patch).length > 0) {
+        chatStore.updateChatContato(conversaId, patch)
+      }
     }
 
     chatStore.setUltimaMensagem(conversaId, msg)

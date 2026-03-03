@@ -101,7 +101,7 @@ export const useConversaStore = create((set, get) => ({
       // Evita aplicar resposta de conversa antiga se o usuário já trocou de conversa (race condition)
       if (String(get().selectedId) !== String(normalizedId)) return
 
-      const conversa = data?.conversa ? data.conversa : (data ?? null)
+      let conversa = data?.conversa ? data.conversa : (data ?? null)
       let mensagens = data?.mensagens ?? conversa?.mensagens ?? []
       const tags = data?.tags ?? conversa?.tags ?? []
 
@@ -121,6 +121,25 @@ export const useConversaStore = create((set, get) => ({
         mensagens = []
       }
       mensagens = attachReplyMeta(normalizedId, mensagens)
+
+      // Mantém nome/foto sincronizados com a lista de conversas:
+      // se o backend ainda não devolveu contato_nome/foto_perfil atualizados,
+      // aproveita o que já está no chatStore para o mesmo id.
+      try {
+        const chats = useChatStore.getState?.().chats || []
+        const fromList = chats.find?.((c) => String(c.id) === String(normalizedId))
+        if (fromList) {
+          const merged = { ...conversa }
+          if (!merged.contato_nome && fromList.contato_nome) merged.contato_nome = fromList.contato_nome
+          if (!merged.cliente_nome && (fromList.contato_nome || fromList.nome)) {
+            merged.cliente_nome = fromList.contato_nome || fromList.nome
+          }
+          if (!merged.foto_perfil && fromList.foto_perfil) merged.foto_perfil = fromList.foto_perfil
+          if (!merged.nome_grupo && fromList.nome_grupo) merged.nome_grupo = fromList.nome_grupo
+          if (!merged.cliente && fromList.cliente) merged.cliente = fromList.cliente
+          conversa = merged
+        }
+      } catch (_) {}
 
       set({
         conversa,

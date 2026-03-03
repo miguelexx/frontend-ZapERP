@@ -66,6 +66,23 @@ export async function enviarMensagem(conversaId, texto, reply_meta) {
   return data;
 }
 
+export async function enviarLink(conversaId, { url, titulo, descricao, imagem, texto, reply_meta } = {}) {
+  const linkUrl = String(url || "").trim();
+  if (!linkUrl) throw new Error("URL obrigatória");
+  const body = {
+    texto: texto || linkUrl,
+    link: {
+      url: linkUrl,
+      ...(titulo ? { title: titulo } : {}),
+      ...(descricao ? { description: descricao } : {}),
+      ...(imagem ? { image: imagem } : {}),
+    },
+  };
+  if (reply_meta && typeof reply_meta === "object") body.reply_meta = reply_meta;
+  const { data } = await api.post(`/chats/${conversaId}/mensagens`, body);
+  return data;
+}
+
 export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
   const params = {};
   if (opts?.scope) params.scope = String(opts.scope);
