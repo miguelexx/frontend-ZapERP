@@ -1456,23 +1456,42 @@ export default function ConversaView() {
   // Nunca exibir LID (lid:xxx) como nome ou número — identificador interno do WhatsApp
   const isLidValue = (v) => v != null && String(v).trim().toLowerCase().startsWith("lid:");
 
+  const fromChat = useMemo(
+    () => (Array.isArray(chats) ? chats.find((c) => String(c?.id) === String(conversaId)) : null),
+    [chats, conversaId]
+  );
+
+  // Nome sincronizado: prioriza conversa, enriquece com chat da lista (evita header mostrar número quando sidebar tem nome)
   const nome = useMemo(() => {
     if (isGroup) {
-      const g = conversa?.nome_grupo || conversa?.contato_nome || conversa?.nome || "Grupo";
+      const g =
+        conversa?.nome_grupo ||
+        fromChat?.nome_grupo ||
+        conversa?.contato_nome ||
+        fromChat?.contato_nome ||
+        conversa?.nome ||
+        "Grupo";
       return isLidValue(g) ? "Grupo" : g;
     }
     const raw =
       conversa?.contato_nome ||
+      fromChat?.contato_nome ||
       conversa?.cliente_nome ||
+      fromChat?.cliente_nome ||
       conversa?.cliente?.nome ||
       conversa?.nome ||
       "";
     const n = String(raw || "").trim();
     if (n && !isLidValue(n)) return n;
-    const tel = conversa?.telefone_exibivel || conversa?.cliente_telefone || conversa?.telefone || "";
+    const tel =
+      conversa?.telefone_exibivel ||
+      fromChat?.telefone_exibivel ||
+      conversa?.cliente_telefone ||
+      conversa?.telefone ||
+      "";
     if (tel && !isLidValue(tel)) return String(tel).trim();
     return "Contato";
-  }, [conversa, isGroup]);
+  }, [conversa, fromChat, conversaId, isGroup]);
 
   const telefone = useMemo(() => {
     const t = conversa?.telefone_exibivel || conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone || "";
@@ -1480,9 +1499,10 @@ export default function ConversaView() {
   }, [conversa, isGroup]);
 
   const rawAvatarUrl = isGroup
-    ? (conversa?.foto_grupo ?? null)
+    ? (conversa?.foto_grupo ?? fromChat?.foto_grupo ?? null)
     : (
         conversa?.foto_perfil ??
+        fromChat?.foto_perfil ??
         conversa?.cliente?.foto_perfil ??
         conversa?.clientes?.foto_perfil ??
         conversa?.senderPhoto ??

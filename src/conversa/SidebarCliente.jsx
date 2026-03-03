@@ -228,10 +228,18 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       conversa?.contato_nome ||
       conversa?.cliente?.nome ||
       conversa?.nome ||
-      "Contato";
+      "";
     const s = String(raw || "").trim();
-    if (s.toLowerCase().startsWith("lid:")) return "Contato";
-    return s || "Contato";
+    if (s && !s.toLowerCase().startsWith("lid:")) return s;
+    const tel =
+      conversa?.cliente_telefone ||
+      conversa?.telefone_exibivel ||
+      conversa?.cliente?.telefone ||
+      conversa?.telefone ||
+      "";
+    const t = String(tel || "").trim();
+    if (t && !t.toLowerCase().startsWith("lid:")) return t;
+    return "Contato";
   }, [conversa]);
 
   // Nunca exibir LID (lid:xxx) como telefone — é identificador interno do WhatsApp
