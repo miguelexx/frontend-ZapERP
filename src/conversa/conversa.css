@@ -879,17 +879,13 @@
   font-size: 14px;
   line-height: 1.4;
   padding-right: 0;
+  color: var(--wa-text);
 }
 
 .wa-bubble-remetente {
   font-size: 12px;
   font-weight: 500;
   margin-bottom: 2px;
-  color: #1d9bf0;
-}
-
-[data-theme="dark"] .wa-bubble-remetente {
-  color: #53bdeb;
 }
 
 /* =========================================================
@@ -1579,13 +1575,13 @@ body.dark .wa-bubble-file:hover,
   border-radius: 6px;
 }
 
-/* Hora + ticks: quase no meio da mensagem, um pouco abaixo, canto direito */
+/* Hora + ticks: canto inferior direito, alinhados ao fundo do balão */
 .wa-bubble-meta {
   position: absolute;
-  top: 50%;
   right: 6px;
-  bottom: auto;
-  transform: translateY(calc(-50% + 3px));
+  bottom: 3px;
+  top: auto;
+  transform: none;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -1631,10 +1627,10 @@ body.dark .wa-bubble-file:hover,
 
 .wa-bubble-meta{
   position:absolute;
-  top:50%;
   right:6px;
-  bottom:auto;
-  transform:translateY(calc(-50% + 3px));
+  bottom:3px;
+  top:auto;
+  transform:none;
   display:flex;
   align-items:center;
   gap:2px;
@@ -2581,12 +2577,12 @@ body.dark .wa-bubble-file:hover,
   color: var(--wa-text);
 }
 
+/* Links (URLs): azul apenas quando for link; texto normal herda cor do balão */
 .wa-link {
-  color: #53bdeb;
+  color: #0284c7;
   text-decoration: none;
   word-break: break-word;
 }
-
 .wa-link:hover {
   text-decoration: underline;
 }
