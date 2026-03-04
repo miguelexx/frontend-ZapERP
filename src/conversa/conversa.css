@@ -817,9 +817,10 @@
   box-sizing: border-box;
 }
 
-/* Largura menor para mensagens de texto — compacta como na referência */
+/* Mensagens de texto: largura responsiva ao conteúdo, evita quebrar muitas linhas */
 .wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
-  max-width: 180px;
+  max-width: min(420px, 75%);
+  padding-bottom: 18px;
 }
 
 .wa-bubble:hover {
