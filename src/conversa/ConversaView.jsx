@@ -949,6 +949,22 @@ function Bubble({
         role="group"
         aria-label="Mensagem"
       >
+        {showMenuButton ? (
+          <button
+            ref={anchorRef}
+            type="button"
+            className={`wa-msgMenuBtn wa-msgMenuBtn--top ${menuOpen ? "isOpen" : ""}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            title="Mais opções"
+            aria-label="Abrir opções da mensagem"
+          >
+            ▾
+          </button>
+        ) : null}
         <div className="wa-bubble-body">
           {/* Citação (reply) — sempre no topo, antes de qualquer conteúdo */}
           {hasReply && (
@@ -1125,24 +1141,6 @@ function Bubble({
             ) : null}
             {isPinned ? <span className="wa-bubble-badge" title="Fixada">📌</span> : null}
             {isStarred ? <span className="wa-bubble-badge" title="Favorita">★</span> : null}
-          </div>
-          <div className="wa-bubble-metaRight">
-            {showMenuButton ? (
-              <button
-                ref={anchorRef}
-                type="button"
-                className={`wa-msgMenuBtn ${menuOpen ? "isOpen" : ""}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setMenuOpen((v) => !v);
-                }}
-                title="Mais opções"
-                aria-label="Abrir opções da mensagem"
-              >
-                ▾
-              </button>
-            ) : null}
           </div>
         </div>
 
