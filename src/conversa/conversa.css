@@ -807,11 +807,15 @@
   width: fit-content;
   min-width: 60px;
   max-width: 52%;
-  padding: 6px 46px 16px 10px; /* espaço reservado para meta */
-  border-radius: 8px;
-  box-shadow: var(--wa-shadow-bubble);
+
+  padding: 6px 44px 18px 12px; /* ajuste fino WA real */
+
+  border-radius: 7.5px; /* WhatsApp usa menos arredondado */
+  box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+
   line-height: 1.4;
-  font-size: 14px;
+  font-size: 14.2px;
+
   display: inline-block;
   overflow-wrap: break-word;
   box-sizing: border-box;
@@ -1628,16 +1632,15 @@ body.dark .wa-bubble-file:hover,
 .wa-bubble-meta{
   position:absolute;
   right:6px;
-  bottom:2px;
+  bottom:2px;   /* WhatsApp real usa 2px */
 
   display:flex;
   align-items:center;
-  gap:3px;
+  gap:2px;      /* menor espaço */
 
-  max-width:calc(100% - 12px);
-
-  font-size:11px;
+  font-size:10.5px;
   line-height:1;
+  white-space:nowrap;
 
   pointer-events:none;
 }
@@ -1658,7 +1661,7 @@ body.dark .wa-bubble-file:hover,
 /* horário */
 
 .wa-bubble-time{
-  font-size:11px;
+  font-size:10.5px;
   color:rgba(0,0,0,0.45);
   font-weight:400;
 }
@@ -1776,7 +1779,7 @@ body.dark .wa-bubble-file:hover,
 ========================================= */
 
 .wa-bubble-out .wa-bubble-meta{
-  color:rgba(0,0,0,0.45);
+  color:rgba(0,0,0,0.44);
 }
 
 
