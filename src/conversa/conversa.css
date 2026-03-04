@@ -903,21 +903,27 @@
 .wa-inlineMeta{
   float: right;
   display: inline-flex;
-  align-items:center;
-  gap: 2px;
-  margin-left: 6px;
-  font-size: 10px;
+  align-items: center;
+  gap: 1px;
+  margin-left: 4px;
+  font-size: 9px;
   color: var(--wa-text-light);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  vertical-align: bottom; /* desce levemente: texto fica “um pouco acima” */
+  vertical-align: baseline;
+  line-height: 1; /* desce levemente: texto fica “um pouco acima” */
 }
 .wa-inlineMeta .wa-ticks{
-  display:inline-flex;
-  align-items:center;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
-  margin-left: 1px; /* bem colado na hora */
-  transform: translateY(.5px);
+  margin-left: 0;
+  transform: translateY(0.5px);
+}
+.wa-inlineMeta .wa-ticksSvg,
+.wa-inlineMeta .wa-ticks svg{
+  width: 12px !important;
+  height: 9px !important;
 }
 
 .wa-bubble-out .wa-inlineMeta{

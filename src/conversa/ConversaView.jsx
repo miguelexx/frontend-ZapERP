@@ -790,7 +790,7 @@ function Bubble({
     texto === "(arquivo)";
   const showCaption = (isImg || isVideo || isSticker) && hasText && !isPlaceholderCaption;
   const showAudioText = isAudio && hasText && !isPlaceholderCaption;
-  const inlineMeta = false;
+  const inlineMeta = true;
   const replyMeta = msg?.reply_meta || null;
   const hasReply = !!(replyMeta && (replyMeta.name || replyMeta.snippet));
 
