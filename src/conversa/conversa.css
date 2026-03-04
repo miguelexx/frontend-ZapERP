@@ -804,16 +804,16 @@
 
 .wa-bubble {
   position: relative;
-  max-width: 65%;
   width: fit-content;
-  min-width: 48px;
-  padding: 6px 28px 4px 9px;
-  border-radius: var(--wa-bubble-radius-lg);
-  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.04);
+  min-width: 60px;
+  max-width: 52%;
+  padding: 6px 46px 16px 10px; /* espaço reservado para meta */
+  border-radius: 8px;
+  box-shadow: var(--wa-shadow-bubble);
   line-height: 1.4;
   font-size: 14px;
-  display: inline-flex;
-  flex-direction: column;
+  display: inline-block;
+  overflow-wrap: break-word;
   box-sizing: border-box;
 }
 
@@ -829,7 +829,6 @@
 }
 
 .wa-bubble-in {
-  align-items: flex-start;
   background: var(--wa-bubble-in);
   border-top-left-radius: 4px;
   color: var(--wa-text);
@@ -1583,16 +1582,15 @@ body.dark .wa-bubble-file:hover,
 /* Hora + ticks no canto inferior direito, sempre dentro da bolha */
 .wa-bubble-meta {
   position: absolute;
-  right: 6px;
-  bottom: 2px;
+  right: 8px;
+  bottom: 3px;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  width: auto;
-  max-width: calc(100% - 12px);
-  padding: 0;
-  font-size: 10px;
-  color: var(--wa-text-light);
+  justify-content: flex-end;
+  gap: 3px;
+  height: 12px;
+  line-height: 1;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -1623,79 +1621,183 @@ body.dark .wa-bubble-file:hover,
   gap: 4px;
 }
 
-/* Sticker: oculta hora/ticks (balão transparente) — só exibe menu no hover */
-.wa-bubble.wa-bubble-sticker .wa-bubble-metaLeft,
-.wa-bubble.sticker-message .wa-bubble-metaLeft {
-  display: none;
+/* =========================================
+   META CONTAINER (hora + ticks + menu)
+========================================= */
+
+.wa-bubble-meta{
+  position:absolute;
+  right:6px;
+  bottom:2px;
+
+  display:flex;
+  align-items:center;
+  gap:3px;
+
+  max-width:calc(100% - 12px);
+
+  font-size:11px;
+  line-height:1;
+
+  pointer-events:none;
 }
 
 
-.wa-bubble-out .wa-bubble-meta {
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.wa-bubble-meta .wa-bubble-time {
-  line-height: 1;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.9;
-}
-
-/* Áudio: duração (mm:ss) no meta, estilo WhatsApp */
-.wa-bubble-audioDur{
-  line-height: 1;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.9;
-  margin-right: 2px;
-}
+/* =========================================
+   META LADO ESQUERDO (hora + duração audio)
+========================================= */
 
 .wa-bubble-metaLeft{
   display:inline-flex;
   align-items:center;
-  gap:4px;
+  gap:3px;
   min-width:0;
 }
+
+
+/* horário */
+
+.wa-bubble-time{
+  font-size:11px;
+  color:rgba(0,0,0,0.45);
+  font-weight:400;
+}
+
+
+/* duração áudio */
+
+.wa-bubble-audioDur{
+  line-height:1;
+  flex-shrink:0;
+  font-variant-numeric:tabular-nums;
+  opacity:.9;
+  margin-right:2px;
+}
+
+
+/* =========================================
+   META LADO DIREITO (ticks + menu)
+========================================= */
+
 .wa-bubble-metaRight{
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 0 auto;
-  margin-left: 2px;
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+  flex:0 0 auto;
+  margin-left:2px;
 }
 
-/* Seta de opções: no hover sobrepõe parcialmente horário e status */
-.wa-bubble-metaRight .wa-msgMenuBtn {
-  position: relative;
-  z-index: 2;
-  margin-right: -2px;
-}
-.wa-bubble:hover .wa-msgMenuBtn {
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.08);
+
+/* ticks */
+
+.wa-bubble-ticks{
+  display:inline-flex;
+  align-items:center;
+  height:11px;
 }
 
-/* re-habilita clique nos botões do meta (hover já habilita o reactionBtn) */
-.wa-bubble-metaRight .wa-msgMenuBtn {
-  pointer-events: auto;
+.wa-bubble-ticks svg{
+  width:14px;
+  height:11px;
 }
 
-/* Focus visível (mais profissional) */
+
+/* tick azul */
+
+.wa-bubble-ticks.read svg{
+  color:#53bdeb;
+}
+
+
+/* =========================================
+   MENU DA MENSAGEM
+========================================= */
+
+.wa-msgMenuBtn{
+  opacity:0;
+  transition:opacity .15s ease;
+}
+
+.wa-bubble:hover .wa-msgMenuBtn{
+  opacity:1;
+}
+
+
+/* botão sobrepõe sem empurrar layout */
+
+.wa-bubble-metaRight .wa-msgMenuBtn{
+  position:relative;
+  z-index:2;
+  margin-right:-2px;
+  pointer-events:auto;
+}
+
+
+/* hover estilo WhatsApp */
+
+.wa-bubble:hover .wa-msgMenuBtn{
+  background:rgba(255,255,255,.92);
+  box-shadow:0 0 4px rgba(0,0,0,.08);
+}
+
+
+/* =========================================
+   STICKER
+========================================= */
+
+.wa-bubble.wa-bubble-sticker .wa-bubble-metaLeft,
+.wa-bubble.sticker-message .wa-bubble-metaLeft{
+  display:none;
+}
+
+
+/* =========================================
+   MEDIA (imagem / vídeo)
+========================================= */
+
+.wa-bubble-media .wa-bubble-meta,
+.wa-bubble-video .wa-bubble-meta,
+.wa-bubble-image .wa-bubble-meta{
+  top:6px;
+  bottom:auto;
+  right:6px;
+  background:rgba(0,0,0,.45);
+  padding:2px 4px;
+  border-radius:4px;
+}
+
+.wa-bubble-media .wa-bubble-time{
+  color:#fff;
+}
+
+
+/* =========================================
+   COR META MENSAGEM ENVIADA
+========================================= */
+
+.wa-bubble-out .wa-bubble-meta{
+  color:rgba(0,0,0,0.45);
+}
+
+
+/* =========================================
+   ACESSIBILIDADE
+========================================= */
+
 .wa-header-btn:focus-visible,
 .wa-header-back:focus-visible,
 .wa-msgMenuBtn:focus-visible,
 .wa-audioPlayBtn:focus-visible,
 .wa-sendBtn:focus-visible,
-.wa-recording-send:focus-visible {
-  outline: 2px solid rgba(0, 168, 132, 0.5);
-  outline-offset: 2px;
+.wa-recording-send:focus-visible{
+  outline:2px solid rgba(0,168,132,.5);
+  outline-offset:2px;
 }
 
 .wa-input:focus-visible{
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.18);
+  outline:none;
+  box-shadow:0 0 0 2px rgba(0,168,132,.18);
 }
-
 /* Em mensagens com meta inline, o meta absoluto vira só o menu (no topo direito) */
 .wa-bubble.hasInlineMeta .wa-bubble-meta{
   top: 3px;
