@@ -997,10 +997,7 @@ function Bubble({
           )}
           {remetente ? (
             <div className="wa-bubble-remetente">
-              <span
-                className="wa-bubble-remetente-nome"
-                style={{ color: nameColor(msg?.remetente_telefone || remetente) }}
-              >
+              <span className="wa-bubble-remetente-nome">
                 {remetente}:
               </span>
               {isImg || isSticker ? (

@@ -805,22 +805,22 @@
 .wa-bubble {
   position: relative;
   width: fit-content;
-  min-width: 60px;
-  max-width: 52%;
-  padding: 4px 36px 4px 8px;
-  border-radius: 7.5px;
-  box-shadow: 0 1px 0 rgba(0,0,0,0.05);
-  line-height: 1.4;
-  font-size: 14.2px;
+  min-width: 0;
+  max-width: min(420px, 65%);
+  padding: 4px 40px 6px 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 0.5px rgba(0,0,0,0.04);
+  line-height: 1.35;
+  font-size: 14px;
   display: inline-block;
   overflow-wrap: break-word;
   box-sizing: border-box;
 }
 
-/* Mensagens de texto: altura baixa no limite da mensagem, como WhatsApp */
+/* Mensagens de texto: largura/altura conforme conteúdo, espaço mínimo para meta */
 .wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
-  max-width: min(420px, 75%);
-  padding-bottom: 15px; /* 1px abaixo da mensagem + espaço para meta */
+  max-width: min(420px, 65%);
+  padding-bottom: 16px;
 }
 
 .wa-bubble:hover {
@@ -872,12 +872,12 @@
   padding-bottom: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .wa-bubble-text {
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.35;
   padding-right: 0;
   color: var(--wa-text);
 }
@@ -885,7 +885,7 @@
 .wa-bubble-remetente {
   font-size: 12px;
   font-weight: 500;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 /* =========================================================
@@ -958,8 +958,8 @@
 .wa-bubble-remetente-nome {
   font-size: 11px;
   font-weight: 600;
-  color: var(--wa-primary, #25d366);
-  margin-bottom: 2px;
+  color: var(--wa-text);
+  margin-bottom: 1px;
 }
 
 /* Áudio recebido: remetente + player mais compactos */
@@ -1579,7 +1579,7 @@ body.dark .wa-bubble-file:hover,
 .wa-bubble-meta {
   position: absolute;
   right: 6px;
-  bottom: 3px;
+  bottom: 4px;
   top: auto;
   transform: none;
   display: inline-flex;
@@ -1628,7 +1628,7 @@ body.dark .wa-bubble-file:hover,
 .wa-bubble-meta{
   position:absolute;
   right:6px;
-  bottom:3px;
+  bottom:4px;
   top:auto;
   transform:none;
   display:flex;
@@ -2247,11 +2247,11 @@ body.dark .wa-bubble-file:hover,
   flex-direction: row;
   align-items: stretch;
   gap: 0;
-  margin: 0 0 8px;
-  border-radius: 8px;
+  margin: 0 0 4px;
+  border-radius: 6px;
   overflow: hidden;
-  background: rgba(0,0,0,.06);
-  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(0,0,0,.05);
+  border: 1px solid rgba(0,0,0,.06);
   cursor: pointer;
   min-width: 0;
   max-width: 100%;
@@ -2264,8 +2264,8 @@ body.dark .wa-bubble-file:hover,
 .wa-replyCtx-bar {
   width: 4px;
   min-width: 4px;
-  border-radius: 8px 0 0 8px;
-  background: #53bdeb; /* azul — mensagem recebida */
+  border-radius: 6px 0 0 6px;
+  background: #667781;
   flex-shrink: 0;
 }
 .wa-replyCtx.isOut .wa-replyCtx-bar {
@@ -2273,17 +2273,17 @@ body.dark .wa-bubble-file:hover,
 }
 .wa-replyCtx-content {
   flex: 1;
-  padding: 7px 10px 6px;
+  padding: 4px 6px 4px;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .wa-replyCtx-name {
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.2;
-  color: #53bdeb;
+  color: var(--wa-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2293,10 +2293,9 @@ body.dark .wa-bubble-file:hover,
   color: #0b5d4c;
 }
 .wa-replyCtx-snippet {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.3;
-  /* força cor legível mesmo em bolha verde (evita ficar branco por herança) */
-  color: rgba(17, 27, 33, 0.78);
+  color: var(--wa-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;
