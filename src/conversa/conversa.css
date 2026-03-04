@@ -2294,16 +2294,16 @@ body.dark .wa-bubble-file:hover,
   background: rgba(0,0,0,.085);
   border-color: rgba(0,0,0,.08);
 }
-/* barra colorida lateral */
+/* barra colorida lateral (2–3px estilo WhatsApp) */
 .wa-replyCtx-bar {
-  width: 4px;
-  min-width: 4px;
+  width: 3px;
+  min-width: 3px;
   border-radius: 6px 0 0 6px;
   background: #667781;
   flex-shrink: 0;
 }
 .wa-replyCtx.isOut .wa-replyCtx-bar {
-  background: #00a884; /* verde — mensagem enviada */
+  background: var(--wa-green, #00a884);
 }
 .wa-replyCtx-content {
   flex: 1;
@@ -2349,6 +2349,16 @@ body.dark .wa-bubble-file:hover,
   .wa-replyCtx.isOut { background: rgba(0,0,0,.12); border-color: rgba(0,0,0,.14); }
   .wa-replyCtx-snippet { color: rgba(17, 27, 33, 0.84); }
   .wa-replyCtx.isOut .wa-replyCtx-snippet { color: rgba(17, 27, 33, 0.80); }
+}
+
+/* highlight ao scroll para mensagem citada (reply) */
+.highlight-reply {
+  animation: flash-reply 1.5s ease-out;
+}
+@keyframes flash-reply {
+  0% { box-shadow: 0 0 0 2px var(--wa-green, #00a884); }
+  50% { box-shadow: 0 0 0 4px var(--wa-green, #00a884); }
+  100% { box-shadow: none; }
 }
 
 /* =========================================================

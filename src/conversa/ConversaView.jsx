@@ -918,6 +918,7 @@ function Bubble({
     <div
       className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}`}
       data-msg-id={msg?.id}
+      data-whatsapp-id={msg?.whatsapp_id || undefined}
       data-group-start={showRemetente && !out ? "1" : "0"}
     >
       {selectMode ? (
@@ -991,7 +992,11 @@ function Bubble({
               <div className="wa-replyCtx-bar" aria-hidden="true" />
               <div className="wa-replyCtx-content">
                 <div className="wa-replyCtx-name">{replyMeta.name}</div>
-                <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
+                <div className="wa-replyCtx-snippet">
+                  {(replyMeta.snippet || "").length > 120
+                    ? `${(replyMeta.snippet || "").slice(0, 120)}…`
+                    : replyMeta.snippet}
+                </div>
               </div>
             </div>
           )}
@@ -2483,10 +2488,19 @@ export default function ConversaView() {
     }
   }, [conversaId, selectedSet, exitSelectMode, showToast]);
 
-  const scrollToMsg = useCallback((msgId) => {
-    if (!msgId) return;
-    const el = document.querySelector(`[data-msg-id="${String(msgId)}"]`);
-    el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  const scrollToMsg = useCallback((msgId, whatsappId) => {
+    if (!msgId && !whatsappId) return;
+    const sid = String(msgId || "");
+    const wid = safeString(whatsappId);
+    const el = sid
+      ? document.querySelector(`[data-msg-id="${sid}"]`)
+      : wid
+        ? document.querySelector(`[data-whatsapp-id="${wid}"]`)
+        : null;
+    if (!el) return;
+    el.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    el.classList.add("highlight-reply");
+    setTimeout(() => el.classList.remove("highlight-reply"), 1500);
   }, []);
 
   const jumpToReply = useCallback((replyToId) => {
@@ -2494,15 +2508,30 @@ export default function ConversaView() {
     if (!rid) return;
 
     const list = Array.isArray(mensagens) ? mensagens : [];
+    // 1. Preferir busca por whatsapp_id
     const byWaId = list.find((m) => safeString(m?.whatsapp_id) && String(m.whatsapp_id) === rid);
-    if (byWaId?.id) return scrollToMsg(byWaId.id);
-
-    // fallback: se veio id numérico do banco
-    if (/^\d{1,15}$/.test(rid)) return scrollToMsg(rid);
+    if (byWaId) {
+      scrollToMsg(byWaId.id, byWaId.whatsapp_id);
+      return;
+    }
+    // 2. Fallback: busca por id interno
+    const byId = list.find((m) => m?.id != null && String(m.id) === rid);
+    if (byId) {
+      scrollToMsg(byId.id, byId.whatsapp_id);
+      return;
+    }
+    // 3. Fallback: replyToId numérico pode ser id
+    if (/^\d{1,15}$/.test(rid)) {
+      const el = document.querySelector(`[data-msg-id="${rid}"]`);
+      if (el) {
+        scrollToMsg(rid);
+        return;
+      }
+    }
 
     showToast({
       type: "info",
-      title: "Mensagem não encontrada",
+      title: "Mensagem citada não carregada",
       message: "A mensagem respondida não está carregada neste histórico.",
     });
   }, [mensagens, scrollToMsg, showToast]);
