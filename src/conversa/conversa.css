@@ -1579,11 +1579,13 @@ body.dark .wa-bubble-file:hover,
   border-radius: 6px;
 }
 
-/* Hora + ticks: 1px abaixo da mensagem, canto inferior direito */
+/* Hora + ticks: quase no meio da mensagem, um pouco abaixo, canto direito */
 .wa-bubble-meta {
   position: absolute;
+  top: 50%;
   right: 6px;
-  bottom: 2px;
+  bottom: auto;
+  transform: translateY(calc(-50% + 3px));
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -1603,6 +1605,7 @@ body.dark .wa-bubble-file:hover,
   top: 5px;
   bottom: auto;
   right: 5px;
+  transform: none;
   background: rgba(0, 0, 0, 0.30);
   color: #fff;
   border-radius: 8px;
@@ -1616,6 +1619,7 @@ body.dark .wa-bubble-file:hover,
   top: 5px;
   bottom: auto;
   right: 5px;
+  transform: none;
   padding: 0;
   background: none;
   gap: 4px;
@@ -1627,8 +1631,10 @@ body.dark .wa-bubble-file:hover,
 
 .wa-bubble-meta{
   position:absolute;
+  top:50%;
   right:6px;
-  bottom:2px;
+  bottom:auto;
+  transform:translateY(calc(-50% + 3px));
   display:flex;
   align-items:center;
   gap:2px;
@@ -1743,6 +1749,7 @@ body.dark .wa-bubble-file:hover,
   top:6px;
   bottom:auto;
   right:6px;
+  transform:none;
   background:rgba(0,0,0,.45);
   padding:2px 4px;
   border-radius:4px;

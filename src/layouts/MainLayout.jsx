@@ -25,9 +25,8 @@ export default function MainLayout() {
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
           {isAdmin && (
             <>
-              <NavItem to="/configuracoes?tab=clientes" label="Clientes" icon={<IconClientes />} />
               <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />
-              <NavItem to="/ia" label="IA / Bot" icon={<IconBot />} />
+              <NavItem to="/ia" label="IA / Bot" icon={<IconIASparkle />} />
             </>
           )}
         </nav>
@@ -76,13 +75,12 @@ function IconAtendimento() {
   );
 }
 
-function IconClientes() {
+function IconIASparkle() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+      <path d="M19 14l1.2 3.6L24 19l-3.6 1.2L19 24l-1.2-3.6L14 19l3.6-1.2L19 14z" />
+      <path d="M5 17l.8 2.4L8 20l-2.4.8L5 23l-.8-2.4L2 20l2.4-.8L5 17z" />
     </svg>
   );
 }
