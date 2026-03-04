@@ -820,7 +820,7 @@
 /* Mensagens de texto: largura/altura conforme conteúdo, espaço mínimo para meta */
 .wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
   max-width: min(420px, 65%);
-  padding-bottom: 16px;
+  
 }
 
 .wa-bubble:hover {
@@ -889,43 +889,71 @@
 }
 
 /* =========================================================
-   Texto + horário + ticks inline (WhatsApp Web)
-   - Faz o balão ser proporcional ao conteúdo (sem min-width fixo)
-   - Horário/ticks entram no cálculo de largura → não corta em "oi"
+   Texto + horário + ticks (estilo WhatsApp Web)
+   - Horário/ticks sempre dentro do balão, em linha separada à direita
+   - Balão com altura proporcional ao conteúdo
 ========================================================= */
 .wa-bubble.hasInlineMeta {
   min-width: 0;
-  padding-bottom: 0;
+  padding: 5px 36px 5px 8px;
 }
 .wa-bubble-textInline {
-  display: inline; /* mantém horário/ticks na última linha */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
 }
+.wa-bubble-textInline > .wa-inlineMeta {
+  align-self: flex-end;
+}
+/* =========================================
+   META (hora + ticks) — canto inferior direito, dentro do balão
+========================================= */
+
 .wa-inlineMeta{
-  float: right;
   display: inline-flex;
   align-items: center;
-  gap: 1px;
-  margin-left: 4px;
-  font-size: 9px;
+  gap: 2px;
+  margin-left: 0;
+  margin-top: 1px;
+  flex-shrink: 0;
+
+  font-size: 10.5px;
   color: var(--wa-text-light);
+
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  vertical-align: baseline;
-  line-height: 1; /* desce levemente: texto fica “um pouco acima” */
+  line-height: 1;
 }
+
+
+/* =========================================
+   TICKS
+========================================= */
+
 .wa-inlineMeta .wa-ticks{
   display: inline-flex;
   align-items: center;
   line-height: 1;
-  margin-left: 0;
-  transform: translateY(0.5px);
-}
-.wa-inlineMeta .wa-ticksSvg,
-.wa-inlineMeta .wa-ticks svg{
-  width: 12px !important;
-  height: 9px !important;
+  margin-left: 1px;
+  transform: none;
 }
 
+
+.wa-inlineMeta .wa-ticksSvg,
+.wa-inlineMeta .wa-ticks svg{
+  width:14px;
+  height:11px;
+}
+
+
+/* =========================================
+   TICK LIDO (azul)
+========================================= */
+
+.wa-inlineMeta .wa-ticks.read svg{
+  color:#53bdeb;
+}
 .wa-bubble-out .wa-inlineMeta{
   color: rgba(0, 0, 0, 0.45);
 }
