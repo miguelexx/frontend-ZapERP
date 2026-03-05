@@ -65,11 +65,11 @@
   /* ---- Transições ---- */
   --ds-transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ---- Componentes específicos (WhatsApp-like) ---- */
-  --ds-chat-bg: #efeae2;
+  /* ---- Componentes específicos (WhatsApp Web — cores fiéis) ---- */
+  --ds-chat-bg: #e5ddd5;
   --ds-chat-header: #f0f2f5;
-  --ds-bubble-in: #f0f2f5;
-  --ds-bubble-out: #d9fdd3;
+  --ds-bubble-in: #ffffff;
+  --ds-bubble-out: #dcf8c6;
   --ds-input-bg: #ffffff;
 }
 

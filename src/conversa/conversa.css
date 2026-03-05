@@ -55,6 +55,15 @@
   --wa-audio-track-out: rgba(255,255,255,.06);
 }
 
+[data-theme="dark"] .wa-messages {
+  background-image: none;
+}
+
+[data-theme="dark"] .wa-daySep-pill {
+  background: rgba(255, 255, 255, 0.12);
+  color: #8696a0;
+}
+
 /* =========================================================
    SHELL (full-height, três áreas definidas)
 ========================================================= */
@@ -695,7 +704,7 @@
 }
 
 /* =========================================================
-   ÁREA DE MENSAGENS — fundo suave/padrão leve
+   ÁREA DE MENSAGENS — fundo WhatsApp Web (#e5ddd5 + padrão sutil)
 ========================================================= */
 
 .wa-messages {
@@ -708,7 +717,11 @@
   gap: 1px;
   min-height: 0;
   min-width: 0;
-  background: var(--wa-bg);
+  background-color: var(--wa-bg);
+  background-image: url("/wa-chat-pattern.svg");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  background-position: 0 0;
 }
 
 .wa-messages::-webkit-scrollbar {
@@ -797,7 +810,7 @@
 
   border-radius: 7.5px;
 
-  box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+  box-shadow: 0 1px 0.5px rgba(0,0,0,0.04);
 
   line-height: 1.4;
   font-size: 14px;
@@ -811,7 +824,7 @@
 }
 
 .wa-bubble:hover{
-  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.10);
   z-index:2;
 }
 
@@ -2685,10 +2698,10 @@
   border-radius: 8px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--wa-text-muted);
-  background: rgba(255, 255, 255, 0.9);
+  color: #54656f;
+  background: #e0e0e0;
   border: none;
-  box-shadow: var(--wa-shadow-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 /* =========================================================
