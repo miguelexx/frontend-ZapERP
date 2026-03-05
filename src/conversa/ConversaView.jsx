@@ -3267,22 +3267,6 @@ export default function ConversaView() {
             </div>
           ) : (
             <>
-              {hasMore && (
-                <div className="wa-loadMore" role="status" aria-live="polite">
-                  {loadingMore ? (
-                    <span className="wa-loadMore-loading">Carregando mais…</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="wa-loadMore-btn"
-                      onClick={() => loadMore()}
-                      disabled={loadingMore || !cursor}
-                    >
-                      Carregar mais
-                    </button>
-                  )}
-                </div>
-              )}
               {mensagensComSeparadores.map((item) => {
               if (item.__type === "day") return <DaySeparator key={item.id} label={item.label} />;
               const msgKey = item.tempId || item.id;

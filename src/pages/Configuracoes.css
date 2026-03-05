@@ -202,3 +202,113 @@
   color: #64748b;
 }
 
+/* =========================================================
+   MODO ESCURO — Configurações com fontes visíveis
+========================================================= */
+[data-theme="dark"] .config-wrap .ia-subtitle,
+[data-theme="dark"] .config-wrap .ia-muted,
+[data-theme="dark"] .config-wrap .ia-field label,
+[data-theme="dark"] .config-wrap .config-appearance-row .ia-muted,
+[data-theme="dark"] .config-wrap .config-inlineLabel {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-title {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-content {
+  background: var(--ds-surface-1) !important;
+  border-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-tab {
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-tab:hover {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-tab--active {
+  color: var(--ds-accent) !important;
+  border-bottom-color: var(--ds-accent) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-tabs {
+  border-bottom-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-input,
+[data-theme="dark"] .config-wrap .ia-select,
+[data-theme="dark"] .config-wrap .ia-textarea {
+  background: var(--ds-input-bg) !important;
+  border-color: var(--ds-border) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-input::placeholder,
+[data-theme="dark"] .config-wrap .ia-textarea::placeholder {
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-section h4 {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-table {
+  background: var(--ds-surface-1) !important;
+  border-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-table thead th {
+  background: var(--ds-surface-2) !important;
+  color: var(--ds-text-secondary) !important;
+  border-bottom-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-table tbody td {
+  color: var(--ds-text-primary) !important;
+  border-bottom-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-table tbody tr:nth-child(even) td {
+  background: var(--ds-surface-2) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-table tbody tr:hover td {
+  background: var(--ds-hover) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-list-item {
+  background: var(--ds-surface-1) !important;
+  border-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .config-emptyCell,
+[data-theme="dark"] .config-wrap .config-emptyRow {
+  color: var(--ds-text-tertiary) !important;
+  background: var(--ds-surface-2) !important;
+  border-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .config-wrap .config-pill {
+  background: var(--ds-surface-2) !important;
+  border-color: var(--ds-border) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .config-wrap .config-pill--muted {
+  background: var(--ds-surface-3) !important;
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-btn--outline {
+  border-color: var(--ds-border) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .config-wrap .ia-btn--outline:hover:not(:disabled) {
+  background: var(--ds-hover) !important;
+}
+

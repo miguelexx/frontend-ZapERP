@@ -1,7 +1,7 @@
 /* IA / Bot / Automação — mesmo padrão visual do CRM */
 .ia-wrap {
   min-height: 100%;
-  background: var(--dash-bg, #f8fafc);
+  background: var(--dash-bg);
   padding: 24px;
 }
 
@@ -12,13 +12,13 @@
 .ia-title {
   font-size: 22px;
   font-weight: 700;
-  color: var(--dash-text, #0f172a);
+  color: var(--dash-text);
   margin: 0 0 4px 0;
 }
 
 .ia-subtitle {
   font-size: 14px;
-  color: var(--dash-muted, #64748b);
+  color: var(--dash-muted);
   margin: 0;
 }
 
@@ -50,7 +50,7 @@
   display: flex;
   gap: 4px;
   margin-bottom: 20px;
-  border-bottom: 1px solid var(--dash-border, #e2e8f0);
+  border-bottom: 1px solid var(--dash-border);
   flex-wrap: wrap;
 }
 
@@ -58,7 +58,7 @@
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--dash-muted, #64748b);
+  color: var(--dash-muted);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -67,17 +67,17 @@
 }
 
 .ia-tab:hover {
-  color: var(--dash-text, #0f172a);
+  color: var(--dash-text);
 }
 
 .ia-tab--active {
-  color: var(--dash-blue, #2563eb);
-  border-bottom-color: var(--dash-blue, #2563eb);
+  color: var(--dash-blue);
+  border-bottom-color: var(--dash-blue);
 }
 
 .ia-content {
-  background: var(--dash-card, #ffffff);
-  border: 1px solid var(--dash-border, #e2e8f0);
+  background: var(--dash-card);
+  border: 1px solid var(--dash-border);
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -102,13 +102,13 @@
 .ia-section h4 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--dash-text, #0f172a);
+  color: var(--dash-text);
   margin: 0 0 12px 0;
 }
 
 .ia-section p.ia-muted {
   font-size: 13px;
-  color: var(--dash-muted, #64748b);
+  color: var(--dash-muted);
   margin: 0 0 12px 0;
 }
 
@@ -158,7 +158,7 @@
   display: block;
   font-size: 12px;
   font-weight: 500;
-  color: var(--dash-muted, #64748b);
+  color: var(--dash-muted);
   margin-bottom: 6px;
 }
 
@@ -168,9 +168,10 @@
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
-  border: 1px solid var(--dash-border, #e2e8f0);
+  border: 1px solid var(--dash-border);
   border-radius: 8px;
-  background: var(--dash-card, #fff);
+  background: var(--dash-card);
+  color: var(--dash-text);
 }
 
 .ia-textarea {

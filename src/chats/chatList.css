@@ -67,8 +67,8 @@
   --cl-beige-300: var(--ds-bg-overlay);
 
   --cl-green: var(--ds-accent);
-  --cl-green-soft: var(--ds-accent-soft);
-  --cl-green-border: rgba(0, 168, 132, 0.4);
+  --cl-green-soft: rgba(0, 168, 132, 0.35);
+  --cl-green-border: rgba(0, 168, 132, 0.5);
   --cl-chip-active: var(--ds-accent);
   --cl-beige-light: var(--ds-surface-2);
   --cl-beige-warm: var(--ds-surface-3);
@@ -79,6 +79,44 @@
 
   --cl-border: var(--ds-border);
   --cl-border-subtle: var(--ds-border);
+}
+
+/* Sidebar dark: item selecionado com contraste legível */
+[data-theme="dark"] .chat-list-row.is-active {
+  background: rgba(0, 168, 132, 0.28);
+}
+
+[data-theme="dark"] .chat-list-row.is-active .chat-list-title,
+[data-theme="dark"] .chat-list-row.is-active .chat-list-preview,
+[data-theme="dark"] .chat-list-row.is-active .chat-list-time {
+  color: #e9edef !important;
+}
+
+[data-theme="dark"] .chat-list-search-input::placeholder {
+  color: rgba(233, 237, 239, 0.6);
+}
+
+[data-theme="dark"] .chat-list-row.is-active .chat-list-status.open {
+  background: rgba(59, 130, 246, 0.4);
+  color: #93c5fd !important;
+}
+
+[data-theme="dark"] .chat-list-row.is-active .chat-list-status.in {
+  background: rgba(234, 179, 8, 0.35);
+  color: #fde047 !important;
+}
+
+[data-theme="dark"] .chat-list-row.is-active .chat-list-status.closed {
+  color: rgba(233, 237, 239, 0.9) !important;
+}
+
+[data-theme="dark"] .chat-list-badge-sem-conversa {
+  color: rgba(233, 237, 239, 0.95) !important;
+}
+
+[data-theme="dark"] .chat-list-row.is-active .chat-list-badge-grupo {
+  background: rgba(0, 168, 132, 0.5);
+  color: #e9edef !important;
 }
 
 /* -----------------------------------------------------------------------

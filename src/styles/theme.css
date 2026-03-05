@@ -87,6 +87,16 @@
    Tons suaves · Contraste equilibrado · Sem saturação excessiva
 ============================== */
 
+/* Variáveis dash (Config, IA, Dashboard) — globais */
+:root, [data-theme="light"] {
+  --dash-bg: var(--ds-bg-base);
+  --dash-card: var(--ds-surface-1);
+  --dash-border: var(--ds-border);
+  --dash-text: var(--ds-text-primary);
+  --dash-muted: var(--ds-text-tertiary);
+  --dash-blue: #2563eb;
+}
+
 [data-theme="dark"] {
   /* ---- Superfícies ---- */
   --ds-bg-base: #0b141a;
@@ -137,6 +147,14 @@
   --ds-bubble-in: #202c33;
   --ds-bubble-out: #005c4b;
   --ds-input-bg: #2a3942;
+
+  /* Variáveis dash para páginas Config/IA */
+  --dash-bg: var(--ds-bg-base);
+  --dash-card: var(--ds-surface-1);
+  --dash-border: var(--ds-border);
+  --dash-text: var(--ds-text-primary);
+  --dash-muted: var(--ds-text-secondary);
+  --dash-blue: #3b82f6;
 }
 
 /* Scrollbar — dark mode */

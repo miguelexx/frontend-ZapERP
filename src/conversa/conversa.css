@@ -788,32 +788,6 @@
   box-shadow: var(--wa-shadow-subtle);
 }
 
-.wa-loadMore {
-  padding: 12px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.wa-loadMore-loading {
-  font-size: 13px;
-  color: var(--wa-text-muted);
-}
-
-.wa-loadMore-btn {
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ds-accent);
-  background: var(--ds-accent-soft);
-  border: none;
-  border-radius: var(--ds-radius);
-  cursor: pointer;
-}
-
-.wa-loadMore-btn:hover:not(:disabled) {
-  background: var(--ds-accent-muted);
-}
-
 /* =========================================================
    BOLHAS DE MENSAGEM — modernas, cantos 14–16px, sombra leve, tipografia 13–14px
 ========================================================= */
