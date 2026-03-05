@@ -1,32 +1,21 @@
-/* Dashboard de métricas — visual profissional */
+/* Dashboard — Design System */
 :root {
-  --dash-bg: #f8fafc;
-  --dash-card: #ffffff;
-  --dash-border: #e2e8f0;
-  --dash-text: #0f172a;
-  --dash-muted: #64748b;
-  --dash-green: #059669;
+  --dash-bg: var(--ds-bg-base);
+  --dash-card: var(--ds-surface-1);
+  --dash-border: var(--ds-border);
+  --dash-text: var(--ds-text-primary);
+  --dash-muted: var(--ds-text-tertiary);
+  --dash-green: var(--ds-accent);
   --dash-blue: #2563eb;
   --dash-amber: #d97706;
-  --dash-radius: 12px;
-  --dash-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --dash-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --dash-surface: rgba(255,255,255,.72);
+  --dash-radius: var(--ds-radius-lg);
+  --dash-shadow: var(--ds-shadow-xs);
+  --dash-shadow-hover: var(--ds-shadow-sm);
+  --dash-surface: var(--ds-surface-1);
 }
 
-/* Tema escuro do dashboard — tokens alinhados com app */
 [data-theme="dark"] {
-  --dash-bg: #020617;
-  --dash-card: #020617;
-  --dash-border: #374151;
-  --dash-text: #f9fafb;
-  --dash-muted: #9ca3af;
-  --dash-green: #22c55e;
-  --dash-blue: #3b82f6;
   --dash-amber: #fbbf24;
-  --dash-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
-  --dash-shadow-hover: 0 8px 26px rgba(0, 0, 0, 0.85);
-  --dash-surface: rgba(15, 23, 42, 0.88);
 }
 
 .dash-wrap {
@@ -94,7 +83,7 @@
 
 .dash-card:hover {
   box-shadow: var(--dash-shadow-hover);
-  border-color: #cbd5e1;
+  border-color: var(--ds-border-strong);
 }
 
 .dash-card-label {

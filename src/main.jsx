@@ -3,8 +3,8 @@ import ReactDOM from "react-dom/client";
 import AppRoutes from "./routes/AppRoutes";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuthStore } from "./auth/authStore";
-import "./styles/app.css";
 import "./styles/theme.css";
+import "./styles/app.css";
 
 useAuthStore.getState().restore();
 

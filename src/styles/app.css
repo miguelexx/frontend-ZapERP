@@ -1,60 +1,7 @@
 /* ==============================
-   TEMA — Modo claro (padrão) e modo escuro (data-theme="dark")
-   Apenas visual; troca via Configurações > Geral > Modo escuro
+   LAYOUT E COMPONENTES
+   Tema definido em theme.css
 ============================== */
-
-/* Tema claro (padrão e data-theme="light") */
-:root,
-[data-theme="light"] {
-  --bg-app: #f0f2f5;
-  --bg-surface: #ffffff;
-  --bg-panel: #ffffff;
-  --bg-sidebar: #f0f2f5;
-
-  --text: #111827;
-  --text-soft: #4b5563;
-  --text-muted: #6b7280;
-
-  --border: #e5e7eb;
-  --border-subtle: rgba(0,0,0,0.06);
-  --hover: rgba(0,0,0,0.04);
-
-  --green: #00a884;
-  --green-soft: rgba(0,168,132,0.12);
-  --green-hover: #02c39a;
-
-  --radius: 8px;
-  --radius-sm: 6px;
-  --radius-lg: 10px;
-  --transition: 0.18s ease;
-
-  --shadow-subtle: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-card: 0 2px 8px rgba(0,0,0,0.1);
-  --font-chat: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-}
-
-/* Tema escuro (só visual) — estilo ChatGPT / WhatsApp Web */
-[data-theme="dark"] {
-  /* Fundos — inspirado no WhatsApp Web dark */
-  --bg-app: #0b141a;       /* fundo principal do app */
-  --bg-surface: #111b21;   /* superfícies internas */
-  --bg-panel: #202c33;     /* cards / cabeçalhos */
-  --bg-sidebar: #111b21;
-
-  /* Texto */
-  --text: #f9fafb;         /* text-primary */
-  --text-soft: #e5e7eb;
-  --text-muted: #d1d5db;   /* text-secondary */
-
-  /* Bordas / hover */
-  --border: #1f2937;
-  --border-subtle: rgba(15, 23, 42, 0.9);
-  --hover: rgba(148, 163, 184, 0.20);
-
-  /* Sombras */
-  --shadow-subtle: 0 1px 3px rgba(0,0,0,0.55);
-  --shadow-card: 0 2px 10px rgba(0,0,0,0.75);
-}
 
 /* Atendimento Layout */
 .atendimento-layout {
@@ -63,7 +10,7 @@
   display: grid;
   /* Mais “WhatsApp Web”: sidebar um pouco maior, responsiva */
   grid-template-columns: clamp(340px, 30vw, 440px) 1fr;
-  background: #e9edef;
+  background: var(--ds-bg-base);
   overflow: hidden;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -131,8 +78,8 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: #f0f2f5;
-  border-right: 1px solid #dcdcdc;
+  background: var(--ds-surface-1);
+  border-right: 1px solid var(--ds-border);
   position: relative;
   z-index: 2;
 }
@@ -142,22 +89,8 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: #efeae2;
+  background: var(--ds-chat-bg);
   position: relative;
-}
-
-/* Dark: ajusta contrastes da área de atendimento (sidebar + conversa) */
-[data-theme="dark"] .atendimento-layout {
-  background: var(--bg-app);
-}
-
-[data-theme="dark"] .atendimento-sidebar {
-  background: var(--bg-sidebar);
-  border-right-color: var(--border);
-}
-
-[data-theme="dark"] .atendimento-chat-area {
-  background: #0b141a;
 }
 
 /* Mobile: sidebar e chat-area preenchem 100% da tela fixa */
@@ -217,7 +150,7 @@
 }
 
 :where(button, a, input, textarea, select, [role="button"]):focus-visible {
-  outline: 2px solid rgba(0, 168, 132, 0.55);
+  outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
 }
 
@@ -285,11 +218,11 @@ body {
   }
 }
 
-/* SIDEBAR — ZapERP premium, bege + verde */
+/* SIDEBAR — Premium, consistente com Design System */
 .sidebar {
   width: 64px;
-  background: #faf9f7;
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--ds-surface-1);
+  border-right: 1px solid var(--ds-border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -306,99 +239,31 @@ body {
 .sidebar-logout {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--ds-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #57534e;
+  color: var(--ds-text-secondary);
   background: transparent;
   border: none;
   cursor: pointer;
   text-decoration: none;
-
-  opacity: 0.9;
-  transform: translateY(0) scale(1);
-  box-shadow: none;
-
-  transition:
-    background 0.2s cubic-bezier(.16, 1, .3, 1),
-    color 0.2s ease,
-    transform 0.22s cubic-bezier(.16, 1, .3, 1),
-    box-shadow 0.22s ease,
-    border-color 0.2s ease,
-    opacity 0.16s ease;
+  transition: background var(--ds-transition), color var(--ds-transition);
 }
 
 .sidebar-nav-item:hover,
 .sidebar-logout:hover {
-  background: #ebe8e3;
-  color: #1c1917;
-  transform: translateY(-2px) scale(1.08);
-  box-shadow:
-    0 14px 32px rgba(15, 23, 42, 0.28),
-    0 0 0 1px rgba(148, 163, 184, 0.6);
+  background: var(--ds-hover);
+  color: var(--ds-text-primary);
 }
 
 .sidebar-nav-item.active {
-  background: linear-gradient(140deg, rgba(13, 148, 136, 0.16), rgba(59, 130, 246, 0.28));
-  color: #0d9488;
-  box-shadow:
-    0 16px 40px rgba(15, 23, 42, 0.35),
-    0 0 0 1px rgba(34, 197, 94, 0.5);
-  transform: translateY(-1px) scale(1.03);
-  animation: sidebarActivePulse 2.4s ease-in-out infinite;
-}
-
-.sidebar-logout {
-  color: #78716c;
+  background: var(--ds-accent-soft);
+  color: var(--ds-accent);
 }
 
 .sidebar-logout:hover {
-  background: #f5f3ef;
-  color: #57534e;
-}
-
-[data-theme="dark"] .sidebar {
-  background: #111318;
-  border-right-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .sidebar-nav-item,
-[data-theme="dark"] .sidebar-logout {
-  color: #cbd5e1; /* icon-color */
-}
-
-[data-theme="dark"] .sidebar-nav-item:hover,
-[data-theme="dark"] .sidebar-logout:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8eaed;
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.85),
-    0 0 0 1px rgba(129, 140, 248, 0.55);
-}
-
-[data-theme="dark"] .sidebar-nav-item.active {
-  background: linear-gradient(145deg, rgba(13, 148, 136, 0.34), rgba(37, 99, 235, 0.45));
-  color: #f9fafb;
-  box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(56, 189, 248, 0.7);
-}
-
-@keyframes sidebarActivePulse {
-  0%,
-  100% {
-    box-shadow:
-      0 16px 40px rgba(15, 23, 42, 0.35),
-      0 0 0 1px rgba(34, 197, 94, 0.5);
-    transform: translateY(-1px) scale(1.03);
-  }
-  50% {
-    box-shadow:
-      0 20px 52px rgba(15, 23, 42, 0.55),
-      0 0 0 2px rgba(59, 130, 246, 0.75);
-    transform: translateY(-2px) scale(1.06);
-  }
+  background: var(--ds-hover);
 }
 
 /* CONTEÚDO */
@@ -477,25 +342,21 @@ body {
   align-items: center;
   gap: 6px;
   padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid var(--ds-border);
 }
 
 .sidebar-badge-compact {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--ds-radius);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  color: #0d9488;
-  background: rgba(13, 148, 136, 0.12);
+  color: var(--ds-accent);
+  background: var(--ds-accent-soft);
 }
-
-[data-theme="dark"] .sidebar-brand-compact,
-[data-theme="dark"] .sidebar-badge-compact { color: #14b8a6; background: rgba(20, 184, 166, 0.15); }
-[data-theme="dark"] .sidebar-footer--compact { border-color: rgba(255, 255, 255, 0.08); }
 
 /* ==============================
    RESPONSIVIDADE MOBILE
@@ -521,7 +382,7 @@ body {
     justify-content: space-around;
     padding: 8px 8px calc(12px + env(safe-area-inset-bottom, 0));
     border-right: none;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    border-top: 1px solid var(--ds-border);
     z-index: 100;
     gap: 0;
   }
@@ -563,12 +424,12 @@ body {
     display: block;
     font-size: 10px;
     line-height: 1;
-    color: rgba(87, 83, 78, 0.9);
+    color: var(--ds-text-tertiary);
     white-space: nowrap;
   }
 
   [data-theme="dark"] .app-layout--crm .sidebar-nav--compact .sidebar-nav-label {
-    color: rgba(174, 186, 193, 0.92);
+    color: var(--ds-text-secondary);
   }
 
   .app-layout--crm .sidebar-brand-compact,
@@ -616,9 +477,6 @@ body {
     min-height: 0;
   }
 
-  [data-theme="dark"] .sidebar {
-    border-top-color: rgba(255, 255, 255, 0.08);
-  }
 }
 
 /* Login — fundo com logo e efeitos tech */
@@ -717,8 +575,8 @@ body {
 }
 
 [data-theme="dark"] .login-form {
-  background: rgba(17, 24, 33, 0.95);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--ds-surface-1);
+  border-color: var(--ds-border);
 }
 
 .login-form h2,

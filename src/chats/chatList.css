@@ -55,30 +55,30 @@
   --cl-letter-tight: -0.02em;
 }
 
-/* Tema escuro — alinhado com tokens globais */
+/* Tema escuro — Design System premium (WhatsApp Web) */
 [data-theme="dark"] {
-  --cl-bg: #0f172a;
-  --cl-surface: #020617;
-  --cl-surface-elevated: #020617;
+  --cl-bg: var(--ds-surface-1);
+  --cl-surface: var(--ds-surface-1);
+  --cl-surface-elevated: var(--ds-surface-2);
 
-  --cl-beige-50: #020617;
-  --cl-beige-100: #020617;
-  --cl-beige-200: #020617;
-  --cl-beige-300: #020617;
+  --cl-beige-50: var(--ds-surface-2);
+  --cl-beige-100: var(--ds-surface-2);
+  --cl-beige-200: var(--ds-surface-3);
+  --cl-beige-300: var(--ds-bg-overlay);
 
-  --cl-green: #22c55e;
-  --cl-green-soft: rgba(34, 197, 94, 0.16);
-  --cl-green-border: rgba(34, 197, 94, 0.5);
-  --cl-chip-active: #22c55e;
-  --cl-beige-light: #020617;
-  --cl-beige-warm: #020617;
+  --cl-green: var(--ds-accent);
+  --cl-green-soft: var(--ds-accent-soft);
+  --cl-green-border: rgba(0, 168, 132, 0.4);
+  --cl-chip-active: var(--ds-accent);
+  --cl-beige-light: var(--ds-surface-2);
+  --cl-beige-warm: var(--ds-surface-3);
 
-  --cl-text: #f9fafb;
-  --cl-text-secondary: #e5e7eb;
-  --cl-text-muted: #d1d5db;
+  --cl-text: var(--ds-text-primary);
+  --cl-text-secondary: var(--ds-text-secondary);
+  --cl-text-muted: var(--ds-text-tertiary);
 
-  --cl-border: rgba(55, 65, 81, 1);
-  --cl-border-subtle: rgba(31, 41, 55, 0.9);
+  --cl-border: var(--ds-border);
+  --cl-border-subtle: var(--ds-border);
 }
 
 /* -----------------------------------------------------------------------
@@ -158,14 +158,14 @@ a { color: inherit; text-decoration: none; }
 .chat-list-header-icon {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--ds-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
-  background: rgba(13, 148, 136, 0.06);
-  border: 1px solid rgba(13, 148, 136, 0.20);
+  background: var(--ds-accent-muted);
+  border: 1px solid var(--ds-accent-soft);
   color: var(--cl-green);
   flex-shrink: 0;
 }
@@ -275,7 +275,7 @@ a { color: inherit; text-decoration: none; }
   font-size: clamp(11px, 0.85vw, 12px);
   font-weight: 650;
   letter-spacing: 0.02em;
-  color: rgba(87, 83, 78, 0.78);
+  color: var(--cl-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -337,10 +337,10 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: center;
   color: var(--cl-text-secondary);
-  background: rgba(245, 243, 239, 0.6);
+  background: var(--ds-hover);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--ds-transition), color var(--ds-transition);
   position: relative;
   z-index: 5;
   pointer-events: auto;
@@ -349,22 +349,21 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-header-btn:hover {
-  background: var(--cl-beige-200);
+  background: var(--ds-hover-strong);
   color: var(--cl-text);
 }
 
 .chat-list-header-btn:active {
-  background: var(--cl-beige-300);
+  background: var(--ds-active);
 }
 
-/* botão Novo — verde suave */
 .chat-list-header-actions .chat-list-header-btn:first-child {
   background: var(--cl-green-soft);
   color: var(--cl-green);
 }
 
 .chat-list-header-actions .chat-list-header-btn:first-child:hover {
-  background: rgba(13, 148, 136, 0.14);
+  background: var(--ds-accent-muted);
 }
 
 .chat-list-icon {
@@ -417,7 +416,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-novo-item:hover {
-  background: var(--cl-beige-100);
+  background: var(--ds-hover);
 }
 
 .chat-list-novo-icon {
@@ -504,82 +503,56 @@ a { color: inherit; text-decoration: none; }
   max-height: none;   /* 🔥 remove corte */
   overflow: visible;
 
-  background: var(--cl-beige-light);
-  border-bottom: 1px solid var(--cl-beige-warm);
+  background: var(--cl-bg);
+  border-bottom: 1px solid var(--cl-border-subtle);
 
   flex-shrink: 0;
 }
 
 
-/* =========================
-   CHIP BASE
-========================= */
-.chat-list-chip{
-  height:26px;
-  padding:0 10px;
-
-  border-radius:999px;
-
+.chat-list-chip {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--cl-radius-full);
   font-size: var(--cl-font-size-sm);
-  font-weight:500;
-
-  background:#e9e5df;         /* bege claro */
-  color:#5b5b5b;
-
-  border:1px solid rgba(0,0,0,0.04);
-
-  display:inline-flex;
-  align-items:center;
-  gap:5px;
-
-  white-space:nowrap;
-
-  cursor:pointer;
-
-  transition:
-    background .12s ease,
-    color .12s ease,
-    border-color .12s ease;
+  font-weight: 500;
+  background: var(--ds-surface-3);
+  color: var(--cl-text-secondary);
+  border: 1px solid var(--cl-border-subtle);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--ds-transition), color var(--ds-transition);
 }
 
-
-/* hover leve */
-.chat-list-chip:hover{
-  background:#ded9d2;
+.chat-list-chip:hover {
+  background: var(--ds-hover-strong);
 }
 
-
-/* =========================
-   ATIVO (verde elegante)
-========================= */
-.chat-list-chip.is-active{
-  background:#15803d;     /* 🔥 verde */
-  color:#fff;
-  border-color:#15803d;
+.chat-list-chip.is-active {
+  background: var(--ds-accent);
+  color: #fff;
+  border-color: var(--ds-accent);
 }
 
 
 /* =========================
    CONTADOR
 ========================= */
-.chat-list-chip-count{
-  height:16px;
-  min-width:16px;
-
-  padding:0 4px;
-
-  border-radius:999px;
-
-  background:rgba(0,0,0,.12);
-
+.chat-list-chip-count {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--cl-radius-full);
+  background: var(--ds-hover);
   font-size: 10px;
-  font-weight:600;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  line-height:1;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 
@@ -727,7 +700,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-row:hover {
-  background: var(--cl-beige-50);
+  background: var(--ds-hover);
 }
 
 .chat-list-row.is-active {
@@ -827,7 +800,7 @@ a { color: inherit; text-decoration: none; }
 .chat-list-title {
   font-size: var(--cl-font-size-md);
   font-weight: 600;
-  color: #1f2937;
+  color: var(--cl-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1074,8 +1047,8 @@ a { color: inherit; text-decoration: none; }
   border-radius: var(--cl-radius-xs);
   font-size: 10px;
   font-weight: 500;
-  background: var(--cl-bg-tertiary, #e2e8f0);
-  color: var(--cl-fg-secondary, #64748b);
+  background: var(--ds-surface-3);
+  color: var(--cl-text-muted);
   flex-shrink: 0;
 }
 
@@ -1096,18 +1069,18 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-status.open {
-  background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
 }
 
 .chat-list-status.in {
-  background: rgba(234, 179, 8, 0.12);
-  color: #a16207;
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
 }
 
 .chat-list-status.closed {
-  background: rgba(100, 116, 139, 0.12);
-  color: #64748b;
+  background: var(--ds-hover);
+  color: var(--cl-text-muted);
 }
 
 /* -----------------------------------------------------------------------
@@ -1327,62 +1300,7 @@ a { color: inherit; text-decoration: none; }
   }
 }
 
-/* -----------------------------------------------------------------------
-   19) DARK MODE
------------------------------------------------------------------------ */
-
-body.dark .chat-list-root,
-[data-theme="dark"] .chat-list-root {
-  --cl-bg: #111318;
-  --cl-surface: #1a1d24;
-  --cl-surface-elevated: #22262e;
-  --cl-beige-50: #1a1d24;
-  --cl-beige-100: #252932;
-  --cl-beige-200: #2e333d;
-  --cl-beige-300: #383e4a;
-  --cl-text: #e8eaed;
-  --cl-text-secondary: #9aa0a6;
-  --cl-text-muted: #6b7280;
-  --cl-border: rgba(255, 255, 255, 0.08);
-  --cl-border-subtle: rgba(255, 255, 255, 0.04);
-}
-
-body.dark .chat-list-search-box,
-[data-theme="dark"] .chat-list-search-box {
-  background: var(--cl-beige-100);
-}
-
-body.dark .chat-list-chip:hover,
-[data-theme="dark"] .chat-list-chip:hover {
-  background: var(--cl-beige-300);
-}
-
-body.dark .chat-list-row:hover,
-[data-theme="dark"] .chat-list-row:hover {
-  background: var(--cl-beige-100);
-}
-
-body.dark .chat-list-row.is-active,
-[data-theme="dark"] .chat-list-row.is-active {
-  background: var(--cl-green-soft);
-}
-
-body.dark .chat-list-novo-menu,
-[data-theme="dark"] .chat-list-novo-menu {
-  background: var(--cl-surface);
-  border-color: var(--cl-border);
-}
-
-body.dark .chat-list-novo-item:hover,
-[data-theme="dark"] .chat-list-novo-item:hover {
-  background: var(--cl-beige-100);
-}
-
-body.dark .chat-list-select,
-[data-theme="dark"] .chat-list-select {
-  background: var(--cl-beige-100);
-  border-color: var(--cl-border);
-}
+/* Dark mode usa variáveis do bloco [data-theme="dark"] acima */
 
 /* -----------------------------------------------------------------------
    20) REDUCED MOTION

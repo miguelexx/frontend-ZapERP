@@ -3,37 +3,33 @@
    ZapERP · Kommo/HubSpot · Tons neutros · Flat · Ícones finos · Zero ruído
    ========================================================================== */
 
-/* ---- Variáveis (alinhadas com chatList + WhatsApp Web) ---- */
+/* ---- Variáveis — Design System + WhatsApp Web ---- */
 :root {
-  --wa-bg: #efeae2;
-  --wa-bg-pattern: #e5ddd5;
-  --wa-header-bg: #f0f2f5;
-  --wa-panel: #ffffff;
-  --wa-panel-border: rgba(0, 0, 0, 0.06);
-  --wa-input-bg: #ffffff;
-  --wa-bubble-in: #f0f2f5;
-  --wa-bubble-out: #d9fdd3;
-  --wa-green: #00a884;
-  --wa-green-send: #25d366;
-  --wa-text: #111b21;
-  --wa-text-muted: #667781;
-  --wa-text-light: #8696a0;
-  --wa-radius: 12px;
-  --wa-radius-sm: 8px;
-  --wa-bubble-radius: 14px;
-  --wa-bubble-radius-lg: 16px;
-  --wa-bubble-min-width: 88px;
-  --wa-bubble-min-width-with-meta: 130px;
-  --wa-bubble-max-width: 68%;
+  --wa-bg: var(--ds-chat-bg);
+  --wa-bg-pattern: var(--ds-surface-3);
+  --wa-header-bg: var(--ds-chat-header);
+  --wa-panel: var(--ds-surface-1);
+  --wa-panel-border: var(--ds-border);
+  --wa-input-bg: var(--ds-input-bg);
+  --wa-bubble-in: var(--ds-bubble-in);
+  --wa-bubble-out: var(--ds-bubble-out);
+  --wa-green: var(--ds-accent);
+  --wa-green-send: var(--ds-accent);
+  --wa-text: var(--ds-text-primary);
+  --wa-text-muted: var(--ds-text-tertiary);
+  --wa-text-light: var(--ds-text-muted);
+  --wa-radius: var(--ds-radius-lg);
+  --wa-radius-sm: var(--ds-radius);
+  --wa-bubble-radius: 8px;
+  --wa-bubble-radius-lg: 12px;
   --wa-bubble-padding-x: 12px;
-  --wa-bubble-padding-y: 8px;
-  --wa-shadow-subtle: 0 1px 0.5px rgba(0, 0, 0, 0.04);
-  --wa-shadow-bubble: 0 1px 0.5px rgba(0, 0, 0, 0.04);
-  --wa-status-green: #25a366;
+  --wa-bubble-padding-y: 9px;
+  --wa-shadow-subtle: var(--ds-shadow-xs);
+  --wa-shadow-bubble: var(--ds-shadow-xs);
+  --wa-status-green: var(--ds-accent);
   --wa-status-blue: #53bdeb;
   --wa-status-orange: #e7a33e;
 
-  /* Áudio (player) — CRM premium: discreto, sofisticado, responsivo */
   --wa-audio-accent: rgba(0,168,132,.92);
   --wa-audio-surface-in: rgba(255,255,255,.58);
   --wa-audio-surface-out: rgba(255,255,255,.42);
@@ -43,39 +39,20 @@
   --wa-audio-bar-out: rgba(17, 27, 33, 0.18);
   --wa-audio-track: rgba(17, 27, 33, 0.10);
   --wa-audio-track-out: rgba(17, 27, 33, 0.08);
-  --wa-audio-glow: 0 10px 24px rgba(0,0,0,.10);
+  --wa-audio-glow: var(--ds-shadow-sm);
 }
 
-/* Tema escuro — estilo WhatsApp Web dark / CRM */
 [data-theme="dark"] {
-  --wa-bg: #0b141a;
-  --wa-bg-pattern: #202c33;
-  --wa-header-bg: #202c33;
-  --wa-panel: #111827;
-  --wa-panel-border: rgba(148, 163, 184, 0.3);
-  --wa-input-bg: #1f2937;
-  --wa-bubble-in: #202c33;
-  --wa-bubble-out: #005c4b;
-  --wa-green: #22c55e;
-  --wa-green-send: #22c55e;
-  --wa-text: #f9fafb;
-  --wa-text-muted: #d1d5db;
-  --wa-text-light: #9ca3af;
-  --wa-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.8);
-  --wa-shadow-bubble: 0 4px 14px rgba(0, 0, 0, 0.9);
-  --wa-status-green: #22c55e;
-  --wa-status-blue: #3b82f6;
-  --wa-status-orange: #fbbf24;
-
+  --wa-shadow-bubble: 0 1px 3px rgba(0, 0, 0, 0.25);
   --wa-audio-accent: rgba(34,197,94,.92);
-  --wa-audio-surface-in: rgba(17,24,39,.92);
-  --wa-audio-surface-out: rgba(15,23,42,.88);
-  --wa-audio-border-in: rgba(148,163,184,.45);
-  --wa-audio-border-out: rgba(55,65,81,.6);
-  --wa-audio-bar: rgba(248,250,252,0.7);
-  --wa-audio-bar-out: rgba(209,213,219,0.8);
-  --wa-audio-track: rgba(31,41,55,0.9);
-  --wa-audio-track-out: rgba(31,41,55,0.9);
+  --wa-audio-surface-in: rgba(32,44,51,.95);
+  --wa-audio-surface-out: rgba(0,92,75,.9);
+  --wa-audio-border-in: rgba(255,255,255,.1);
+  --wa-audio-border-out: rgba(255,255,255,.08);
+  --wa-audio-bar: rgba(233,237,239,.75);
+  --wa-audio-bar-out: rgba(233,237,239,.65);
+  --wa-audio-track: rgba(255,255,255,.08);
+  --wa-audio-track-out: rgba(255,255,255,.06);
 }
 
 /* =========================================================
@@ -152,7 +129,7 @@
   padding: 0;
 }
 .wa-header-back:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--ds-hover);
 }
 
 .wa-header-left {
@@ -232,16 +209,16 @@
 .wa-header-setorBtn {
   font-size: 12px;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
   border: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--ds-hover);
   color: var(--wa-text-muted);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--ds-transition), color var(--ds-transition);
 }
 
 .wa-header-setorBtn:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--ds-hover-strong);
   color: var(--wa-text);
 }
 
@@ -313,21 +290,21 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--ds-hover);
   color: var(--wa-text-muted);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--ds-transition), color var(--ds-transition);
 }
 
 .wa-header-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--ds-hover-strong);
   color: var(--wa-text);
 }
 
 .wa-header-btn.isActive {
-  background: rgba(0, 168, 132, 0.1);
+  background: var(--ds-accent-soft);
   color: var(--wa-green);
 }
 
@@ -802,29 +779,29 @@
    bordas suaves, nunca magrelos. Quebra de linha automática.
 ========================================================= */
 
+/* Bolhas — proporção WhatsApp Web, padding equilibrado, sombras sutis */
 .wa-bubble {
   position: relative;
   width: fit-content;
   min-width: 0;
   max-width: min(420px, 65%);
-  padding: 4px 40px 6px 8px;
-  border-radius: 8px;
-  box-shadow: 0 1px 0.5px rgba(0,0,0,0.04);
-  line-height: 1.35;
+  padding: 6px 42px 8px 10px;
+  border-radius: var(--wa-bubble-radius);
+  box-shadow: var(--wa-shadow-bubble);
+  line-height: 1.4;
   font-size: 14px;
   display: inline-block;
   overflow-wrap: break-word;
   box-sizing: border-box;
+  transition: box-shadow 0.15s ease;
 }
 
-/* Mensagens de texto: largura/altura conforme conteúdo, espaço mínimo para meta */
 .wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
   max-width: min(420px, 65%);
-  
 }
 
 .wa-bubble:hover {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--ds-shadow-sm);
   z-index: 2;
 }
 
@@ -954,8 +931,8 @@
 .wa-inlineMeta .wa-ticks.read svg{
   color:#53bdeb;
 }
-.wa-bubble-out .wa-inlineMeta{
-  color: rgba(0, 0, 0, 0.45);
+.wa-bubble-out .wa-inlineMeta {
+  color: var(--ds-text-muted);
 }
 .wa-inlineTime{
   opacity: .95;
@@ -1180,8 +1157,8 @@
 }
 
 [data-theme="dark"] .wa-bubble-reaction {
-  background: rgba(48, 54, 66, 0.9);
-  color: #e5e7eb;
+  background: var(--ds-bg-overlay);
+  color: var(--ds-text-primary);
 }
 
 /* Botão de reagir — fora do balão, só no hover (esquerda para enviadas, direita para recebidas) */
@@ -1303,17 +1280,15 @@
   font-size: 13px;
 }
 
-body.dark .wa-bubble-file,
 [data-theme="dark"] .wa-bubble-file {
-  background: #202c33;
-  border-color: #202c33;
-  color: #e9edef;
+  background: var(--ds-surface-3);
+  border-color: var(--ds-border);
+  color: var(--ds-text-primary);
 }
 
-body.dark .wa-bubble-file:hover,
 [data-theme="dark"] .wa-bubble-file:hover {
-  background: #111b21;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+  background: var(--ds-surface-2);
+  box-shadow: var(--ds-shadow-sm);
 }
 
 
@@ -1808,14 +1783,14 @@ body.dark .wa-bubble-file:hover,
 .wa-msgMenuBtn:focus-visible,
 .wa-audioPlayBtn:focus-visible,
 .wa-sendBtn:focus-visible,
-.wa-recording-send:focus-visible{
-  outline:2px solid rgba(0,168,132,.5);
-  outline-offset:2px;
+.wa-recording-send:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
 }
 
-.wa-input:focus-visible{
-  outline:none;
-  box-shadow:0 0 0 2px rgba(0,168,132,.18);
+.wa-input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-focus-ring);
 }
 /* Em mensagens com meta inline, o meta absoluto vira só o menu (no topo direito) */
 .wa-bubble.hasInlineMeta .wa-bubble-meta{
@@ -1908,10 +1883,10 @@ body.dark .wa-bubble-file:hover,
   position: fixed;
   min-width: 180px;
   padding: 6px;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,.08);
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.14);
+  background: var(--ds-bg-raised);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-lg);
   z-index: 9999;
   overflow-y: auto;
 }
@@ -1931,7 +1906,7 @@ body.dark .wa-bubble-file:hover,
 }
 
 .wa-msgMenuItem:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--ds-hover);
 }
 
 .wa-msgMenuItemDanger {
@@ -1944,7 +1919,7 @@ body.dark .wa-bubble-file:hover,
 
 .wa-msgMenuSep {
   height: 1px;
-  background: rgba(0,0,0,.08);
+  background: var(--ds-border);
   margin: 6px 6px;
 }
 
@@ -1995,30 +1970,30 @@ body.dark .wa-bubble-file:hover,
   width: min(520px, 100%);
   max-height: min(520px, 90vh);
   overflow: auto;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,.10);
-  border-radius: 14px;
-  box-shadow: 0 18px 60px rgba(0,0,0,.24);
+  background: var(--ds-bg-raised);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-lg);
 }
 
 /* Modal de transferência (atendentes) */
 .wa-transferModal{
   width: min(420px, 100%);
 }
-.wa-transferSearch{
+.wa-transferSearch {
   width: 100%;
   height: 38px;
   padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,0,0,.10);
-  background: #fff;
+  border-radius: var(--ds-radius-lg);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-input-bg);
   color: var(--wa-text);
   font-size: 13px;
   outline: none;
 }
-.wa-transferSearch:focus{
-  box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.14);
-  border-color: rgba(0, 168, 132, 0.28);
+.wa-transferSearch:focus {
+  box-shadow: 0 0 0 2px var(--ds-focus-ring);
+  border-color: var(--ds-accent-soft);
 }
 .wa-transferList{
   display: grid;
@@ -2027,21 +2002,21 @@ body.dark .wa-bubble-file:hover,
   overflow: auto;
   padding-right: 2px;
 }
-.wa-transferItem{
+.wa-transferItem {
   width: 100%;
   text-align: left;
-  border-radius: 12px;
-  border: 1px solid rgba(0,0,0,.06);
-  background: rgba(0,0,0,.02);
+  border-radius: var(--ds-radius-lg);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-hover);
   padding: 10px 12px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
   cursor: pointer;
 }
-.wa-transferItem:hover:not(:disabled){
-  background: rgba(0,0,0,.04);
+.wa-transferItem:hover:not(:disabled) {
+  background: var(--ds-hover-strong);
 }
 .wa-transferItem:disabled{
   opacity: .55;
@@ -2085,7 +2060,7 @@ body.dark .wa-bubble-file:hover,
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(0,0,0,.06);
+  border-bottom: 1px solid var(--ds-border);
 }
 
 .wa-modal-title {
@@ -2819,7 +2794,7 @@ body.dark .wa-bubble-file:hover,
 }
 
 .wa-input:focus {
-  box-shadow: 0 0 0 1px rgba(0, 168, 132, 0.2);
+  box-shadow: 0 0 0 1px var(--ds-accent-soft);
 }
 
 .wa-sendBtn {
