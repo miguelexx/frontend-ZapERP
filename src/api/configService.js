@@ -156,6 +156,12 @@ export async function excluirCliente(id) {
   await api.delete(`/clientes/${id}`)
 }
 
+/** Apaga todos os clientes da empresa (conversas mantidas, cliente_id=null) */
+export async function excluirTodosClientes() {
+  const { data } = await api.delete('/clientes/todos')
+  return data
+}
+
 // Tags do cliente
 export async function getClienteTags(clienteId) {
   const { data } = await api.get(`/clientes/${clienteId}/tags`)

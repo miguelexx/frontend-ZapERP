@@ -302,6 +302,10 @@ a { color: inherit; text-decoration: none; }
   to { transform: rotate(360deg); }
 }
 
+.chat-list-spin {
+  animation: clIconSpin 1s linear infinite;
+}
+
 @keyframes clIconSweep {
   0% { transform: translateX(-120%); }
   45% { transform: translateX(120%); }

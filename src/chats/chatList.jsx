@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil } from "./chatService";
+import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil, sincronizarContatos } from "./chatService";
+import { useNotificationStore } from "../notifications/notificationStore";
 import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
@@ -450,45 +451,56 @@ function getPhone(chat) {
   return s;
 }
 
+/** Formata telefone BR: +55 (XX) XXXXX-XXXX (cel) ou +55 (XX) XXXX-XXXX (fixo) */
 function formatPhoneForDisplay(phone) {
   const p = String(phone || "").replace(/\D/g, "");
+  if (p.length === 0) return "";
+  const clean = p.startsWith("55") && p.length > 10 ? p.slice(2) : p;
+  const ddd = clean.length >= 10 ? clean.slice(0, 2) : clean.slice(0, 2) || "";
+  const rest = clean.slice(ddd.length) || "";
+  if (rest.length === 9) return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+  if (rest.length === 8) return `+55 (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
   if (p.length >= 10) return `+${p}`;
-  return p || "";
+  return `+${p}`;
 }
 
-/** Usa nome vindo da API (contato_nome/nome) com fallbacks. Nunca exibir LID (lid:xxx) como nome. */
+/** Nome: cliente.nome || nome_contato_cache || pushname || telefone formatado. Nunca exibir LID. */
 function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome ?? "";
     const n = String(nome || "").trim();
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
-    return getPhone(chat) || "Grupo";
+    return formatPhoneForDisplay(getPhone(chat)) || "Grupo";
   }
   const raw =
-    chat?.contato_nome ??
-    chat?.cliente_nome ??
     chat?.cliente?.nome ??
+    chat?.cliente_nome ??
+    chat?.contato_nome ??
+    chat?.nome_contato_cache ??
+    chat?.pushname ??
     chat?.nome ??
     "";
   const nome = String(raw || "").trim();
   if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
-  // fallback: número exibível
-  return getPhone(chat) || "Contato";
+  const tel = getPhone(chat);
+  return tel ? formatPhoneForDisplay(tel) : "Contato";
 }
 
 /**
- * Par único nome + foto do mesmo contato (evita desalinhamento).
- * Usa foto_perfil (backend) ou senderPhoto/photo (webhook). Sempre use displayName e avatarUrl juntos.
+ * Par único nome + foto do mesmo contato.
+ * Foto: cliente.foto_perfil || foto_perfil_contato_cache || senderPhoto/photo || avatar padrão
  */
 function getContactDisplay(chat) {
   const isGroup = isGroupConversation(chat);
   const displayName = getDisplayName(chat);
-  const phone = chat?.telefone_exibivel || "";
+  const phoneRaw = chat?.telefone_exibivel ?? chat?.cliente_telefone ?? chat?.telefone ?? "";
+  const phone = phoneRaw ? formatPhoneForDisplay(phoneRaw) : "";
   const rawFoto = isGroup
     ? (chat?.foto_grupo ?? null)
     : (
-        chat?.foto_perfil ??
         chat?.cliente?.foto_perfil ??
+        chat?.foto_perfil ??
+        chat?.foto_perfil_contato_cache ??
         chat?.clientes?.foto_perfil ??
         chat?.senderPhoto ??
         chat?.photo ??
@@ -804,6 +816,9 @@ export default function ChatList() {
   // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
   const [zapiConnected, setZapiConnected] = useState(null);
   const [zapiStatusLoaded, setZapiStatusLoaded] = useState(false);
+  const [syncingContacts, setSyncingContacts] = useState(false);
+
+  const showToast = useNotificationStore((s) => s.showToast);
 
   // Na montagem: verificar conexão Z-API + sincronizar fotos em background
   useEffect(() => {
@@ -842,11 +857,39 @@ export default function ChatList() {
       const data = await fetchChats(params);
       let list = Array.isArray(data) ? data : [];
       if (mineOnly && user?.id) list = list.filter((c) => String(c.atendente_id) === String(user.id));
-      // Desduplicar por id (conversas) ou por cliente_id (clientes sem conversa) — NÃO descartar itens com id null
+      // Dedupe por id > cliente_id > telefone/canonicalPhone (mesmo número = mesma chave) > chatLid
+      const normTel = (v) => String(v || "").replace(/\D/g, "") || null;
+      const getNum = (c) => normTel(c?.telefone ?? c?.telefone_exibivel ?? c?.cliente_telefone ?? c?.phone ?? c?.wa_id ?? c?.canonicalPhone ?? c?.canonical_phone) || null;
+      const getKey = (c) => {
+        if (c?.id != null) return `conv-${c.id}`;
+        if (c?.cliente_id != null && c?.sem_conversa) return `cliente-${c.cliente_id}`;
+        const num = getNum(c);
+        if (num) return `num-${num}`;
+        const lid = String(c?.chatLid ?? c?.chat_lid ?? "").trim();
+        if (lid && lid.toLowerCase().startsWith("lid:")) return `lid-${lid}`;
+        return `rand-${Math.random()}`;
+      };
       const byKey = new Map();
       list.forEach((c) => {
-        const key = c?.id != null ? `conv-${c.id}` : (c?.cliente_id != null ? `cliente-${c.cliente_id}` : `tel-${c?.telefone ?? Math.random()}`);
-        if (!byKey.has(key)) byKey.set(key, c);
+        const key = getKey(c);
+        const existing = byKey.get(key);
+        if (!existing) {
+          byKey.set(key, c);
+          return;
+        }
+        const prefer = (a, b) => {
+          const aHasTel = !!normTel(a?.telefone ?? a?.telefone_exibivel ?? a?.cliente_telefone);
+          const bHasTel = !!normTel(b?.telefone ?? b?.telefone_exibivel ?? b?.cliente_telefone);
+          if (aHasTel && !bHasTel) return a;
+          if (!aHasTel && bHasTel) return b;
+          const aTs = new Date(a?.ultima_atividade ?? a?.ultima_mensagem?.criado_em ?? a?.criado_em ?? 0).getTime();
+          const bTs = new Date(b?.ultima_atividade ?? b?.ultima_mensagem?.criado_em ?? b?.criado_em ?? 0).getTime();
+          if (aTs !== bTs) return aTs > bTs ? a : b;
+          const aHasInfo = !!(a?.contato_nome || a?.nome || a?.nome_contato_cache || a?.foto_perfil || a?.foto_perfil_contato_cache);
+          const bHasInfo = !!(b?.contato_nome || b?.nome || b?.nome_contato_cache || b?.foto_perfil || b?.foto_perfil_contato_cache);
+          return aHasInfo && !bHasInfo ? a : b;
+        };
+        byKey.set(key, prefer(existing, c));
       });
       list = Array.from(byKey.values());
       const getTs = (c) =>
@@ -974,6 +1017,51 @@ export default function ChatList() {
 
     const path = routes[type];
     if (path) navigate(path);
+  }
+
+  async function handleSincronizarContatos() {
+    setSyncingContacts(true);
+    try {
+      const res = await sincronizarContatos();
+      const criados = res?.criados ?? 0;
+      const atualizados = res?.atualizados ?? 0;
+      showToast({
+        type: "success",
+        title: "Sincronização concluída",
+        message: `Sincronização: ${criados} novos, ${atualizados} atualizados`,
+      });
+      load();
+    } catch (e) {
+      const status = e?.response?.status;
+      const needsRestore = e?.response?.data?.needsRestore || e?.response?.data?.code === "needs_restore";
+      if (status === 401) {
+        // Interceptor já redireciona para login
+        return;
+      }
+      if (status === 409 || needsRestore) {
+        showToast({
+          type: "warning",
+          title: "Reconectar WhatsApp",
+          message: "É necessário reconectar o WhatsApp nas configurações.",
+        });
+        return;
+      }
+      if (status === 502 || status >= 500) {
+        showToast({
+          type: "error",
+          title: "Falha ao sincronizar",
+          message: e?.response?.data?.error || "Servidor indisponível. Tente novamente.",
+        });
+        return;
+      }
+      showToast({
+        type: "error",
+        title: "Erro",
+        message: e?.response?.data?.error || e?.message || "Erro ao sincronizar contatos.",
+      });
+    } finally {
+      setSyncingContacts(false);
+    }
   }
 
   function handleSelecionarConversa(chatId) {
@@ -1162,6 +1250,19 @@ export default function ChatList() {
             </Icon>
           </HeaderButton>
 
+          <HeaderButton title="Sincronizar contatos" onClick={handleSincronizarContatos} disabled={syncingContacts}>
+            <Icon size={14}>
+              {syncingContacts ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="chat-list-spin">
+                  <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </Icon>
+          </HeaderButton>
           <HeaderButton title="Atualizar" onClick={load}>
             <Icon size={14}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">

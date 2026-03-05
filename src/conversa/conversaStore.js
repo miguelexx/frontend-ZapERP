@@ -131,10 +131,13 @@ export const useConversaStore = create((set, get) => ({
         if (fromList) {
           const merged = { ...conversa }
           if (!merged.contato_nome && fromList.contato_nome) merged.contato_nome = fromList.contato_nome
-          if (!merged.cliente_nome && (fromList.contato_nome || fromList.nome)) {
-            merged.cliente_nome = fromList.contato_nome || fromList.nome
+          if (!merged.contato_nome && fromList.nome_contato_cache) merged.contato_nome = fromList.nome_contato_cache
+          if (!merged.contato_nome && fromList.pushname) merged.contato_nome = fromList.pushname
+          if (!merged.cliente_nome && (fromList.contato_nome || fromList.nome || fromList.nome_contato_cache)) {
+            merged.cliente_nome = fromList.contato_nome || fromList.nome || fromList.nome_contato_cache
           }
           if (!merged.foto_perfil && fromList.foto_perfil) merged.foto_perfil = fromList.foto_perfil
+          if (!merged.foto_perfil && fromList.foto_perfil_contato_cache) merged.foto_perfil = fromList.foto_perfil_contato_cache
           if (!merged.nome_grupo && fromList.nome_grupo) merged.nome_grupo = fromList.nome_grupo
           if (!merged.cliente && fromList.cliente) merged.cliente = fromList.cliente
           conversa = merged
@@ -258,14 +261,16 @@ export const useConversaStore = create((set, get) => ({
   },
 
   /* =====================================================
-     MENSAGENS
+     MENSAGENS (de-dup por id e whatsapp_id)
   ===================================================== */
   anexarMensagem: (msg) => {
     if (!msg?.id) return
     set((state) => {
       const list = state.mensagens || []
-      const existe = list.some((m) => String(m.id) === String(msg.id))
-      if (existe) return state
+      const existeById = list.some((m) => String(m.id) === String(msg.id))
+      if (existeById) return state
+      const whatsappId = msg?.whatsapp_id
+      if (whatsappId && list.some((m) => String(m.whatsapp_id) === String(whatsappId))) return state
       const byId = new Map(list.map((m) => [String(m.id), m]))
       byId.set(String(msg.id), msg)
       const sorted = Array.from(byId.values()).sort(
@@ -277,11 +282,19 @@ export const useConversaStore = create((set, get) => ({
     })
   },
 
+  /** Atualiza mensagem por id ou whatsapp_id (fallback para status_mensagem) */
   patchMensagem: (mensagemId, partial) => {
-    if (mensagemId == null || !partial) return
+    if ((mensagemId == null || mensagemId === "") && !partial?.whatsapp_id) return
+    if (!partial || (Object.keys(partial).length === 0)) return
     set((state) => {
       const list = state.mensagens || []
-      const idx = list.findIndex((m) => String(m.id) === String(mensagemId))
+      let idx = -1
+      if (mensagemId != null && mensagemId !== "") {
+        idx = list.findIndex((m) => String(m.id) === String(mensagemId))
+      }
+      if (idx === -1 && partial?.whatsapp_id) {
+        idx = list.findIndex((m) => String(m.whatsapp_id) === String(partial.whatsapp_id))
+      }
       if (idx === -1) return state
       const next = [...list]
       next[idx] = { ...next[idx], ...partial }

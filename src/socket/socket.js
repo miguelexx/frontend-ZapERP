@@ -125,7 +125,7 @@ export function initSocket(token) {
   })
 
   /* ===========================
-     🔥 NOVA MENSAGEM (COM SOM + BADGE)
+     🔥 NOVA MENSAGEM (COM SOM + BADGE) — de-dup por whatsapp_id
   =========================== */
   socket.on("nova_mensagem", (msg) => {
     const conversaId = msg?.conversa_id
@@ -135,6 +135,19 @@ export function initSocket(token) {
     const convStore = useConversaStore.getState()
     const chats = chatStore.chats || []
     const jaNaLista = chats.some(c => String(c.id) === String(conversaId))
+
+    /* de-dup: se conversa aberta e mensagem já existe por id ou whatsapp_id, ignorar */
+    const isAbertaConv = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
+    if (isAbertaConv && msg?.whatsapp_id) {
+      const msgs = convStore.mensagens || []
+      const jaExiste = msgs.some(m => String(m.whatsapp_id) === String(msg.whatsapp_id))
+      if (jaExiste) return
+    }
+    if (isAbertaConv && msg?.id) {
+      const msgs = convStore.mensagens || []
+      const jaExiste = msgs.some(m => String(m.id) === String(msg.id))
+      if (jaExiste) return
+    }
 
     const nomeContato =
       (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
@@ -233,10 +246,10 @@ export function initSocket(token) {
   })
 
   /* ===========================
-     ✅ STATUS DA MENSAGEM (Z-API)
+     ✅ STATUS DA MENSAGEM (Z-API) — fallback por whatsapp_id
   =========================== */
   socket.on("status_mensagem", ({ mensagem_id, conversa_id, status, whatsapp_id }) => {
-    if (!mensagem_id) return
+    if (!mensagem_id && !whatsapp_id) return
     // Normalizar para o mesmo valor em lista e mensagem (setas sincronizadas)
     const raw = status != null ? String(status).toLowerCase().trim() : ""
     const s =
@@ -255,6 +268,7 @@ export function initSocket(token) {
     }
 
     // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)
+    // Fallback: match por mensagem_id ou whatsapp_id
     if (conversa_id) {
       const chatStore = useChatStore.getState()
       const chats = chatStore.chats || []
@@ -264,9 +278,12 @@ export function initSocket(token) {
         const u = cur?.ultima_mensagem
         const msgs = cur?.mensagens || cur?.messages || []
         const lastFromArray = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null
-        if (u && String(u.id) === String(mensagem_id)) {
+        const matchById = (m) => mensagem_id && String(m?.id) === String(mensagem_id)
+        const matchByWa = (m) => whatsapp_id && String(m?.whatsapp_id) === String(whatsapp_id)
+        const match = (m) => matchById(m) || matchByWa(m)
+        if (u && match(u)) {
           chatStore.setUltimaMensagem(conversa_id, { ...u, status_mensagem: s, status: s })
-        } else if (lastFromArray && String(lastFromArray.id) === String(mensagem_id)) {
+        } else if (lastFromArray && match(lastFromArray)) {
           chatStore.setUltimaMensagem(conversa_id, { ...lastFromArray, status_mensagem: s, status: s })
         }
       }

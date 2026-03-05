@@ -1001,6 +1001,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
   const [searching, setSearching] = useState(false);
   const [abrindoId, setAbrindoId] = useState(null);
   const [excluindoId, setExcluindoId] = useState(null);
+  const [excluindoTodos, setExcluindoTodos] = useState(false);
   const [clienteModal, setClienteModal] = useState(null); // { mode: "new"|"edit", data }
 
   useEffect(() => {
@@ -1099,6 +1100,28 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
     }
   };
 
+  const handleApagarTodosClientes = async () => {
+    if (clientes.length === 0 && !busca.trim()) {
+      alert("Não há clientes para apagar.");
+      return;
+    }
+    const msg = busca.trim()
+      ? "Apagar TODOS os clientes desta empresa? (inclusive os que não aparecem na busca atual). As conversas continuarão sem vínculo. Esta ação não pode ser desfeita."
+      : `Apagar TODOS os ${clientes.length} cliente(s)? As conversas continuarão sem vínculo. Esta ação não pode ser desfeita.`;
+    if (!window.confirm(msg)) return;
+    setExcluindoTodos(true);
+    try {
+      const res = await cfg.excluirTodosClientes();
+      alert(res?.mensagem || `${res?.apagados ?? 0} cliente(s) apagado(s).`);
+      onRefresh?.();
+    } catch (e) {
+      console.error("Erro ao apagar todos os clientes:", e);
+      alert(e.response?.data?.erro || e.message || "Erro ao apagar clientes.");
+    } finally {
+      setExcluindoTodos(false);
+    }
+  };
+
   const avatarUrl = (c) => {
     const url = c?.foto_perfil;
     if (!url || !String(url).trim().startsWith("http")) return null;
@@ -1109,13 +1132,24 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
     <div className="ia-section">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h4 style={{ margin: 0 }}>Clientes</h4>
-        <button
-          type="button"
-          className="ia-btn ia-btn--primary"
-          onClick={() => setClienteModal({ mode: "new", data: null })}
-        >
-          Novo cliente
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            type="button"
+            className="ia-btn ia-btn--primary"
+            onClick={() => setClienteModal({ mode: "new", data: null })}
+          >
+            Novo cliente
+          </button>
+          <button
+            type="button"
+            className="ia-btn ia-btn--outline"
+            style={{ color: "#dc2626", borderColor: "#dc2626" }}
+            disabled={excluindoTodos || (clientes.length === 0 && !busca.trim())}
+            onClick={handleApagarTodosClientes}
+          >
+            {excluindoTodos ? "Apagando…" : "Apagar todos os clientes"}
+          </button>
+        </div>
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

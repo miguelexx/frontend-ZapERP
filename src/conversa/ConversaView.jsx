@@ -1474,11 +1474,14 @@ export default function ConversaView() {
       return isLidValue(g) ? "Grupo" : g;
     }
     const raw =
+      conversa?.cliente?.nome ||
       conversa?.contato_nome ||
       fromChat?.contato_nome ||
       conversa?.cliente_nome ||
-      fromChat?.cliente_nome ||
-      conversa?.cliente?.nome ||
+      conversa?.nome_contato_cache ||
+      conversa?.pushname ||
+      fromChat?.nome_contato_cache ||
+      fromChat?.pushname ||
       conversa?.nome ||
       "";
     const n = String(raw || "").trim();
@@ -1501,9 +1504,11 @@ export default function ConversaView() {
   const rawAvatarUrl = isGroup
     ? (conversa?.foto_grupo ?? fromChat?.foto_grupo ?? null)
     : (
+        conversa?.cliente?.foto_perfil ??
         conversa?.foto_perfil ??
         fromChat?.foto_perfil ??
-        conversa?.cliente?.foto_perfil ??
+        conversa?.foto_perfil_contato_cache ??
+        fromChat?.foto_perfil_contato_cache ??
         conversa?.clientes?.foto_perfil ??
         conversa?.senderPhoto ??
         conversa?.photo ??

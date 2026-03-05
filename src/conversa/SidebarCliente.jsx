@@ -224,9 +224,11 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
 
   const clienteNome = useMemo(() => {
     const raw =
+      conversa?.cliente?.nome ||
       conversa?.cliente_nome ||
       conversa?.contato_nome ||
-      conversa?.cliente?.nome ||
+      conversa?.nome_contato_cache ||
+      conversa?.pushname ||
       conversa?.nome ||
       "";
     const s = String(raw || "").trim();
@@ -273,7 +275,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   }, [cliEmpresa, cliente?.empresa, conversa?.cliente?.empresa, conversa?.cliente_empresa, conversa?.empresa]);
 
   const fotoPerfil = useMemo(() => {
-    const url = conversa?.foto_perfil || conversa?.clientes?.foto_perfil || conversa?.cliente?.foto_perfil || null;
+    const url = conversa?.cliente?.foto_perfil || conversa?.foto_perfil || conversa?.foto_perfil_contato_cache || conversa?.clientes?.foto_perfil || null;
     const s = url ? String(url).trim() : "";
     return s && s.startsWith("http") ? s : null;
   }, [conversa]);
