@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import "./ZapERPLogo.css";
 
 /**
@@ -28,7 +28,6 @@ export default function ZapERPLogo({
   const s = String(size || "md");
 
   const rootRef = useRef(null);
-  const uid = useMemo(() => `zpl_${Math.random().toString(16).slice(2)}`, []);
 
   useEffect(() => {
     if (!interactive || !rootRef.current) return;
@@ -134,47 +133,26 @@ export default function ZapERPLogo({
     >
       {v !== "wordmark" && (
         <span className="zpl-mark" aria-hidden="true">
-          {/* camadas tech */}
-          <span className="zpl-underGlow" />
-          <span className="zpl-conicRing" />
-          <span className="zpl-grid" />
-          <span className="zpl-particles" />
-          <span className="zpl-scanline" />
-          <span className="zpl-spotlight" />
-          <span className="zpl-edgeShine" />
-
           <svg className="zpl-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id={`${uid}_stroke`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="var(--zpl-primary)" />
-                <stop offset="100%" stopColor="var(--zpl-primary-dark)" />
-              </linearGradient>
-
-              <linearGradient id={`${uid}_inner`} x1="10" y1="12" x2="54" y2="52" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-                <stop offset="100%" stopColor="rgba(255,255,255,0.85)" />
-              </linearGradient>
-            </defs>
-
-            {/* balão “clean” (premium) */}
+            {/* Balão flat — ícone minimal e reconhecível */}
             <path
               className="zpl-bubble"
               d="M18 14h28a8 8 0 0 1 8 8v20a8 8 0 0 1-8 8H34l-10 8v-8h-6a8 8 0 0 1-8-8V22a8 8 0 0 1 8-8Z"
-              fill={`url(#${uid}_inner)`}
-              stroke={`url(#${uid}_stroke)`}
-              strokeWidth="2.6"
+              fill="var(--zpl-bubble-fill)"
+              stroke="var(--zpl-primary)"
+              strokeWidth="1.5"
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-
-            {/* detalhe minimal “tick” interno (bem sutil, tech) */}
+            {/* Check minimal */}
             <path
               className="zpl-tick"
-              d="M24.5 33.5l5.2 5.2L40.2 28.2"
-              stroke="rgba(13,148,136,0.38)"
-              strokeWidth="2.4"
+              d="M26 34l6 6 14-14"
+              stroke="var(--zpl-primary)"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              fill="none"
             />
           </svg>
         </span>
