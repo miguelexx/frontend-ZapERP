@@ -1009,6 +1009,7 @@ function Bubble({
                     type="button"
                     className="wa-bubble-imgLink"
                     onClick={(e) => {
+                      if (selectMode) return;
                       e.stopPropagation();
                       onOpenMedia?.(mediaUrl, isSticker ? "figurinha" : "imagem");
                     }}
@@ -1019,16 +1020,32 @@ function Bubble({
                 </div>
               ) : isVideo ? (
                 <div className="wa-bubble-mediaStack">
-                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
-                    <video src={mediaUrl} controls className="wa-bubble-videoEl" />
-                  </a>
+                  <button
+                    type="button"
+                    className="wa-bubble-videoLink"
+                    onClick={(e) => {
+                      if (selectMode) return;
+                      e.stopPropagation();
+                      onOpenMedia?.(mediaUrl, "video");
+                    }}
+                  >
+                    <video src={mediaUrl} playsInline className="wa-bubble-videoEl" />
+                  </button>
                   {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
                 </div>
               ) : isFile ? (
-                <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-file">
+                <button
+                  type="button"
+                  className="wa-bubble-file"
+                  onClick={(e) => {
+                    if (selectMode) return;
+                    e.stopPropagation();
+                    onOpenMedia?.(mediaUrl, "arquivo", msg?.nome_arquivo);
+                  }}
+                >
                   <span className="wa-bubble-fileIcon">📎</span>
                   <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
-                </a>
+                </button>
               ) : hasText ? (
                 inlineMeta ? (
                   <span className="wa-bubble-text wa-bubble-textInline">
@@ -1051,6 +1068,7 @@ function Bubble({
                 type="button"
                 className="wa-bubble-imgLink"
                 onClick={(e) => {
+                  if (selectMode) return;
                   e.stopPropagation();
                   onOpenMedia?.(mediaUrl, isSticker ? "figurinha" : "imagem");
                 }}
@@ -1061,9 +1079,17 @@ function Bubble({
             </div>
           ) : isVideo && mediaUrl ? (
             <div className="wa-bubble-mediaStack">
-              <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-videoLink">
-                <video src={mediaUrl} controls className="wa-bubble-videoEl" />
-              </a>
+              <button
+                type="button"
+                className="wa-bubble-videoLink"
+                onClick={(e) => {
+                  if (selectMode) return;
+                  e.stopPropagation();
+                  onOpenMedia?.(mediaUrl, "video");
+                }}
+              >
+                <video src={mediaUrl} playsInline className="wa-bubble-videoEl" />
+              </button>
               {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
             </div>
           ) : isAudio && mediaUrl ? (
@@ -1087,11 +1113,19 @@ function Bubble({
               {showAudioText ? <div className="wa-bubble-audioCaption">{renderTextWithLinks(texto)}</div> : null}
             </div>
           ) : isFile ? (
-            <a href={mediaUrl} target="_blank" rel="noreferrer" className="wa-bubble-file">
+            <button
+              type="button"
+              className="wa-bubble-file"
+              onClick={(e) => {
+                if (selectMode) return;
+                e.stopPropagation();
+                onOpenMedia?.(mediaUrl, "arquivo", msg?.nome_arquivo);
+              }}
+            >
               <span className="wa-bubble-fileIcon">📎</span>
               <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
               <span className="wa-bubble-fileHint">Abrir</span>
-            </a>
+            </button>
           ) : isCall ? (
             <div className="wa-callBubble">
               <div className="wa-callIcon" aria-hidden="true">📞</div>
@@ -1376,7 +1410,7 @@ export default function ConversaView() {
   const [dragOver, setDragOver] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
-  const [mediaViewer, setMediaViewer] = useState(null); // { url, alt }
+  const [mediaViewer, setMediaViewer] = useState(null); // { url, type, fileName }
   const [localReactions, setLocalReactions] = useState({});
   const [reactionLoading, setReactionLoading] = useState({});
 
@@ -1661,9 +1695,9 @@ export default function ConversaView() {
     setPendingPreview(null);
   }, [pendingPreview]);
 
-  const openMediaViewer = useCallback((url, alt) => {
+  const openMediaViewer = useCallback((url, type = "imagem", fileName) => {
     if (!url) return;
-    setMediaViewer({ url, alt: alt || "Mídia" });
+    setMediaViewer({ url, type: type || "imagem", fileName: fileName || null });
   }, []);
 
   const closeMediaViewer = useCallback(() => {
@@ -3514,35 +3548,51 @@ export default function ConversaView() {
 
         {mediaViewer ? createPortal(
           <div
-            className="wa-modalOverlay wa-imageViewerOverlay"
+            className="wa-modalOverlay wa-mediaViewerOverlay"
             role="dialog"
             aria-label="Visualizar mídia"
-            onMouseDown={closeMediaViewer}
+            onMouseDown={(e) => e.target === e.currentTarget && closeMediaViewer()}
           >
-            <div className="wa-imageViewer" onMouseDown={(e) => e.stopPropagation()}>
-              <img
-                src={mediaViewer.url}
-                alt={mediaViewer.alt || "Mídia"}
-                className="wa-imageViewer-img"
-              />
-            </div>
-          </div>,
-          document.body
-        ) : null}
-
-        {mediaViewer ? createPortal(
-          <div
-            className="wa-modalOverlay wa-imageViewerOverlay"
-            role="dialog"
-            aria-label="Visualizar mídia"
-            onMouseDown={closeMediaViewer}
-          >
-            <div className="wa-imageViewer" onMouseDown={(e) => e.stopPropagation()}>
-              <img
-                src={mediaViewer.url}
-                alt={mediaViewer.alt || "Mídia"}
-                className="wa-imageViewer-img"
-              />
+            <div className="wa-mediaViewer" onMouseDown={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="wa-mediaViewer-close"
+                onClick={closeMediaViewer}
+                title="Fechar (Esc)"
+                aria-label="Fechar"
+              >
+                <IconClose />
+              </button>
+              {mediaViewer.type === "video" ? (
+                <video src={mediaViewer.url} controls autoPlay playsInline className="wa-mediaViewer-video" />
+              ) : mediaViewer.type === "arquivo" ? (
+                (() => {
+                  const fn = (mediaViewer.fileName || "").toLowerCase();
+                  const isPdf = fn.endsWith(".pdf");
+                  const isImg = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fn);
+                  if (isImg) {
+                    return <img src={mediaViewer.url} alt={mediaViewer.fileName || "Arquivo"} className="wa-mediaViewer-img" />;
+                  }
+                  if (isPdf) {
+                    return <iframe src={mediaViewer.url} title={mediaViewer.fileName || "Documento"} className="wa-mediaViewer-iframe" />;
+                  }
+                  return (
+                    <div className="wa-mediaViewer-file">
+                      <span className="wa-mediaViewer-fileIcon">📎</span>
+                      <span className="wa-mediaViewer-fileName">{mediaViewer.fileName || "Arquivo"}</span>
+                      <a href={mediaViewer.url} target="_blank" rel="noreferrer" className="wa-btn wa-btn-primary">
+                        Abrir arquivo
+                      </a>
+                    </div>
+                  );
+                })()
+              ) : (
+                <img
+                  src={mediaViewer.url}
+                  alt={mediaViewer.type === "figurinha" ? "Figurinha" : "Imagem"}
+                  className="wa-mediaViewer-img"
+                />
+              )}
             </div>
           </div>,
           document.body

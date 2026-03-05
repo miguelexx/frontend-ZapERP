@@ -781,151 +781,306 @@
    bordas suaves, nunca magrelos. Quebra de linha automática.
 ========================================================= */
 
-/* Bolhas — largura dinâmica baseada no conteúdo, estilo WhatsApp Web */
+/* =========================================================
+   BOLHAS DE MENSAGEM — estilo WhatsApp Web
+========================================================= */
+
 .wa-bubble {
   position: relative;
   display: inline-block;
+
   width: fit-content;
   min-width: 0;
   max-width: 65%;
+
   padding: 6px 42px 8px 10px;
-  border-radius: var(--wa-bubble-radius);
-  box-shadow: var(--wa-shadow-bubble);
+
+  border-radius: 7.5px;
+
+  box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+
   line-height: 1.4;
   font-size: 14px;
+
   overflow-wrap: break-word;
+  word-break: break-word;
+
   box-sizing: border-box;
-  transition: box-shadow 0.15s ease;
+
+  transition: box-shadow .15s ease;
 }
 
-.wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
-  max-width: 65%;
+.wa-bubble:hover{
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  z-index:2;
 }
 
-.wa-bubble:hover {
-  box-shadow: var(--ds-shadow-sm);
-  z-index: 2;
-}
+/* =========================================================
+   CORES IN / OUT
+========================================================= */
 
-.wa-bubble-in {
+.wa-bubble-in{
   background: var(--wa-bubble-in);
   border-top-left-radius: 4px;
   color: var(--wa-text);
 }
 
-.wa-bubble-out {
+.wa-bubble-out{
   background: var(--wa-bubble-out);
   border-top-right-radius: 4px;
   color: var(--wa-text);
 }
 
-/* Cauda da bolha — overlay no canto, não aumenta o balão */
+/* =========================================================
+   CAUDA DA BOLHA
+========================================================= */
+
 .wa-bubble-in::after,
-.wa-bubble-out::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  width: 8px;
-  height: 9px;
-  pointer-events: none;
+.wa-bubble-out::after{
+  content:"";
+  position:absolute;
+  bottom:0;
+
+  width:8px;
+  height:9px;
+
+  pointer-events:none;
 }
 
-.wa-bubble-in::after {
-  left: -3px;
-  background: var(--wa-bubble-in);
-  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+.wa-bubble-in::after{
+  left:-3px;
+  background:var(--wa-bubble-in);
+
+  clip-path:polygon(
+    100% 0,
+    0 100%,
+    100% 100%
+  );
 }
 
-.wa-bubble-out::after {
-  right: -3px;
-  background: var(--wa-bubble-out);
-  clip-path: polygon(0 0, 0 100%, 100% 100%);
-}
+.wa-bubble-out::after{
+  right:-3px;
+  background:var(--wa-bubble-out);
 
-.wa-bubble-body {
-  width: auto;
-  max-width: 100%;
-  min-width: 0;
-  word-break: break-word;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  padding-bottom: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-}
-
-.wa-bubble-text {
-  font-size: 14px;
-  line-height: 1.35;
-  padding-right: 0;
-  color: var(--wa-text);
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-.wa-bubble-remetente {
-  font-size: 12px;
-  font-weight: 500;
-  margin-bottom: 0;
+  clip-path:polygon(
+    0 0,
+    0 100%,
+    100% 100%
+  );
 }
 
 /* =========================================================
-   Texto + horário + ticks (estilo WhatsApp Web)
-   - Horário/ticks sempre dentro do balão, em linha separada à direita
-   - Balão com altura proporcional ao conteúdo
+   CORPO DO BALÃO
 ========================================================= */
-.wa-bubble.hasInlineMeta {
-  min-width: 0;
-  padding: 5px 36px 5px 8px;
+
+.wa-bubble-body{
+
+  width:auto;
+  max-width:100%;
+  min-width:0;
+
+  word-break:break-word;
+  white-space:pre-wrap;
+  overflow-wrap:break-word;
+
+  padding-bottom:0;
+
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
 }
-.wa-bubble-textInline {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+
+/* =========================================================
+   TEXTO
+========================================================= */
+
+.wa-bubble-text{
+
+  font-size:14px;
+  line-height:1.35;
+
+  padding-right:0;
+
+  color:var(--wa-text);
+
+  word-break:break-word;
+  overflow-wrap:anywhere;
 }
-.wa-bubble-textInline > .wa-inlineMeta {
-  align-self: flex-end;
+
+/* =========================================================
+   REMETENTE (GRUPOS)
+========================================================= */
+
+.wa-bubble-remetente{
+
+  font-size:12px;
+  font-weight:500;
+
+  margin-bottom:2px;
+
+  color:#667781;
 }
-/* =========================================
-   META (hora + ticks) — canto inferior direito, dentro do balão
-========================================= */
+
+/* =========================================================
+   TEXTO + META
+========================================================= */
+
+.wa-bubble.hasInlineMeta{
+
+  min-width:0;
+
+  padding:5px 36px 5px 8px;
+}
+
+.wa-bubble-textInline{
+
+  display:flex;
+  flex-direction:column;
+
+  align-items:stretch;
+
+  gap:2px;
+}
+
+.wa-bubble-textInline > .wa-inlineMeta{
+
+  align-self:flex-end;
+}
+
+/* =========================================================
+   META (HORA + TICKS)
+========================================================= */
 
 .wa-inlineMeta{
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 0;
-  margin-top: 1px;
-  flex-shrink: 0;
 
-  font-size: 10.5px;
-  color: var(--wa-text-light);
+  display:inline-flex;
 
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  line-height: 1;
+  align-items:center;
+
+  gap:2px;
+
+  margin-top:2px;
+
+  flex-shrink:0;
+
+  font-size:10.5px;
+
+  color:var(--wa-text-light);
+
+  font-variant-numeric:tabular-nums;
+
+  white-space:nowrap;
+
+  line-height:1;
 }
 
-
-/* =========================================
+/* =========================================================
    TICKS
-========================================= */
+========================================================= */
 
 .wa-inlineMeta .wa-ticks{
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-  margin-left: 1px;
-  transform: none;
-}
 
+  display:inline-flex;
+
+  align-items:center;
+
+  line-height:1;
+
+  margin-left:2px;
+}
 
 .wa-inlineMeta .wa-ticksSvg,
 .wa-inlineMeta .wa-ticks svg{
+
   width:14px;
   height:11px;
+}
+
+/* =========================================================
+   LINKS
+========================================================= */
+
+.wa-bubble-text a{
+
+  color:#53bdeb;
+
+  text-decoration:none;
+}
+
+.wa-bubble-text a:hover{
+
+  text-decoration:underline;
+}
+
+/* =========================================================
+   EMOJIS
+========================================================= */
+
+.wa-bubble-text img.emoji{
+
+  width:20px;
+  height:20px;
+
+  vertical-align:-4px;
+}
+
+/* =========================================================
+   MENSAGENS LONGAS
+========================================================= */
+
+.wa-bubble-text p{
+
+  margin:0;
+}
+
+/* =========================================================
+   RESPONSIVO
+========================================================= */
+
+@media (max-width:768px){
+
+  .wa-bubble{
+
+    max-width:85%;
+
+    font-size:13px;
+  }
+
+  .wa-bubble-text{
+
+    font-size:13px;
+  }
+}
+
+/* =========================================================
+   ESTADO SELECIONADO
+========================================================= */
+
+.wa-bubble.selected{
+
+  box-shadow:0 0 0 2px rgba(37,211,102,0.35);
+}
+
+/* =========================================================
+   ANIMAÇÃO DE ENTRADA
+========================================================= */
+
+.wa-bubble{
+
+  animation:wa-messageFade .12s ease-out;
+}
+
+@keyframes wa-messageFade{
+
+  from{
+    opacity:0;
+    transform:translateY(3px);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
 }
 
 
@@ -1088,6 +1243,8 @@
   text-decoration: none;
   border: 1px solid rgba(148, 163, 184, 0.35);
   transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
+  font: inherit;
 }
 
 .wa-bubble-file:hover {
@@ -1580,6 +1737,11 @@
   border-radius: 8px;
   overflow: hidden;
   max-width: 280px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
 
 .wa-bubble-videoEl {
@@ -1969,6 +2131,85 @@
   max-height: 100%;
   object-fit: contain;
   display: block;
+}
+
+/* Media Viewer — foto/vídeo/figurinha/arquivo na mesma página (estilo WhatsApp) */
+.wa-mediaViewerOverlay {
+  background: rgba(0, 0, 0, 0.92);
+  cursor: default;
+}
+
+.wa-mediaViewer {
+  position: relative;
+  max-width: min(900px, 98vw);
+  max-height: min(90vh, 98vh);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.wa-mediaViewer-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.wa-mediaViewer-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.wa-mediaViewer-img {
+  max-width: 100%;
+  max-height: calc(100vh - 80px);
+  object-fit: contain;
+  display: block;
+}
+
+.wa-mediaViewer-video {
+  max-width: 100%;
+  max-height: calc(100vh - 80px);
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+.wa-mediaViewer-iframe {
+  width: min(90vw, 800px);
+  height: min(85vh, 700px);
+  border: none;
+  display: block;
+}
+
+.wa-mediaViewer-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  color: #fff;
+}
+.wa-mediaViewer-fileIcon {
+  font-size: 48px;
+}
+.wa-mediaViewer-fileName {
+  font-size: 16px;
+  word-break: break-all;
+  text-align: center;
 }
 
 .wa-modal {
