@@ -387,8 +387,9 @@ function DaySeparator({ label }) {
 /**
  * Status ✓ / ✓✓ / ✓✓ azul
  * - tenta inferir por campos comuns (status, lida_em, lidaEm, read_at, etc.)
+ * - grupos: nunca mostra "read" (azul) — WhatsApp não envia confirmação de leitura em grupos
  */
-function MessageTicks({ msg }) {
+function MessageTicks({ msg, isGroup }) {
   const out = msg?.direcao === "out";
   if (!out) return null;
 
@@ -401,11 +402,12 @@ function MessageTicks({ msg }) {
   const hasDeliveredKeyword = /entregue|deliver|receiv/.test(s);
   const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou";
   const isPending = s === "pending" || s === "enviando" || s === "sending";
-  const isRead =
+  let isRead =
     s === "lida" || s === "read" || s === "seen" ||
     s === "visualizada" || s === "played" ||
     hasReadAt ||
     hasReadKeyword;
+  if (isGroup) isRead = false; // grupos: cap em delivered, nunca azul
   const isDelivered =
     isRead ||
     s === "entregue" || s === "delivered" || s === "received" ||
@@ -739,6 +741,7 @@ function nameColor(seed) {
 function Bubble({
   msg,
   showRemetente,
+  isGroup,
   peerAvatarUrl,
   peerName,
   selectMode,
@@ -918,7 +921,6 @@ function Bubble({
     <div
       className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}`}
       data-msg-id={msg?.id}
-      data-whatsapp-id={msg?.whatsapp_id || undefined}
       data-group-start={showRemetente && !out ? "1" : "0"}
     >
       {selectMode ? (
@@ -992,11 +994,7 @@ function Bubble({
               <div className="wa-replyCtx-bar" aria-hidden="true" />
               <div className="wa-replyCtx-content">
                 <div className="wa-replyCtx-name">{replyMeta.name}</div>
-                <div className="wa-replyCtx-snippet">
-                  {(replyMeta.snippet || "").length > 120
-                    ? `${(replyMeta.snippet || "").slice(0, 120)}…`
-                    : replyMeta.snippet}
-                </div>
+                <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
               </div>
             </div>
           )}
@@ -1037,7 +1035,7 @@ function Bubble({
                     {renderTextWithLinks(texto)}
                     <span className="wa-inlineMeta" aria-label="Horário e status">
                       <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
-                      <MessageTicks msg={msg} />
+                      <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
                     </span>
                   </span>
                 ) : (
@@ -1107,7 +1105,7 @@ function Bubble({
                 {renderTextWithLinks(texto)}
                 <span className="wa-inlineMeta" aria-label="Horário e status">
                   <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
-                  <MessageTicks msg={msg} />
+                  <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
                 </span>
               </span>
             ) : (
@@ -1138,7 +1136,7 @@ function Bubble({
             {!inlineMeta && !isAudio ? (
               <>
                 <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>
-                <MessageTicks msg={msg} />
+                <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
               </>
             ) : null}
             {isPinned ? <span className="wa-bubble-badge" title="Fixada">📌</span> : null}
@@ -1474,14 +1472,11 @@ export default function ConversaView() {
       return isLidValue(g) ? "Grupo" : g;
     }
     const raw =
-      conversa?.cliente?.nome ||
       conversa?.contato_nome ||
       fromChat?.contato_nome ||
       conversa?.cliente_nome ||
-      conversa?.nome_contato_cache ||
-      conversa?.pushname ||
-      fromChat?.nome_contato_cache ||
-      fromChat?.pushname ||
+      fromChat?.cliente_nome ||
+      conversa?.cliente?.nome ||
       conversa?.nome ||
       "";
     const n = String(raw || "").trim();
@@ -1504,11 +1499,9 @@ export default function ConversaView() {
   const rawAvatarUrl = isGroup
     ? (conversa?.foto_grupo ?? fromChat?.foto_grupo ?? null)
     : (
-        conversa?.cliente?.foto_perfil ??
         conversa?.foto_perfil ??
         fromChat?.foto_perfil ??
-        conversa?.foto_perfil_contato_cache ??
-        fromChat?.foto_perfil_contato_cache ??
+        conversa?.cliente?.foto_perfil ??
         conversa?.clientes?.foto_perfil ??
         conversa?.senderPhoto ??
         conversa?.photo ??
@@ -1956,6 +1949,7 @@ export default function ConversaView() {
         });
       } finally {
         setSending(false);
+        requestAnimationFrame(() => inputRef.current?.focus());
       }
     },
     [conversaId, refresh, showToast, clearPending, anexarMensagem]
@@ -2219,6 +2213,7 @@ export default function ConversaView() {
       });
     } finally {
       setSending(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [conversaId, texto, replyTo, showToast, anexarMensagem, nome, emitTypingStop]);
 
@@ -2276,6 +2271,7 @@ export default function ConversaView() {
       });
     } finally {
       setSending(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast]);
 
@@ -2493,19 +2489,10 @@ export default function ConversaView() {
     }
   }, [conversaId, selectedSet, exitSelectMode, showToast]);
 
-  const scrollToMsg = useCallback((msgId, whatsappId) => {
-    if (!msgId && !whatsappId) return;
-    const sid = String(msgId || "");
-    const wid = safeString(whatsappId);
-    const el = sid
-      ? document.querySelector(`[data-msg-id="${sid}"]`)
-      : wid
-        ? document.querySelector(`[data-whatsapp-id="${wid}"]`)
-        : null;
-    if (!el) return;
-    el.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    el.classList.add("highlight-reply");
-    setTimeout(() => el.classList.remove("highlight-reply"), 1500);
+  const scrollToMsg = useCallback((msgId) => {
+    if (!msgId) return;
+    const el = document.querySelector(`[data-msg-id="${String(msgId)}"]`);
+    el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
   }, []);
 
   const jumpToReply = useCallback((replyToId) => {
@@ -2513,30 +2500,15 @@ export default function ConversaView() {
     if (!rid) return;
 
     const list = Array.isArray(mensagens) ? mensagens : [];
-    // 1. Preferir busca por whatsapp_id
     const byWaId = list.find((m) => safeString(m?.whatsapp_id) && String(m.whatsapp_id) === rid);
-    if (byWaId) {
-      scrollToMsg(byWaId.id, byWaId.whatsapp_id);
-      return;
-    }
-    // 2. Fallback: busca por id interno
-    const byId = list.find((m) => m?.id != null && String(m.id) === rid);
-    if (byId) {
-      scrollToMsg(byId.id, byId.whatsapp_id);
-      return;
-    }
-    // 3. Fallback: replyToId numérico pode ser id
-    if (/^\d{1,15}$/.test(rid)) {
-      const el = document.querySelector(`[data-msg-id="${rid}"]`);
-      if (el) {
-        scrollToMsg(rid);
-        return;
-      }
-    }
+    if (byWaId?.id) return scrollToMsg(byWaId.id);
+
+    // fallback: se veio id numérico do banco
+    if (/^\d{1,15}$/.test(rid)) return scrollToMsg(rid);
 
     showToast({
       type: "info",
-      title: "Mensagem citada não carregada",
+      title: "Mensagem não encontrada",
       message: "A mensagem respondida não está carregada neste histórico.",
     });
   }, [mensagens, scrollToMsg, showToast]);
@@ -3203,6 +3175,7 @@ export default function ConversaView() {
                   key={item.id}
                   msg={item}
                   showRemetente={Boolean(item.__showRemetente)}
+                  isGroup={isGroup}
                   peerAvatarUrl={avatarUrl}
                   peerName={nome}
                   selectMode={selectMode}

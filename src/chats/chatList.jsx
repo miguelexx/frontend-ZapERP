@@ -305,7 +305,7 @@ function getPreview(chat, { audioDurationSec } = {}) {
   return `${outPrefix}(sem texto)`;
 }
 
-function ChatTicks({ status }) {
+function ChatTicks({ status, isGroup }) {
   const raw = status;
   const s = String(raw ?? "").trim();
   const lower = s.toLowerCase();
@@ -313,18 +313,15 @@ function ChatTicks({ status }) {
   // Alguns providers retornam ack numérico (0..4)
   const maybeNum = typeof raw === "number" ? raw : /^\d+$/.test(lower) ? Number(lower) : null;
   if (maybeNum != null && Number.isFinite(maybeNum)) {
-    if (maybeNum <= 0) return <span className="chat-ticks chat-ticks--pending" title="Enviando">✓</span>; // sem relógio
+    if (maybeNum <= 0) return <span className="chat-ticks chat-ticks--pending" title="Enviando">✓</span>;
     if (maybeNum === 1) return <span className="chat-ticks" title="Enviada">✓</span>;
     if (maybeNum === 2) return <span className="chat-ticks" title="Entregue">✓✓</span>;
-    if (maybeNum >= 3) return <span className="chat-ticks chat-ticks--read" title="Visualizada">✓✓</span>;
+    if (maybeNum >= 3 && !isGroup) return <span className="chat-ticks chat-ticks--read" title="Visualizada">✓✓</span>;
+    if (maybeNum >= 3 && isGroup) return <span className="chat-ticks" title="Entregue">✓✓</span>;
   }
 
   const isErr = lower === "erro" || lower === "error" || lower === "failed" || lower === "falhou";
   const isPending = lower === "pending" || lower === "enviando";
-  // Regras WhatsApp:
-  // 1 ✓ = enviada (mas ainda não entregue)
-  // 2 ✓✓ = entregue
-  // 2 ✓✓ azul = visualizada (e/ou áudio "played")
   const isSent =
     !lower || lower === "sent" || lower === "enviado" || lower === "enviada" || lower === "send" || lower === "sending";
   const isDelivered =
@@ -333,12 +330,13 @@ function ChatTicks({ status }) {
     lower === "entregue" ||
     lower === "entregada" ||
     lower === "receivedcallback";
-  const isRead =
+  let isRead =
     lower === "read" ||
     lower === "seen" ||
     lower === "lida" ||
     lower === "visualizada" ||
     lower === "played";
+  if (isGroup) isRead = false; // grupos: nunca mostrar azul
 
   if (isErr) return <span className="chat-ticks chat-ticks--err" title="Erro ao enviar">⚠</span>;
   if (isRead) return <span className="chat-ticks chat-ticks--read" title="Visualizada">✓✓</span>;
@@ -355,6 +353,7 @@ function PreviewLine({ chat, audioDurationSec }) {
 
   const out = String(last?.direcao || "").toLowerCase() === "out";
   const status = last?.status ?? last?.status_mensagem ?? chat?.status ?? "";
+  const isGroup = isGroupConversation(chat);
 
   const txtRaw = last?.conteudo || last?.body || last?.texto || "";
   const txt = String(txtRaw || "").trim();
@@ -385,7 +384,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     const durLabel = dur || "0:00";
     return (
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
-        {out ? <ChatTicks status={status} /> : null}
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="audio" className={out ? "is-accent" : ""} />
         <span className={`chat-list-previewDur ${out ? "is-accent" : ""}`}>{durLabel}</span>
       </span>
@@ -395,7 +394,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (tipo === "imagem") {
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} /> : null}
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="imagem" />
         <span className="chat-list-previewText">{cap ? `Foto · ${cap}` : "Foto"}</span>
       </span>
@@ -404,7 +403,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (tipo === "video") {
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} /> : null}
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="video" />
         <span className="chat-list-previewText">{cap ? `Vídeo · ${cap}` : "Vídeo"}</span>
       </span>
@@ -413,7 +412,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (tipo === "sticker") {
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} /> : null}
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="sticker" />
         <span className="chat-list-previewText">{cap ? `Figurinha · ${cap}` : "Figurinha"}</span>
       </span>
@@ -423,7 +422,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     const n = String(last?.nome_arquivo || "").trim();
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} /> : null}
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="arquivo" />
         <span className="chat-list-previewText">{n || "Documento"}</span>
       </span>
@@ -432,7 +431,7 @@ function PreviewLine({ chat, audioDurationSec }) {
 
   return (
     <span className="chat-list-previewLine">
-      {out ? <ChatTicks status={status} /> : null}
+      {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
       <span className="chat-list-previewText">{txt || "Sem mensagens"}</span>
     </span>
   );
@@ -710,6 +709,7 @@ function ChatRow({
         <div className="chat-list-row-top">
           <div className="chat-list-row-title-wrap">
             <div className="chat-list-title-line">
+              {unread > 0 ? <span className="chat-list-unread-dot" title="Nova mensagem não lida" aria-hidden="true" /> : null}
               <div className="chat-list-title" title={displayName}>
                 {displayName}
               </div>
@@ -1069,7 +1069,7 @@ export default function ChatList() {
       });
     }
 
-    // ordenação (conversas primeiro por data; clientes sem conversa depois, por nome)
+    // ordenação: com notificação (não lidas) sempre no topo, depois por data
     list.sort((a, b) => {
       if (a?.sem_conversa && !b?.sem_conversa) return 1;
       if (!a?.sem_conversa && b?.sem_conversa) return -1;
@@ -1078,6 +1078,10 @@ export default function ChatList() {
         const nb = (b.contato_nome || "").toString().toLowerCase();
         return na.localeCompare(nb);
       }
+      const aUnread = Number(a?.unread_count ?? a?.unread ?? 0) > 0;
+      const bUnread = Number(b?.unread_count ?? b?.unread ?? 0) > 0;
+      if (aUnread && !bUnread) return -1;
+      if (!aUnread && bUnread) return 1;
       const aTs = new Date(
         a?.ultima_mensagem?.criado_em || getLastMessage(a)?.criado_em || a?.ultima_atividade || a?.criado_em || 0
       ).getTime();

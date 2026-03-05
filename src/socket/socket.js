@@ -20,8 +20,32 @@ function updateDocumentTitleFromChats() {
   applyDocumentTitle(total)
 }
 
-const audio = new Audio("/notification.mp3")
-audio.volume = 0.6
+// Som de notificação: tenta arquivo MP3, fallback para beep via Web Audio API
+function playNotificationSound() {
+  try {
+    const audio = new Audio("/notification.mp3")
+    audio.volume = 0.6
+    audio.play().catch(() => playFallbackBeep())
+  } catch (_) {
+    playFallbackBeep()
+  }
+}
+
+function playFallbackBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 880
+    osc.type = "sine"
+    gain.gain.setValueAtTime(0.3, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.15)
+  } catch (_) {}
+}
 
 function getChatDisplayName(conversaId) {
   const chats = useChatStore.getState().chats || []
@@ -69,6 +93,9 @@ export function initSocket(token) {
     const convId = useConversaStore.getState().selectedId
     if (convId) socket.emit("join_conversa", convId)
     updateDocumentTitleFromChats()
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {})
+    }
   })
 
   /* ===========================
@@ -161,23 +188,22 @@ export function initSocket(token) {
           : null
 
     if (!jaNaLista) {
+      const isAbertaParaInc = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
       chatStore.addChat({
         id: conversaId,
         contato_nome: nomeContato || "Conversa",
         foto_perfil: fotoContato,
-        unread_count: 0,
+        unread_count: isAbertaParaInc ? 0 : 1,
         ultima_mensagem: msg
       })
     } else {
-      // Conversa já existe: garantir que nome/foto sejam atualizados com dados frescos do webhook (ex.: chatName, photo)
+      // Só preenche nome/foto quando vazio — evita sobrescrever com dados inconsistentes do webhook
       const existing = chats.find(c => String(c.id) === String(conversaId))
       const patch = {}
-      if (nomeContato && nomeContato !== existing?.contato_nome) {
-        patch.contato_nome = nomeContato
-      }
-      if (fotoContato && fotoContato !== existing?.foto_perfil) {
-        patch.foto_perfil = fotoContato
-      }
+      const nomeVazio = !existing?.contato_nome || !String(existing.contato_nome).trim()
+      const fotoVazia = !existing?.foto_perfil || !String(existing.foto_perfil).trim()
+      if (nomeContato && nomeVazio) patch.contato_nome = nomeContato
+      if (fotoContato && fotoVazia) patch.foto_perfil = fotoContato
       if (Object.keys(patch).length > 0) {
         chatStore.updateChatContato(conversaId, patch)
       }
@@ -200,10 +226,7 @@ export function initSocket(token) {
       if (msg.direcao === "in") {
         const contato = getChatDisplayName(conversaId)
         const texto = (msg.texto || "").slice(0, 80)
-        try {
-          audio.currentTime = 0
-          audio.play()
-        } catch (_) {}
+        playNotificationSound()
         showDesktopNotification(contato, texto || "Nova mensagem")
         useNotificationStore.getState().showToast({
           type: "info",
@@ -361,18 +384,22 @@ export function initSocket(token) {
     } catch (_) {}
   })
 
-  /* Nome e foto do contato atualizados pela Z-API (tempo real) — uma só fonte na lista e na conversa */
+  /* Nome e foto do contato atualizados pela Z-API (tempo real) — só preenche quando vazio */
   socket.on("contato_atualizado", ({ conversa_id, contato_nome, foto_perfil }) => {
     if (conversa_id == null) return
-    useChatStore.getState().updateChatContato(conversa_id, { contato_nome, foto_perfil })
+    useChatStore.getState().updateChatContatoSeVazio(conversa_id, { contato_nome, foto_perfil })
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(conversa_id)) {
-      convStore.patchConversa({
-        id: conversa_id,
-        contato_nome: contato_nome ?? undefined,
-        cliente_nome: contato_nome ?? undefined,
-        foto_perfil: foto_perfil ?? undefined
-      })
+      const conv = convStore.conversa
+      const nomeVazio = !conv?.contato_nome && !conv?.cliente_nome
+      const fotoVazia = !conv?.foto_perfil
+      if ((nomeVazio && contato_nome) || (fotoVazia && foto_perfil)) {
+        convStore.patchConversa({
+          id: conversa_id,
+          ...(nomeVazio && contato_nome && { contato_nome, cliente_nome: contato_nome }),
+          ...(fotoVazia && foto_perfil && { foto_perfil })
+        })
+      }
     }
   })
 

@@ -96,6 +96,22 @@ export const useChatStore = create((set, get) => ({
     set({ chats: next })
   },
 
+  /** Só preenche nome/foto quando vazio — evita sobrescrever com dados inconsistentes */
+  updateChatContatoSeVazio: (conversa_id, { contato_nome, foto_perfil }) => {
+    if (conversa_id == null) return
+    const chats = get().chats || []
+    const idx = chats.findIndex(c => String(c.id) === String(conversa_id))
+    if (idx === -1) return
+    const cur = chats[idx]
+    const patch = {}
+    if (contato_nome != null && (!cur?.contato_nome || !String(cur.contato_nome).trim())) patch.contato_nome = contato_nome
+    if (foto_perfil != null && (!cur?.foto_perfil || !String(cur.foto_perfil).trim())) patch.foto_perfil = foto_perfil
+    if (Object.keys(patch).length === 0) return
+    const next = [...chats]
+    next[idx] = { ...cur, ...patch }
+    set({ chats: next })
+  },
+
   /* =========================================
      TAGS
   ========================================= */

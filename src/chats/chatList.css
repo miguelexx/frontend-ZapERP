@@ -997,6 +997,18 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
 }
 
+/* Ponto de notificação (nova mensagem não lida) */
+.chat-list-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cl-chip-active, #25d366);
+  flex-shrink: 0;
+  margin-right: 6px;
+  margin-top: 1px;
+}
+
 /* Linha com mensagens não lidas (igual WhatsApp: destaque visual) */
 .chat-list-row.has-unread .chat-list-title {
   font-weight: 600;
