@@ -779,12 +779,12 @@
    bordas suaves, nunca magrelos. Quebra de linha automática.
 ========================================================= */
 
-/* Bolhas — proporção WhatsApp Web, padding equilibrado, sombras sutis */
+/* Bolhas — ocupam mais largura, estilo WhatsApp Web */
 .wa-bubble {
   position: relative;
   width: fit-content;
   min-width: 0;
-  max-width: min(420px, 65%);
+  max-width: min(480px, 85%);
   padding: 6px 42px 8px 10px;
   border-radius: var(--wa-bubble-radius);
   box-shadow: var(--wa-shadow-bubble);
@@ -797,7 +797,7 @@
 }
 
 .wa-bubble:not(.wa-bubble-media):not(.wa-bubble-video):not(.wa-bubble-audio):not(.wa-bubble-fileWrap):not(.wa-bubble-sticker):not(.sticker-message) {
-  max-width: min(420px, 65%);
+  max-width: min(480px, 85%);
 }
 
 .wa-bubble:hover {
@@ -2317,14 +2317,22 @@
 .wa-replyCtx.isOut .wa-replyCtx-snippet {
   color: rgba(17, 27, 33, 0.74);
 }
-/* modo escuro */
-@media (prefers-color-scheme: dark) {
+/* Dark mode reply */
+[data-theme="dark"] .wa-replyCtx {
   /* mantém contraste mesmo no Windows “tema escuro” (nosso balão out ainda é verde claro) */
-  .wa-replyCtx { background: rgba(0,0,0,.10); border-color: rgba(0,0,0,.14); }
-  .wa-replyCtx.isOut { background: rgba(0,0,0,.12); border-color: rgba(0,0,0,.14); }
-  .wa-replyCtx-snippet { color: rgba(17, 27, 33, 0.84); }
-  .wa-replyCtx.isOut .wa-replyCtx-snippet { color: rgba(17, 27, 33, 0.80); }
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
 }
+[data-theme="dark"] .wa-replyCtx.isOut {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .wa-replyCtx-name { color: var(--ds-text-primary); }
+[data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-name { color: rgba(255, 255, 255, 0.95); }
+[data-theme="dark"] .wa-replyCtx-snippet { color: var(--ds-text-secondary); }
+[data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-snippet { color: rgba(255, 255, 255, 0.85); }
+[data-theme="dark"] .wa-replyCtx-bar { background: rgba(255, 255, 255, 0.5); }
+[data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-bar { background: var(--ds-accent); }
 
 /* highlight ao scroll para mensagem citada (reply) */
 .highlight-reply {
