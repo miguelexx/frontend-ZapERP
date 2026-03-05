@@ -788,6 +788,32 @@
   box-shadow: var(--wa-shadow-subtle);
 }
 
+.wa-loadMore {
+  padding: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.wa-loadMore-loading {
+  font-size: 13px;
+  color: var(--wa-text-muted);
+}
+
+.wa-loadMore-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-accent);
+  background: var(--ds-accent-soft);
+  border: none;
+  border-radius: var(--ds-radius);
+  cursor: pointer;
+}
+
+.wa-loadMore-btn:hover:not(:disabled) {
+  background: var(--ds-accent-muted);
+}
+
 /* =========================================================
    BOLHAS DE MENSAGEM — modernas, cantos 14–16px, sombra leve, tipografia 13–14px
 ========================================================= */
@@ -833,7 +859,7 @@
 
   width: fit-content;
   min-width: 0;
-  max-width: 65%;
+  max-width: min(52%, 400px);
 
   padding: 6px 42px 8px 10px;
 
@@ -2929,6 +2955,11 @@
   margin: 0;
 }
 
+@keyframes wa-attachSlideUp {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 [data-theme="dark"] .wa-attachMenu,
 .wa-shell[data-theme="dark"] .wa-attachMenu {
   --wa-attach-menu-bg: #2a3942;
@@ -3914,7 +3945,7 @@
    Touch-friendly (min 44px). Largura 100%, sem overflow.
 ========================================================= */
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .wa-header-back {
     display: flex !important;
     min-width: 44px;
@@ -3957,9 +3988,22 @@
   }
 
   .wa-bubble {
-    max-width: 65%;
+    max-width: 70%;
     min-width: var(--wa-bubble-min-width);
     padding: 10px 12px 12px 12px;
+  }
+
+  .wa-bubble-sticker .wa-bubble-img,
+  .wa-bubble.sticker-message .wa-bubble-img {
+    min-width: 80px;
+    min-height: 80px;
+    max-width: 120px;
+    max-height: 120px;
+  }
+
+  .wa-bubble.image-message .wa-bubble-img {
+    max-width: 75vw;
+    max-height: 280px;
   }
 
   .wa-bubble-meta { font-size: 9px; padding: 0 8px; }
@@ -3997,6 +4041,9 @@
 
   .wa-footer {
     flex-shrink: 0;
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0));
+    padding-left: calc(14px + env(safe-area-inset-left, 0));
+    padding-right: calc(14px + env(safe-area-inset-right, 0));
   }
 
   .wa-footer .wa-iconBtn {
@@ -4007,6 +4054,25 @@
   .wa-sendBtn {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* Menu de anexos vira bottom-sheet no mobile */
+  .wa-attachMenu {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    min-width: unset;
+    border-radius: 16px 16px 0 0;
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0));
+    margin: 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+    animation: wa-attachSlideUp 0.25s ease-out;
+  }
+
+  .wa-attachItem {
+    padding: 14px 20px;
+    min-height: 48px;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConversaStore } from "./conversaStore";
 import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao, enviarLink } from "./conversaService";
@@ -738,7 +738,7 @@ function nameColor(seed) {
   return `hsl(${hue} 70% 42%)`;
 }
 
-function Bubble({
+const Bubble = memo(function Bubble({
   msg,
   showRemetente,
   isGroup,
@@ -1280,7 +1280,7 @@ function Bubble({
         : null}
     </div>
   );
-}
+});
 
 /* =========================================================
    Hooks
@@ -1377,6 +1377,10 @@ export default function ConversaView() {
     loading,
     loadError,
     refresh,
+    loadMore,
+    loadingMore,
+    hasMore,
+    cursor,
     carregarConversa,
     anexarMensagem,
     reconciliarMensagem,
@@ -1427,6 +1431,7 @@ export default function ConversaView() {
   const [callSending, setCallSending] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const attachMenuRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef(null);
@@ -1824,6 +1829,30 @@ export default function ConversaView() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [attachMenuOpen]);
+
+  const loadMoreScrollRef = useRef({ top: 0, height: 0 });
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el || !hasMore || loadingMore || !cursor) return;
+    if (el.scrollTop < 120) {
+      loadMoreScrollRef.current = { top: el.scrollTop, height: el.scrollHeight };
+      loadMore();
+    }
+  }, [hasMore, loadingMore, cursor, loadMore]);
+
+  useEffect(() => {
+    if (loadingMore) return;
+    const { top, height } = loadMoreScrollRef.current;
+    if (top === 0 && height === 0) return;
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const diff = el.scrollHeight - height;
+    if (diff > 0) {
+      el.scrollTop = top + diff;
+    }
+    loadMoreScrollRef.current = { top: 0, height: 0 };
+  }, [loadingMore]);
 
   const handleDropFile = useCallback((file) => {
     if (!file) return;
@@ -3198,7 +3227,9 @@ export default function ConversaView() {
 
         {/* MENSAGENS */}
         <div
+          ref={messagesContainerRef}
           className="wa-messages"
+          onScroll={handleMessagesScroll}
           onDragOver={onDragOver}
           onDrop={onDrop}
           onDragLeave={onDragLeave}
@@ -3235,7 +3266,24 @@ export default function ConversaView() {
               <div className="wa-messages-emptyCard">Sem mensagens ainda.</div>
             </div>
           ) : (
-            mensagensComSeparadores.map((item) => {
+            <>
+              {hasMore && (
+                <div className="wa-loadMore" role="status" aria-live="polite">
+                  {loadingMore ? (
+                    <span className="wa-loadMore-loading">Carregando mais…</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="wa-loadMore-btn"
+                      onClick={() => loadMore()}
+                      disabled={loadingMore || !cursor}
+                    >
+                      Carregar mais
+                    </button>
+                  )}
+                </div>
+              )}
+              {mensagensComSeparadores.map((item) => {
               if (item.__type === "day") return <DaySeparator key={item.id} label={item.label} />;
               const msgKey = item.tempId || item.id;
               return (
@@ -3269,7 +3317,8 @@ export default function ConversaView() {
                   reactionBusy={Boolean(reactionLoading[String(msgKey)])}
                 />
               );
-            })
+            })}
+            </>
           )}
 
           <div ref={bottomRef} />

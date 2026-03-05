@@ -13,15 +13,15 @@
   --cl-space-5: 20px;
   --cl-space-6: 24px;
 
-  /* Paleta — bege claro + verde elegante */
-  --cl-bg: #faf9f7;
+  /* Paleta — bege WhatsApp (#e5ddd5) + verde elegante */
+  --cl-bg: #e5ddd5;
   --cl-surface: #ffffff;
-  --cl-surface-elevated: #fdfdfc;
+  --cl-surface-elevated: #f5f3f0;
 
-  --cl-beige-50: #faf9f7;
-  --cl-beige-100: #f5f3ef;
-  --cl-beige-200: #ebe8e3;
-  --cl-beige-300: #dfdbd5;
+  --cl-beige-50: #efeae2;
+  --cl-beige-100: #e8e4df;
+  --cl-beige-200: #dfdbd5;
+  --cl-beige-300: #d5d0c8;
 
   --cl-green: #0d9488;
   --cl-green-soft: rgba(13, 148, 136, 0.08);
@@ -718,9 +718,9 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-avatar {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
   border-radius: var(--cl-radius-full);
   display: flex;
   align-items: center;
@@ -1113,8 +1113,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-skel-avatar {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--cl-radius-full);
   background: linear-gradient(
     90deg,
@@ -1231,11 +1231,11 @@ a { color: inherit; text-decoration: none; }
   .chat-list-search-wrap,
   .chat-list-chips { padding: var(--cl-space-2) var(--cl-space-3); }
   .chat-list-row { padding: var(--cl-space-2) var(--cl-space-3); min-height: 64px; }
-  .chat-list-avatar { width: 44px; height: 44px; min-width: 44px; }
+  .chat-list-avatar { width: 52px; height: 52px; min-width: 52px; }
 }
 
-/* Mobile (768px): tela fixa, lista ocupa 100%, só a lista rola */
-@media (max-width: 768px) {
+/* Mobile (640px): tela fixa, lista ocupa 100%, só a lista rola */
+@media (max-width: 640px) {
   .chat-list-root {
     height: 100%;
     min-height: 0;
@@ -1283,9 +1283,9 @@ a { color: inherit; text-decoration: none; }
   }
 
   .chat-list-avatar {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
   }
 
   .chat-list-preview {
@@ -1306,9 +1306,9 @@ a { color: inherit; text-decoration: none; }
   }
 
   .chat-list-avatar {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
   }
 }
 

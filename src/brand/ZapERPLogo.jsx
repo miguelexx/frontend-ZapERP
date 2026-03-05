@@ -144,16 +144,6 @@ export default function ZapERPLogo({
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-            {/* Check minimal */}
-            <path
-              className="zpl-tick"
-              d="M26 34l6 6 14-14"
-              stroke="var(--zpl-primary)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
           </svg>
         </span>
       )}

@@ -677,3 +677,45 @@
     padding: 12px;
   }
 }
+
+/* Mobile: cards empilhados, botões full-width */
+@media (max-width: 640px) {
+  .ia-wrap {
+    padding: 16px 12px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0));
+  }
+
+  .ia-header {
+    margin-bottom: 16px;
+  }
+
+  .ia-title {
+    font-size: 18px;
+  }
+
+  .ia-content {
+    padding: 16px 12px;
+    max-height: none;
+    border-radius: 12px;
+    margin: 0 -4px;
+  }
+
+  .zapi-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .zapi-main {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .ia-btn-row {
+    flex-direction: column;
+  }
+
+  .ia-btn-row .ia-btn {
+    width: 100%;
+  }
+}

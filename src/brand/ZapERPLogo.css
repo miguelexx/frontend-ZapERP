@@ -116,10 +116,6 @@
   transition: opacity 0.2s ease;
 }
 
-.zpl-tick {
-  opacity: 0.9;
-}
-
 /* Tipografia — clean, sem text-shadow pesado */
 .zpl-word { min-width: 0; }
 
