@@ -1,29 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
   <defs>
     <pattern id="wa-icons" x="0" y="0" width="200" height="200" patternUnits="userSpaceOnUse">
-      <!-- Bal˜es de chat (estilo outline) -->
-      <path d="M20 25 Q20 18 28 18 L40 18 Q48 18 48 26 L48 38 Q48 46 38 46 L30 46 L26 52 L28 46 Q20 46 20 38 Z" fill="#000" opacity="0.022"/>
-      <path d="M120 85 Q120 78 128 78 L140 78 Q148 78 148 86 L148 98 Q148 106 138 106 L130 106 L126 112 L128 106 Q120 106 120 98 Z" fill="#000" opacity="0.022"/>
-      <path d="M60 145 Q60 138 68 138 L80 138 Q88 138 88 146 L88 158 Q88 166 78 166 L70 166 L66 172 L68 166 Q60 166 60 158 Z" fill="#000" opacity="0.018"/>
+      <!-- Bal?es de chat (estilo outline) - opacidade controlada via CSS no ::before -->
+      <path d="M20 25 Q20 18 28 18 L40 18 Q48 18 48 26 L48 38 Q48 46 38 46 L30 46 L26 52 L28 46 Q20 46 20 38 Z" fill="#000"/>
+      <path d="M120 85 Q120 78 128 78 L140 78 Q148 78 148 86 L148 98 Q148 106 138 106 L130 106 L126 112 L128 106 Q120 106 120 98 Z" fill="#000"/>
+      <path d="M60 145 Q60 138 68 138 L80 138 Q88 138 88 146 L88 158 Q88 166 78 166 L70 166 L66 172 L68 166 Q60 166 60 158 Z" fill="#000"/>
       <!-- Telefone -->
-      <path d="M160 35 L160 55 Q160 65 152 65 L140 65 Q130 65 130 55 L130 35 Q130 25 140 25 L152 25 Q160 25 160 35" fill="#000" opacity="0.022"/>
-      <!-- Rel˜gio -->
-      <circle cx="40" cy="120" r="12" fill="none" stroke="#000" stroke-width="1.2" opacity="0.022"/>
-      <line x1="40" y1="120" x2="40" y2="112" stroke="#000" stroke-width="1" opacity="0.022"/>
-      <line x1="40" y1="120" x2="46" y2="124" stroke="#000" stroke-width="1" opacity="0.022"/>
-      <!-- C˜mera -->
-      <rect x="135" y="115" width="18" height="14" rx="2" fill="none" stroke="#000" stroke-width="1" opacity="0.022"/>
-      <circle cx="144" cy="122" r="4" fill="#000" opacity="0.018"/>
+      <path d="M160 35 L160 55 Q160 65 152 65 L140 65 Q130 65 130 55 L130 35 Q130 25 140 25 L152 25 Q160 25 160 35" fill="#000"/>
+      <!-- Rel?gio -->
+      <circle cx="40" cy="120" r="12" fill="none" stroke="#000" stroke-width="1.2"/>
+      <line x1="40" y1="120" x2="40" y2="112" stroke="#000" stroke-width="1"/>
+      <line x1="40" y1="120" x2="46" y2="124" stroke="#000" stroke-width="1"/>
+      <!-- C?mera -->
+      <rect x="135" y="115" width="18" height="14" rx="2" fill="none" stroke="#000" stroke-width="1"/>
+      <circle cx="144" cy="122" r="4" fill="#000"/>
       <!-- Cadeado -->
-      <path d="M25 165 L25 155 Q25 150 32 150 L38 150 Q45 150 45 155 L45 165 Q45 170 38 170 L32 170 Q25 170 25 165" fill="#000" opacity="0.022"/>
-      <rect x="28" y="148" width="14" height="6" rx="1" fill="#000" opacity="0.022"/>
-      <!-- Localiza˜˜o/mapa -->
-      <path d="M155 170 Q155 155 168 155 Q178 155 178 168 Q178 182 168 182 Q155 182 155 170" fill="none" stroke="#000" stroke-width="1" opacity="0.022"/>
-      <circle cx="168" cy="165" r="2" fill="#000" opacity="0.022"/>
-      <!-- Cora˜˜o -->
-      <path d="M80 45 Q80 38 88 38 Q95 38 98 48 Q100 38 108 38 Q115 38 115 48 Q115 58 98 70 Q80 58 80 45" fill="#000" opacity="0.018"/>
+      <path d="M25 165 L25 155 Q25 150 32 150 L38 150 Q45 150 45 155 L45 165 Q45 170 38 170 L32 170 Q25 170 25 165" fill="#000"/>
+      <rect x="28" y="148" width="14" height="6" rx="1" fill="#000"/>
+      <!-- Localiza??o/mapa -->
+      <path d="M155 170 Q155 155 168 155 Q178 155 178 168 Q178 182 168 182 Q155 182 155 170" fill="none" stroke="#000" stroke-width="1"/>
+      <circle cx="168" cy="165" r="2" fill="#000"/>
+      <!-- Cora??o -->
+      <path d="M80 45 Q80 38 88 38 Q95 38 98 48 Q100 38 108 38 Q115 38 115 48 Q115 58 98 70 Q80 58 80 45" fill="#000"/>
       <!-- Estrela -->
-      <path d="M170 95 L173 102 L181 103 L175 108 L177 116 L170 111 L163 116 L165 108 L159 103 L167 102 Z" fill="#000" opacity="0.022"/>
+      <path d="M170 95 L173 102 L181 103 L175 108 L177 116 L170 111 L163 116 L165 108 L159 103 L167 102 Z" fill="#000"/>
     </pattern>
   </defs>
   <rect width="200" height="200" fill="url(#wa-icons)"/>

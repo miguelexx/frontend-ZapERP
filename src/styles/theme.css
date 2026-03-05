@@ -66,8 +66,16 @@
   --ds-transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ---- Componentes específicos (WhatsApp Web — cores fiéis) ---- */
-  --ds-chat-bg: #e5ddd5;
   --ds-chat-header: #f0f2f5;
+
+  /* ---- Chat background premium (LIGHT) ---- */
+  --ds-chat-bg: linear-gradient(180deg, #f7f8fa 0%, #eef1f4 50%, #f7f8fa 100%);
+  --wa-pattern-opacity: 0.06;
+  --wa-pattern-size: 240px 240px;
+  --wa-glow-opacity: 0.10;
+  --wa-glow-1: radial-gradient(ellipse 80% 50% at 70% 20%, rgba(0, 0, 0, 0.04), transparent);
+  --wa-glow-2: radial-gradient(ellipse 60% 40% at 30% 80%, rgba(0, 0, 0, 0.03), transparent);
+  --wa-pattern-blend: multiply;
   --ds-bubble-in: #ffffff;
   --ds-bubble-out: #dcf8c6;
   --ds-input-bg: #ffffff;
@@ -117,8 +125,13 @@
   --ds-shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.5);
 
   /* ---- Chat específico ---- */
-  --ds-chat-bg: #0b141a;
+  --ds-chat-bg: linear-gradient(180deg, #0b141a 0%, #0f1c23 40%, #0b141a 100%);
   --ds-chat-header: #202c33;
+  --wa-pattern-opacity: 0.035;
+  --wa-glow-opacity: 0.18;
+  --wa-glow-1: radial-gradient(ellipse 80% 50% at 70% 20%, rgba(255, 255, 255, 0.04), transparent);
+  --wa-glow-2: radial-gradient(ellipse 60% 40% at 30% 80%, rgba(255, 255, 255, 0.03), transparent);
+  --wa-pattern-blend: soft-light;
   --ds-bubble-in: #202c33;
   --ds-bubble-out: #005c4b;
   --ds-input-bg: #2a3942;

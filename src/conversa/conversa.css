@@ -55,9 +55,6 @@
   --wa-audio-track-out: rgba(255,255,255,.06);
 }
 
-[data-theme="dark"] .wa-messages {
-  background-image: none;
-}
 
 [data-theme="dark"] .wa-daySep-pill {
   background: rgba(255, 255, 255, 0.12);
@@ -704,8 +701,15 @@
 }
 
 /* =========================================================
-   ÁREA DE MENSAGENS — fundo WhatsApp Web (#e5ddd5 + padrão sutil)
+   ÁREA DE MENSAGENS — fundo premium LIGHT/DARK + pattern sutil + glow
 ========================================================= */
+
+@keyframes wa-glow-drift {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(15px, -10px); }
+  50% { transform: translate(-20px, 12px); }
+  75% { transform: translate(10px, 20px); }
+}
 
 .wa-messages {
   flex: 1;
@@ -717,11 +721,36 @@
   gap: 1px;
   min-height: 0;
   min-width: 0;
-  background-color: var(--wa-bg);
+  position: relative;
+  background: var(--ds-chat-bg);
+}
+
+.wa-messages::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background-image: url("/wa-chat-pattern.svg");
   background-repeat: repeat;
-  background-size: 200px 200px;
+  background-size: var(--wa-pattern-size);
   background-position: 0 0;
+  opacity: var(--wa-pattern-opacity);
+  mix-blend-mode: var(--wa-pattern-blend);
+  pointer-events: none;
+}
+
+.wa-messages::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--wa-glow-1), var(--wa-glow-2);
+  background-repeat: no-repeat;
+  background-position: 70% 20%, 30% 80%;
+  background-size: 80% 50%, 60% 40%;
+  opacity: var(--wa-glow-opacity);
+  pointer-events: none;
+  animation: wa-glow-drift 45s ease-in-out infinite;
 }
 
 .wa-messages::-webkit-scrollbar {
