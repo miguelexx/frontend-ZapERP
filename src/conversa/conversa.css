@@ -1273,55 +1273,142 @@
   padding-right: 0;
 }
 
-.wa-bubble-file {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.03);
+/* Card de arquivo estilo WhatsApp — ícone com extensão, nome, tipo/tamanho, timestamp, ticks, ações */
+.wa-bubble-fileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 4px;
   color: var(--wa-text);
   font-size: 13px;
-  text-decoration: none;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
-  cursor: pointer;
-  font: inherit;
+  max-width: 100%;
 }
 
-.wa-bubble-file:hover {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: rgba(148, 163, 184, 0.6);
-  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.15);
-  transform: translateY(-1px);
+.wa-bubble-fileTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
 }
 
-.wa-bubble-fileIcon {
-  width: 32px;
-  height: 42px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: #ecfdf3;
-  display: inline-flex;
+.wa-bubble-fileIconWrap {
+  flex-shrink: 0;
+  width: 48px;
+  height: 56px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Dobra do canto (efeito documento) */
+.wa-bubble-fileIconWrap::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 12px 12px 0;
+  border-color: transparent rgba(0, 0, 0, 0.15) transparent transparent;
+}
+
+.wa-bubble-fileExt {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+}
+
+.wa-bubble-fileMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .wa-bubble-fileName {
-  flex: 1;
-  min-width: 0;
+  font-weight: 500;
+  color: var(--wa-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-size: 14px;
 }
 
-.wa-bubble-fileHint {
-  font-size: 11px;
+.wa-bubble-fileTypeSize {
+  font-size: 12px;
+  color: var(--wa-text-muted);
   opacity: 0.9;
-  color: #2563eb;
+}
+
+.wa-bubble-fileTimeMeta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--wa-text-muted);
+  font-size: 11px;
+}
+
+.wa-bubble-fileTime {
+  white-space: nowrap;
+}
+
+.wa-bubble-fileActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wa-bubble-fileAction {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wa-green);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.wa-bubble-fileAction:hover:not(:disabled) {
+  color: var(--ds-accent-hover);
+  text-decoration: underline;
+}
+
+.wa-bubble-fileAction:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.wa-bubble-fileActionSep {
+  color: var(--wa-text-muted);
+  font-size: 10px;
+  opacity: 0.6;
+  user-select: none;
+}
+
+/* Dark: ícone com cores adaptadas */
+[data-theme="dark"] .wa-bubble-fileIconWrap {
+  background: linear-gradient(135deg, #4a5568 0%, #1a202c 100%);
+}
+
+[data-theme="dark"] .wa-bubble-fileExt {
+  color: #e2e8f0;
 }
 
 /* Reação já enviada — fora do balão, visível apenas no hover */
@@ -3911,6 +3998,212 @@
 .wa-btn-quick:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* =========================================================
+   SIDEBAR CLIENTE — Modo escuro (cores visíveis)
+========================================================= */
+[data-theme="dark"] .wa-sideCliente {
+  background: var(--ds-surface-1);
+  border-left-color: var(--ds-border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .wa-sideCliente-head {
+  background: linear-gradient(180deg, var(--ds-surface-2), var(--ds-surface-1));
+  border-bottom-color: var(--ds-border);
+}
+
+[data-theme="dark"] .wa-sideCliente-title {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-sub {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-hero {
+  background: linear-gradient(180deg, var(--ds-surface-2), var(--ds-surface-3));
+  border-color: var(--ds-border);
+}
+
+[data-theme="dark"] .wa-sideCliente-avatar {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--ds-border);
+}
+
+[data-theme="dark"] .wa-sideCliente-avatarFallback {
+  color: rgba(233, 237, 239, 0.9) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-heroName {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-heroSub,
+[data-theme="dark"] .wa-sideCliente-heroMeta {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-valueInline {
+  color: rgba(233, 237, 239, 0.95) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-actionBtn {
+  color: var(--ds-text-secondary);
+}
+
+[data-theme="dark"] .wa-sideCliente-actionBtn:hover:not(:disabled) {
+  background: var(--ds-hover);
+  color: var(--ds-text-primary);
+}
+
+[data-theme="dark"] .wa-sideCliente-section {
+  background: var(--ds-surface-2) !important;
+  border-color: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-sectionTitle {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-label,
+[data-theme="dark"] .wa-sideCliente-value,
+[data-theme="dark"] .wa-sideCliente-subTitle {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-value {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-miniPill {
+  border-color: var(--ds-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-miniPill.isEdit {
+  background: var(--ds-accent-soft);
+  border-color: rgba(0, 168, 132, 0.4);
+  color: var(--ds-accent) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-miniPill.isRead {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--ds-border);
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-lockHint {
+  border-color: var(--ds-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-details {
+  border-color: var(--ds-border);
+  background: var(--ds-surface-3) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-details > summary {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-saveBar {
+  border-color: var(--ds-border);
+  background: var(--ds-surface-2) !important;
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .wa-sideCliente-saveStatus {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-saveStatus.isOk {
+  color: var(--ds-accent) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-saveStatus.isWarn {
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-dotSep {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-muted {
+  color: var(--ds-text-secondary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-pill {
+  border-color: var(--ds-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-pill--open {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-pill--active {
+  border-color: rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.2);
+  color: #67e8f9 !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-pill--closed {
+  border-color: var(--ds-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-hint {
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-input,
+[data-theme="dark"] .wa-sideCliente-textarea {
+  background: var(--ds-input-bg) !important;
+  border-color: var(--ds-border) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-input::placeholder,
+[data-theme="dark"] .wa-sideCliente-textarea::placeholder {
+  color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-input:disabled {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+[data-theme="dark"] .wa-miniBtn {
+  border-color: var(--ds-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-miniBtn:hover:not(:disabled) {
+  background: var(--ds-hover);
+}
+
+[data-theme="dark"] .wa-sideCliente-sep {
+  background: var(--ds-border) !important;
+}
+
+[data-theme="dark"] .wa-btn-quick {
+  background: var(--ds-surface-2) !important;
+  border-color: var(--ds-border);
+  color: var(--ds-text-primary) !important;
+}
+
+[data-theme="dark"] .wa-btn-quick:hover:not(.isDisabled):not(:disabled) {
+  background: var(--ds-accent-soft) !important;
+  border-color: rgba(0, 168, 132, 0.4);
+  color: var(--ds-accent) !important;
 }
 
 /* =========================================================

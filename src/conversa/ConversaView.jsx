@@ -474,6 +474,69 @@ function MessageTicks({ msg, isGroup }) {
   );
 }
 
+/**
+ * Card de arquivo estilo WhatsApp: ícone com extensão, nome, tipo/tamanho,
+ * timestamp, ticks e links "Abrir" / "Salvar como..."
+ */
+function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup }) {
+  const nome = msg?.nome_arquivo || "Arquivo";
+  const ext = getFileExt(nome);
+  const bytes = msg?.tamanho ?? msg?.tamanho_bytes;
+  const size = formatFileSize(bytes);
+  const typeSize = size ? `${ext} · ${size}` : ext;
+
+  const handleCardClick = (e) => {
+    if (!selectMode) e.stopPropagation();
+  };
+
+  return (
+    <div className="wa-bubble-fileCard" onClick={handleCardClick}>
+      <div className="wa-bubble-fileTop">
+        <div className="wa-bubble-fileIconWrap" aria-hidden="true">
+          <span className="wa-bubble-fileExt">{ext}</span>
+        </div>
+        <div className="wa-bubble-fileMain">
+          <span className="wa-bubble-fileName">{nome}</span>
+          <span className="wa-bubble-fileTypeSize">{typeSize}</span>
+        </div>
+        <span className="wa-bubble-fileTimeMeta">
+          <span className="wa-bubble-fileTime">{formatHora(msg?.criado_em)}</span>
+          <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
+        </span>
+      </div>
+      <div className="wa-bubble-fileActions">
+        <button
+          type="button"
+          className="wa-bubble-fileAction"
+          disabled={!!selectMode}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!selectMode && mediaUrl) onOpenMedia?.(mediaUrl, "arquivo", nome);
+          }}
+        >
+          Abrir
+        </button>
+        {mediaUrl ? (
+          <>
+            <span className="wa-bubble-fileActionSep" aria-hidden="true">·</span>
+            <a
+              href={mediaUrl}
+              download={nome}
+              className="wa-bubble-fileAction"
+              onClick={(e) => e.stopPropagation()}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Salvar como...
+            </a>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 async function copyTextToClipboard(text) {
   const t = safeString(text);
   if (!t) return false;
@@ -534,6 +597,20 @@ function formatMmSs(totalSeconds) {
   const mm = Math.floor(sec / 60);
   const ss = sec % 60;
   return `${mm}:${String(ss).padStart(2, "0")}`;
+}
+
+function getFileExt(nome) {
+  const s = String(nome || "").trim();
+  const i = s.lastIndexOf(".");
+  return i >= 0 ? s.slice(i + 1).toUpperCase().slice(0, 4) : "FILE";
+}
+
+function formatFileSize(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function seedFromAny(v) {
@@ -1034,18 +1111,13 @@ const Bubble = memo(function Bubble({
                   {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
                 </div>
               ) : isFile ? (
-                <button
-                  type="button"
-                  className="wa-bubble-file"
-                  onClick={(e) => {
-                    if (selectMode) return;
-                    e.stopPropagation();
-                    onOpenMedia?.(mediaUrl, "arquivo", msg?.nome_arquivo);
-                  }}
-                >
-                  <span className="wa-bubble-fileIcon">📎</span>
-                  <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
-                </button>
+                <FileBubbleContent
+                  msg={msg}
+                  mediaUrl={mediaUrl}
+                  selectMode={selectMode}
+                  onOpenMedia={onOpenMedia}
+                  isGroup={isGroup}
+                />
               ) : hasText ? (
                 inlineMeta ? (
                   <span className="wa-bubble-text wa-bubble-textInline">
@@ -1113,19 +1185,13 @@ const Bubble = memo(function Bubble({
               {showAudioText ? <div className="wa-bubble-audioCaption">{renderTextWithLinks(texto)}</div> : null}
             </div>
           ) : isFile ? (
-            <button
-              type="button"
-              className="wa-bubble-file"
-              onClick={(e) => {
-                if (selectMode) return;
-                e.stopPropagation();
-                onOpenMedia?.(mediaUrl, "arquivo", msg?.nome_arquivo);
-              }}
-            >
-              <span className="wa-bubble-fileIcon">📎</span>
-              <span className="wa-bubble-fileName">{msg?.nome_arquivo || "Arquivo"}</span>
-              <span className="wa-bubble-fileHint">Abrir</span>
-            </button>
+            <FileBubbleContent
+              msg={msg}
+              mediaUrl={mediaUrl}
+              selectMode={selectMode}
+              onOpenMedia={onOpenMedia}
+              isGroup={isGroup}
+            />
           ) : isCall ? (
             <div className="wa-callBubble">
               <div className="wa-callIcon" aria-hidden="true">📞</div>
