@@ -1,6 +1,8 @@
 import { create } from "zustand"
 import { login as loginService } from "./authService"
 import { initSocket, disconnectSocket } from "../socket/socket"
+import { useChatStore } from "../chats/chatsStore"
+import { useConversaStore } from "../conversa/conversaStore"
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -62,6 +64,10 @@ export const useAuthStore = create((set) => ({
 
     // encerra a conexão para evitar “sessão fantasma” após logout
     disconnectSocket()
+    try {
+      useChatStore.getState().limpar()
+      useConversaStore.getState().limpar()
+    } catch (_) {}
 
     set({ user: null, token: null })
     window.location.href = "/login"

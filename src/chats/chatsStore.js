@@ -1,5 +1,48 @@
 import { create } from "zustand"
 
+/** Chave canônica para dedupe: telefone | canonicalPhone | chat_lid */
+function canonicalKey(c) {
+  const tel = c?.telefone ?? c?.numero ?? c?.phone ?? c?.wa_id ?? ""
+  const canon = c?.canonicalPhone ?? c?.canonical_phone ?? ""
+  const lid = c?.chat_lid ?? c?.chatLid ?? ""
+  const s = String(tel || canon || lid || "").trim()
+  return s.toLowerCase().startsWith("lid:") ? `lid:${lid}` : s || `id-${c?.id ?? ""}`
+}
+
+/** Remove duplicatas: mantém a que tem telefone (não lid), ultima_atividade maior, nome/foto preenchidos */
+function dedupeConversas(list) {
+  if (!Array.isArray(list) || list.length === 0) return list
+  const byKey = new Map()
+  for (const c of list) {
+    const key = canonicalKey(c)
+    if (!key || key === "id-") {
+      byKey.set(`uniq-${c?.id ?? Math.random()}`, c)
+      continue
+    }
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, c)
+      continue
+    }
+    const hasPhone = (x) => {
+      const t = x?.telefone ?? x?.numero ?? x?.phone ?? ""
+      const s = String(t || "").trim()
+      return s && !s.toLowerCase().startsWith("lid:")
+    }
+    const ts = (x) => new Date(x?.ultima_atividade ?? x?.ultima_mensagem?.criado_em ?? x?.criado_em ?? 0).getTime()
+    const hasName = (x) => !!(x?.contato_nome ?? x?.nome_contato_cache ?? x?.nome_grupo ?? "").trim()
+    const hasFoto = (x) => !!(x?.foto_perfil ?? x?.foto_perfil_contato_cache ?? "").trim()
+    let keep = c
+    if (hasPhone(existing) && !hasPhone(c)) keep = existing
+    else if (!hasPhone(existing) && hasPhone(c)) keep = c
+    else if (ts(c) > ts(existing)) keep = c
+    else if (ts(c) === ts(existing) && (hasName(c) || hasFoto(c)) && !(hasName(existing) && hasFoto(existing))) keep = c
+    else keep = existing
+    byKey.set(key, keep)
+  }
+  return Array.from(byKey.values())
+}
+
 export const useChatStore = create((set, get) => ({
   /* =========================================
      STATE
@@ -11,10 +54,11 @@ export const useChatStore = create((set, get) => ({
      BASE
   ========================================= */
   setChats: (chats) => {
-    if (typeof chats === "function") {
-      set((state) => ({ chats: chats(state.chats || []) || [] }))
+    const arr = typeof chats === "function" ? null : (chats || [])
+    if (arr) {
+      set({ chats: dedupeConversas(arr) })
     } else {
-      set({ chats: chats || [] })
+      set((state) => ({ chats: dedupeConversas(chats(state.chats || []) || []) }))
     }
   },
   setLoading: (loading) => set({ loading: !!loading }),
@@ -51,14 +95,14 @@ export const useChatStore = create((set, get) => ({
         foto_perfil: mergedFoto !== undefined && mergedFoto !== null ? mergedFoto : existing.foto_perfil
       }
       next[newIdx] = updated
-      set({ chats: [next[newIdx], ...next.filter((_, i) => i !== newIdx)] })
+      set({ chats: dedupeConversas([next[newIdx], ...next.filter((_, i) => i !== newIdx)]) })
     } else {
       const newChat = {
         ...merged,
         contato_nome: mergedNome ?? merged.contato_nome ?? undefined,
         foto_perfil: mergedFoto ?? merged.foto_perfil ?? undefined
       }
-      set({ chats: [newChat, ...chats] })
+      set({ chats: dedupeConversas([newChat, ...chats]) })
     }
   },
 

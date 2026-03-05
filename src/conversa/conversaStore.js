@@ -7,7 +7,7 @@ import {
   reabrirChat,
   listarAtendimentos,
 } from "./conversaService"
-import { getSocket } from "../socket/socket"
+import { getSocket, leaveConversa, joinConversaIfNeeded } from "../socket/socket"
 import { useChatStore } from "../chats/chatsStore"
 import { attachReplyMeta } from "./replyMeta"
 
@@ -69,15 +69,11 @@ export const useConversaStore = create((set, get) => ({
     const normalizedId = id != null && id !== "" ? (Number(id) || String(id)) : null
     if (!normalizedId) return
 
-    const socket = getSocket?.()
     const prevId = get().selectedId
-
-    if (socket && prevId && String(prevId) !== String(normalizedId)) {
-      socket.emit("leave_conversa", prevId)
+    if (prevId && String(prevId) !== String(normalizedId)) {
+      leaveConversa(prevId)
     }
-    if (socket && normalizedId) {
-      socket.emit("join_conversa", normalizedId)
-    }
+    joinConversaIfNeeded(normalizedId)
 
     set({
       loading: true,
@@ -154,8 +150,9 @@ export const useConversaStore = create((set, get) => ({
         hasMore: !!nextCursor,
       })
 
+      const socket = getSocket?.()
       if (socket) {
-        socket.emit("join_conversa", normalizedId)
+        joinConversaIfNeeded(normalizedId)
         socket.emit("marcar_conversa_lida", { conversa_id: normalizedId })
       }
       useChatStore.getState().clearUnread(normalizedId)
@@ -202,8 +199,34 @@ export const useConversaStore = create((set, get) => ({
       }
       mensagens = attachReplyMeta(id, mensagens)
 
+      // Preserva nome, telefone e foto — dados fixos do contato não devem mudar após refresh
+      let merged = conversa
+      try {
+        const current = get().conversa
+        const chats = useChatStore.getState?.().chats || []
+        const fromList = chats.find?.((c) => String(c.id) === String(id))
+        const sources = [conversa, current, fromList].filter(Boolean)
+        if (sources.length > 1) {
+          merged = { ...conversa }
+          const pick = (f) => {
+            for (const s of sources) {
+              const v = s?.[f] ?? s?.cliente?.[f === "telefone_exibivel" ? "telefone" : f]
+              if (v != null && String(v).trim() !== "") return v
+            }
+            return null
+          }
+          if (!merged.contato_nome) merged.contato_nome = pick("contato_nome") ?? fromList?.nome_contato_cache ?? fromList?.pushname
+          if (!merged.cliente_nome) merged.cliente_nome = pick("cliente_nome") ?? pick("contato_nome")
+          if (!merged.telefone && !merged.telefone_exibivel) merged.telefone_exibivel = pick("telefone_exibivel") ?? pick("telefone") ?? pick("cliente_telefone")
+          if (!merged.telefone_exibivel && merged.telefone) merged.telefone_exibivel = merged.telefone
+          if (!merged.foto_perfil) merged.foto_perfil = pick("foto_perfil") ?? fromList?.foto_perfil_contato_cache
+          if (!merged.nome_grupo) merged.nome_grupo = pick("nome_grupo")
+          if (!merged.cliente) merged.cliente = fromList?.cliente
+        }
+      } catch (_) {}
+
       set({
-        conversa,
+        conversa: merged,
         mensagens,
         tags,
         loading: false,
@@ -264,30 +287,50 @@ export const useConversaStore = create((set, get) => ({
   },
 
   /* =====================================================
-     MENSAGENS (de-dup por id e whatsapp_id)
+     MENSAGENS (de-dup por whatsapp_id preferencial, id ou tempId)
+     Aceita msg só com whatsapp_id (espelhadas fromMe do celular)
   ===================================================== */
   anexarMensagem: (msg) => {
-    if (!msg?.id) return
+    const key = msg?.whatsapp_id ?? msg?.id ?? msg?.tempId
+    if (!key) return
     set((state) => {
       const list = state.mensagens || []
-      const existeById = list.some((m) => String(m.id) === String(msg.id))
-      if (existeById) return state
-      const whatsappId = msg?.whatsapp_id
-      if (whatsappId && list.some((m) => String(m.whatsapp_id) === String(whatsappId))) return state
-      const byId = new Map(list.map((m) => [String(m.id), m]))
-      byId.set(String(msg.id), msg)
+      if (msg.whatsapp_id && list.some((m) => String(m.whatsapp_id) === String(msg.whatsapp_id))) return state
+      if (msg.id && list.some((m) => String(m.id) === String(msg.id))) return state
+      if (msg.tempId && list.some((m) => String(m.tempId) === String(msg.tempId))) return state
+      const byId = new Map()
+      list.forEach((m) => {
+        const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : null
+        if (k) byId.set(k, m)
+      })
+      const newK = msg.whatsapp_id ? `wa-${msg.whatsapp_id}` : msg.id ? String(msg.id) : `temp-${msg.tempId}`
+      byId.set(newK, msg)
       const sorted = Array.from(byId.values()).sort(
         (a, b) =>
           new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
-          (Number(a.id) - Number(b.id))
+          (Number(a.id) - Number(b.id)) ||
+          String(a.tempId || "").localeCompare(String(b.tempId || ""))
       )
       return { mensagens: sorted }
     })
   },
 
-  /** Atualiza mensagem por id ou whatsapp_id (fallback para status_mensagem) */
+  /** Substitui mensagem temp (optimistic) pela real quando API retorna */
+  reconciliarMensagem: (tempId, realMsg) => {
+    if (!tempId || !realMsg) return
+    set((state) => {
+      const list = state.mensagens || []
+      const idx = list.findIndex((m) => String(m.tempId) === String(tempId))
+      if (idx === -1) return state
+      const next = [...list]
+      next[idx] = { ...realMsg, conversa_id: state.conversa?.id }
+      return { mensagens: next }
+    })
+  },
+
+  /** Atualiza mensagem por id, whatsapp_id ou tempId (status_mensagem) */
   patchMensagem: (mensagemId, partial) => {
-    if ((mensagemId == null || mensagemId === "") && !partial?.whatsapp_id) return
+    if ((mensagemId == null || mensagemId === "") && !partial?.whatsapp_id && !partial?.tempId) return
     if (!partial || (Object.keys(partial).length === 0)) return
     set((state) => {
       const list = state.mensagens || []
@@ -297,6 +340,9 @@ export const useConversaStore = create((set, get) => ({
       }
       if (idx === -1 && partial?.whatsapp_id) {
         idx = list.findIndex((m) => String(m.whatsapp_id) === String(partial.whatsapp_id))
+      }
+      if (idx === -1 && partial?.tempId) {
+        idx = list.findIndex((m) => String(m.tempId) === String(partial.tempId))
       }
       if (idx === -1) return state
       const next = [...list]
@@ -310,6 +356,17 @@ export const useConversaStore = create((set, get) => ({
     set((state) => {
       const list = state.mensagens || []
       const next = list.filter((m) => String(m.id) !== String(mensagemId))
+      if (next.length === list.length) return state
+      return { mensagens: next }
+    })
+  },
+
+  /** Remove mensagem temp (optimistic) quando envio falha */
+  removerMensagemTemp: (tempId) => {
+    if (!tempId) return
+    set((state) => {
+      const list = state.mensagens || []
+      const next = list.filter((m) => String(m.tempId) !== String(tempId))
       if (next.length === list.length) return state
       return { mensagens: next }
     })
@@ -367,10 +424,20 @@ export const useConversaStore = create((set, get) => ({
   ===================================================== */
   patchConversa: (partial) => {
     if (!partial?.id) return
+    const fixedFields = ["contato_nome", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil"]
     set((state) => {
       if (!state.conversa || String(state.conversa.id) !== String(partial.id))
         return state
-      return { conversa: { ...state.conversa, ...partial } }
+      const cur = state.conversa
+      const merged = { ...cur, ...partial }
+      // Não sobrescreve campos fixos do header com valor vazio — mantém nome e telefone estáveis
+      for (const k of fixedFields) {
+        const newVal = partial[k]
+        const isEmpty = newVal == null || String(newVal || "").trim() === ""
+        if (isEmpty && (cur[k] != null && String(cur[k] || "").trim() !== ""))
+          merged[k] = cur[k]
+      }
+      return { conversa: merged }
     })
   },
 

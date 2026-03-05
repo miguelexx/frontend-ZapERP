@@ -1379,7 +1379,9 @@ export default function ConversaView() {
     refresh,
     carregarConversa,
     anexarMensagem,
+    reconciliarMensagem,
     removerMensagem,
+    removerMensagemTemp,
     tags,
     atendimentos,
     atendimentosLoading,
@@ -1506,11 +1508,15 @@ export default function ConversaView() {
       return isLidValue(g) ? "Grupo" : g;
     }
     const raw =
+      conversa?.cliente?.nome ||
       conversa?.contato_nome ||
       fromChat?.contato_nome ||
+      conversa?.nome_contato_cache ||
+      fromChat?.nome_contato_cache ||
       conversa?.cliente_nome ||
       fromChat?.cliente_nome ||
-      conversa?.cliente?.nome ||
+      conversa?.pushname ||
+      fromChat?.pushname ||
       conversa?.nome ||
       "";
     const n = String(raw || "").trim();
@@ -1526,15 +1532,18 @@ export default function ConversaView() {
   }, [conversa, fromChat, conversaId, isGroup]);
 
   const telefone = useMemo(() => {
-    const t = conversa?.telefone_exibivel || conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone || "";
+    const t = conversa?.telefone_exibivel || conversa?.cliente_telefone || conversa?.cliente?.telefone || conversa?.telefone
+      || fromChat?.telefone_exibivel || fromChat?.telefone || "";
     return isLidValue(t) ? "" : (t || "");
-  }, [conversa, isGroup]);
+  }, [conversa, fromChat, isGroup]);
 
   const rawAvatarUrl = isGroup
     ? (conversa?.foto_grupo ?? fromChat?.foto_grupo ?? null)
     : (
         conversa?.foto_perfil ??
+        conversa?.foto_perfil_contato_cache ??
         fromChat?.foto_perfil ??
+        fromChat?.foto_perfil_contato_cache ??
         conversa?.cliente?.foto_perfil ??
         conversa?.clientes?.foto_perfil ??
         conversa?.senderPhoto ??
@@ -2217,29 +2226,53 @@ export default function ConversaView() {
             name: getReplySenderLabel(replyTo, nome),
             snippet: snippetFromMsg(replyTo),
             ts: Date.now(),
-            // Prioriza whatsapp_id para o backend enviar reply nativo ao WhatsApp via Z-API
             replyToId: replyTo?.whatsapp_id || replyTo?.id,
           }
         : null;
 
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const optimisticMsg = {
+      tempId,
+      texto: t,
+      conteudo: t,
+      direcao: "out",
+      status: "pending",
+      status_mensagem: "pending",
+      criado_em: new Date().toISOString(),
+      conversa_id: Number(conversaId),
+      reply_meta: replyMeta || undefined,
+    };
+    anexarMensagem(optimisticMsg);
+    useChatStore.getState().setUltimaMensagem(conversaId, optimisticMsg);
+    useChatStore.getState().bumpChatToTop(conversaId);
+    setTexto("");
+    setReplyTo(null);
     setSending(true);
+
     try {
       const res = await enviarMensagem(conversaId, t, replyMeta || undefined);
-      setTexto("");
-      setReplyTo(null);
       if (res?.mensagem) {
         const msg = res.mensagem;
         const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
         if (mesmaConversa || !msg.conversa_id) {
-          const patched = replyMeta ? { ...msg, conversa_id: Number(conversaId), reply_meta: replyMeta } : { ...msg, conversa_id: Number(conversaId) };
-          anexarMensagem(patched);
+          const patched = replyMeta
+            ? { ...msg, conversa_id: Number(conversaId), reply_meta: replyMeta }
+            : { ...msg, conversa_id: Number(conversaId) };
+          reconciliarMensagem(tempId, patched);
           if (replyMeta && msg?.id) {
             saveReplyMeta(conversaId, msg.id, replyMeta);
           }
+        } else {
+          removerMensagemTemp(tempId);
         }
+      } else {
+        removerMensagemTemp(tempId);
       }
     } catch (err) {
       console.error("Erro ao enviar mensagem:", err);
+      removerMensagemTemp(tempId);
+      setTexto(t);
+      if (replyTo) setReplyTo(replyTo);
       showToast({
         type: "error",
         title: "Falha ao enviar",
@@ -2249,7 +2282,7 @@ export default function ConversaView() {
       setSending(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem, nome, emitTypingStop]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, reconciliarMensagem, removerMensagemTemp, nome, emitTypingStop]);
 
   const handleEnviarLink = useCallback(async () => {
     if (!conversaId) return;
@@ -3204,16 +3237,17 @@ export default function ConversaView() {
           ) : (
             mensagensComSeparadores.map((item) => {
               if (item.__type === "day") return <DaySeparator key={item.id} label={item.label} />;
+              const msgKey = item.tempId || item.id;
               return (
                 <Bubble
-                  key={item.id}
+                  key={msgKey}
                   msg={item}
                   showRemetente={Boolean(item.__showRemetente)}
                   isGroup={isGroup}
                   peerAvatarUrl={avatarUrl}
                   peerName={nome}
                   selectMode={selectMode}
-                  selected={selectedSet.has(String(item.id))}
+                  selected={selectedSet.has(String(msgKey))}
                   onToggleSelected={toggleSelected}
                   onInfo={handleInfoAction}
                   onReply={handleReplyAction}
@@ -3224,15 +3258,15 @@ export default function ConversaView() {
                   onStartSelect={startSelect}
                   onDeleteForMe={handleDeleteForMe}
                   onDeleteForEveryone={handleDeleteForEveryone}
-                  isPinned={pinnedSet.has(String(item.id))}
-                  isStarred={starredSet.has(String(item.id))}
+                  isPinned={pinnedSet.has(String(msgKey))}
+                  isStarred={starredSet.has(String(msgKey))}
                   currentUserId={myUserId}
                   onJumpToReply={jumpToReply}
                   onOpenMedia={openMediaViewer}
-                  localReaction={localReactions[String(item.id)] || item.__reaction}
+                  localReaction={localReactions[String(msgKey)] || item.__reaction}
                   onReact={handleSendReaction}
                   onRemoveReaction={handleRemoveReaction}
-                  reactionBusy={Boolean(reactionLoading[String(item.id)])}
+                  reactionBusy={Boolean(reactionLoading[String(msgKey)])}
                 />
               );
             })

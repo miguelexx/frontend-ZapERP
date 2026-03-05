@@ -73,6 +73,27 @@ function showDesktopNotification(title, body) {
 }
 
 let socket = null
+/** Ref para idempotência de join — evita joins duplicados ao reconectar ou trocar conversa */
+let currentConversationId = null
+
+/** Emite leave da sala atual. Sempre usar antes de join em outra conversa. */
+export function leaveConversa(id) {
+  if (!id) return
+  const s = String(id)
+  if (currentConversationId === s) currentConversationId = null
+  try {
+    if (socket) socket.emit("leave_conversa", id)
+  } catch (_) {}
+}
+
+/** Join idempotente: só emite se ainda não está na sala X. */
+export function joinConversaIfNeeded(id) {
+  if (!socket || !id) return
+  const s = String(id)
+  if (currentConversationId === s) return
+  currentConversationId = s
+  socket.emit("join_conversa", id)
+}
 
 export function initSocket(token) {
   if (socket) return socket
@@ -90,8 +111,9 @@ export function initSocket(token) {
   }
 
   socket.on("connect", () => {
+    currentConversationId = null
     const convId = useConversaStore.getState().selectedId
-    if (convId) socket.emit("join_conversa", convId)
+    if (convId) joinConversaIfNeeded(convId)
     updateDocumentTitleFromChats()
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {})
@@ -157,6 +179,7 @@ export function initSocket(token) {
   socket.on("nova_mensagem", (msg) => {
     const conversaId = msg?.conversa_id
     if (!conversaId) return
+    if (msg.fromMe && !msg.direcao) msg = { ...msg, direcao: "out" }
 
     const chatStore = useChatStore.getState()
     const convStore = useConversaStore.getState()
@@ -289,21 +312,23 @@ export function initSocket(token) {
   =========================== */
   socket.on("status_mensagem", ({ mensagem_id, conversa_id, status, whatsapp_id }) => {
     if (!mensagem_id && !whatsapp_id) return
-    // Normalizar para o mesmo valor em lista e mensagem (setas sincronizadas)
+    // Normalizar: pending/sent/delivered/read/played (WhatsApp Web)
     const raw = status != null ? String(status).toLowerCase().trim() : ""
     const s =
       raw === "enviada" || raw === "enviado" ? "sent"
         : raw === "entregue" || raw === "received" ? "delivered"
         : raw === "lida" || raw === "seen" || raw === "visualizada" || raw === "read_by_me" ? "read"
+        : raw === "played" || raw === "reproduzida" ? "played"
         : raw || null
 
     const convStore = useConversaStore.getState()
     if (conversa_id) {
       if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
-        convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
+        // Prioriza whatsapp_id; fallback por mensagem_id
+        convStore.patchMensagem(whatsapp_id ? null : mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
       }
     } else if (convStore.selectedId) {
-      convStore.patchMensagem(mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
+      convStore.patchMensagem(whatsapp_id ? null : mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
     }
 
     // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)
@@ -388,16 +413,21 @@ export function initSocket(token) {
   })
 
   /* Sinal do webhook Z-API: conversa teve atividade (nova msg, status, etc.)
-     Busca dados frescos do backend e atualiza a lista — garante que nome, foto,
-     última mensagem e contadores fiquem corretos sem precisar de reload. */
-  socket.on("atualizar_conversa", async ({ id } = {}) => {
+     Debounce 400ms para evitar múltiplos fetches seguidos — atualiza lista sem piscar UI. */
+  const atualizarDebounce = {}
+  socket.on("atualizar_conversa", ({ id } = {}) => {
     if (!id) return
-    try {
-      const data = await fetchChatById(id)
-      if (!data) return
-      const chat = data?.conversa ? data.conversa : data
-      if (chat?.id) useChatStore.getState().addChat(chat)
-    } catch (_) {}
+    const key = String(id)
+    if (atualizarDebounce[key]) clearTimeout(atualizarDebounce[key])
+    atualizarDebounce[key] = setTimeout(async () => {
+      delete atualizarDebounce[key]
+      try {
+        const data = await fetchChatById(id)
+        if (!data) return
+        const chat = data?.conversa ? data.conversa : data
+        if (chat?.id) useChatStore.getState().addChat(chat)
+      } catch (_) {}
+    }, 400)
   })
 
   /* Nome e foto do contato atualizados pela Z-API (tempo real) — só preenche quando vazio */
@@ -434,6 +464,7 @@ export function disconnectSocket() {
     }
   } catch (_) {}
 
+  currentConversationId = null
   try {
     if (socket) socket.disconnect()
   } catch (_) {}

@@ -10,6 +10,7 @@ import api from "../api/http";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { useNavigate } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
+import { useNotificationStore } from "../notifications/notificationStore";
 import "./chatList.css";
 
 /* =====================================================
@@ -451,42 +452,50 @@ function getPhone(chat) {
 
 function formatPhoneForDisplay(phone) {
   const p = String(phone || "").replace(/\D/g, "");
-  if (p.length >= 10) return `+${p}`;
+  if (p.length >= 10) {
+    const ddd = p.length >= 12 ? p.slice(0, 2) : p.length === 11 ? p.slice(0, 2) : "";
+    const rest = p.length >= 12 ? p.slice(2) : p.length === 11 ? p.slice(2) : p;
+    if (ddd && rest.length >= 8) return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    return `+${p}`;
+  }
   return p || "";
 }
 
-/** Usa nome vindo da API (contato_nome/nome) com fallbacks. Nunca exibir LID (lid:xxx) como nome. */
+/** cliente.nome || nome_contato_cache || nome_grupo || pushname || formatPhone(telefone) — nunca "Sem conversa" se tiver fallback */
 function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
-    const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome ?? "";
+    const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome_contato_cache ?? chat?.nome ?? "";
     const n = String(nome || "").trim();
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
-    return getPhone(chat) || "Grupo";
+    return formatPhoneForDisplay(getPhone(chat)) || "Grupo";
   }
   const raw =
-    chat?.contato_nome ??
-    chat?.cliente_nome ??
     chat?.cliente?.nome ??
+    chat?.contato_nome ??
+    chat?.nome_contato_cache ??
+    chat?.cliente_nome ??
+    chat?.pushname ??
     chat?.nome ??
     "";
   const nome = String(raw || "").trim();
   if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
-  // fallback: número exibível
-  return getPhone(chat) || "Contato";
+  const tel = getPhone(chat);
+  return tel ? formatPhoneForDisplay(tel) : "Contato";
 }
 
 /**
  * Par único nome + foto do mesmo contato (evita desalinhamento).
- * Usa foto_perfil (backend) ou senderPhoto/photo (webhook). Sempre use displayName e avatarUrl juntos.
+ * cliente.foto_perfil || foto_perfil_contato_cache || foto_grupo || avatar padrão
  */
 function getContactDisplay(chat) {
   const isGroup = isGroupConversation(chat);
   const displayName = getDisplayName(chat);
-  const phone = chat?.telefone_exibivel || "";
+  const phone = formatPhoneForDisplay(chat?.telefone_exibivel ?? chat?.telefone ?? chat?.cliente_telefone ?? chat?.numero ?? "");
   const rawFoto = isGroup
     ? (chat?.foto_grupo ?? null)
     : (
         chat?.foto_perfil ??
+        chat?.foto_perfil_contato_cache ??
         chat?.cliente?.foto_perfil ??
         chat?.clientes?.foto_perfil ??
         chat?.senderPhoto ??
@@ -534,7 +543,7 @@ function Icon({ children, size = 16 }) {
   );
 }
 
-function HeaderButton({ title, onClick, children, innerRef }) {
+function HeaderButton({ title, onClick, children, innerRef, disabled }) {
   return (
     <button
       ref={innerRef}
@@ -542,6 +551,7 @@ function HeaderButton({ title, onClick, children, innerRef }) {
       className="chat-list-header-btn"
       title={title}
       type="button"
+      disabled={disabled}
     >
       {children}
     </button>
@@ -709,7 +719,6 @@ function ChatRow({
         <div className="chat-list-row-top">
           <div className="chat-list-row-title-wrap">
             <div className="chat-list-title-line">
-              {unread > 0 ? <span className="chat-list-unread-dot" title="Nova mensagem não lida" aria-hidden="true" /> : null}
               <div className="chat-list-title" title={displayName}>
                 {displayName}
               </div>
@@ -804,6 +813,9 @@ export default function ChatList() {
   // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
   const [zapiConnected, setZapiConnected] = useState(null);
   const [zapiStatusLoaded, setZapiStatusLoaded] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+
+  const showToast = useNotificationStore((s) => s.showToast);
 
   // Na montagem: verificar conexão Z-API + sincronizar fotos em background
   useEffect(() => {
@@ -987,6 +999,53 @@ export default function ChatList() {
     if (path) navigate(path);
   }
 
+  async function handleSyncContatos() {
+    setSyncLoading(true);
+    try {
+      const res = await sincronizarContatos();
+      const inserted = res?.inserted ?? res?.criados ?? res?.inserted_count ?? 0;
+      const updated = res?.updated ?? res?.atualizados ?? res?.updated_count ?? 0;
+      const total = res?.total ?? res?.totalFetched ?? res?.total_contatos ?? (inserted + updated);
+      showToast({
+        type: "success",
+        title: "Sincronizar contatos",
+        message: `OK. ${total} contatos (${inserted} novos, ${updated} atualizados).`,
+      });
+      load();
+    } catch (e) {
+      const status = e?.response?.status;
+      const data = e?.response?.data;
+      if (status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (status === 409 && data?.needsRestore) {
+        showToast({
+          type: "warning",
+          title: "Reconectar WhatsApp",
+          message: "A conexão precisa ser restaurada. Vá em Configurações.",
+        });
+        navigate("/configuracoes");
+        return;
+      }
+      if (status === 502 || status >= 500) {
+        showToast({
+          type: "error",
+          title: "Sincronizar contatos",
+          message: "Falha ao sincronizar. Tente novamente.",
+        });
+        return;
+      }
+      showToast({
+        type: "error",
+        title: "Sincronizar contatos",
+        message: data?.error || e?.message || "Erro ao sincronizar.",
+      });
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
   function handleSelecionarConversa(chatId) {
     if (chatId == null || chatId === undefined || chatId === "") return;
     const id = Number(chatId) || String(chatId);
@@ -1069,7 +1128,7 @@ export default function ChatList() {
       });
     }
 
-    // ordenação: com notificação (não lidas) sempre no topo, depois por data
+    // ordenação: apenas por data (mais recente no topo) — badge de não lidas continua visível mas não altera a ordem
     list.sort((a, b) => {
       if (a?.sem_conversa && !b?.sem_conversa) return 1;
       if (!a?.sem_conversa && b?.sem_conversa) return -1;
@@ -1078,10 +1137,6 @@ export default function ChatList() {
         const nb = (b.contato_nome || "").toString().toLowerCase();
         return na.localeCompare(nb);
       }
-      const aUnread = Number(a?.unread_count ?? a?.unread ?? 0) > 0;
-      const bUnread = Number(b?.unread_count ?? b?.unread ?? 0) > 0;
-      if (aUnread && !bUnread) return -1;
-      if (!aUnread && bUnread) return 1;
       const aTs = new Date(
         a?.ultima_mensagem?.criado_em || getLastMessage(a)?.criado_em || a?.ultima_atividade || a?.criado_em || 0
       ).getTime();
@@ -1189,6 +1244,26 @@ export default function ChatList() {
                   strokeLinejoin="round"
                 />
               </svg>
+            </Icon>
+          </HeaderButton>
+
+          <HeaderButton title="Sincronizar contatos" onClick={handleSyncContatos} disabled={syncLoading}>
+            <Icon size={14}>
+              {syncLoading ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="chat-list-spin">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeDashoffset="12" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
             </Icon>
           </HeaderButton>
         </div>
