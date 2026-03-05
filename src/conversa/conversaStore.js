@@ -154,7 +154,10 @@ export const useConversaStore = create((set, get) => ({
         hasMore: !!nextCursor,
       })
 
-      if (socket) socket.emit("join_conversa", normalizedId)
+      if (socket) {
+        socket.emit("join_conversa", normalizedId)
+        socket.emit("marcar_conversa_lida", { conversa_id: normalizedId })
+      }
       useChatStore.getState().clearUnread(normalizedId)
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || "Erro ao carregar conversa"

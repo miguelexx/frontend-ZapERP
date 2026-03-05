@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { canAcessarConfiguracoes } from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
+import GlobalNotifications from "../notifications/GlobalNotifications";
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function MainLayout() {
 
   return (
     <div className="app-layout app-layout--crm">
+      <GlobalNotifications />
       <aside className="sidebar sidebar--compact" aria-label="Menu">
         <div className="sidebar-brand-compact" title="ZapERP — Atendimento inteligente">
           <ZapERPLogo variant="compact" size="sm" title="ZapERP" />

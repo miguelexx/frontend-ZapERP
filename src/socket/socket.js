@@ -218,20 +218,36 @@ export function initSocket(token) {
 
     /* ----------------------------------
        🔔 NOTIFICAÇÕES (som, desktop, toast, título) — somente se conversa NÃO aberta
+       Só incUnread quando conversa já estava na lista (evita double-count em nova_conversa)
     ---------------------------------- */
     if (!isAberta) {
-      chatStore.incUnread(conversaId, 1)
+      if (jaNaLista) chatStore.incUnread(conversaId, 1)
       updateDocumentTitleFromChats()
 
       if (msg.direcao === "in") {
         const contato = getChatDisplayName(conversaId)
-        const texto = (msg.texto || "").slice(0, 80)
+        const tipo = (msg.tipo || "").toLowerCase()
+        const textoBruto = (msg.texto || "").trim()
+        const texto =
+          textoBruto
+            ? textoBruto.slice(0, 80)
+            : tipo === "imagem"
+              ? "📷 Imagem"
+              : tipo === "video"
+                ? "🎬 Vídeo"
+                : tipo === "sticker"
+                  ? "🎭 Figurinha"
+                  : tipo === "audio"
+                    ? "🎵 Áudio"
+                    : tipo === "arquivo"
+                      ? "📎 Arquivo"
+                      : "Nova mensagem"
         playNotificationSound()
-        showDesktopNotification(contato, texto || "Nova mensagem")
+        showDesktopNotification(contato, texto)
         useNotificationStore.getState().showToast({
           type: "info",
           title: contato,
-          message: texto || "Nova mensagem",
+          message: texto,
         })
       }
       return
