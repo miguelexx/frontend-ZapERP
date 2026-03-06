@@ -344,8 +344,13 @@ export function initSocket(token) {
      ✅ STATUS DA MENSAGEM (Z-API) — fallback por whatsapp_id
   =========================== */
   socket.on("status_mensagem", (payload) => {
-    const { mensagem_id, conversa_id, status, whatsapp_id } = payload || {}
-    if (!mensagem_id && !whatsapp_id) return
+    // Suporte a payload aninhado (ex: { data: { ... } }) e chaves alternativas (Z-API, etc.)
+    const p = payload?.data || payload || {}
+    const mensagem_id = p.mensagem_id ?? p.message_id ?? p.msg_id ?? p.id ?? payload?.mensagem_id ?? payload?.message_id
+    const conversa_id = p.conversa_id ?? p.chat_id ?? p.chatId ?? payload?.conversa_id ?? payload?.chat_id
+    const status = p.status ?? payload?.status
+    const whatsapp_id = p.whatsapp_id ?? p.wamid ?? p.wa_id ?? p.whatsappMessageId ?? payload?.whatsapp_id ?? payload?.wamid
+    if (!mensagem_id && !whatsapp_id && !status) return
     if (shouldIgnoreByCompany(payload)) return
     // Normalizar: pending/sent/delivered/read/played (WhatsApp Web)
     const raw = status != null ? String(status).toLowerCase().trim() : ""
@@ -359,12 +364,13 @@ export function initSocket(token) {
     const convStore = useConversaStore.getState()
     const partial = { status_mensagem: s, status: s }
     if (whatsapp_id) partial.whatsapp_id = whatsapp_id
-    if (conversa_id) {
-      if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
-        convStore.patchMensagem(mensagem_id, partial, { conversa_id, whatsapp_id })
-      }
-    } else if (convStore.selectedId) {
-      convStore.patchMensagem(mensagem_id, partial, { whatsapp_id })
+    // Sempre tenta patch quando há conversa aberta — patchMensagem filtra por conversa internamente
+    // (conversa_id do payload pode vir em formato diferente do selectedId)
+    if (convStore.selectedId) {
+      convStore.patchMensagem(mensagem_id, partial, {
+        conversa_id: conversa_id ?? convStore.conversa?.id ?? convStore.selectedId,
+        whatsapp_id,
+      })
     }
 
     // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)

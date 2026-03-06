@@ -1579,15 +1579,18 @@ export default function ConversaView() {
       return isLidValue(g) ? "Grupo" : g;
     }
     const raw =
-      conversa?.cliente?.nome ||
       conversa?.contato_nome ||
       fromChat?.contato_nome ||
       conversa?.nome_contato_cache ||
       fromChat?.nome_contato_cache ||
-      conversa?.cliente_nome ||
-      fromChat?.cliente_nome ||
+      conversa?.cliente?.pushname ||
+      fromChat?.cliente?.pushname ||
       conversa?.pushname ||
       fromChat?.pushname ||
+      conversa?.cliente?.nome ||
+      fromChat?.cliente?.nome ||
+      conversa?.cliente_nome ||
+      fromChat?.cliente_nome ||
       conversa?.nome ||
       "";
     const n = String(raw || "").trim();

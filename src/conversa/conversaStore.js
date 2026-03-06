@@ -484,12 +484,15 @@ export const useConversaStore = create((set, get) => ({
   /** Atualiza mensagem(ns) por id, whatsapp_id ou tempId.
    * status_mensagem: atualiza TODAS as mensagens que correspondam a mensagem_id OU whatsapp_id na conversa. */
   patchMensagem: (mensagemId, partial, opts = {}) => {
-    if ((mensagemId == null || mensagemId === "") && !partial?.whatsapp_id && !partial?.tempId) return
+    const hasIdentifier = (mensagemId != null && mensagemId !== "") || partial?.whatsapp_id || partial?.tempId
+    const hasStatus = partial?.status_mensagem != null || partial?.status != null
+    if (!hasIdentifier && !hasStatus) return
     if (!partial || (Object.keys(partial).length === 0)) return
-    const { conversa_id: optsConversaId, whatsapp_id: optsWhatsappId } = opts
+    const { whatsapp_id: optsWhatsappId } = opts
     set((state) => {
       const list = state.mensagens || []
-      const convId = optsConversaId ?? state.conversa?.id
+      // Sempre filtra pela conversa SELECIONADA — conversa_id do payload pode vir em formato diferente
+      const convId = state.conversa?.id ?? state.selectedId
       const waId = optsWhatsappId ?? partial?.whatsapp_id
 
       // Índices de TODAS as mensagens que correspondem: mensagem_id OU whatsapp_id na mesma conversa
@@ -501,6 +504,28 @@ export const useConversaStore = create((set, get) => ({
         else if (waId && String(m.whatsapp_id) === String(waId)) indices.add(i)
         else if (partial?.tempId && String(m.tempId) === String(partial.tempId)) indices.add(i)
       })
+
+      // Fallback: status_mensagem pode chegar antes de nova_mensagem ou sem identificadores
+      // Atualiza última msg "out" recente (últimos 60s)
+      if (indices.size === 0 && hasStatus && convId && list.length > 0) {
+        const now = Date.now()
+        const recentMs = 60_000
+        let fallbackIdx = -1
+        for (let i = list.length - 1; i >= 0; i--) {
+          const m = list[i]
+          if (m?.direcao !== "out") continue
+          const ts = new Date(m?.criado_em || 0).getTime()
+          if (now - ts > recentMs) break
+          // Match: tem id/whatsapp_id OU é a última out recente (tempId ou id)
+          const hasMatch = (waId && String(m.whatsapp_id) === String(waId)) ||
+            (mensagemId && String(m.id) === String(mensagemId))
+          if (hasMatch || !m.whatsapp_id) {
+            fallbackIdx = i
+            break
+          }
+        }
+        if (fallbackIdx >= 0) indices.add(fallbackIdx)
+      }
 
       if (indices.size === 0) return state
       const next = [...list]
@@ -584,7 +609,7 @@ export const useConversaStore = create((set, get) => ({
   ===================================================== */
   patchConversa: (partial) => {
     if (!partial?.id) return
-    const fixedFields = ["contato_nome", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil"]
+    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil"]
     set((state) => {
       if (!state.conversa || String(state.conversa.id) !== String(partial.id))
         return state

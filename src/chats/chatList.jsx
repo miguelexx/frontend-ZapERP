@@ -461,7 +461,7 @@ function formatPhoneForDisplay(phone) {
   return p || "";
 }
 
-/** cliente.nome || nome_contato_cache || nome_grupo || pushname || formatPhone(telefone) — nunca "Sem conversa" se tiver fallback */
+/** contato_nome || nome_contato_cache || cliente.pushname || cliente.nome || telefone — nome completo, sem truncar */
 function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome_contato_cache ?? chat?.nome ?? "";
@@ -470,11 +470,12 @@ function getDisplayName(chat) {
     return formatPhoneForDisplay(getPhone(chat)) || "Grupo";
   }
   const raw =
-    chat?.cliente?.nome ??
     chat?.contato_nome ??
     chat?.nome_contato_cache ??
-    chat?.cliente_nome ??
+    chat?.cliente?.pushname ??
     chat?.pushname ??
+    chat?.cliente?.nome ??
+    chat?.cliente_nome ??
     chat?.nome ??
     "";
   const nome = String(raw || "").trim();

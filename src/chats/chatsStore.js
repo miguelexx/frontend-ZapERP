@@ -108,6 +108,7 @@ export const useChatStore = create((set, get) => ({
 
   /* =========================================
      🔥 PATCH GENÉRICO (usado pelo socket)
+     conversa_atualizada: não sobrescreve contato_nome/nome_contato_cache/foto_perfil com undefined ou vazio
   ========================================= */
   updateChat: (partial) => {
     if (!partial?.id) return
@@ -119,8 +120,29 @@ export const useChatStore = create((set, get) => ({
     if (idx === -1) return
 
     const next = [...chats]
-    next[idx] = { ...next[idx], ...partial }
+    const cur = next[idx]
+    const merged = { ...cur }
 
+    // Copia campos de partial exceto nome/foto (tratados abaixo)
+    const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil"])
+    for (const k of Object.keys(partial)) {
+      if (k === "id" || skipKeys.has(k)) continue
+      merged[k] = partial[k]
+    }
+
+    // Só atualiza nome/foto quando backend enviar valor válido — preserva nome completo da agenda
+    if (partial.contato_nome != null && String(partial.contato_nome).trim() !== "") {
+      merged.contato_nome = partial.contato_nome
+      merged.nome_contato_cache = partial.nome_contato_cache ?? partial.contato_nome
+    } else if (partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "") {
+      merged.contato_nome = partial.nome_contato_cache
+      merged.nome_contato_cache = partial.nome_contato_cache
+    }
+    if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
+      merged.foto_perfil = partial.foto_perfil
+    }
+
+    next[idx] = merged
     set({ chats: next })
   },
 
@@ -134,8 +156,11 @@ export const useChatStore = create((set, get) => ({
     const cur = next[idx]
     next[idx] = {
       ...cur,
-      ...(contato_nome != null && { contato_nome }),
-      ...(foto_perfil !== undefined && { foto_perfil })
+      ...(contato_nome != null && String(contato_nome).trim() !== "" && {
+        contato_nome,
+        nome_contato_cache: contato_nome,
+      }),
+      ...(foto_perfil !== undefined && foto_perfil != null && String(foto_perfil).trim() !== "" && { foto_perfil }),
     }
     set({ chats: next })
   },
