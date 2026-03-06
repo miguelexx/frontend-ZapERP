@@ -54,6 +54,28 @@ function getChatDisplayName(conversaId) {
   return nome || "Nova mensagem"
 }
 
+/** Multi-tenant: company_id do usuário logado (evita circular com authStore) */
+function getCurrentCompanyId() {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const u = parsed?.user
+    return u?.company_id ?? u?.empresa_id ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Ignora evento se payload.company_id não bater com o do usuário (multi-tenant) */
+function shouldIgnoreByCompany(payload) {
+  const payloadCompany = payload?.company_id ?? payload?.empresa_id
+  if (payloadCompany == null) return false
+  const myCompany = getCurrentCompanyId()
+  if (myCompany == null) return false
+  return String(payloadCompany) !== String(myCompany)
+}
+
 function showDesktopNotification(title, body) {
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission === "granted") {
@@ -200,6 +222,7 @@ export function initSocket(token) {
   socket.on("nova_mensagem", (msg) => {
     const conversaId = msg?.conversa_id
     if (!conversaId) return
+    if (shouldIgnoreByCompany(msg)) return
     if (msg.fromMe && !msg.direcao) msg = { ...msg, direcao: "out" }
 
     const chatStore = useChatStore.getState()
@@ -207,18 +230,7 @@ export function initSocket(token) {
     const chats = chatStore.chats || []
     const jaNaLista = chats.some(c => String(c.id) === String(conversaId))
 
-    /* de-dup: se conversa aberta e mensagem já existe por id ou whatsapp_id, ignorar */
-    const isAbertaConv = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
-    if (isAbertaConv && msg?.whatsapp_id) {
-      const msgs = convStore.mensagens || []
-      const jaExiste = msgs.some(m => String(m.whatsapp_id) === String(msg.whatsapp_id))
-      if (jaExiste) return
-    }
-    if (isAbertaConv && msg?.id) {
-      const msgs = convStore.mensagens || []
-      const jaExiste = msgs.some(m => String(m.id) === String(msg.id))
-      if (jaExiste) return
-    }
+    /* Não fazer early-return por "jaExiste": anexarMensagem faz UPSERT — merge status/whatsapp_id se já existir */
 
     const nomeContato =
       (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
@@ -331,8 +343,10 @@ export function initSocket(token) {
   /* ===========================
      ✅ STATUS DA MENSAGEM (Z-API) — fallback por whatsapp_id
   =========================== */
-  socket.on("status_mensagem", ({ mensagem_id, conversa_id, status, whatsapp_id }) => {
+  socket.on("status_mensagem", (payload) => {
+    const { mensagem_id, conversa_id, status, whatsapp_id } = payload || {}
     if (!mensagem_id && !whatsapp_id) return
+    if (shouldIgnoreByCompany(payload)) return
     // Normalizar: pending/sent/delivered/read/played (WhatsApp Web)
     const raw = status != null ? String(status).toLowerCase().trim() : ""
     const s =
@@ -347,10 +361,10 @@ export function initSocket(token) {
     if (whatsapp_id) partial.whatsapp_id = whatsapp_id
     if (conversa_id) {
       if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
-        convStore.patchMensagem(whatsapp_id ? null : mensagem_id, partial)
+        convStore.patchMensagem(mensagem_id, partial, { conversa_id, whatsapp_id })
       }
     } else if (convStore.selectedId) {
-      convStore.patchMensagem(whatsapp_id ? null : mensagem_id, partial)
+      convStore.patchMensagem(mensagem_id, partial, { whatsapp_id })
     }
 
     // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)

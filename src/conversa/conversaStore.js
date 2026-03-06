@@ -287,38 +287,112 @@ export const useConversaStore = create((set, get) => ({
   },
 
   /* =====================================================
-     MENSAGENS (de-dup por whatsapp_id preferencial, id ou tempId)
-     Aceita msg só com whatsapp_id (espelhadas fromMe do celular)
-     Reconciliação: msg com whatsapp_id fromMe substitui temp otimista (evita duplicar)
+     MENSAGENS — UPSERT (dedupe + merge)
+     Nunca append cego: verifica id OU (conversa_id + whatsapp_id).
+     Se existir: MERGE (atualiza status, whatsapp_id, etc).
+     Se não existir: adicionar.
+     Reconciliação: msg com whatsapp_id fromMe substitui temp otimista.
   ===================================================== */
   anexarMensagem: (msg) => {
     const key = msg?.whatsapp_id ?? msg?.id ?? msg?.tempId
     if (!key) return
+    const conversaId = msg?.conversa_id ?? get().conversa?.id
     set((state) => {
       const list = state.mensagens || []
-      if (msg.whatsapp_id && list.some((m) => String(m.whatsapp_id) === String(msg.whatsapp_id))) return state
-      if (msg.id && list.some((m) => String(m.id) === String(msg.id))) return state
-      if (msg.tempId && list.some((m) => String(m.tempId) === String(msg.tempId))) return state
+      const convId = state.conversa?.id ?? conversaId
 
-      // Reconciliação: socket nova_mensagem com whatsapp_id fromMe → substituir temp otimista (última enviada)
+      // Encontrar mensagem existente: por id, whatsapp_id ou tempId
+      const findExisting = () => {
+        if (msg.id) {
+          const byId = list.findIndex((m) => String(m.id) === String(msg.id))
+          if (byId >= 0) return byId
+        }
+        if (msg.whatsapp_id) {
+          const byWa = list.findIndex((m) => String(m.whatsapp_id) === String(msg.whatsapp_id))
+          if (byWa >= 0) return byWa
+        }
+        if (msg.tempId) {
+          const byTemp = list.findIndex((m) => String(m.tempId) === String(msg.tempId))
+          if (byTemp >= 0) return byTemp
+        }
+        return -1
+      }
+
+      const existingIdx = findExisting()
+      if (existingIdx >= 0) {
+        // MERGE: atualizar campos (status, whatsapp_id, id se faltando)
+        const existing = list[existingIdx]
+        const merged = { ...existing, ...msg }
+        if (convId) merged.conversa_id = convId
+        if (msg.id && !existing.id) merged.id = msg.id
+        if (msg.whatsapp_id && !existing.whatsapp_id) merged.whatsapp_id = msg.whatsapp_id
+        if (msg.status != null) merged.status = msg.status
+        if (msg.status_mensagem != null) merged.status_mensagem = msg.status_mensagem
+        const next = [...list]
+        next[existingIdx] = merged
+        return { mensagens: next }
+      }
+
+      // Reconciliação: socket nova_mensagem com whatsapp_id fromMe → substituir temp otimista OU merge em msg da API
+      // Cenário 1: temp ainda existe (socket chegou antes da API) → substituir temp
+      // Cenário 2: API chegou primeiro, temp já foi substituído → merge whatsapp_id/status na msg existente
       const isFromMe = msg?.direcao === "out" || msg?.fromMe
       if (msg.whatsapp_id && isFromMe) {
         const now = Date.now()
         const recentMs = 90_000
-        let tempIdx = -1
+        let replaceIdx = -1
+        // Primeiro: procurar temp (socket chegou antes da API)
         for (let i = list.length - 1; i >= 0; i--) {
           const m = list[i]
           if (m?.tempId && m?.direcao === "out") {
             const ts = new Date(m?.criado_em || 0).getTime()
             if (now - ts < recentMs) {
-              tempIdx = i
+              replaceIdx = i
               break
             }
           }
         }
-        if (tempIdx >= 0) {
+        // Segundo: se não achou temp, API pode ter chegado primeiro — procurar msg "out" recente com id mas sem whatsapp_id
+        if (replaceIdx < 0) {
+          const textoIn = (msg.texto || msg.conteudo || "").toString().trim()
+          for (let i = list.length - 1; i >= 0; i--) {
+            const m = list[i]
+            if (m?.direcao !== "out") continue
+            if (m?.tempId) continue // já checamos temp acima
+            const ts = new Date(m?.criado_em || 0).getTime()
+            if (now - ts > recentMs) break
+            // Mesma mensagem: tem id (veio da API) e texto compatível, ou não tem whatsapp_id ainda
+            const textoMatch = !textoIn || (m.texto || m.conteudo || "").toString().trim() === textoIn
+            if (m.id && !m.whatsapp_id && textoMatch) {
+              replaceIdx = i
+              break
+            }
+          }
+        }
+        // Terceiro: socket chegou antes da API — procurar msg "out" recente com whatsapp_id mas sem id
+        if (replaceIdx < 0 && msg.id) {
+          const textoIn = (msg.texto || msg.conteudo || "").toString().trim()
+          for (let i = list.length - 1; i >= 0; i--) {
+            const m = list[i]
+            if (m?.direcao !== "out") continue
+            if (m?.tempId) continue
+            const ts = new Date(m?.criado_em || 0).getTime()
+            if (now - ts > recentMs) break
+            const textoMatch = !textoIn || (m.texto || m.conteudo || "").toString().trim() === textoIn
+            if (m.whatsapp_id && !m.id && textoMatch) {
+              replaceIdx = i
+              break
+            }
+          }
+        }
+        if (replaceIdx >= 0) {
+          const existing = list[replaceIdx]
+          const merged = { ...existing, ...msg, conversa_id: convId }
+          if (msg.whatsapp_id) merged.whatsapp_id = msg.whatsapp_id
+          if (msg.status != null) merged.status = msg.status
+          if (msg.status_mensagem != null) merged.status_mensagem = msg.status_mensagem
           const next = [...list]
-          next[tempIdx] = { ...msg, conversa_id: state.conversa?.id }
+          next[replaceIdx] = merged
           const byId = new Map()
           next.forEach((m) => {
             const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : null
@@ -334,13 +408,48 @@ export const useConversaStore = create((set, get) => ({
         }
       }
 
+      // Cenário 3: API chegou depois do socket (reconciliarMensagem chama anexarMensagem)
+      // Socket já substituiu temp; realMsg tem id da API mas nossa msg tem whatsapp_id sem id
+      // Procurar msg "out" recente com whatsapp_id mas sem id → merge id + reply_meta da API
+      const isFromMeAlt = msg?.direcao === "out" || msg?.fromMe
+      if (msg.id && isFromMeAlt) {
+        const now = Date.now()
+        const recentMs = 90_000
+        const textoIn = (msg.texto || msg.conteudo || "").toString().trim()
+        for (let i = list.length - 1; i >= 0; i--) {
+          const m = list[i]
+          if (m?.direcao !== "out") continue
+          if (m?.tempId) continue
+          const ts = new Date(m?.criado_em || 0).getTime()
+          if (now - ts > recentMs) break
+          const textoMatch = !textoIn || (m.texto || m.conteudo || "").toString().trim() === textoIn
+          if (m.whatsapp_id && !m.id && textoMatch) {
+            const merged = { ...m, ...msg, conversa_id: convId }
+            // Preservar status mais avançado: socket pode ter "sent" enquanto API retorna "pending"
+            const order = { pending: 0, sent: 1, delivered: 2, read: 3, played: 4 }
+            const mVal = order[String(m?.status_mensagem || m?.status || "").toLowerCase()] ?? 0
+            const msgVal = order[String(msg?.status_mensagem || msg?.status || "").toLowerCase()] ?? 0
+            if (mVal > msgVal) {
+              merged.status = m.status
+              merged.status_mensagem = m.status_mensagem
+            }
+            const next = [...list]
+            next[i] = merged
+            return { mensagens: next }
+          }
+        }
+      }
+
+      // Nova mensagem: adicionar com dedupe por Map
       const byId = new Map()
       list.forEach((m) => {
         const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : null
         if (k) byId.set(k, m)
       })
+      const newMsg = { ...msg }
+      if (convId) newMsg.conversa_id = convId
       const newK = msg.whatsapp_id ? `wa-${msg.whatsapp_id}` : msg.id ? String(msg.id) : `temp-${msg.tempId}`
-      byId.set(newK, msg)
+      byId.set(newK, newMsg)
       const sorted = Array.from(byId.values()).sort(
         (a, b) =>
           new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
@@ -351,38 +460,53 @@ export const useConversaStore = create((set, get) => ({
     })
   },
 
-  /** Substitui mensagem temp (optimistic) pela real quando API retorna */
+  /** Substitui mensagem temp (optimistic) pela real quando API retorna.
+   * Se temp não existir (socket chegou primeiro), faz merge via anexarMensagem. */
   reconciliarMensagem: (tempId, realMsg) => {
     if (!tempId || !realMsg) return
+    let replaced = false
     set((state) => {
       const list = state.mensagens || []
       const idx = list.findIndex((m) => String(m.tempId) === String(tempId))
-      if (idx === -1) return state
-      const next = [...list]
-      next[idx] = { ...realMsg, conversa_id: state.conversa?.id }
-      return { mensagens: next }
+      if (idx >= 0) {
+        replaced = true
+        const next = [...list]
+        next[idx] = { ...realMsg, conversa_id: state.conversa?.id }
+        return { mensagens: next }
+      }
+      return state
     })
+    if (!replaced) {
+      get().anexarMensagem(realMsg)
+    }
   },
 
-  /** Atualiza mensagem por id, whatsapp_id ou tempId (status_mensagem) */
-  patchMensagem: (mensagemId, partial) => {
+  /** Atualiza mensagem(ns) por id, whatsapp_id ou tempId.
+   * status_mensagem: atualiza TODAS as mensagens que correspondam a mensagem_id OU whatsapp_id na conversa. */
+  patchMensagem: (mensagemId, partial, opts = {}) => {
     if ((mensagemId == null || mensagemId === "") && !partial?.whatsapp_id && !partial?.tempId) return
     if (!partial || (Object.keys(partial).length === 0)) return
+    const { conversa_id: optsConversaId, whatsapp_id: optsWhatsappId } = opts
     set((state) => {
       const list = state.mensagens || []
-      let idx = -1
-      if (mensagemId != null && mensagemId !== "") {
-        idx = list.findIndex((m) => String(m.id) === String(mensagemId))
-      }
-      if (idx === -1 && partial?.whatsapp_id) {
-        idx = list.findIndex((m) => String(m.whatsapp_id) === String(partial.whatsapp_id))
-      }
-      if (idx === -1 && partial?.tempId) {
-        idx = list.findIndex((m) => String(m.tempId) === String(partial.tempId))
-      }
-      if (idx === -1) return state
+      const convId = optsConversaId ?? state.conversa?.id
+      const waId = optsWhatsappId ?? partial?.whatsapp_id
+
+      // Índices de TODAS as mensagens que correspondem: mensagem_id OU whatsapp_id na mesma conversa
+      // Inclui mensagens sem conversa_id (optimistic) — lista é sempre da conversa selecionada
+      const indices = new Set()
+      list.forEach((m, i) => {
+        if (convId && m.conversa_id != null && String(m.conversa_id) !== String(convId)) return
+        if (mensagemId != null && mensagemId !== "" && String(m.id) === String(mensagemId)) indices.add(i)
+        else if (waId && String(m.whatsapp_id) === String(waId)) indices.add(i)
+        else if (partial?.tempId && String(m.tempId) === String(partial.tempId)) indices.add(i)
+      })
+
+      if (indices.size === 0) return state
       const next = [...list]
-      next[idx] = { ...next[idx], ...partial }
+      indices.forEach((i) => {
+        next[i] = { ...next[i], ...partial }
+      })
       return { mensagens: next }
     })
   },
