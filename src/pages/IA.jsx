@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { canAcessarConfiguracoes } from "../auth/permissions";
+import { useNotificationStore } from "../notifications/notificationStore";
 import api from "../api/http";
 import * as iaApi from "../api/iaService";
 import "./IA.css";
@@ -38,10 +39,24 @@ const DEFAULT_CONFIG = {
     auto_assumir: false,
     reabrir_automaticamente: false,
   },
+  chatbot_triage: {
+    enabled: false,
+    welcomeMessage: "",
+    invalidOptionMessage: "Opção inválida. Por favor, responda apenas com o número do setor desejado.",
+    confirmSelectionMessage: "Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade.",
+    sendOnlyFirstTime: true,
+    fallbackToAI: false,
+    businessHoursOnly: false,
+    transferMode: "departamento",
+    reopenMenuCommand: "0",
+    tipo_distribuicao: "round_robin",
+    options: [],
+  },
 };
 
 const TABS = [
   { id: "bot", label: "Bot global" },
+  { id: "chatbot", label: "Chatbot de Triagem" },
   { id: "roteamento", label: "Roteamento" },
   { id: "respostas", label: "Respostas automáticas" },
   { id: "ia", label: "IA (sugestões)" },
@@ -62,10 +77,17 @@ function Switch({ checked, onChange }) {
 
 export default function IA() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
   const isAdmin = canAcessarConfiguracoes(user);
 
-  const [tab, setTab] = useState("bot");
+  const tabFromUrl = searchParams.get("tab");
+  const initialTab = TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "bot";
+  const [tab, setTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (TABS.some((t) => t.id === tabFromUrl)) setTab(tabFromUrl);
+  }, [tabFromUrl]);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -131,10 +153,12 @@ export default function IA() {
 
   useEffect(() => {
     if (tab === "respostas") loadRegras();
-    if (tab === "logs") loadLogs();
+    if (tab === "logs" || tab === "chatbot") loadLogs();
   }, [tab, loadRegras, loadLogs]);
 
   if (!isAdmin) return null;
+
+  const showToast = useNotificationStore((s) => s.showToast);
 
   const handleSaveConfig = async (section, values) => {
     setSaving(true);
@@ -142,6 +166,7 @@ export default function IA() {
     try {
       const c = await iaApi.putConfig({ [section]: values });
       setConfig(c);
+      showToast({ type: "success", title: "Salvo", message: "Configuração salva com sucesso." });
     } catch (e) {
       console.error("Erro ao salvar config:", e);
       setErrorMsg(e?.response?.data?.error || "Erro ao salvar. Verifique se a migration foi executada no banco.");
@@ -228,6 +253,16 @@ export default function IA() {
       </nav>
 
       <div className="ia-content">
+        {tab === "chatbot" && (
+          <SecaoChatbotTriagem
+            config={cfg.chatbot_triage || DEFAULT_CONFIG.chatbot_triage}
+            departamentos={departamentos}
+            logs={logs}
+            onSave={(v) => handleSaveConfig("chatbot_triage", v)}
+            onRefreshLogs={loadLogs}
+            saving={saving}
+          />
+        )}
         {tab === "bot" && (
           <SecaoBotGlobal
             config={bg}
@@ -682,6 +717,319 @@ function SecaoAutomacoes({ config, onSave, saving }) {
         <button className="ia-btn ia-btn--primary" onClick={() => onSave(v)} disabled={saving}>
           {saving ? "Salvando..." : "Salvar"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLogs, saving }) {
+  const [v, setV] = useState(config);
+  useEffect(() => setV(config), [config]);
+
+  const showToast = useNotificationStore((s) => s.showToast);
+
+  const addOption = () => {
+    const opts = v.options || [];
+    const nextKey = String((opts.length > 0 ? Math.max(...opts.map((o) => parseInt(o.key, 10) || 0)) : 0) + 1);
+    setV((c) => ({
+      ...c,
+      options: [...opts, { key: nextKey, label: "", departamento_id: "", active: true }],
+    }));
+  };
+
+  const updateOption = (idx, field, value) => {
+    const opts = [...(v.options || [])];
+    opts[idx] = { ...opts[idx], [field]: value };
+    setV((c) => ({ ...c, options: opts }));
+  };
+
+  const removeOption = (idx) => {
+    const opts = [...(v.options || [])];
+    opts.splice(idx, 1);
+    setV((c) => ({ ...c, options: opts }));
+  };
+
+  const buildPayload = (vals) => ({
+    ...vals,
+    enabled: !!vals.enabled,
+    welcomeMessage: (vals.welcomeMessage || "").trim(),
+    invalidOptionMessage: (vals.invalidOptionMessage || "").trim(),
+    confirmSelectionMessage: (vals.confirmSelectionMessage || "").trim(),
+    sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,
+    fallbackToAI: vals.fallbackToAI ?? false,
+    businessHoursOnly: vals.businessHoursOnly ?? false,
+    transferMode: vals.transferMode ?? "departamento",
+    reopenMenuCommand: String(vals.reopenMenuCommand ?? "0").trim() || "0",
+    tipo_distribuicao: vals.tipo_distribuicao === "menor_carga" ? "menor_carga" : "round_robin",
+    options: (vals.options || []).map((o) => ({
+      key: String(o.key || "").trim(),
+      label: (o.label || "").trim(),
+      departamento_id: o.departamento_id ? Number(o.departamento_id) : null,
+      active: !!o.active,
+    })),
+  });
+
+  const validate = () => {
+    const vals = v;
+    if (!vals || typeof vals !== "object") return "Dados inválidos.";
+    const opts = vals.options || [];
+    if (vals.enabled) {
+      const welcome = (vals.welcomeMessage || "").trim();
+      if (!welcome) return "Mensagem de boas-vindas é obrigatória quando o chatbot está ativo.";
+      const activeOpts = opts.filter((o) => o.active !== false);
+      const validOpts = activeOpts.filter((o) => (o.label || "").trim() && o.departamento_id);
+      if (validOpts.length === 0) return "Adicione pelo menos uma opção válida (label e departamento) quando o chatbot está ativo.";
+    }
+    const keys = opts.map((o) => String(o.key || "").trim()).filter(Boolean);
+    const uniqueKeys = [...new Set(keys)];
+    if (keys.length !== uniqueKeys.length) return "Cada opção deve ter uma key única.";
+    for (let i = 0; i < opts.length; i++) {
+      const o = opts[i];
+      if (o.active !== false) {
+        if (!(o.label || "").trim()) return `Opção ${i + 1}: label é obrigatório.`;
+        if (!o.departamento_id) return `Opção ${i + 1}: departamento é obrigatório.`;
+      }
+    }
+    return null;
+  };
+
+  const handleSave = () => {
+    const err = validate();
+    if (err) {
+      showToast({ type: "error", title: "Validação", message: err });
+      return;
+    }
+    onSave(buildPayload(v));
+  };
+
+  const opts = v.options || [];
+  const previewDept = departamentos.find((d) => d.id === (opts.find((o) => o.active)?.departamento_id))?.nome || "Vendas";
+  const previewConfirm = (v.confirmSelectionMessage || "").replace(/\{\{departamento\}\}/gi, previewDept);
+
+  return (
+    <div className="chatbot-section">
+      <div className="chatbot-header">
+        <div className="chatbot-header-left">
+          <Switch checked={v.enabled} onChange={(x) => setV((c) => ({ ...c, enabled: x }))} />
+          <div>
+            <h2 className="chatbot-title">Chatbot de Triagem</h2>
+            <p className="chatbot-subtitle">Configure o atendimento automático da sua empresa</p>
+          </div>
+        </div>
+        <span className={`chatbot-badge ${v.enabled ? "chatbot-badge--on" : "chatbot-badge--off"}`}>
+          {v.enabled ? "Ativado" : "Desativado"}
+        </span>
+      </div>
+
+      <div className="chatbot-grid">
+        <div className="chatbot-form">
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">Mensagens</h3>
+            <div className="ia-field">
+              <label>Mensagem de boas-vindas</label>
+              <textarea
+                className="ia-textarea chatbot-textarea"
+                rows={6}
+                value={v.welcomeMessage || ""}
+                onChange={(e) => setV((c) => ({ ...c, welcomeMessage: e.target.value }))}
+                placeholder="Olá! Seja bem-vindo(a) à sua empresa.&#10;Para direcionarmos seu atendimento, escolha o setor:&#10;&#10;1 - Atendimento&#10;2 - Vendas&#10;3 - Financeiro&#10;&#10;Responda com o número da opção desejada."
+              />
+            </div>
+            <div className="ia-field">
+              <label>Mensagem de opção inválida</label>
+              <textarea
+                className="ia-textarea"
+                rows={2}
+                value={v.invalidOptionMessage || ""}
+                onChange={(e) => setV((c) => ({ ...c, invalidOptionMessage: e.target.value }))}
+                placeholder="Opção inválida. Por favor, responda apenas com o número do setor desejado."
+              />
+            </div>
+            <div className="ia-field">
+              <label>Mensagem de confirmação (use {"{{departamento}}"} para o nome do setor)</label>
+              <textarea
+                className="ia-textarea"
+                rows={2}
+                value={v.confirmSelectionMessage || ""}
+                onChange={(e) => setV((c) => ({ ...c, confirmSelectionMessage: e.target.value }))}
+                placeholder="Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade."
+              />
+            </div>
+          </div>
+
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">Comportamento</h3>
+            <div className="ia-field">
+              <label>Tipo de distribuição</label>
+              <select
+                className="ia-select"
+                value={v.tipo_distribuicao ?? "round_robin"}
+                onChange={(e) => setV((c) => ({ ...c, tipo_distribuicao: e.target.value }))}
+              >
+                <option value="round_robin">Round robin</option>
+                <option value="menor_carga">Menor carga</option>
+              </select>
+            </div>
+            <div className="ia-field">
+              <label>Comando para reabrir menu</label>
+              <input
+                type="text"
+                className="ia-input chatbot-input-cmd"
+                value={v.reopenMenuCommand ?? "0"}
+                onChange={(e) => setV((c) => ({ ...c, reopenMenuCommand: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+            <div className="ia-checkbox-row">
+              <input
+                type="checkbox"
+                id="sendOnlyFirstTime"
+                checked={v.sendOnlyFirstTime !== false}
+                onChange={(e) => setV((c) => ({ ...c, sendOnlyFirstTime: e.target.checked }))}
+              />
+              <label htmlFor="sendOnlyFirstTime">Enviar menu apenas na primeira mensagem</label>
+            </div>
+          </div>
+
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">Opções do menu</h3>
+            <div className="chatbot-table-wrap">
+              <table className="ia-table chatbot-table">
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Label</th>
+                    <th>Departamento</th>
+                    <th>Ativo</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {opts.map((o, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <input
+                          type="text"
+                          className="ia-input chatbot-input-key"
+                          value={o.key ?? ""}
+                          onChange={(e) => updateOption(idx, "key", e.target.value)}
+                          placeholder="1"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          className="ia-input"
+                          value={o.label ?? ""}
+                          onChange={(e) => updateOption(idx, "label", e.target.value)}
+                          placeholder="Atendimento"
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className="ia-select"
+                          value={o.departamento_id ?? ""}
+                          onChange={(e) => updateOption(idx, "departamento_id", e.target.value)}
+                        >
+                          <option value="">Selecione</option>
+                          {departamentos.map((d) => (
+                            <option key={d.id} value={d.id}>{d.nome}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={o.active !== false}
+                          onChange={(e) => updateOption(idx, "active", e.target.checked)}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="chatbot-btn-remove"
+                          onClick={() => removeOption(idx)}
+                          aria-label="Remover opção"
+                        >
+                          Remover
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {departamentos.length === 0 && (
+              <p className="chatbot-hint">Cadastre departamentos em Configurações para vincular às opções.</p>
+            )}
+            <button type="button" className="chatbot-btn-add" onClick={addOption}>
+              + Adicionar opção
+            </button>
+          </div>
+
+          <div className="chatbot-actions">
+            <button className="ia-btn ia-btn--primary chatbot-btn-save" onClick={handleSave} disabled={saving}>
+              {saving ? "Salvando..." : "Salvar configuração"}
+            </button>
+          </div>
+        </div>
+
+        <div className="chatbot-preview">
+          <div className="chatbot-preview-card">
+            <h3 className="chatbot-preview-title">Preview — Como o cliente verá</h3>
+            <div className="chatbot-preview-phone">
+              <div className="chatbot-preview-bubbles">
+                <div className="chatbot-bubble chatbot-bubble--in">
+                  <span className="chatbot-bubble-time">agora</span>
+                  <div className="chatbot-bubble-text">
+                    {(v.welcomeMessage || "Digite a mensagem de boas-vindas ao lado.").split("\n").map((line, i) => (
+                      <span key={i}>{line || " "}<br /></span>
+                    ))}
+                  </div>
+                </div>
+                <div className="chatbot-bubble chatbot-bubble--out">
+                  <span className="chatbot-bubble-time">agora</span>
+                  <div className="chatbot-bubble-text">1</div>
+                </div>
+                <div className="chatbot-bubble chatbot-bubble--in">
+                  <span className="chatbot-bubble-time">agora</span>
+                  <div className="chatbot-bubble-text">
+                    {previewConfirm || "Mensagem de confirmação (ex: Perfeito! Seu atendimento foi direcionado para o setor Vendas...)"}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="chatbot-preview-hint">Simulação: cliente responde "1" → recebe confirmação com setor "{previewDept}"</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="chatbot-logs">
+        <div className="chatbot-logs-header">
+          <h3 className="chatbot-card-title">Logs recentes</h3>
+          <button type="button" className="ia-btn ia-btn--outline chatbot-btn-refresh" onClick={onRefreshLogs}>
+            Atualizar
+          </button>
+        </div>
+        {logs.length === 0 ? (
+          <p className="chatbot-empty">Nenhum log registrado.</p>
+        ) : (
+          <div className="chatbot-logs-list">
+            {logs.map((l) => {
+              const dataStr = l.criado_em ? new Date(l.criado_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+              const detalhesStr = l.detalhes?.departamento || l.detalhes?.label || l.detalhes?.texto || "";
+              const part3 = detalhesStr
+                ? (l.conversa_id ? `${detalhesStr} (conv #${l.conversa_id})` : detalhesStr)
+                : (l.conversa_id ? `conv #${l.conversa_id}` : "");
+              const fullStr = [dataStr, l.tipo, part3].filter(Boolean).join(" — ");
+              return (
+                <div key={l.id} className={`chatbot-log-item ${l.tipo === "erro" ? "chatbot-log-item--error" : ""}`}>
+                  {fullStr}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

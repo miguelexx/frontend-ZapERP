@@ -45,6 +45,7 @@ export default function AppRoutes() {
           <Route path="/atendimento/novo-contato" element={<NovoContato />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/configuracoes/whatsapp" element={<ConnectWhatsApp />} />
+          <Route path="/configuracoes/chatbot" element={<Navigate to="/ia?tab=chatbot" replace />} />
           <Route path="/ia" element={<IA />} />
           <Route path="/atendimento/novo-grupo" element={<NovoGrupo />} />
           <Route path="/atendimento/nova-comunidade" element={<NovaComunidade />} />
