@@ -110,6 +110,27 @@ export function initSocket(token) {
     socket.on("disconnect", () => console.log("🔴 Socket desconectado"))
   }
 
+  // Listeners idempotentes: remove antes de registrar (evita duplicar ao re-init)
+  const off = (ev) => { try { socket?.off(ev) } catch (_) {} }
+  off("typing_start")
+  off("typing_stop")
+  off("tag_adicionada")
+  off("tag_removida")
+  off("nova_conversa")
+  off("nova_mensagem")
+  off("mensagem_excluida")
+  off("mensagem_oculta")
+  off("status_mensagem")
+  off("mensagens_lidas")
+  off("zapi_sync_contatos")
+  off("conversa_atualizada")
+  off("conversa_encerrada")
+  off("conversa_transferida")
+  off("conversa_reaberta")
+  off("conversa_atribuida")
+  off("atualizar_conversa")
+  off("contato_atualizado")
+
   socket.on("connect", () => {
     currentConversationId = null
     const convId = useConversaStore.getState().selectedId
@@ -322,13 +343,14 @@ export function initSocket(token) {
         : raw || null
 
     const convStore = useConversaStore.getState()
+    const partial = { status_mensagem: s, status: s }
+    if (whatsapp_id) partial.whatsapp_id = whatsapp_id
     if (conversa_id) {
       if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
-        // Prioriza whatsapp_id; fallback por mensagem_id
-        convStore.patchMensagem(whatsapp_id ? null : mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
+        convStore.patchMensagem(whatsapp_id ? null : mensagem_id, partial)
       }
     } else if (convStore.selectedId) {
-      convStore.patchMensagem(whatsapp_id ? null : mensagem_id, { status_mensagem: s, status: s, ...(whatsapp_id ? { whatsapp_id } : {}) })
+      convStore.patchMensagem(whatsapp_id ? null : mensagem_id, partial)
     }
 
     // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)
@@ -390,11 +412,23 @@ export function initSocket(token) {
      STATUS / AÇÕES DE ATENDIMENTO
      🔥 PARTE CRÍTICA (sincronização total)
   =========================== */
-  function patchEverywhere(payload) {
+  async function patchEverywhere(payload) {
     if (!payload?.id) return
 
-    // lista
-    useChatStore.getState().updateChat(payload)
+    const chatStore = useChatStore.getState()
+    const chats = chatStore.chats || []
+    const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
+
+    // lista: atualiza se existe; senão busca e adiciona (atualiza sem F5)
+    if (idx >= 0) {
+      chatStore.updateChat(payload)
+    } else {
+      try {
+        const data = await fetchChatById(payload.id)
+        const chat = data?.conversa ?? data
+        if (chat?.id) chatStore.addChat(chat)
+      } catch (_) {}
+    }
 
     // conversa aberta
     const convStore = useConversaStore.getState()

@@ -974,19 +974,18 @@
   padding:5px 36px 5px 8px;
 }
 
+/* Texto curto ("oi"): hora + ticks na mesma linha; texto longo: meta abaixo alinhada à direita */
 .wa-bubble-textInline{
-
   display:flex;
-  flex-direction:column;
-
-  align-items:stretch;
-
-  gap:2px;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:4px 6px;
 }
 
 .wa-bubble-textInline > .wa-inlineMeta{
-
-  align-self:flex-end;
+  flex-shrink:0;
+  margin-left:2px;
 }
 
 /* =========================================================
@@ -994,25 +993,14 @@
 ========================================================= */
 
 .wa-inlineMeta{
-
   display:inline-flex;
-
   align-items:center;
-
   gap:2px;
-
-  margin-top:2px;
-
   flex-shrink:0;
-
   font-size:10.5px;
-
   color:var(--wa-text-light);
-
   font-variant-numeric:tabular-nums;
-
   white-space:nowrap;
-
   line-height:1;
 }
 

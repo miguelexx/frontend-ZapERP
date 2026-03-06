@@ -289,6 +289,7 @@ export const useConversaStore = create((set, get) => ({
   /* =====================================================
      MENSAGENS (de-dup por whatsapp_id preferencial, id ou tempId)
      Aceita msg só com whatsapp_id (espelhadas fromMe do celular)
+     Reconciliação: msg com whatsapp_id fromMe substitui temp otimista (evita duplicar)
   ===================================================== */
   anexarMensagem: (msg) => {
     const key = msg?.whatsapp_id ?? msg?.id ?? msg?.tempId
@@ -298,6 +299,41 @@ export const useConversaStore = create((set, get) => ({
       if (msg.whatsapp_id && list.some((m) => String(m.whatsapp_id) === String(msg.whatsapp_id))) return state
       if (msg.id && list.some((m) => String(m.id) === String(msg.id))) return state
       if (msg.tempId && list.some((m) => String(m.tempId) === String(msg.tempId))) return state
+
+      // Reconciliação: socket nova_mensagem com whatsapp_id fromMe → substituir temp otimista (última enviada)
+      const isFromMe = msg?.direcao === "out" || msg?.fromMe
+      if (msg.whatsapp_id && isFromMe) {
+        const now = Date.now()
+        const recentMs = 90_000
+        let tempIdx = -1
+        for (let i = list.length - 1; i >= 0; i--) {
+          const m = list[i]
+          if (m?.tempId && m?.direcao === "out") {
+            const ts = new Date(m?.criado_em || 0).getTime()
+            if (now - ts < recentMs) {
+              tempIdx = i
+              break
+            }
+          }
+        }
+        if (tempIdx >= 0) {
+          const next = [...list]
+          next[tempIdx] = { ...msg, conversa_id: state.conversa?.id }
+          const byId = new Map()
+          next.forEach((m) => {
+            const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : null
+            if (k) byId.set(k, m)
+          })
+          const sorted = Array.from(byId.values()).sort(
+            (a, b) =>
+              new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
+              (Number(a.id) - Number(b.id)) ||
+              String(a.tempId || "").localeCompare(String(b.tempId || ""))
+          )
+          return { mensagens: sorted }
+        }
+      }
+
       const byId = new Map()
       list.forEach((m) => {
         const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : null
