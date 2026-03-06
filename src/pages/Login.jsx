@@ -31,9 +31,14 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-bg" aria-hidden="true">
+        <span className="login-bg-mesh" />
+        <span className="login-bg-orb login-bg-orb-1" />
+        <span className="login-bg-orb login-bg-orb-2" />
+        <span className="login-bg-orb login-bg-orb-3" />
+        <span className="login-bg-glow" />
         <span className="login-bg-grid" />
         <span className="login-bg-scanline" />
-        <span className="login-bg-glow" />
+        <span className="login-bg-noise" />
       </div>
       <form
         onSubmit={handleSubmit}
