@@ -199,10 +199,10 @@ export default function AtendimentoActions() {
       {podeAssumir && (
         <button
           type="button"
-          className="wa-btn-primary"
+          className={`wa-btn-primary ${!hasAtendente ? "wa-btn-assumir-destaque" : ""}`}
           onClick={handleAssumir}
           disabled={busy}
-          title="Assumir atendimento"
+          title={!hasAtendente ? "Clique para assumir e enviar mensagens" : "Assumir atendimento"}
           aria-label="Assumir atendimento"
         >
           Assumir

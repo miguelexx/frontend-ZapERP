@@ -1467,6 +1467,15 @@ export default function ConversaView() {
   const podeGerenciarSetores = canGerenciarSetores(user);
   const podeGerenciarTags = canTag(user);
 
+  const podeEnviar = useMemo(() => {
+    if (!user?.id || !conversa?.id) return false;
+    const perfil = String(user?.perfil || user?.role || "").toLowerCase();
+    if (perfil === "admin") return true;
+    const atendenteId = conversa?.atendente_id ?? null;
+    if (atendenteId == null || atendenteId === "") return false;
+    return String(atendenteId) === String(user.id);
+  }, [user?.id, user?.perfil, user?.role, conversa?.atendente_id, conversa?.id]);
+
   const [texto, setTexto] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
   const [sending, setSending] = useState(false);
@@ -2065,6 +2074,15 @@ export default function ConversaView() {
   const handleEnviarArquivo = useCallback(
     async (file) => {
       if (!file || !conversaId) return;
+      if (!podeEnviar) {
+        showToast({
+          type: "warning",
+          title: "Conversa não assumida",
+          message: "Clique em Assumir para enviar mensagens.",
+        });
+        clearPending();
+        return;
+      }
 
       const formData = new FormData();
       formData.append("file", file);
@@ -2083,17 +2101,19 @@ export default function ConversaView() {
         }
       } catch (err) {
         console.error("Erro ao enviar arquivo:", err);
+        const is403 = err?.response?.status === 403;
+        const apiMsg = err?.response?.data?.error;
         showToast({
           type: "error",
-          title: "Falha ao enviar",
-          message: "Não foi possível enviar o arquivo. Tente novamente.",
+          title: is403 ? "Acesso restrito" : "Falha ao enviar",
+          message: apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar o arquivo. Tente novamente."),
         });
       } finally {
         setSending(false);
         requestAnimationFrame(() => inputRef.current?.focus());
       }
     },
-    [conversaId, refresh, showToast, clearPending, anexarMensagem]
+    [conversaId, refresh, showToast, clearPending, anexarMensagem, podeEnviar]
   );
 
   const handleFileInputChange = useCallback(
@@ -2129,6 +2149,14 @@ export default function ConversaView() {
 
   const handleStartRecording = useCallback(async () => {
     if (!conversaId || sending || isRecording) return;
+    if (!podeEnviar) {
+      showToast({
+        type: "warning",
+        title: "Conversa não assumida",
+        message: "Clique em Assumir para enviar mensagens.",
+      });
+      return;
+    }
     recordingCanceledRef.current = false;
     setRecordingSeconds(0);
     try {
@@ -2213,7 +2241,7 @@ export default function ConversaView() {
         message: msg,
       });
     }
-  }, [conversaId, sending, isRecording, handleEnviarArquivo, showToast]);
+  }, [conversaId, sending, isRecording, handleEnviarArquivo, showToast, podeEnviar]);
 
   const handleStopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -2314,6 +2342,14 @@ export default function ConversaView() {
 
   const handleEnviar = useCallback(async () => {
     if (!conversaId) return;
+    if (!podeEnviar) {
+      showToast({
+        type: "warning",
+        title: "Conversa não assumida",
+        message: "Clique em Assumir para enviar mensagens.",
+      });
+      return;
+    }
 
     const t = safeString(texto);
     if (!t) return;
@@ -2371,19 +2407,29 @@ export default function ConversaView() {
       removerMensagemTemp(tempId);
       setTexto(t);
       if (replyTo) setReplyTo(replyTo);
+      const is403 = err?.response?.status === 403;
+      const apiMsg = err?.response?.data?.error;
       showToast({
         type: "error",
-        title: "Falha ao enviar",
-        message: "Não foi possível enviar a mensagem. Verifique sua conexão.",
+        title: is403 ? "Acesso restrito" : "Falha ao enviar",
+        message: apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar a mensagem. Verifique sua conexão."),
       });
     } finally {
       setSending(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem, reconciliarMensagem, removerMensagemTemp, nome, emitTypingStop]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, reconciliarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar]);
 
   const handleEnviarLink = useCallback(async () => {
     if (!conversaId) return;
+    if (!podeEnviar) {
+      showToast({
+        type: "warning",
+        title: "Conversa não assumida",
+        message: "Clique em Assumir para enviar mensagens.",
+      });
+      return;
+    }
     const url = safeString(linkUrl);
     if (!url) return;
     const titulo = safeString(linkTitulo);
@@ -2429,16 +2475,18 @@ export default function ConversaView() {
       }
     } catch (err) {
       console.error("Erro ao enviar link:", err);
+      const is403 = err?.response?.status === 403;
+      const apiMsg = err?.response?.data?.error;
       showToast({
         type: "error",
-        title: "Falha ao enviar link",
-        message: "Não foi possível enviar o link. Verifique sua conexão.",
+        title: is403 ? "Acesso restrito" : "Falha ao enviar link",
+        message: apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar o link. Verifique sua conexão."),
       });
     } finally {
       setSending(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast]);
+  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast, podeEnviar]);
 
   const onEscape = useCallback(() => {
     if (isRecording) handleCancelRecording();
@@ -3800,10 +3848,12 @@ export default function ConversaView() {
                               });
                             } catch (err) {
                               console.error("Erro ao enviar contato:", err);
+                              const is403 = err?.response?.status === 403;
+                              const apiMsg = err?.response?.data?.error;
                               showToast({
                                 type: "error",
-                                title: "Falha ao enviar contato",
-                                message: err?.response?.data?.error || "Não foi possível enviar o contato.",
+                                title: is403 ? "Acesso restrito" : "Falha ao enviar contato",
+                                message: apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar o contato."),
                               });
                             } finally {
                               setShareContactSending(false);
@@ -3898,10 +3948,12 @@ export default function ConversaView() {
                       });
                     } catch (err) {
                       console.error("Erro ao registrar ligação:", err);
+                      const is403 = err?.response?.status === 403;
+                      const apiMsg = err?.response?.data?.error;
                       showToast({
                         type: "error",
-                        title: "Falha ao registrar ligação",
-                        message: err?.response?.data?.error || "Não foi possível registrar a ligação.",
+                        title: is403 ? "Acesso restrito" : "Falha ao registrar ligação",
+                        message: apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível registrar a ligação."),
                       });
                     } finally {
                       setCallSending(false);
@@ -3947,13 +3999,18 @@ export default function ConversaView() {
             </div>
           ) : (
             <>
+              {!podeEnviar && (
+                <div className="wa-footer-hint" role="status">
+                  Assuma esta conversa para enviar mensagens
+                </div>
+              )}
               <button
                 type="button"
                 className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
                 onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); }}
                 title="Emojis"
                 aria-label="Emojis"
-                disabled={sending || !conversaId}
+                disabled={sending || !conversaId || !podeEnviar}
               >
                 <IconEmoji />
               </button>
@@ -3965,7 +4022,7 @@ export default function ConversaView() {
                   title="Anexos e mais"
                   aria-label="Anexos e mais"
                   aria-expanded={attachMenuOpen}
-                  disabled={sending || !conversaId}
+                  disabled={sending || !conversaId || !podeEnviar}
                 >
                   <IconPlus />
                 </button>
@@ -4019,17 +4076,17 @@ export default function ConversaView() {
                 onChange={(e) => setTexto(e.target.value)}
                 onBlur={emitTypingStop}
                 onPaste={handlePaste}
-                placeholder="Digite uma mensagem"
+                placeholder={podeEnviar ? "Digite uma mensagem" : "Assuma esta conversa para responder"}
                 className="wa-input"
                 onKeyDown={handleKeyDownInput}
-                disabled={sending || !conversaId}
-                aria-label="Digite sua resposta. Enter para enviar, Esc para fechar painéis."
+                disabled={sending || !conversaId || !podeEnviar}
+                aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Esc para fechar painéis." : "Assuma esta conversa para responder."}
               />
 
               <div className="wa-footer-right">
                 <button
                   onClick={handleStartRecording}
-                  disabled={sending || !conversaId}
+                  disabled={sending || !conversaId || !podeEnviar}
                   className="wa-micBtn"
                   title="Gravar áudio"
                   type="button"
@@ -4039,9 +4096,9 @@ export default function ConversaView() {
                 </button>
                 {!isGroup && (
                   <button
-                    onClick={() => setCallModalOpen(true)}
-                    disabled={sending || !conversaId}
-                    className="wa-micBtn"
+                  onClick={() => setCallModalOpen(true)}
+                  disabled={sending || !conversaId || !podeEnviar}
+                  className="wa-micBtn"
                     title="Ligar pelo WhatsApp"
                     type="button"
                     aria-label="Ligar pelo WhatsApp"
@@ -4051,7 +4108,7 @@ export default function ConversaView() {
                 )}
                 <button
                   onClick={handleEnviar}
-                  disabled={sending || !safeString(texto) || !conversaId}
+                  disabled={sending || !safeString(texto) || !conversaId || !podeEnviar}
                   className="wa-sendBtn"
                   title="Enviar"
                   type="button"

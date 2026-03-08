@@ -404,6 +404,26 @@
 }
 
 /* -------------------------
+   ASSUMIR DESTAQUE (quando conversa não assumida)
+------------------------- */
+.wa-actions .wa-btn-assumir-destaque{
+  background:rgba(0,168,132,.22);
+  color:var(--wa-green);
+  border:1.5px solid rgba(0,168,132,.45);
+  box-shadow:0 4px 12px rgba(0,168,132,.22);
+  animation:wa-assumir-pulse 2s ease-in-out infinite;
+}
+.wa-actions .wa-btn-assumir-destaque:hover:not(:disabled){
+  background:rgba(0,168,132,.28);
+  box-shadow:0 6px 16px rgba(0,168,132,.28);
+}
+
+@keyframes wa-assumir-pulse{
+  0%,100%{ box-shadow:0 4px 12px rgba(0,168,132,.22); }
+  50%{ box-shadow:0 4px 16px rgba(0,168,132,.35); }
+}
+
+/* -------------------------
    ENCERRAR / PERIGO (vermelho moderno)
 ------------------------- */
 .wa-actions .wa-btn-danger{
@@ -2931,6 +2951,7 @@
 .wa-footer {
   padding: 10px 14px 12px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   background: var(--wa-header-bg);
@@ -2939,6 +2960,15 @@
   min-width: 0;
   /* precisa ser visível para o menu de anexos (+) não ser cortado */
   overflow: visible;
+}
+
+.wa-footer-hint {
+  flex: 0 0 100%;
+  order: -1;
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  text-align: center;
+  padding: 4px 0 0;
 }
 
 .wa-footer-right {
