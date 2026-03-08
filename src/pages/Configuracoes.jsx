@@ -6,7 +6,7 @@ import { useConversaStore } from "../conversa/conversaStore";
 import api from "../api/http";
 import * as cfg from "../api/configService";
 import * as chatService from "../chats/chatService";
-import { canAcessarConfiguracoes } from "../auth/permissions";
+import { canAcessarConfiguracoes, canAcessarUsuarios } from "../auth/permissions";
 import "./IA.css";
 import "./Configuracoes.css";
 
@@ -37,10 +37,16 @@ export default function Configuracoes() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
-  const isAdmin = canAcessarConfiguracoes(user);
+  const canAccessConfig = canAcessarConfiguracoes(user);
+  const canAccessUsers = canAcessarUsuarios(user);
+
+  const visibleTabs = useMemo(
+    () => (canAccessUsers ? TABS : TABS.filter((t) => t.id !== "usuarios")),
+    [canAccessUsers]
+  );
 
   const tabFromUrl = searchParams.get("tab");
-  const [tab, setTab] = useState(tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : "geral");
+  const [tab, setTab] = useState(tabFromUrl && TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "geral");
   const [loading, setLoading] = useState(true);
   const [empresa, setEmpresa] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
@@ -55,16 +61,20 @@ export default function Configuracoes() {
   const [modal, setModal] = useState(null);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canAccessConfig) {
       navigate("/atendimento");
       return;
     }
-  }, [isAdmin, navigate]);
+  }, [canAccessConfig, navigate]);
 
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t && TABS.some(x => x.id === t)) setTab(t);
-  }, [searchParams]);
+    if (t === "usuarios" && !canAccessUsers) {
+      navigate("/configuracoes?tab=geral", { replace: true });
+      return;
+    }
+    if (t && TABS.some((x) => x.id === t)) setTab(t);
+  }, [searchParams, canAccessUsers, navigate]);
 
   const setTabAndUrl = useCallback((nextTab) => {
     setTab(nextTab);
@@ -77,8 +87,9 @@ export default function Configuracoes() {
     }
   }, [navigate, searchParams]);
 
+
   const loadAll = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canAccessConfig) return;
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -107,7 +118,7 @@ export default function Configuracoes() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [canAccessConfig]);
 
   /** Carrega clientes com filtro opcional (nome ou telefone) */
   const loadClientes = useCallback(async (params = {}) => {
@@ -123,7 +134,7 @@ export default function Configuracoes() {
     loadAll();
   }, [loadAll]);
 
-  if (!isAdmin) return null;
+  if (!canAccessConfig) return null;
 
   if (loading && !empresa) {
     return (
@@ -154,7 +165,7 @@ export default function Configuracoes() {
       )}
 
       <nav className="ia-tabs">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"

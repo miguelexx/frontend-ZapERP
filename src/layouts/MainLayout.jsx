@@ -1,13 +1,22 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
-import { canAcessarConfiguracoes } from "../auth/permissions";
+import {
+  canAcessarConfiguracoes,
+  canAcessarDashboard,
+  canAcessarChatbot,
+  canAcessarUsuarios,
+} from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const { logout, user } = useAuthStore();
-  const isAdmin = canAcessarConfiguracoes(user);
+  const canAccessConfig = canAcessarConfiguracoes(user);
+  const canAccessDashboard_ = canAcessarDashboard(user);
+  const canAccessChatbot_ = canAcessarChatbot(user);
+  const canAccessUsers = canAcessarUsuarios(user);
+  const isAdmin = canAccessUsers;
 
   function handleLogout() {
     logout();
@@ -22,15 +31,11 @@ export default function MainLayout() {
           <ZapERPLogo variant="compact" size="sm" title="ZapERP" />
         </div>
         <nav className="sidebar-nav sidebar-nav--compact">
-          <NavItem to="/dashboard" label="Dashboard" icon={<IconDashboard />} />
-          <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />
+          {canAccessDashboard_ && <NavItem to="/dashboard" label="Dashboard" icon={<IconDashboard />} />}
+          {canAccessDashboard_ && <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />}
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
-          {isAdmin && (
-            <>
-              <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />
-              <NavItem to="/ia" label="IA / Bot" icon={<IconIASparkle />} />
-            </>
-          )}
+          {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
+          {canAccessChatbot_ && <NavItem to="/ia" label="Chatbot" icon={<IconIASparkle />} />}
         </nav>
         <div className="sidebar-spacer" />
         <div className="sidebar-footer sidebar-footer--compact">

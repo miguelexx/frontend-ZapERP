@@ -86,7 +86,7 @@ export const useAuthStore = create((set) => ({
 
       const userNormalizado = {
         ...parsed.user,
-        role: String(parsed.user.role || "atendente").toLowerCase(),
+        role: String(parsed.user.role || parsed.user.perfil || "atendente").toLowerCase(),
       }
 
       set({

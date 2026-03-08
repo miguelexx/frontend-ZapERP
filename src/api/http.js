@@ -45,7 +45,11 @@ api.interceptors.response.use(
         import("../notifications/notificationStore").then((m) => m.useNotificationStore?.getState()?.showToast(payload)).catch(() => {})
       }
       if (status === 403) {
-        show({ type: "error", title: "Sem permissão", message: err?.response?.data?.error || "Você não tem permissão para esta ação." })
+        show({
+          type: "error",
+          title: "Acesso restrito",
+          message: err?.response?.data?.error || "Você não tem permissão para acessar este recurso.",
+        })
       } else if (status >= 500) {
         show({ type: "error", title: "Erro no servidor", message: err?.response?.data?.error || "Tente novamente em instantes." })
       } else if (status === 429) {

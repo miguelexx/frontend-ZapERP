@@ -17,12 +17,6 @@ const DEFAULT_CONFIG = {
     mensagem_encerramento: "",
     tempo_limite_sem_resposta_min: 30,
   },
-  roteamento: {
-    ativar_menu_setores: true,
-    texto_menu: "Escolha o setor pelo número:",
-    departamentos_ids: [],
-    tipo_distribuicao: "manual",
-  },
   ia: {
     usar_ia: false,
     sugerir_respostas: true,
@@ -49,7 +43,6 @@ const DEFAULT_CONFIG = {
     businessHoursOnly: false,
     transferMode: "departamento",
     reopenMenuCommand: "0",
-    tipo_distribuicao: "round_robin",
     options: [],
   },
 };
@@ -57,7 +50,6 @@ const DEFAULT_CONFIG = {
 const TABS = [
   { id: "bot", label: "Bot global" },
   { id: "chatbot", label: "Chatbot de Triagem" },
-  { id: "roteamento", label: "Roteamento" },
   { id: "respostas", label: "Respostas automáticas" },
   { id: "ia", label: "IA (sugestões)" },
   { id: "automacoes", label: "Automações" },
@@ -221,7 +213,6 @@ export default function IA() {
   const cfg = config || DEFAULT_CONFIG;
 
   const bg = cfg.bot_global || {};
-  const rt = cfg.roteamento || {};
   const ia = cfg.ia || {};
   const auto = cfg.automacoes || {};
 
@@ -267,14 +258,6 @@ export default function IA() {
           <SecaoBotGlobal
             config={bg}
             onSave={(v) => handleSaveConfig("bot_global", v)}
-            saving={saving}
-          />
-        )}
-        {tab === "roteamento" && (
-          <SecaoRoteamento
-            config={rt}
-            departamentos={departamentos}
-            onSave={(v) => handleSaveConfig("roteamento", v)}
             saving={saving}
           />
         )}
@@ -376,81 +359,6 @@ function SecaoBotGlobal({ config, onSave, saving }) {
           onChange={(e) => setV((c) => ({ ...c, tempo_limite_sem_resposta_min: Number(e.target.value) || 30 }))}
         />
       </div>
-      <div className="ia-btn-row">
-        <button className="ia-btn ia-btn--primary" onClick={() => onSave(v)} disabled={saving}>
-          {saving ? "Salvando..." : "Salvar"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SecaoRoteamento({ config, departamentos, onSave, saving }) {
-  const [v, setV] = useState(config);
-  useEffect(() => setV(config), [config]);
-
-  const toggleDep = (id) => {
-    const ids = v.departamentos_ids || [];
-    const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
-    setV((c) => ({ ...c, departamentos_ids: next }));
-  };
-
-  return (
-    <div className="ia-section">
-      <h4>2. Roteamento por departamento</h4>
-      <p className="ia-muted">Usa departamentos e conversas.departamento_id.</p>
-
-      <div className="ia-switch-row">
-        <Switch
-          checked={v.ativar_menu_setores}
-          onChange={(x) => setV((c) => ({ ...c, ativar_menu_setores: x }))}
-        />
-        <span>Ativar menu de setores</span>
-      </div>
-
-      <div className="ia-field">
-        <label>Texto do menu</label>
-        <textarea
-          className="ia-textarea"
-          value={v.texto_menu || ""}
-          onChange={(e) => setV((c) => ({ ...c, texto_menu: e.target.value }))}
-          placeholder="Escolha o setor pelo número:"
-        />
-      </div>
-
-      <div className="ia-field">
-        <label>Departamentos disponíveis (checkbox)</label>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {departamentos.map((d) => (
-            <div key={d.id} className="ia-checkbox-row">
-              <input
-                type="checkbox"
-                id={`dep-${d.id}`}
-                checked={(v.departamentos_ids || []).includes(d.id)}
-                onChange={() => toggleDep(d.id)}
-              />
-              <label htmlFor={`dep-${d.id}`}>{d.nome}</label>
-            </div>
-          ))}
-          {departamentos.length === 0 && (
-            <span className="ia-muted">Nenhum departamento cadastrado.</span>
-          )}
-        </div>
-      </div>
-
-      <div className="ia-field">
-        <label>Tipo de distribuição</label>
-        <select
-          className="ia-select"
-          value={v.tipo_distribuicao || "manual"}
-          onChange={(e) => setV((c) => ({ ...c, tipo_distribuicao: e.target.value }))}
-        >
-          <option value="manual">Manual</option>
-          <option value="round_robin">Round robin</option>
-          <option value="menor_carga">Menor carga</option>
-        </select>
-      </div>
-
       <div className="ia-btn-row">
         <button className="ia-btn ia-btn--primary" onClick={() => onSave(v)} disabled={saving}>
           {saving ? "Salvando..." : "Salvar"}
