@@ -3,6 +3,7 @@ import { login as loginService } from "./authService"
 import { initSocket, disconnectSocket } from "../socket/socket"
 import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
+import { usePermissoesStore } from "./permissoesStore"
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -49,6 +50,9 @@ export const useAuthStore = create((set) => ({
       // 🔌 inicia socket autenticado
       initSocket(token)
 
+      // Carrega permissões do usuário (menus e proteção de rotas)
+      usePermissoesStore.getState().fetchPermissoes().catch(() => {})
+
       return data
     } catch (err) {
       set({ loading: false })
@@ -67,6 +71,7 @@ export const useAuthStore = create((set) => ({
     try {
       useChatStore.getState().limpar()
       useConversaStore.getState().limpar()
+      usePermissoesStore.getState().clearPermissoes()
     } catch (_) {}
 
     set({ user: null, token: null })
@@ -95,6 +100,9 @@ export const useAuthStore = create((set) => ({
       })
 
       initSocket(parsed.token)
+
+      // Carrega permissões do usuário (menus e proteção de rotas)
+      usePermissoesStore.getState().fetchPermissoes().catch(() => {})
     } catch {
       localStorage.removeItem("zap_erp_auth")
     }

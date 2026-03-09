@@ -1,21 +1,16 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
-import {
-  canAcessarConfiguracoes,
-  canAcessarDashboard,
-  canAcessarChatbot,
-  canAcessarUsuarios,
-} from "../auth/permissions";
+import { can } from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const { logout, user } = useAuthStore();
-  const canAccessConfig = canAcessarConfiguracoes(user);
-  const canAccessDashboard_ = canAcessarDashboard(user);
-  const canAccessChatbot_ = canAcessarChatbot(user);
-  const canAccessUsers = canAcessarUsuarios(user);
+  const canAccessConfig = can("config_acessar", user);
+  const canAccessDashboard_ = can("dashboard_acessar", user);
+  const canAccessChatbot_ = can("chatbot_acessar", user);
+  const canAccessUsers = can("usuarios_acessar", user);
   const isAdmin = canAccessUsers;
 
   function handleLogout() {

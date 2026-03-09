@@ -462,7 +462,7 @@ function formatPhoneForDisplay(phone) {
 }
 
 /** contato_nome || nome_contato_cache || cliente.pushname || cliente.nome || telefone — nome completo, sem truncar */
-function getDisplayName(chat) {
+export function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome_contato_cache ?? chat?.nome ?? "";
     const n = String(nome || "").trim();

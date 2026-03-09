@@ -1,11 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
-import {
-  canAcessarConfiguracoes,
-  canAcessarDashboard,
-  canAcessarChatbot,
-  canAcessarUsuarios,
-} from "../auth/permissions";
+import { can } from "../auth/permissions";
 import ProtectedRoute from "./ProtectedRoute";
 
 import Login from "../pages/Login";
@@ -24,10 +19,10 @@ import ConnectWhatsApp from "../pages/ConnectWhatsApp";
 
 export default function AppRoutes() {
   const { token, user } = useAuthStore();
-  const canAccessConfig = canAcessarConfiguracoes(user);
-  const canAccessDashboard_ = canAcessarDashboard(user);
-  const canAccessChatbot_ = canAcessarChatbot(user);
-  const canAccessUsers = canAcessarUsuarios(user);
+  const canAccessConfig = can("config_acessar", user);
+  const canAccessDashboard_ = can("dashboard_acessar", user);
+  const canAccessChatbot_ = can("chatbot_acessar", user);
+  const canAccessUsers = can("usuarios_acessar", user);
 
   if (!token) {
     return (

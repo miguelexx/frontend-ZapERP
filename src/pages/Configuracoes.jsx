@@ -7,12 +7,14 @@ import api from "../api/http";
 import * as cfg from "../api/configService";
 import * as chatService from "../chats/chatService";
 import { canAcessarConfiguracoes, canAcessarUsuarios } from "../auth/permissions";
+import SecaoPermissoes from "./SecaoPermissoes";
 import "./IA.css";
 import "./Configuracoes.css";
 
 const TABS = [
   { id: "geral", label: "Geral" },
   { id: "usuarios", label: "Usuários" },
+  { id: "permissoes", label: "Permissões" },
   { id: "departamentos", label: "Departamentos" },
   { id: "tags", label: "Tags" },
   { id: "respostas", label: "Respostas salvas" },
@@ -41,7 +43,10 @@ export default function Configuracoes() {
   const canAccessUsers = canAcessarUsuarios(user);
 
   const visibleTabs = useMemo(
-    () => (canAccessUsers ? TABS : TABS.filter((t) => t.id !== "usuarios")),
+    () =>
+      canAccessUsers
+        ? TABS
+        : TABS.filter((t) => t.id !== "usuarios" && t.id !== "permissoes"),
     [canAccessUsers]
   );
 
@@ -59,6 +64,7 @@ export default function Configuracoes() {
   const [empresasWhatsapp, setEmpresasWhatsapp] = useState([]);
   const [errorMsg, setErrorMsg] = useState(null);
   const [modal, setModal] = useState(null);
+  const [usuarioIdPermissoes, setUsuarioIdPermissoes] = useState("");
 
   useEffect(() => {
     if (!canAccessConfig) {
@@ -69,7 +75,7 @@ export default function Configuracoes() {
 
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t === "usuarios" && !canAccessUsers) {
+    if ((t === "usuarios" || t === "permissoes") && !canAccessUsers) {
       navigate("/configuracoes?tab=geral", { replace: true });
       return;
     }
@@ -194,6 +200,18 @@ export default function Configuracoes() {
             onRefresh={loadAll}
             onEdit={(u) => setModal({ type: "usuario", data: u })}
             onNew={() => setModal({ type: "usuario", data: null })}
+            onEditarPermissoes={(u) => {
+              setTabAndUrl("permissoes");
+              setUsuarioIdPermissoes(String(u.id));
+            }}
+          />
+        )}
+        {tab === "permissoes" && (
+          <SecaoPermissoes
+            usuarios={usuarios}
+            usuarioIdInicial={usuarioIdPermissoes}
+            onUsuarioIdChange={setUsuarioIdPermissoes}
+            onRefresh={loadAll}
           />
         )}
         {tab === "departamentos" && (
@@ -437,7 +455,7 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
   );
 }
 
-function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew }) {
+function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew, onEditarPermissoes }) {
   return (
     <div className="ia-section">
       <div className="config-headRow">
@@ -480,6 +498,11 @@ function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew }) {
               <td>{u.ativo ? "Ativo" : "Inativo"}</td>
               <td>
                 <button className="ia-btn ia-btn--small ia-btn--outline" onClick={() => onEdit(u)}>Editar</button>
+                {onEditarPermissoes && (
+                  <button className="ia-btn ia-btn--small ia-btn--outline" onClick={() => onEditarPermissoes(u)} style={{ marginLeft: 6 }}>
+                    Permissões
+                  </button>
+                )}
               </td>
             </tr>
           ))}

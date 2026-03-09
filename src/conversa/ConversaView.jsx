@@ -10,6 +10,7 @@ import { canGerenciarSetores, canTag } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
 import { fetchChats, abrirConversaCliente } from "../chats/chatService";
+import { getDisplayName } from "../chats/chatList";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { getSocket } from "../socket/socket";
 import { saveReplyMeta } from "./replyMeta";
@@ -1575,38 +1576,33 @@ export default function ConversaView() {
     [chats, conversaId]
   );
 
-  // Nome sincronizado: prioriza conversa, enriquece com chat da lista (evita header mostrar número quando sidebar tem nome)
+  // Nome idêntico à lista de conversas: usa getDisplayName do chatList quando disponível
   const nome = useMemo(() => {
+    const chatParaNome = fromChat ?? conversa;
+    if (chatParaNome) {
+      return getDisplayName(chatParaNome);
+    }
     if (isGroup) {
       const g =
         conversa?.nome_grupo ||
-        fromChat?.nome_grupo ||
         conversa?.contato_nome ||
-        fromChat?.contato_nome ||
         conversa?.nome ||
         "Grupo";
       return isLidValue(g) ? "Grupo" : g;
     }
     const raw =
       conversa?.contato_nome ||
-      fromChat?.contato_nome ||
       conversa?.nome_contato_cache ||
-      fromChat?.nome_contato_cache ||
       conversa?.cliente?.pushname ||
-      fromChat?.cliente?.pushname ||
       conversa?.pushname ||
-      fromChat?.pushname ||
       conversa?.cliente?.nome ||
-      fromChat?.cliente?.nome ||
       conversa?.cliente_nome ||
-      fromChat?.cliente_nome ||
       conversa?.nome ||
       "";
     const n = String(raw || "").trim();
     if (n && !isLidValue(n)) return n;
     const tel =
       conversa?.telefone_exibivel ||
-      fromChat?.telefone_exibivel ||
       conversa?.cliente_telefone ||
       conversa?.telefone ||
       "";
