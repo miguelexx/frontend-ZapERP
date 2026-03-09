@@ -394,6 +394,7 @@
 .secao-permissoes .permissoes-row-info {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 1;
   min-width: 0;
@@ -406,6 +407,18 @@
 
 [data-theme="dark"] .secao-permissoes .permissoes-row-nome {
   color: var(--ds-text-primary);
+}
+
+.secao-permissoes .permissoes-row-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+[data-theme="dark"] .secao-permissoes .permissoes-row-desc {
+  color: var(--ds-text-secondary);
 }
 
 .secao-permissoes .permissoes-row-badge {
