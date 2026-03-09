@@ -42,6 +42,7 @@ const DEFAULT_CONFIG = {
     fallbackToAI: false,
     businessHoursOnly: false,
     transferMode: "departamento",
+    tipo_distribuicao: "fila",
     reopenMenuCommand: "0",
     options: [],
   },
@@ -668,7 +669,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
     businessHoursOnly: vals.businessHoursOnly ?? false,
     transferMode: vals.transferMode ?? "departamento",
     reopenMenuCommand: String(vals.reopenMenuCommand ?? "0").trim() || "0",
-    tipo_distribuicao: vals.tipo_distribuicao === "menor_carga" ? "menor_carga" : "round_robin",
+    tipo_distribuicao: ["fila", "round_robin", "menor_carga"].includes(vals.tipo_distribuicao) ? vals.tipo_distribuicao : "fila",
     options: (vals.options || []).map((o) => ({
       key: String(o.key || "").trim(),
       label: (o.label || "").trim(),
@@ -774,14 +775,18 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
           <div className="chatbot-card">
             <h3 className="chatbot-card-title">Comportamento</h3>
             <div className="ia-field">
-              <label title="Como as conversas são distribuídas entre os usuários do setor.">Tipo de distribuição</label>
+              <label title="Define o que acontece quando o cliente responde com o número do setor.">
+                Como a conversa chega ao setor
+              </label>
               <select
                 className="ia-select"
-                value={v.tipo_distribuicao ?? "round_robin"}
+                value={v.tipo_distribuicao ?? "fila"}
                 onChange={(e) => setV((c) => ({ ...c, tipo_distribuicao: e.target.value }))}
+                title="Define o que acontece quando o cliente responde com o número do setor."
               >
-                <option value="round_robin">Round robin</option>
-                <option value="menor_carga">Menor carga</option>
+                <option value="fila">Todos do setor veem — quem assumir primeiro atende (recomendado)</option>
+                <option value="round_robin">Rotação automática entre atendentes do setor</option>
+                <option value="menor_carga">Atribuir ao atendente com menos conversas</option>
               </select>
             </div>
             <div className="ia-field">
