@@ -22,7 +22,11 @@ import {
 import * as cfg from "../api/configService";
 import SidebarCliente from "./SidebarCliente";
 import EmptyState from "../components/feedback/EmptyState";
+import DSToast from "../components/feedback/Toast";
+import { SkeletonLine } from "../components/feedback/Skeleton";
 import "../components/feedback/empty-state.css";
+import "../components/feedback/skeleton.css";
+import "../components/feedback/toast.css";
 
 /* =========================================================
    Utils
@@ -362,21 +366,16 @@ function IconPlus(props) {
    UI helpers
 ========================================================= */
 
-function Toast({ toast, onClose }) {
+function ChatToast({ toast, onClose }) {
   if (!toast) return null;
   return (
-    <div className={`wa-toast ${toast.type || "info"}`} role="status" aria-live="polite">
-      <div className="wa-toast-title">{toast.title || "Aviso"}</div>
-      {toast.message ? <div className="wa-toast-message">{toast.message}</div> : null}
-      <button className="wa-toast-close" type="button" onClick={onClose} title="Fechar">
-        <IconClose />
-      </button>
-    </div>
+    <DSToast
+      title={toast.title || "Aviso"}
+      message={toast.message}
+      type={toast.type || "info"}
+      onClose={onClose}
+    />
   );
-}
-
-function SkeletonLine({ w = "100%" }) {
-  return <div className="wa-skeleton-line" style={{ width: w }} />;
 }
 
 function DaySeparator({ label }) {
@@ -3061,10 +3060,10 @@ export default function ConversaView() {
         <div className="wa-empty-card wa-empty-card-loading">
           <div className="wa-empty-title">Carregando conversa…</div>
           <div className="wa-empty-skel">
-            <SkeletonLine w="70%" />
-            <SkeletonLine w="92%" />
-            <SkeletonLine w="84%" />
-            <SkeletonLine w="60%" />
+            <SkeletonLine width="70%" />
+            <SkeletonLine width="92%" />
+            <SkeletonLine width="84%" />
+            <SkeletonLine width="60%" />
           </div>
         </div>
       </div>
@@ -3113,7 +3112,7 @@ export default function ConversaView() {
 
   return (
     <div className="wa-shell" onDragEnter={onDragEnter}>
-        <Toast toast={toast} onClose={() => setToast(null)} />
+        <ChatToast toast={toast} onClose={() => setToast(null)} />
 
         {dragOver ? (
           <div

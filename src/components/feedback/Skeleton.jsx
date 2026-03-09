@@ -32,3 +32,25 @@ export function SkeletonGrid({ count = 6 }) {
     </div>
   );
 }
+
+/** Lista de conversas — avatar + 2 linhas por linha (chatList) */
+export function SkeletonChatList({ count = 8, className = "" }) {
+  return (
+    <div className={`chat-list-pad ${className}`.trim()}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="chat-list-skel-row">
+          <Skeleton variant="circle" />
+          <div className="chat-list-skel-body">
+            <Skeleton variant="line" width="50%" />
+            <Skeleton variant="line" width="80%" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Alias: linha de skeleton (ex.: ConversaView wa-empty-skel) */
+export function SkeletonLine({ width = "100%" }) {
+  return <Skeleton variant="line" width={width} />;
+}

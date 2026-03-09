@@ -10,8 +10,10 @@ import { canAcessarConfiguracoes, canAcessarUsuarios } from "../auth/permissions
 import SecaoPermissoes from "./SecaoPermissoes";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import { SkeletonGrid } from "../components/feedback/Skeleton";
+import Switch from "../components/ui/Switch";
 import "../components/layout/breadcrumb.css";
 import "../components/feedback/skeleton.css";
+import "../components/ui/switch.css";
 import "./IA.css";
 import "./Configuracoes.css";
 
@@ -27,17 +29,6 @@ const TABS = [
   { id: "planos", label: "Planos" },
   { id: "auditoria", label: "Auditoria" },
 ];
-
-function Switch({ checked, onChange }) {
-  return (
-    <div
-      className={`ia-switch ${checked ? "isOn" : ""}`}
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-    />
-  );
-}
 
 export default function Configuracoes() {
   const navigate = useNavigate();

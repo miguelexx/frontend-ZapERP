@@ -224,6 +224,8 @@
   --transition: var(--ds-transition);
   --shadow-subtle: var(--ds-shadow-xs);
   --shadow-card: var(--ds-shadow-sm);
+  --zap-primary: var(--ds-accent);
+  --bg: var(--ds-surface-1);
 }
 
 [data-theme="dark"] {
@@ -240,4 +242,6 @@
   --green: var(--ds-accent);
   --green-soft: var(--ds-accent-soft);
   --green-hover: var(--ds-accent-hover);
+  --zap-primary: var(--ds-accent);
+  --bg: var(--ds-surface-1);
 }

@@ -109,10 +109,10 @@
   margin-top: 10px;
 }
 
-.config-wrap .ia-error-banner.is-ok{
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
+.config-wrap .ia-error-banner.is-ok {
+  background: var(--ds-success-soft);
+  border-color: rgba(0, 168, 132, 0.25);
+  color: var(--ds-success);
 }
 
 .config-wrap .ia-btn--outline{

@@ -1,0 +1,58 @@
+/* Input — Design System ZapERP */
+.ds-input-field {
+  margin-bottom: 14px;
+}
+
+.ds-input-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ds-text-tertiary);
+  margin-bottom: 6px;
+}
+
+.ds-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius);
+  background: var(--ds-surface-1);
+  color: var(--ds-text-primary);
+  transition: border-color var(--ds-transition), box-shadow var(--ds-transition);
+}
+
+.ds-input::placeholder {
+  color: var(--ds-text-muted);
+}
+
+.ds-input:hover:not(:disabled) {
+  border-color: var(--ds-border-strong);
+}
+
+.ds-input:focus {
+  outline: none;
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 3px var(--ds-accent-soft);
+}
+
+.ds-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ds-input[aria-invalid="true"] {
+  border-color: var(--ds-error);
+}
+
+.ds-input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px var(--ds-error-soft);
+}
+
+.ds-input-error {
+  display: block;
+  font-size: 12px;
+  color: var(--ds-error);
+  margin-top: 4px;
+}

@@ -1,8 +1,14 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import "./campanhas.css";
 
 export default function Campanhas() {
+  useEffect(() => {
+    document.title = "Campanhas — ZapERP";
+    return () => { document.title = "ZapERP — Atendimento inteligente"; };
+  }, []);
+
   return (
     <div className="coming-soon-page">
       <div className="coming-soon-card">

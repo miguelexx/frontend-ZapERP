@@ -9,8 +9,12 @@ import "./styles/app.css";
 useAuthStore.getState().restore();
 
 function applyTheme() {
-  const theme = localStorage.getItem("theme") || "light";
-  document.documentElement.setAttribute("data-theme", theme);
+  const saved = localStorage.getItem("theme");
+  const fallback =
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)")?.matches
+      ? "dark"
+      : "light";
+  document.documentElement.setAttribute("data-theme", saved || fallback);
 }
 
 applyTheme();

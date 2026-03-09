@@ -7,8 +7,10 @@ import api from "../api/http";
 import * as iaApi from "../api/iaService";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import { SkeletonGrid } from "../components/feedback/Skeleton";
+import Switch from "../components/ui/Switch";
 import "../components/layout/breadcrumb.css";
 import "../components/feedback/skeleton.css";
+import "../components/ui/switch.css";
 import "./IA.css";
 
 const DEFAULT_CONFIG = {
@@ -60,17 +62,6 @@ const TABS = [
   { id: "automacoes", label: "Automações" },
   { id: "logs", label: "Logs do bot" },
 ];
-
-function Switch({ checked, onChange }) {
-  return (
-    <div
-      className={`ia-switch ${checked ? "isOn" : ""}`}
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-    />
-  );
-}
 
 export default function IA() {
   const navigate = useNavigate();
@@ -308,7 +299,7 @@ function SecaoBotGlobal({ config, onSave, saving }) {
       <h4>1. Bot global</h4>
       <p className="ia-muted">Se OFF, nenhuma automação roda. Se ON, habilita todas as regras.</p>
 
-      <div className="ia-switch-row">
+      <div className="ds-switch-row">
         <Switch checked={v.ativo} onChange={(x) => setV((c) => ({ ...c, ativo: x }))} />
         <span>Ativar Bot</span>
       </div>
@@ -496,7 +487,7 @@ function SecaoIA({ config, onSave, saving }) {
       <h4>4. IA (sugestões inteligentes)</h4>
       <p className="ia-muted">Assistivo, nunca responde sozinho sem permissão.</p>
 
-      <div className="ia-switch-row">
+      <div className="ds-switch-row">
         <Switch checked={v.usar_ia} onChange={(x) => setV((c) => ({ ...c, usar_ia: x }))} />
         <span>Usar IA</span>
       </div>

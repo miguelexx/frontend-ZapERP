@@ -1,3 +1,8 @@
+/**
+ * @deprecated Código morto — não usado em AppRoutes.
+ * O layout principal usa MainLayout + Atendimento (que já inclui ChatList e ConversaView).
+ * Mantido apenas para referência histórica. Pode ser removido com segurança.
+ */
 import { useState } from "react"
 import ChatList from "../chats/chatList"
 import ConversaView from "../conversa/ConversaView"

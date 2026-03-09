@@ -26,6 +26,12 @@
   height: 14px;
 }
 
+.ds-skeleton--circle {
+  height: 48px;
+  width: 48px;
+  border-radius: var(--ds-radius-full);
+}
+
 .ds-skeleton-card {
   background: var(--ds-surface-1);
   border: 1px solid var(--ds-border);

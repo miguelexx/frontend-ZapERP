@@ -12,7 +12,9 @@ import { useNavigate } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useNotificationStore } from "../notifications/notificationStore";
 import EmptyState from "../components/feedback/EmptyState";
+import { SkeletonChatList } from "../components/feedback/Skeleton";
 import "../components/feedback/empty-state.css";
+import "../components/feedback/skeleton.css";
 import "../components/ui/button.css";
 import "./chatList.css";
 
@@ -588,22 +590,6 @@ function StatusPill({ status }) {
     <span className={it.cls} title={it.label}>
       {it.label}
     </span>
-  );
-}
-
-function SkeletonList() {
-  return (
-    <div className="chat-list-pad">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="chat-list-skel-row">
-          <div className="chat-list-skel-avatar" />
-          <div className="chat-list-skel-body">
-            <div className="chat-list-skel-top" />
-            <div className="chat-list-skel-bottom" />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -1468,7 +1454,7 @@ export default function ChatList() {
 
       <div className="chat-list-list chat-list-scroll">
         {loading ? (
-          <SkeletonList />
+          <SkeletonChatList />
         ) : chatsFiltrados.length === 0 ? (
           <div className="chat-list-empty-wrap">
             <EmptyState
