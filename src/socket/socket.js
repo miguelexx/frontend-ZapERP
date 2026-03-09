@@ -232,28 +232,33 @@ export function initSocket(token) {
 
     /* Não fazer early-return por "jaExiste": anexarMensagem faz UPSERT — merge status/whatsapp_id se já existir */
 
-    const nomeContato =
-      (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
+    // Nome/foto: NUNCA atualizar a partir de msg outbound (sender somos nós)
+    const isOutbound = msg?.direcao === "out" || msg?.fromMe
+    const nomeContato = isOutbound
+      ? null
+      : (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
         ? String(msg.chatName).trim()
         : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
           ? String(msg.senderName).trim()
           : null
-    const fotoContato =
-      (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
+    const fotoContato = isOutbound
+      ? null
+      : (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
         : (msg.photo && String(msg.photo).trim().startsWith("http")) ? String(msg.photo).trim()
           : null
 
     if (!jaNaLista) {
       const isAbertaParaInc = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
+      const nomeInicial = nomeContato || undefined
       chatStore.addChat({
         id: conversaId,
-        contato_nome: nomeContato || "Conversa",
+        contato_nome: nomeInicial || "Conversa",
         foto_perfil: fotoContato,
         unread_count: isAbertaParaInc ? 0 : 1,
         ultima_mensagem: msg
       })
     } else {
-      // Só preenche nome/foto quando vazio — evita sobrescrever com dados inconsistentes do webhook
+      // Só preenche nome/foto quando vazio — NUNCA sobrescrever contato_nome com msg outbound
       const existing = chats.find(c => String(c.id) === String(conversaId))
       const patch = {}
       const nomeVazio = !existing?.contato_nome || !String(existing.contato_nome).trim()

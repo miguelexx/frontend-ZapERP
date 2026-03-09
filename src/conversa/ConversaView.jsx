@@ -2386,8 +2386,19 @@ export default function ConversaView() {
       reply_meta: replyMeta || undefined,
     };
     anexarMensagem(optimisticMsg);
-    useChatStore.getState().setUltimaMensagem(conversaId, optimisticMsg);
-    useChatStore.getState().bumpChatToTop(conversaId);
+    const chatStore = useChatStore.getState();
+    const chats = chatStore.chats || [];
+    const jaNaLista = chats.some((c) => String(c?.id) === String(conversaId));
+    if (!jaNaLista && conversa) {
+      chatStore.addChat({
+        id: conversaId,
+        contato_nome: conversa?.contato_nome || conversa?.cliente_nome || conversa?.nome_grupo || "Conversa",
+        foto_perfil: conversa?.foto_perfil,
+        ultima_mensagem: optimisticMsg,
+      });
+    }
+    chatStore.setUltimaMensagem(conversaId, optimisticMsg);
+    chatStore.bumpChatToTop(conversaId);
     setTexto("");
     setReplyTo(null);
     setSending(true);
