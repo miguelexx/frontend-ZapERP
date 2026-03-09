@@ -2394,6 +2394,7 @@ export default function ConversaView() {
 
     try {
       const res = await enviarMensagem(conversaId, t, replyMeta || undefined);
+      // API pode retornar { ok, id, conversa_id } SEM mensagem — msg vem só via socket nova_mensagem
       if (res?.mensagem) {
         const msg = res.mensagem;
         const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
@@ -2408,7 +2409,8 @@ export default function ConversaView() {
         } else {
           removerMensagemTemp(tempId);
         }
-      } else {
+      } else if (!res?.ok && res?.id == null) {
+        // Resposta indica falha: remover temp. Sucesso { ok, id } sem mensagem: manter temp; socket nova_mensagem fará upsert.
         removerMensagemTemp(tempId);
       }
     } catch (err) {

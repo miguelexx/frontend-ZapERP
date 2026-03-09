@@ -274,10 +274,10 @@ export function initSocket(token) {
 
     /* ----------------------------------
        🔔 NOTIFICAÇÕES (som, desktop, toast, título) — somente se conversa NÃO aberta
-       Só incUnread quando conversa já estava na lista (evita double-count em nova_conversa)
+       incUnread só para direcao 'in' (mensagem recebida)
     ---------------------------------- */
     if (!isAberta) {
-      if (jaNaLista) chatStore.incUnread(conversaId, 1)
+      if (jaNaLista && msg.direcao === "in") chatStore.incUnread(conversaId, 1)
       updateDocumentTitleFromChats()
 
       if (msg.direcao === "in") {
@@ -435,7 +435,7 @@ export function initSocket(token) {
 
   /* ===========================
      STATUS / AÇÕES DE ATENDIMENTO
-     🔥 PARTE CRÍTICA (sincronização total)
+     conversa_atualizada: merge defensivo na lista; NUNCA refetchar mensagens do chat aberto
   =========================== */
   async function patchEverywhere(payload) {
     if (!payload?.id) return
@@ -444,7 +444,6 @@ export function initSocket(token) {
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
 
-    // lista: atualiza se existe; senão busca e adiciona (atualiza sem F5)
     if (idx >= 0) {
       chatStore.updateChat(payload)
     } else {
@@ -455,7 +454,7 @@ export function initSocket(token) {
       } catch (_) {}
     }
 
-    // conversa aberta
+    // conversa aberta: patch apenas metadados (conversa), nunca mensagens
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(payload.id)) {
       convStore.patchConversa(payload)
@@ -471,8 +470,9 @@ export function initSocket(token) {
     updateDocumentTitleFromChats()
   })
 
-  /* Sinal do webhook Z-API: conversa teve atividade (nova msg, status, etc.)
-     Debounce 400ms para evitar múltiplos fetches seguidos — atualiza lista sem piscar UI. */
+  /* Sinal do webhook Z-API: conversa teve atividade (status, transferência, etc.)
+     Backend NÃO emite para mensagem nova (usa nova_mensagem).
+     Refetchar só a LISTA — nunca as mensagens do chat aberto (evita "aparecer e sumir"). */
   const atualizarDebounce = {}
   socket.on("atualizar_conversa", ({ id } = {}) => {
     if (!id) return
@@ -484,7 +484,10 @@ export function initSocket(token) {
         const data = await fetchChatById(id)
         if (!data) return
         const chat = data?.conversa ? data.conversa : data
-        if (chat?.id) useChatStore.getState().addChat(chat)
+        if (chat?.id) {
+          useChatStore.getState().addChat(chat)
+          // NUNCA aplicar mensagens ao conversaStore — a lista pode ter chat.mensagens, mas conversaStore.mensagens vem só de nova_mensagem/carregarConversa
+        }
       } catch (_) {}
     }, 400)
   })

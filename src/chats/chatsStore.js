@@ -108,7 +108,8 @@ export const useChatStore = create((set, get) => ({
 
   /* =========================================
      🔥 PATCH GENÉRICO (usado pelo socket)
-     conversa_atualizada: não sobrescreve contato_nome/nome_contato_cache/foto_perfil com undefined ou vazio
+     conversa_atualizada: merge defensivo — nunca sobrescrever com undefined ou string vazio
+     ultima_mensagem: usa payload.ultima_mensagem para preview (sem refetch)
   ========================================= */
   updateChat: (partial) => {
     if (!partial?.id) return
@@ -123,14 +124,14 @@ export const useChatStore = create((set, get) => ({
     const cur = next[idx]
     const merged = { ...cur }
 
-    // Copia campos de partial exceto nome/foto (tratados abaixo)
+    // Merge defensivo: nunca sobrescrever com undefined; strings vazias só em nome/foto (bloqueados abaixo)
     const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil"])
     for (const k of Object.keys(partial)) {
       if (k === "id" || skipKeys.has(k)) continue
-      merged[k] = partial[k]
+      if (partial[k] !== undefined) merged[k] = partial[k]
     }
 
-    // Só atualiza nome/foto quando backend enviar valor válido — preserva nome completo da agenda
+    // Nome/foto: só quando valor válido (preserva nome completo da agenda)
     if (partial.contato_nome != null && String(partial.contato_nome).trim() !== "") {
       merged.contato_nome = partial.contato_nome
       merged.nome_contato_cache = partial.nome_contato_cache ?? partial.contato_nome
@@ -140,6 +141,17 @@ export const useChatStore = create((set, get) => ({
     }
     if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
       merged.foto_perfil = partial.foto_perfil
+    }
+
+    // ultima_mensagem: usar para preview na lista (evita refetch)
+    if (partial.ultima_mensagem != null) {
+      merged.ultima_mensagem = partial.ultima_mensagem
+      if (partial.ultima_mensagem?.criado_em) merged.ultima_atividade = partial.ultima_mensagem.criado_em
+    }
+    if (partial.ultima_atividade != null) merged.ultima_atividade = partial.ultima_atividade
+    if (partial.tem_novas_mensagens === true) {
+      merged.tem_novas_mensagens = true
+      merged.lida = false
     }
 
     next[idx] = merged

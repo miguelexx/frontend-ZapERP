@@ -309,21 +309,23 @@ export const useConversaStore = create((set, get) => ({
      Reconciliação: msg com whatsapp_id fromMe substitui temp otimista.
   ===================================================== */
   anexarMensagem: (msg) => {
+    const conversaId = msg?.conversa_id ?? get().conversa?.id
+    if (!conversaId) return
     const key = msg?.whatsapp_id ?? msg?.id ?? msg?.tempId
     if (!key) return
-    const conversaId = msg?.conversa_id ?? get().conversa?.id
     set((state) => {
       const list = state.mensagens || []
       const convId = state.conversa?.id ?? conversaId
 
-      // Encontrar mensagem existente: por id, whatsapp_id ou tempId
+      // UPSERT: por id OU por (conversa_id + whatsapp_id) — evita "aparecer e sumir"
       const findExisting = () => {
         if (msg.id) {
           const byId = list.findIndex((m) => String(m.id) === String(msg.id))
           if (byId >= 0) return byId
         }
-        if (msg.whatsapp_id) {
-          const byWa = list.findIndex((m) => String(m.whatsapp_id) === String(msg.whatsapp_id))
+        const waId = msg.whatsapp_id || null
+        if (waId && convId) {
+          const byWa = list.findIndex((m) => (m.conversa_id == null || String(m.conversa_id) === String(convId)) && String(m.whatsapp_id || "") === String(waId))
           if (byWa >= 0) return byWa
         }
         if (msg.tempId) {
