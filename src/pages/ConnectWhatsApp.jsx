@@ -6,6 +6,8 @@ import {
   getZapiConnectQrCode,
   postZapiConnectRestart,
 } from "../api/zapiIntegration";
+import Breadcrumb from "../components/layout/Breadcrumb";
+import "../components/layout/breadcrumb.css";
 import "./IA.css";
 
 function getStatusBadge(status) {
@@ -284,6 +286,7 @@ export default function ConnectWhatsApp() {
   return (
     <div className="ia-wrap">
       <header className="ia-header">
+        <Breadcrumb items={[{ label: "Configurações", to: "/configuracoes" }, { label: "Conectar WhatsApp" }]} />
         <h1 className="ia-title">Conectar WhatsApp</h1>
         <p className="ia-subtitle">
           Conecte a instância Z-API da sua empresa via QR Code, como no WhatsApp Web.

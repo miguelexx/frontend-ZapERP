@@ -21,6 +21,8 @@ import {
 } from "../api/tagService";
 import * as cfg from "../api/configService";
 import SidebarCliente from "./SidebarCliente";
+import EmptyState from "../components/feedback/EmptyState";
+import "../components/feedback/empty-state.css";
 
 /* =========================================================
    Utils
@@ -3101,10 +3103,10 @@ export default function ConversaView() {
   if (!conversa) {
     return (
       <div className="wa-empty">
-        <div className="wa-empty-card">
-          <div className="wa-empty-title">Selecione uma conversa</div>
-          <div className="wa-empty-sub">Abra uma conversa na lista para visualizar as mensagens.</div>
-        </div>
+        <EmptyState
+          title="Selecione uma conversa"
+          description="Abra uma conversa na lista à esquerda para visualizar e responder às mensagens."
+        />
       </div>
     );
   }

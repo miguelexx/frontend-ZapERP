@@ -17,6 +17,9 @@ import NovoGrupo from "../pages/NovoGrupo";
 import NovaComunidade from "../pages/NovaComunidade";
 import ConnectWhatsApp from "../pages/ConnectWhatsApp";
 import Permissoes from "../pages/Permissoes";
+import Campanhas from "../pages/Campanhas";
+import Mensagens from "../pages/Mensagens";
+import Atalhos from "../pages/Atalhos";
 
 export default function AppRoutes() {
   const { token, user } = useAuthStore();
@@ -124,6 +127,18 @@ export default function AppRoutes() {
               )
             }
           />
+          <Route
+            path="/campanhas"
+            element={
+              canAccessDashboard_ ? (
+                <Campanhas />
+              ) : (
+                <Navigate to="/atendimento" replace />
+              )
+            }
+          />
+          <Route path="/mensagens" element={<Mensagens />} />
+          <Route path="/atalhos" element={<Atalhos />} />
           <Route path="*" element={<NotFound />} />
         </Route>
 

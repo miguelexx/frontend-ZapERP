@@ -3,6 +3,7 @@ import ChatList from "../chats/chatList"
 import ConversaView from "../conversa/ConversaView"
 import Dashboard from "../dashboard/Dashboard"
 import { useAuthStore } from "../auth/authStore"
+import { useNotificationStore } from "../notifications/notificationStore"
 import { puxarChatFila, getChatById } from "../conversa/conversaService"
 import GlobalNotifications from "../notifications/GlobalNotifications"
 
@@ -13,6 +14,7 @@ export default function AppLayout() {
 
   const logout = useAuthStore((s) => s.logout)
   const user = useAuthStore((s) => s.user)
+  const showToast = useNotificationStore((s) => s.showToast)
 
   async function handlePuxarFila() {
     if (loadingFila) return
@@ -28,7 +30,7 @@ export default function AppLayout() {
       }
     } catch (e) {
       console.error("Erro ao puxar da fila:", e)
-      alert("Nenhuma conversa disponível na fila")
+      showToast?.({ type: "warning", title: "Fila vazia", message: "Nenhuma conversa disponível na fila no momento." })
     } finally {
       setLoadingFila(false)
     }

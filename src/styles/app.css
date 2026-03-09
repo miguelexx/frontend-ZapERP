@@ -258,7 +258,8 @@ body {
 }
 
 .sidebar-nav-item,
-.sidebar-logout {
+.sidebar-logout,
+.sidebar-theme-toggle {
   width: 40px;
   height: 40px;
   border-radius: var(--ds-radius-md);
@@ -274,13 +275,15 @@ body {
 }
 
 .sidebar-nav-item:hover,
-.sidebar-logout:hover {
+.sidebar-logout:hover,
+.sidebar-theme-toggle:hover {
   background: var(--ds-hover);
   color: var(--ds-text-primary);
 }
 
 .sidebar-nav-item:active,
-.sidebar-logout:active {
+.sidebar-logout:active,
+.sidebar-theme-toggle:active {
   transform: scale(0.96);
 }
 
@@ -465,6 +468,12 @@ body {
     display: none;
   }
 
+  .app-layout--crm .sidebar-theme-toggle {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
   .app-layout--crm .sidebar-footer--compact {
     flex-direction: row;
     padding-top: 0;
@@ -476,7 +485,8 @@ body {
   }
 
   .sidebar-nav-item,
-  .sidebar-logout {
+  .sidebar-logout,
+  .sidebar-theme-toggle {
     width: 48px;
     height: 48px;
     flex: 0 0 auto;
@@ -509,6 +519,18 @@ body {
 /* Login — visual premium com mesh, orbs e glassmorphism */
 body:has(.login-wrap) {
   background: #030508 !important;
+}
+
+[data-theme="light"] body:has(.login-wrap) {
+  background: linear-gradient(135deg, #f0f2f5 0%, #e8ecf0 50%, #dce4eb 100%) !important;
+}
+
+[data-theme="light"] .login-bg-mesh,
+[data-theme="light"] .login-bg-orb,
+[data-theme="light"] .login-bg-glow,
+[data-theme="light"] .login-bg-grid,
+[data-theme="light"] .login-bg-scanline {
+  opacity: 0.25;
 }
 
 .login-wrap {

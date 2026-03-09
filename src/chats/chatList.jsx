@@ -11,6 +11,9 @@ import { getApiBaseUrl } from "../api/baseUrl";
 import { useNavigate } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useNotificationStore } from "../notifications/notificationStore";
+import EmptyState from "../components/feedback/EmptyState";
+import "../components/feedback/empty-state.css";
+import "../components/ui/button.css";
 import "./chatList.css";
 
 /* =====================================================
@@ -1467,7 +1470,14 @@ export default function ChatList() {
         {loading ? (
           <SkeletonList />
         ) : chatsFiltrados.length === 0 ? (
-          <div className="chat-list-empty">Nenhuma conversa encontrada</div>
+          <div className="chat-list-empty-wrap">
+            <EmptyState
+              title="Nenhuma conversa encontrada"
+              description="Suas conversas aparecerão aqui quando você receber mensagens ou iniciar um atendimento."
+              actionLabel="Criar novo contato"
+              action={() => navigate("/atendimento/novo-contato")}
+            />
+          </div>
         ) : (
           chatsFiltrados.map((c) => {
             const id = c?.id;

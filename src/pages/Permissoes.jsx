@@ -4,6 +4,10 @@ import { useAuthStore } from "../auth/authStore";
 import { canAcessarUsuarios } from "../auth/permissions";
 import * as cfg from "../api/configService";
 import SecaoPermissoes from "./SecaoPermissoes";
+import Breadcrumb from "../components/layout/Breadcrumb";
+import { SkeletonGrid } from "../components/feedback/Skeleton";
+import "../components/layout/breadcrumb.css";
+import "../components/feedback/skeleton.css";
 import "./IA.css";
 import "./Configuracoes.css";
 
@@ -56,6 +60,7 @@ export default function Permissoes() {
   return (
     <div className="ia-wrap config-wrap">
       <header className="ia-header">
+        <Breadcrumb items={[{ label: "Configurações", to: "/configuracoes" }, { label: "Permissões" }]} />
         <h1 className="ia-title">Permissões</h1>
         <p className="ia-subtitle ia-muted">
           Edite as permissões de acesso por usuário. Selecione o usuário e defina Permitir, Negar ou Padrão (usa o padrão do perfil).
@@ -72,7 +77,9 @@ export default function Permissoes() {
       )}
 
       {loading ? (
-        <p className="ia-muted">Carregando usuários...</p>
+        <div className="ia-content config-loading-skeleton">
+          <SkeletonGrid count={3} />
+        </div>
       ) : (
         <div className="ia-content">
           <SecaoPermissoes

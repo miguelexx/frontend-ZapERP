@@ -8,6 +8,10 @@ import * as cfg from "../api/configService";
 import * as chatService from "../chats/chatService";
 import { canAcessarConfiguracoes, canAcessarUsuarios } from "../auth/permissions";
 import SecaoPermissoes from "./SecaoPermissoes";
+import Breadcrumb from "../components/layout/Breadcrumb";
+import { SkeletonGrid } from "../components/feedback/Skeleton";
+import "../components/layout/breadcrumb.css";
+import "../components/feedback/skeleton.css";
 import "./IA.css";
 import "./Configuracoes.css";
 
@@ -146,11 +150,12 @@ export default function Configuracoes() {
     return (
       <div className="ia-wrap config-wrap">
         <div className="ia-header">
+          <Breadcrumb items={[{ label: "Configurações" }]} />
           <h1 className="ia-title">Configurações</h1>
           <p className="ia-subtitle">Painel administrativo do CRM</p>
         </div>
-        <div className="ia-content" style={{ padding: 48, textAlign: "center", color: "#64748b" }}>
-          Carregando...
+        <div className="ia-content config-loading-skeleton">
+          <SkeletonGrid count={4} />
         </div>
       </div>
     );
@@ -159,6 +164,7 @@ export default function Configuracoes() {
   return (
     <div className="ia-wrap config-wrap">
       <header className="ia-header">
+        <Breadcrumb items={[{ label: "Configurações" }]} />
         <h1 className="ia-title">Configurações</h1>
         <p className="ia-subtitle">Central de administração — configure 100% do sistema</p>
       </header>
@@ -287,6 +293,7 @@ function applyTheme(theme) {
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {}
+  window.dispatchEvent(new CustomEvent("theme-change", { detail: theme }));
 }
 
 function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenConnectWhatsapp }) {

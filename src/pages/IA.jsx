@@ -5,6 +5,10 @@ import { canAcessarConfiguracoes } from "../auth/permissions";
 import { useNotificationStore } from "../notifications/notificationStore";
 import api from "../api/http";
 import * as iaApi from "../api/iaService";
+import Breadcrumb from "../components/layout/Breadcrumb";
+import { SkeletonGrid } from "../components/feedback/Skeleton";
+import "../components/layout/breadcrumb.css";
+import "../components/feedback/skeleton.css";
 import "./IA.css";
 
 const DEFAULT_CONFIG = {
@@ -201,11 +205,12 @@ export default function IA() {
     return (
       <div className="ia-wrap">
         <div className="ia-header">
+          <Breadcrumb items={[{ label: "Configurações", to: "/configuracoes" }, { label: "IA / Chatbot" }]} />
           <h1 className="ia-title">IA / Bot / Automação</h1>
           <p className="ia-subtitle">Configurações de automação do CRM</p>
         </div>
-        <div className="ia-content" style={{ padding: 48, textAlign: "center", color: "#64748b" }}>
-          Carregando...
+        <div className="ia-content ia-loading-skeleton">
+          <SkeletonGrid count={4} />
         </div>
       </div>
     );
@@ -220,6 +225,7 @@ export default function IA() {
   return (
     <div className="ia-wrap">
       <header className="ia-header">
+        <Breadcrumb items={[{ label: "Configurações", to: "/configuracoes" }, { label: "IA / Chatbot" }]} />
         <h1 className="ia-title">IA / Bot / Automação</h1>
         <p className="ia-subtitle">Configure automações. Se desligado → atendimento 100% humano.</p>
       </header>

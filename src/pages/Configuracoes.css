@@ -46,6 +46,10 @@
   color: #475569;
 }
 
+.config-loading-skeleton {
+  padding: var(--ds-space-6);
+}
+
 .config-wrap .ia-input,
 .config-wrap .ia-select,
 .config-wrap .ia-textarea {

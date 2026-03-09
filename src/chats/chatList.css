@@ -738,8 +738,17 @@ a { color: inherit; text-decoration: none; }
    10) EMPTY STATE
 ----------------------------------------------------------------------- */
 
-.chat-list-empty {
+.chat-list-empty,
+.chat-list-empty-wrap {
   padding: var(--cl-space-8) var(--cl-space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.chat-list-empty {
   text-align: center;
   color: var(--cl-text-muted);
   font-size: var(--cl-font-size-sm);

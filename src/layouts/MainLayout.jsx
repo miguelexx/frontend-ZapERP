@@ -1,8 +1,21 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { can } from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
+import "../components/layout/skip-link.css";
+
+const THEME_KEY = "theme";
+
+function getStoredTheme() {
+  try { return localStorage.getItem(THEME_KEY) || "light"; } catch { return "light"; }
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  try { localStorage.setItem(THEME_KEY, theme); } catch {}
+}
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -12,14 +25,36 @@ export default function MainLayout() {
   const canAccessChatbot_ = can("chatbot_acessar", user);
   const canAccessUsers = can("usuarios_acessar", user);
   const isAdmin = canAccessUsers;
+  const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
+
+  useEffect(() => {
+    applyTheme(darkMode ? "dark" : "light");
+  }, [darkMode]);
+
+  useEffect(() => {
+    const onThemeChange = (e) => {
+      if (e?.detail === "dark" || e?.detail === "light") {
+        setDarkMode(e.detail === "dark");
+      }
+    };
+    window.addEventListener("theme-change", onThemeChange);
+    return () => window.removeEventListener("theme-change", onThemeChange);
+  }, []);
 
   function handleLogout() {
     logout();
     navigate("/login");
   }
 
+  function toggleTheme() {
+    setDarkMode((v) => !v);
+  }
+
   return (
     <div className="app-layout app-layout--crm">
+      <a href="#main-content" className="ds-skip-link">
+        Pular para o conteúdo principal
+      </a>
       <GlobalNotifications />
       <aside className="sidebar sidebar--compact" aria-label="Menu">
         <div className="sidebar-brand-compact" title="ZapERP — Atendimento inteligente">
@@ -28,6 +63,7 @@ export default function MainLayout() {
         <nav className="sidebar-nav sidebar-nav--compact">
           {canAccessDashboard_ && <NavItem to="/dashboard" label="Dashboard" icon={<IconDashboard />} />}
           {canAccessDashboard_ && <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />}
+          {canAccessDashboard_ && <NavItem to="/campanhas" label="Campanhas" icon={<IconCampanhas />} />}
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
           {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
           {canAccessChatbot_ && <NavItem to="/ia" label="Chatbot" icon={<IconIASparkle />} />}
@@ -35,6 +71,15 @@ export default function MainLayout() {
         </nav>
         <div className="sidebar-spacer" />
         <div className="sidebar-footer sidebar-footer--compact">
+          <button
+            type="button"
+            className="sidebar-theme-toggle"
+            onClick={toggleTheme}
+            title={darkMode ? "Modo claro" : "Modo escuro"}
+            aria-label={darkMode ? "Alternar para modo claro" : "Alternar para modo escuro"}
+          >
+            {darkMode ? <IconSun /> : <IconMoon />}
+          </button>
           {isAdmin && <span className="sidebar-badge-compact" title="Administrador">A</span>}
           <button type="button" className="sidebar-logout" onClick={handleLogout} title="Sair" aria-label="Sair">
             <IconLogout />
@@ -42,7 +87,7 @@ export default function MainLayout() {
         </div>
       </aside>
 
-      <main className="main-content main-content--crm">
+      <main id="main-content" className="main-content main-content--crm" tabIndex={-1}>
         <Outlet />
       </main>
     </div>
@@ -124,6 +169,39 @@ function IconLogout() {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+
+function IconCampanhas() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  );
+}
+
+function IconSun() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  );
+}
+
+function IconMoon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
   );
 }
