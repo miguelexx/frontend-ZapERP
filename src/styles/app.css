@@ -143,20 +143,35 @@
   box-sizing: border-box;
 }
 
-/* Transições só em elementos interativos (mais leve/profissional) */
+/* Transições leves — WhatsApp: rápidas, suaves, sistema fluido */
 :where(button, a, input, textarea, select, [role="button"]) {
   transition:
-    background var(--transition),
-    color var(--transition),
-    border-color var(--transition),
-    box-shadow var(--transition),
-    transform var(--transition),
-    opacity var(--transition);
+    background var(--ds-transition, 0.12s ease),
+    color var(--ds-transition, 0.12s ease),
+    border-color var(--ds-transition, 0.12s ease),
+    box-shadow var(--ds-transition, 0.12s ease),
+    transform var(--ds-transition-fast, 0.08s ease),
+    opacity var(--ds-transition, 0.12s ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Feedback de clique — leve, tipo WhatsApp (não poluído) */
+:where(button, [role="button"]):active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 :where(button, a, input, textarea, select, [role="button"]):focus-visible {
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, a, input, textarea, select, [role="button"]) {
+    transition-duration: 0s !important;
+  }
+  :where(button, [role="button"]):active:not(:disabled) {
+    transform: none;
+  }
 }
 
 body {
@@ -253,13 +268,18 @@ body {
   border: none;
   cursor: pointer;
   text-decoration: none;
-  transition: background var(--ds-transition), color var(--ds-transition);
+  transition: background 0.12s ease, color 0.12s ease, transform 0.08s ease;
 }
 
 .sidebar-nav-item:hover,
 .sidebar-logout:hover {
   background: var(--ds-hover);
   color: var(--ds-text-primary);
+}
+
+.sidebar-nav-item:active,
+.sidebar-logout:active {
+  transform: scale(0.96);
 }
 
 .sidebar-nav-item.active {

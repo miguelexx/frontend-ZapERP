@@ -62,20 +62,22 @@
   --ds-radius-lg: 12px;
   --ds-radius-full: 9999px;
 
-  /* ---- Transições ---- */
-  --ds-transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  /* ---- Transições — WhatsApp: rápidas, leves, responsivas ---- */
+  --ds-transition: 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-transition-fast: 0.08s ease;
+  --ds-transition-smooth: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ---- Componentes específicos (WhatsApp Web — cores fiéis) ---- */
   --ds-chat-header: #f0f2f5;
 
-  /* ---- Chat background premium (LIGHT) — bege luxuoso ---- */
-  --ds-chat-bg: linear-gradient(165deg, #faf7f4 0%, #f2ebe3 25%, #ebe4db 50%, #f0eae2 75%, #f8f5f1 100%);
-  --wa-pattern-opacity: 0.14;
-  --wa-pattern-size: 200px 200px;
-  --wa-glow-opacity: 0.16;
-  --wa-glow-1: radial-gradient(ellipse 120% 80% at 20% 15%, rgba(139, 119, 99, 0.08), transparent 50%);
-  --wa-glow-2: radial-gradient(ellipse 100% 60% at 85% 85%, rgba(160, 135, 110, 0.06), transparent 50%);
-  --wa-glow-3: radial-gradient(ellipse 80% 50% at 50% 50%, rgba(0, 0, 0, 0.02), transparent);
+  /* ---- Chat background premium (LIGHT) — leve, lindo, estilo WhatsApp ---- */
+  --ds-chat-bg: linear-gradient(165deg, #f7f5f2 0%, #efeae4 22%, #e8e3dc 45%, #f0ebe5 68%, #faf8f5 100%);
+  --wa-pattern-opacity: 0.12;
+  --wa-pattern-size: 280px 280px;
+  --wa-glow-opacity: 0.12;
+  --wa-glow-1: radial-gradient(ellipse 100% 70% at 15% 20%, rgba(184, 159, 132, 0.06), transparent 55%);
+  --wa-glow-2: radial-gradient(ellipse 80% 50% at 90% 80%, rgba(200, 175, 150, 0.05), transparent 50%);
+  --wa-glow-3: radial-gradient(ellipse 70% 40% at 50% 50%, rgba(0, 0, 0, 0.015), transparent);
   --wa-pattern-blend: multiply;
   --ds-bubble-in: #ffffff;
   --ds-bubble-out: #dcf8c6;
@@ -138,7 +140,8 @@
   /* ---- Chat específico ---- */
   --ds-chat-bg: linear-gradient(180deg, #0b141a 0%, #0f1c23 40%, #0b141a 100%);
   --ds-chat-header: #202c33;
-  --wa-pattern-opacity: 0.035;
+  --wa-pattern-opacity: 0.04;
+  --wa-pattern-size: 280px 280px;
   --wa-glow-opacity: 0.18;
   --wa-glow-1: radial-gradient(ellipse 80% 50% at 70% 20%, rgba(255, 255, 255, 0.04), transparent);
   --wa-glow-2: radial-gradient(ellipse 60% 40% at 30% 80%, rgba(255, 255, 255, 0.03), transparent);

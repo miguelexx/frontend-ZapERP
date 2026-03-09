@@ -255,6 +255,53 @@
   30% { opacity: 1; }
 }
 
+/* ---- Animações premium (WhatsApp+ / inovadoras) ---- */
+@keyframes wa-panelAppear {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wa-overlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wa-modalScale {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes wa-popIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes wa-dayPillFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wa-replyBarSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wa-dropOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wa-dropCardScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes wa-menuFade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wa-checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes wa-tickPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.05); }
+}
+
 /* Status — pill discreto */
 .wa-status-pill {
   height: 22px;
@@ -301,12 +348,13 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--ds-transition), color var(--ds-transition);
+  transition: background var(--ds-transition), color var(--ds-transition), transform 0.15s ease;
 }
 
 .wa-header-btn:hover {
   background: var(--ds-hover-strong);
   color: var(--wa-text);
+  transform: scale(1.03);
 }
 
 .wa-header-btn.isActive {
@@ -396,31 +444,32 @@
   background:rgba(0,168,132,.10);
   color:var(--wa-green);
   border:1px solid rgba(0,168,132,.20);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
 .wa-actions .wa-btn-primary:hover:not(:disabled){
   background:rgba(0,168,132,.18);
-  box-shadow:0 6px 14px rgba(0,168,132,.18);
+  box-shadow:0 4px 12px rgba(0,168,132,.14);
 }
 
 /* -------------------------
-   ASSUMIR DESTAQUE (quando conversa não assumida)
+   ASSUMIR DESTAQUE (quando conversa não assumida) — leve
 ------------------------- */
 .wa-actions .wa-btn-assumir-destaque{
   background:rgba(0,168,132,.22);
   color:var(--wa-green);
   border:1.5px solid rgba(0,168,132,.45);
-  box-shadow:0 4px 12px rgba(0,168,132,.22);
-  animation:wa-assumir-pulse 2s ease-in-out infinite;
+  box-shadow:0 2px 8px rgba(0,168,132,.18);
+  animation:wa-assumir-pulse 3s ease-in-out infinite;
 }
 .wa-actions .wa-btn-assumir-destaque:hover:not(:disabled){
   background:rgba(0,168,132,.28);
-  box-shadow:0 6px 16px rgba(0,168,132,.28);
+  box-shadow:0 4px 12px rgba(0,168,132,.22);
 }
 
 @keyframes wa-assumir-pulse{
-  0%,100%{ box-shadow:0 4px 12px rgba(0,168,132,.22); }
-  50%{ box-shadow:0 4px 16px rgba(0,168,132,.35); }
+  0%,100%{ box-shadow:0 2px 8px rgba(0,168,132,.18); }
+  50%{ box-shadow:0 2px 10px rgba(0,168,132,.28); }
 }
 
 /* -------------------------
@@ -430,11 +479,12 @@
   background:rgba(239,68,68,.08);
   color:#dc2626;
   border:1px solid rgba(239,68,68,.18);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
 .wa-actions .wa-btn-danger:hover:not(:disabled){
   background:rgba(239,68,68,.16);
-  box-shadow:0 6px 14px rgba(239,68,68,.22);
+  box-shadow:0 4px 12px rgba(239,68,68,.18);
 }
 
 /* -------------------------
@@ -444,10 +494,11 @@
   background:rgba(14,165,233,.10);
   color:#0284c7;
   border:1px solid rgba(14,165,233,.20);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 .wa-actions .wa-btn-transferir:hover:not(:disabled){
   background:rgba(14,165,233,.18);
-  box-shadow:0 6px 14px rgba(14,165,233,.18);
+  box-shadow:0 4px 12px rgba(14,165,233,.14);
 }
 
 /* -------------------------
@@ -457,6 +508,7 @@
   background:rgba(0,0,0,.04);
   color:var(--wa-text);
   border:1px solid rgba(0,0,0,.10);
+  transition: background 0.12s ease;
 }
 .wa-actions .wa-btn-secondary:hover:not(:disabled){
   background:rgba(0,0,0,.07);
@@ -496,7 +548,7 @@
   color:var(--wa-green);
 }
 
-/* Painéis flutuantes — flat, sombra leve */
+/* Painéis flutuantes — flat, sombra leve, entrada suave */
 .wa-tagsPanel {
   position: absolute;
   top: 64px;
@@ -511,6 +563,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: wa-panelAppear 0.2s ease-out;
 }
 
 .wa-tagsPanel-head {
@@ -611,6 +664,7 @@
   border: 2px dashed rgba(0, 168, 132, 0.4);
   border-radius: 0;
   margin: 0;
+  animation: wa-dropOverlayFade 0.2s ease-out;
 }
 
 .wa-dropCard {
@@ -620,6 +674,7 @@
   background: var(--wa-panel);
   border: 1px solid var(--wa-panel-border);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  animation: wa-dropCardScale 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 .wa-dropTitle {
@@ -652,6 +707,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: wa-panelAppear 0.22s ease-out;
 }
 
 .wa-timeline-head {
@@ -785,7 +841,7 @@
 }
 
 .wa-messages::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .wa-messages::-webkit-scrollbar-track {
@@ -793,12 +849,13 @@
 }
 
 .wa-messages::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.08);
   border-radius: 999px;
+  transition: background 0.15s ease;
 }
 
 .wa-messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.14);
 }
 
 .wa-messages-empty {
@@ -898,11 +955,12 @@
 
   box-sizing: border-box;
 
-  transition: box-shadow .15s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, outline 0.15s ease;
 }
 
 .wa-bubble:hover{
   box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+  transform: translateY(-0.5px);
   z-index:2;
 }
 
@@ -1310,36 +1368,78 @@
   padding-right: 0;
 }
 
-/* Card de arquivo estilo WhatsApp — ícone com extensão, nome, tipo/tamanho, timestamp, ticks, ações */
+/* Card de arquivo estilo WhatsApp — minimalista, limpo, micro-interação */
 .wa-bubble-fileCard {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 0 4px;
+  gap: 10px;
+  padding: 10px 0 6px;
   color: var(--wa-text);
   font-size: 13px;
   max-width: 100%;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.wa-bubble-fileCard:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.wa-bubble-fileCard--out:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .wa-bubble-fileTop {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
+/* Ícone do arquivo — base + variantes por tipo, micro-interação no hover */
 .wa-bubble-fileIconWrap {
   flex-shrink: 0;
-  width: 48px;
-  height: 56px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  width: 52px;
+  height: 60px;
+  border-radius: 6px;
+  background: linear-gradient(145deg, #5a6572 0%, #374151 50%, #1f2937 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.wa-bubble-fileCard:hover .wa-bubble-fileIconWrap {
+  transform: scale(1.03);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+/* Variantes de cor por extensão — recebidos */
+.wa-bubble-fileIconWrap--pdf {
+  background: linear-gradient(145deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+}
+
+.wa-bubble-fileIconWrap--doc,
+.wa-bubble-fileIconWrap--docx {
+  background: linear-gradient(145deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
+}
+
+.wa-bubble-fileIconWrap--xls,
+.wa-bubble-fileIconWrap--xlsx {
+  background: linear-gradient(145deg, #059669 0%, #047857 50%, #065f46 100%);
+}
+
+.wa-bubble-fileIconWrap--ppt,
+.wa-bubble-fileIconWrap--pptx {
+  background: linear-gradient(145deg, #d97706 0%, #b45309 50%, #92400e 100%);
+}
+
+.wa-bubble-fileIconWrap--zip,
+.wa-bubble-fileIconWrap--rar,
+.wa-bubble-fileIconWrap--7z {
+  background: linear-gradient(145deg, #7c3aed 0%, #6d28d9 50%, #5b21b6 100%);
 }
 
 /* Dobra do canto (efeito documento) */
@@ -1351,18 +1451,19 @@
   width: 0;
   height: 0;
   border-style: solid;
-  border-width: 0 12px 12px 0;
-  border-color: transparent rgba(0, 0, 0, 0.15) transparent transparent;
+  border-width: 0 14px 14px 0;
+  border-color: transparent rgba(0, 0, 0, 0.12) transparent transparent;
 }
 
 .wa-bubble-fileExt {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   position: relative;
   z-index: 1;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
 .wa-bubble-fileMain {
@@ -1370,7 +1471,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .wa-bubble-fileName {
@@ -1380,12 +1481,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
+  line-height: 1.35;
 }
 
 .wa-bubble-fileTypeSize {
   font-size: 12px;
   color: var(--wa-text-muted);
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 .wa-bubble-fileTimeMeta {
@@ -1402,16 +1504,23 @@
   white-space: nowrap;
 }
 
+/* Ações Abrir · Salvar como */
 .wa-bubble-fileActions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  padding-top: 2px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.wa-bubble-fileCard--out .wa-bubble-fileActions {
+  border-top-color: rgba(0, 0, 0, 0.08);
 }
 
 .wa-bubble-fileAction {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--wa-green);
   background: none;
   border: none;
@@ -1435,17 +1544,61 @@
 .wa-bubble-fileActionSep {
   color: var(--wa-text-muted);
   font-size: 10px;
-  opacity: 0.6;
+  opacity: 0.5;
   user-select: none;
+}
+
+/* Enviadas — ícone com contraste no fundo verde */
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--pdf {
+  background: linear-gradient(145deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--doc,
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--docx {
+  background: linear-gradient(145deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--xls,
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--xlsx {
+  background: linear-gradient(145deg, #059669 0%, #047857 100%);
+}
+
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--ppt,
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--pptx {
+  background: linear-gradient(145deg, #d97706 0%, #b45309 100%);
+}
+
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--zip,
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--rar,
+.wa-bubble-fileCard--out .wa-bubble-fileIconWrap--7z {
+  background: linear-gradient(145deg, #7c3aed 0%, #6d28d9 100%);
 }
 
 /* Dark: ícone com cores adaptadas */
 [data-theme="dark"] .wa-bubble-fileIconWrap {
-  background: linear-gradient(135deg, #4a5568 0%, #1a202c 100%);
+  background: linear-gradient(145deg, #4b5563 0%, #374151 50%, #1f2937 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .wa-bubble-fileExt {
-  color: #e2e8f0;
+  color: #f3f4f6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .wa-bubble-fileCard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .wa-bubble-fileCard--out:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .wa-bubble-fileActions {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Reação já enviada — fora do balão, visível apenas no hover */
@@ -1555,6 +1708,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  animation: wa-popIn 0.18s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 .wa-reactionPicker-btn {
@@ -1568,10 +1722,12 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
 .wa-reactionPicker-btn:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.06);
+  transform: scale(1.12);
 }
 
 .wa-reactionPicker-remove {
@@ -2148,6 +2304,7 @@
   justify-content: center;
   flex-shrink: 0;
   opacity: 0.95;
+  transition: color 0.2s ease, opacity 0.2s ease;
 }
 
 .wa-ticks.isRead {
@@ -2222,6 +2379,7 @@
   box-shadow: var(--ds-shadow-lg);
   z-index: 9999;
   overflow-y: auto;
+  animation: wa-menuFade 0.12s ease-out;
 }
 
 .wa-msgMenuItem {
@@ -2275,10 +2433,12 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
+  animation: wa-overlayFade 0.18s ease-out;
 }
 
 .wa-imageViewerOverlay {
   background: rgba(0, 0, 0, 0.92);
+  animation: wa-overlayFade 0.2s ease-out;
 }
 
 .wa-imageViewer {
@@ -2303,6 +2463,7 @@
 .wa-mediaViewerOverlay {
   background: rgba(0, 0, 0, 0.92);
   cursor: default;
+  animation: wa-overlayFade 0.2s ease-out;
 }
 
 .wa-mediaViewer {
@@ -2333,10 +2494,12 @@
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .wa-mediaViewer-close:hover {
   background: rgba(255, 255, 255, 0.35);
+  transform: scale(1.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }
 
 .wa-mediaViewer-img {
@@ -2386,6 +2549,7 @@
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-lg);
   box-shadow: var(--ds-shadow-lg);
+  animation: wa-modalScale 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Modal de transferência (atendentes) */
@@ -2533,6 +2697,13 @@
   line-height: 1;
   margin: 8px 8px 0 0;
   flex-shrink: 0;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.wa-selectChk:hover {
+  transform: scale(1.06);
+}
+.wa-selectChk:active {
+  transform: scale(0.94);
 }
 
 .wa-selectChk.isOn {
@@ -2543,6 +2714,7 @@
 
 .wa-bubble.isSelected {
   outline: 2px solid rgba(0,168,132,.25);
+  transition: outline 0.15s ease;
 }
 
 .wa-selectBar,
@@ -2628,6 +2800,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  animation: wa-replyBarSlide 0.2s ease-out;
 }
 
 .wa-replyBar-bar{
@@ -2746,14 +2919,15 @@
 [data-theme="dark"] .wa-replyCtx-bar { background: rgba(255, 255, 255, 0.5); }
 [data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-bar { background: var(--ds-accent); }
 
-/* highlight ao scroll para mensagem citada (reply) */
+/* highlight ao scroll para mensagem citada (reply) — inovador: glow + leve breathe */
 .highlight-reply {
   animation: flash-reply 1.5s ease-out;
 }
 @keyframes flash-reply {
-  0% { box-shadow: 0 0 0 2px var(--wa-green, #00a884); }
-  50% { box-shadow: 0 0 0 4px var(--wa-green, #00a884); }
-  100% { box-shadow: none; }
+  0% { box-shadow: 0 0 0 2px var(--wa-green, #00a884); transform: translateY(-0.5px); }
+  20% { box-shadow: 0 0 0 4px var(--wa-green, #00a884); transform: translateY(-0.5px) scale(1.01); }
+  50% { box-shadow: 0 0 0 3px var(--wa-green, #00a884); transform: translateY(-0.5px) scale(1.01); }
+  100% { box-shadow: none; transform: none; }
 }
 
 /* =========================================================
@@ -2855,6 +3029,7 @@
   background: #e0e0e0;
   border: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  animation: wa-dayPillFade 0.3s ease-out;
 }
 
 /* =========================================================
@@ -2947,7 +3122,7 @@
   font-size: 13px;
   cursor: pointer;
   border: none;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition: background 0.12s ease, opacity 0.12s ease, filter 0.12s ease, transform 0.08s ease;
 }
 
 .wa-btn:disabled {
@@ -2971,6 +3146,10 @@
 
 .wa-btn-primary:hover:not(:disabled) {
   filter: brightness(1.04);
+}
+
+.wa-btn-primary:active:not(:disabled) {
+  filter: brightness(0.98);
 }
 
 /* =========================================================
@@ -3041,9 +3220,13 @@
   flex-shrink: 0;
 }
 
+.wa-attachPlus {
+  transition: background 0.15s ease, color 0.15s ease, transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
 .wa-attachPlus.isOpen {
   background: rgba(0, 0, 0, 0.08);
   color: var(--wa-text);
+  transform: rotate(45deg);
 }
 
 .wa-attachMenu {
@@ -3061,6 +3244,7 @@
   gap: 2px;
   list-style: none;
   margin: 0;
+  animation: wa-attachSlideUp 0.2s ease-out;
 }
 
 @keyframes wa-attachSlideUp {
@@ -3218,7 +3402,7 @@
   color: var(--wa-text);
   font-size: 15px;
   outline: none;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
   max-width: 100%;
   box-sizing: border-box;
@@ -3252,6 +3436,11 @@
 .wa-sendBtn:hover:not(:disabled) {
   transform: scale(1.02);
   filter: brightness(1.04);
+}
+
+.wa-sendBtn:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: 0.08s;
 }
 
 .wa-sendBtn:disabled {

@@ -192,6 +192,7 @@
   border-radius: 8px;
   cursor: pointer;
   border: 1px solid transparent;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, filter 0.12s ease, transform 0.08s ease;
 }
 
 .ia-btn--primary {
@@ -200,7 +201,11 @@
 }
 
 .ia-btn--primary:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.04);
+}
+
+.ia-btn--primary:active:not(:disabled) {
+  filter: brightness(0.98);
 }
 
 .ia-btn--outline {
@@ -211,6 +216,10 @@
 
 .ia-btn--outline:hover:not(:disabled) {
   background: var(--dash-bg, #f8fafc);
+}
+
+.ia-btn--outline:active:not(:disabled) {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .ia-btn:disabled {

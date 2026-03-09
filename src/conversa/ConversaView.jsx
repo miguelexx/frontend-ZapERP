@@ -479,7 +479,7 @@ function MessageTicks({ msg, isGroup }) {
  * Card de arquivo estilo WhatsApp: ícone com extensão, nome, tipo/tamanho,
  * timestamp, ticks e links "Abrir" / "Salvar como..."
  */
-function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup }) {
+function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup, out }) {
   const nome = msg?.nome_arquivo || "Arquivo";
   const ext = getFileExt(nome);
   const bytes = msg?.tamanho ?? msg?.tamanho_bytes;
@@ -491,9 +491,9 @@ function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup }) 
   };
 
   return (
-    <div className="wa-bubble-fileCard" onClick={handleCardClick}>
+    <div className={`wa-bubble-fileCard ${out ? "wa-bubble-fileCard--out" : ""}`} onClick={handleCardClick}>
       <div className="wa-bubble-fileTop">
-        <div className="wa-bubble-fileIconWrap" aria-hidden="true">
+        <div className={`wa-bubble-fileIconWrap wa-bubble-fileIconWrap--${ext.toLowerCase()}`} aria-hidden="true">
           <span className="wa-bubble-fileExt">{ext}</span>
         </div>
         <div className="wa-bubble-fileMain">
@@ -1124,6 +1124,7 @@ const Bubble = memo(function Bubble({
                   selectMode={selectMode}
                   onOpenMedia={onOpenMedia}
                   isGroup={isGroup}
+                  out={out}
                 />
               ) : hasText ? (
                 inlineMeta ? (
@@ -1198,6 +1199,7 @@ const Bubble = memo(function Bubble({
               selectMode={selectMode}
               onOpenMedia={onOpenMedia}
               isGroup={isGroup}
+              out={out}
             />
           ) : isCall ? (
             <div className="wa-callBubble">
