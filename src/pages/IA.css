@@ -2393,6 +2393,12 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--dash-text);
+  margin: 0 0 4px 0;
+}
+
+.chatbot-card-subtitle {
+  font-size: 13px;
+  color: var(--dash-muted);
   margin: 0 0 16px 0;
 }
 

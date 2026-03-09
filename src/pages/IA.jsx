@@ -721,10 +721,10 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
           <Switch checked={v.enabled} onChange={(x) => setV((c) => ({ ...c, enabled: x }))} />
           <div>
             <h2 className="chatbot-title">Chatbot de Triagem</h2>
-            <p className="chatbot-subtitle">Configure o atendimento automático da sua empresa</p>
+            <p className="chatbot-subtitle">Configure o roteador automático de atendimento (menu de setores)</p>
           </div>
         </div>
-        <span className={`chatbot-badge ${v.enabled ? "chatbot-badge--on" : "chatbot-badge--off"}`}>
+        <span className={`chatbot-badge ${v.enabled ? "chatbot-badge--on" : "chatbot-badge--off"}`} title={v.enabled ? "Clique no interruptor para desativar" : "Clique no interruptor para ativar"}>
           {v.enabled ? "Ativado" : "Desativado"}
         </span>
       </div>
@@ -734,7 +734,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
           <div className="chatbot-card">
             <h3 className="chatbot-card-title">Mensagens</h3>
             <div className="ia-field">
-              <label>Mensagem de boas-vindas</label>
+              <label title="Enviada quando o cliente manda a primeira mensagem. Inclua as opções do menu (ex: 1 - Atendimento, 2 - Vendas).">
+                Mensagem de boas-vindas
+              </label>
               <textarea
                 className="ia-textarea chatbot-textarea"
                 rows={6}
@@ -744,7 +746,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               />
             </div>
             <div className="ia-field">
-              <label>Mensagem de opção inválida</label>
+              <label title="Enviada quando o cliente digita um número que não está no menu.">
+                Mensagem de opção inválida
+              </label>
               <textarea
                 className="ia-textarea"
                 rows={2}
@@ -754,7 +758,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               />
             </div>
             <div className="ia-field">
-              <label>Mensagem de confirmação (use {"{{departamento}}"} para o nome do setor)</label>
+              <label title="Após o cliente escolher uma opção válida. Use {{departamento}} para substituir pelo nome do setor.">
+                Mensagem de confirmação (use {"{{departamento}}"} para o nome do setor)
+              </label>
               <textarea
                 className="ia-textarea"
                 rows={2}
@@ -768,7 +774,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
           <div className="chatbot-card">
             <h3 className="chatbot-card-title">Comportamento</h3>
             <div className="ia-field">
-              <label>Tipo de distribuição</label>
+              <label title="Como as conversas são distribuídas entre os usuários do setor.">Tipo de distribuição</label>
               <select
                 className="ia-select"
                 value={v.tipo_distribuicao ?? "round_robin"}
@@ -779,7 +785,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               </select>
             </div>
             <div className="ia-field">
-              <label>Comando para reabrir menu</label>
+              <label title="O cliente pode digitar este comando (ex: 0) para ver o menu novamente.">
+                Comando para reabrir menu (ex: 0)
+              </label>
               <input
                 type="text"
                 className="ia-input chatbot-input-cmd"
@@ -795,20 +803,23 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 checked={v.sendOnlyFirstTime !== false}
                 onChange={(e) => setV((c) => ({ ...c, sendOnlyFirstTime: e.target.checked }))}
               />
-              <label htmlFor="sendOnlyFirstTime">Enviar menu apenas na primeira mensagem</label>
+              <label htmlFor="sendOnlyFirstTime" title="Se marcado, o menu só é enviado quando o cliente manda a primeira mensagem.">
+                Enviar menu apenas na primeira mensagem
+              </label>
             </div>
           </div>
 
           <div className="chatbot-card">
-            <h3 className="chatbot-card-title">Opções do menu</h3>
+            <h3 className="chatbot-card-title">Escolhas que o cliente verá no WhatsApp</h3>
+            <p className="chatbot-card-subtitle">O que aparece quando alguém manda a primeira mensagem</p>
             <div className="chatbot-table-wrap">
               <table className="ia-table chatbot-table">
                 <thead>
                   <tr>
-                    <th>Key</th>
-                    <th>Label</th>
-                    <th>Departamento</th>
-                    <th>Ativo</th>
+                    <th title="O número que o cliente digita para escolher (1, 2, 3...)">Nº da opção</th>
+                    <th title="O texto que aparece no menu (ex: Atendimento, Vendas)">O que o cliente vê</th>
+                    <th title="Para qual equipe a conversa vai quando o cliente escolher esta opção">Setor que recebe a conversa</th>
+                    <th title="Se desmarcado, esta opção não aparece no menu">Mostrar no menu</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -822,6 +833,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                           value={o.key ?? ""}
                           onChange={(e) => updateOption(idx, "key", e.target.value)}
                           placeholder="1"
+                          title="O número que o cliente digita para escolher (1, 2, 3...)"
                         />
                       </td>
                       <td>
@@ -831,6 +843,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                           value={o.label ?? ""}
                           onChange={(e) => updateOption(idx, "label", e.target.value)}
                           placeholder="Atendimento"
+                          title="O texto que aparece no menu (ex: Atendimento, Vendas)"
                         />
                       </td>
                       <td>
@@ -838,6 +851,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                           className="ia-select"
                           value={o.departamento_id ?? ""}
                           onChange={(e) => updateOption(idx, "departamento_id", e.target.value)}
+                          title="Para qual equipe a conversa vai quando o cliente escolher esta opção"
                         >
                           <option value="">Selecione</option>
                           {departamentos.map((d) => (
@@ -845,11 +859,12 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                           ))}
                         </select>
                       </td>
-                      <td>
+                      <td title="Desmarque para ocultar esta opção do menu (opção desativada)">
                         <input
                           type="checkbox"
                           checked={o.active !== false}
                           onChange={(e) => updateOption(idx, "active", e.target.checked)}
+                          aria-label="Mostrar esta opção no menu"
                         />
                       </td>
                       <td>
@@ -857,9 +872,10 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                           type="button"
                           className="chatbot-btn-remove"
                           onClick={() => removeOption(idx)}
-                          aria-label="Remover opção"
+                          aria-label="Remover esta opção"
+                          title="Remover esta opção"
                         >
-                          Remover
+                          Remover esta opção
                         </button>
                       </td>
                     </tr>
@@ -871,7 +887,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               <p className="chatbot-hint">Cadastre departamentos em Configurações para vincular às opções.</p>
             )}
             <button type="button" className="chatbot-btn-add" onClick={addOption}>
-              + Adicionar opção
+              + Adicionar nova escolha
             </button>
           </div>
 
