@@ -304,10 +304,15 @@ export const useConversaStore = create((set, get) => ({
   /* =====================================================
      MENSAGENS — UPSERT (dedupe + merge)
      Nunca append cego: verifica id OU (conversa_id + whatsapp_id).
-     Se existir: MERGE (atualiza status, whatsapp_id, etc).
-     Se não existir: adicionar.
-     Reconciliação: msg com whatsapp_id fromMe substitui temp otimista.
+     Após qualquer upsert: SEMPRE ordenar por criado_em ASC = última posição.
   ===================================================== */
+  _sortMensagensByCriadoEmAsc: (arr) =>
+    [...arr].sort((a, b) =>
+      new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
+      (Number(a.id) - Number(b.id)) ||
+      String(a.tempId || "").localeCompare(String(b.tempId || ""))
+    ),
+
   anexarMensagem: (msg) => {
     const conversaId = msg?.conversa_id ?? get().conversa?.id
     if (!conversaId) return
@@ -347,7 +352,7 @@ export const useConversaStore = create((set, get) => ({
         if (msg.status_mensagem != null) merged.status_mensagem = msg.status_mensagem
         const next = [...list]
         next[existingIdx] = merged
-        return { mensagens: next }
+        return { mensagens: get()._sortMensagensByCriadoEmAsc(next) }
       }
 
       // Reconciliação: socket nova_mensagem fromMe → SUBSTITUIR temp otimista, NUNCA duplicar
@@ -396,9 +401,12 @@ export const useConversaStore = create((set, get) => ({
           if (msg.whatsapp_id) merged.whatsapp_id = msg.whatsapp_id
           if (msg.status != null) merged.status = msg.status
           if (msg.status_mensagem != null) merged.status_mensagem = msg.status_mensagem
+          const tsExisting = new Date(existing?.criado_em || 0).getTime()
+          const tsMsg = new Date(msg?.criado_em || 0).getTime()
+          if (tsExisting > tsMsg || !msg.criado_em) merged.criado_em = existing.criado_em
           const next = [...list]
           next[replaceIdx] = merged
-          return { mensagens: next }
+          return { mensagens: get()._sortMensagensByCriadoEmAsc(next) }
         }
       }
 
@@ -429,7 +437,7 @@ export const useConversaStore = create((set, get) => ({
             }
             const next = [...list]
             next[i] = merged
-            return { mensagens: next }
+            return { mensagens: get()._sortMensagensByCriadoEmAsc(next) }
           }
         }
       }
@@ -444,13 +452,7 @@ export const useConversaStore = create((set, get) => ({
       if (convId) newMsg.conversa_id = convId
       const newK = msg.whatsapp_id ? `wa-${msg.whatsapp_id}` : msg.id ? String(msg.id) : `temp-${msg.tempId}`
       byId.set(newK, newMsg)
-      const sorted = Array.from(byId.values()).sort(
-        (a, b) =>
-          new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
-          (Number(a.id) - Number(b.id)) ||
-          String(a.tempId || "").localeCompare(String(b.tempId || ""))
-      )
-      return { mensagens: sorted }
+      return { mensagens: get()._sortMensagensByCriadoEmAsc(Array.from(byId.values())) }
     })
   },
 
@@ -466,7 +468,7 @@ export const useConversaStore = create((set, get) => ({
         replaced = true
         const next = [...list]
         next[idx] = { ...realMsg, conversa_id: state.conversa?.id }
-        return { mensagens: next }
+        return { mensagens: get()._sortMensagensByCriadoEmAsc(next) }
       }
       return state
     })

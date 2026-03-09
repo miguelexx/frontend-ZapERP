@@ -2397,8 +2397,12 @@ export default function ConversaView() {
         ultima_mensagem: optimisticMsg,
       });
     }
-    chatStore.setUltimaMensagem(conversaId, optimisticMsg);
-    chatStore.bumpChatToTop(conversaId);
+    if (typeof chatStore.setUltimaMensagemEBump === "function") {
+      chatStore.setUltimaMensagemEBump(conversaId, optimisticMsg);
+    } else {
+      chatStore.setUltimaMensagem(conversaId, optimisticMsg);
+      chatStore.bumpChatToTop(conversaId);
+    }
     setTexto("");
     setReplyTo(null);
     setSending(true);

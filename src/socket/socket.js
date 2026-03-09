@@ -270,8 +270,12 @@ export function initSocket(token) {
       }
     }
 
-    chatStore.setUltimaMensagem(conversaId, msg)
-    chatStore.bumpChatToTop(conversaId)
+    if (typeof chatStore.setUltimaMensagemEBump === "function") {
+      chatStore.setUltimaMensagemEBump(conversaId, msg)
+    } else {
+      chatStore.setUltimaMensagem(conversaId, msg)
+      chatStore.bumpChatToTop(conversaId)
+    }
 
     const isAberta =
       convStore.selectedId &&

@@ -862,21 +862,28 @@ export default function ChatList() {
           ? new Date(getTs(a)) - new Date(getTs(b))
           : new Date(getTs(b)) - new Date(getTs(a))
       );
-      // Preserva nome/foto já conhecidos para evitar "piscadas" de Contato/# quando o backend ainda não mandou tudo.
+      // Merge: SEMPRE preserva contato_nome quando já existe (nunca sobrescrever com vazio). Preserva chats locais não retornados pela API.
       setChats((prev) => {
         const arr = Array.isArray(prev) ? prev : [];
-        const byId = new Map(arr.map((c) => [String(c.id), c]));
-        return list.map((c) => {
-          const existing = c?.id != null ? byId.get(String(c.id)) : null;
-          if (!existing) return c;
+        const byIdPrev = new Map(arr.map((c) => [String(c.id), c]));
+        const fromApi = new Set(list.map((c) => String(c?.id)).filter(Boolean));
+        const merged = list.map((c) => {
+          const existing = c?.id != null ? byIdPrev.get(String(c.id)) : null;
+          const nomeJaExiste = (existing?.contato_nome || existing?.nome || "").trim();
           return {
             ...c,
-            contato_nome: c?.contato_nome || c?.nome || existing.contato_nome || existing.nome,
-            foto_perfil: c?.foto_perfil || existing.foto_perfil,
-            nome_grupo: c?.nome_grupo || existing.nome_grupo,
-            cliente: c?.cliente || existing.cliente,
+            contato_nome: nomeJaExiste || c?.contato_nome || c?.nome || existing?.contato_nome,
+            foto_perfil: (existing?.foto_perfil && String(existing.foto_perfil).trim()) || c?.foto_perfil,
+            nome_grupo: c?.nome_grupo || existing?.nome_grupo,
+            cliente: c?.cliente || existing?.cliente,
           };
         });
+        const extra = arr.filter((c) => c?.id != null && !fromApi.has(String(c.id)));
+        if (extra.length === 0) return merged;
+        const getTs = (x) => x?.ultima_mensagem?.criado_em || x?.ultima_atividade || x?.criado_em || 0;
+        const combined = [...merged, ...extra];
+        combined.sort((a, b) => (order === "antigas" ? getTs(a) - getTs(b) : getTs(b) - getTs(a)));
+        return combined;
       });
     } catch (e) {
       console.error("Erro ao carregar conversas:", e);
@@ -1453,7 +1460,7 @@ export default function ChatList() {
       )}
 
       <div className="chat-list-list chat-list-scroll">
-        {loading ? (
+        {loading && (!chats || chats.length === 0) ? (
           <SkeletonChatList />
         ) : chatsFiltrados.length === 0 ? (
           <div className="chat-list-empty-wrap">

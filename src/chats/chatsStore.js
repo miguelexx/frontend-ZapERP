@@ -9,6 +9,16 @@ function canonicalKey(c) {
   return s.toLowerCase().startsWith("lid:") ? `lid:${lid}` : s || `id-${c?.id ?? ""}`
 }
 
+/** Ordena conversas por ultima_atividade DESC (mais recente no topo) */
+function sortConversasByRecent(arr) {
+  if (!Array.isArray(arr) || arr.length <= 1) return arr
+  return [...arr].sort((a, b) => {
+    const ta = new Date(a?.ultima_atividade ?? a?.ultima_mensagem?.criado_em ?? a?.criado_em ?? 0).getTime()
+    const tb = new Date(b?.ultima_atividade ?? b?.ultima_mensagem?.criado_em ?? b?.criado_em ?? 0).getTime()
+    return tb - ta
+  })
+}
+
 /** Remove duplicatas: mantém a que tem telefone (não lid), ultima_atividade maior, nome/foto preenchidos */
 function dedupeConversas(list) {
   if (!Array.isArray(list) || list.length === 0) return list
@@ -88,21 +98,23 @@ export const useChatStore = create((set, get) => ({
     if (newIdx >= 0) {
       const next = [...chats]
       const existing = next[newIdx]
+      const nomeAtual = (existing.contato_nome || existing.nome || "").trim()
+      const nomeNovo = (mergedNome || "").trim()
       const updated = {
         ...existing,
         ...merged,
-        contato_nome: mergedNome ?? existing.contato_nome,
-        foto_perfil: mergedFoto !== undefined && mergedFoto !== null ? mergedFoto : existing.foto_perfil
+        contato_nome: nomeAtual && (!nomeNovo || nomeNovo === "Conversa") ? nomeAtual : (mergedNome ?? existing.contato_nome),
+        foto_perfil: (existing.foto_perfil && String(existing.foto_perfil).trim()) || mergedFoto || existing.foto_perfil
       }
       next[newIdx] = updated
-      set({ chats: dedupeConversas([next[newIdx], ...next.filter((_, i) => i !== newIdx)]) })
+      set({ chats: sortConversasByRecent(dedupeConversas(next)) })
     } else {
       const newChat = {
         ...merged,
         contato_nome: mergedNome ?? merged.contato_nome ?? undefined,
         foto_perfil: mergedFoto ?? merged.foto_perfil ?? undefined
       }
-      set({ chats: dedupeConversas([newChat, ...chats]) })
+      set({ chats: sortConversasByRecent(dedupeConversas([newChat, ...chats])) })
     }
   },
 
@@ -155,7 +167,7 @@ export const useChatStore = create((set, get) => ({
     }
 
     next[idx] = merged
-    set({ chats: next })
+    set({ chats: sortConversasByRecent(next) })
   },
 
   /** Atualiza nome e foto do contato em tempo real (sync Z-API) */
@@ -221,32 +233,51 @@ export const useChatStore = create((set, get) => ({
      🔥 MENSAGEM / PREVIEW
   ========================================= */
   setUltimaMensagem: (conversa_id, msg) =>
-    set((state) => ({
-      chats: state.chats.map(c =>
+    set((state) => {
+      const updated = state.chats.map(c =>
         String(c.id) === String(conversa_id)
           ? {
               ...c,
               ultima_mensagem: msg,
-              // Mantém ultima_atividade sincronizado para o sort do chatList funcionar corretamente
               ultima_atividade: msg?.criado_em || c.ultima_atividade,
             }
           : c
       )
-    })),
+      return { chats: sortConversasByRecent(updated) }
+    }),
 
   /* =========================================
      🔥 ORDENAR (TotalChat behavior)
-     sobe conversa quando recebe msg
+     sobe conversa quando recebe msg — em um único set() evita "piscar"
   ========================================= */
   bumpChatToTop: (conversa_id) => {
     const chats = get().chats || []
     const idx = chats.findIndex(c => String(c.id) === String(conversa_id))
-    if (idx <= 0) return
+    if (idx < 0) return
+    if (idx === 0) return
 
     const item = chats[idx]
     const next = [item, ...chats.filter((_, i) => i !== idx)]
-
     set({ chats: next })
+  },
+
+  /** Atualiza ultima_mensagem E move para o topo em uma única operação — evita contato "sumir" */
+  setUltimaMensagemEBump: (conversa_id, msg) => {
+    set((state) => {
+      const chats = state.chats || []
+      const idx = chats.findIndex(c => String(c.id) === String(conversa_id))
+      if (idx < 0) return state
+      const updated = chats.map(c =>
+        String(c.id) === String(conversa_id)
+          ? {
+              ...c,
+              ultima_mensagem: msg,
+              ultima_atividade: msg?.criado_em || c.ultima_atividade,
+            }
+          : c
+      )
+      return { chats: sortConversasByRecent(updated) }
+    })
   },
 
   /* =========================================
