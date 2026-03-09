@@ -132,7 +132,7 @@ export default function SecaoPermissoes({
         const cod = p?.codigo ?? p?.cod;
         if (cod) {
           // Backend retorna: concedido (true/false) e isOverride (true/false)
-          const concedido = p?.concedido ?? p?.valor === true || p?.valor === "grant" || p?.valor === "granted";
+          const concedido = p?.concedido ?? (p?.valor === true || p?.valor === "grant" || p?.valor === "granted");
           const isOverride = p?.isOverride ?? false;
           map[cod] = !!concedido;
           if (isOverride) {
