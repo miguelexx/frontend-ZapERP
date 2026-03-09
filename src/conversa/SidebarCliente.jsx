@@ -3,6 +3,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { salvarObservacao, vincularClienteConversa } from "./conversaService";
 import { useAuthStore } from "../auth/authStore";
 import { useNotificationStore } from "../notifications/notificationStore";
+import { getDisplayName } from "../chats/chatList";
 import * as cfg from "../api/configService";
 
 function initials(nome = "") {
@@ -222,27 +223,8 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     return "Responsável (ID #" + conversa.atendente_id + ")";
   }, [conversa?.atendente_id, conversa?.atendente_nome, user]);
 
-  const clienteNome = useMemo(() => {
-    const raw =
-      conversa?.cliente?.nome ||
-      conversa?.cliente_nome ||
-      conversa?.contato_nome ||
-      conversa?.nome_contato_cache ||
-      conversa?.pushname ||
-      conversa?.nome ||
-      "";
-    const s = String(raw || "").trim();
-    if (s && !s.toLowerCase().startsWith("lid:")) return s;
-    const tel =
-      conversa?.cliente_telefone ||
-      conversa?.telefone_exibivel ||
-      conversa?.cliente?.telefone ||
-      conversa?.telefone ||
-      "";
-    const t = String(tel || "").trim();
-    if (t && !t.toLowerCase().startsWith("lid:")) return t;
-    return "Contato";
-  }, [conversa]);
+  /** Nome alinhado com lista e cabeçalho: contato_nome (WhatsApp) primeiro, evitando trocar para cliente.nome ao enviar msg */
+  const clienteNome = useMemo(() => getDisplayName(conversa), [conversa]);
 
   // Nunca exibir LID (lid:xxx) como telefone — é identificador interno do WhatsApp
   const telefone = useMemo(() => {

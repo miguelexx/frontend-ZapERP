@@ -100,11 +100,17 @@ export const useChatStore = create((set, get) => ({
       const existing = next[newIdx]
       const nomeAtual = (existing.contato_nome || existing.nome || "").trim()
       const nomeNovo = (mergedNome || "").trim()
+      // Merge defensivo: não sobrescrever com spread cego — preservar nome/foto quando payload é parcial
       const updated = {
         ...existing,
         ...merged,
+        // NUNCA trocar nome válido por "Conversa", vazio ou nome longo do cadastro
         contato_nome: nomeAtual && (!nomeNovo || nomeNovo === "Conversa") ? nomeAtual : (mergedNome ?? existing.contato_nome),
-        foto_perfil: (existing.foto_perfil && String(existing.foto_perfil).trim()) || mergedFoto || existing.foto_perfil
+        foto_perfil: (existing.foto_perfil && String(existing.foto_perfil).trim()) || mergedFoto || existing.foto_perfil,
+        // Preservar metadados quando payload é parcial (envio otimista)
+        cliente: merged.cliente !== undefined ? merged.cliente : existing.cliente,
+        telefone: merged.telefone !== undefined ? merged.telefone : existing.telefone,
+        telefone_exibivel: merged.telefone_exibivel !== undefined ? merged.telefone_exibivel : existing.telefone_exibivel,
       }
       next[newIdx] = updated
       set({ chats: sortConversasByRecent(dedupeConversas(next)) })
