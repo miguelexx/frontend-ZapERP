@@ -101,6 +101,13 @@ export const useConversaStore = create((set, get) => ({
       let mensagens = data?.mensagens ?? conversa?.mensagens ?? []
       const tags = data?.tags ?? conversa?.tags ?? []
 
+      // Backend: quando assumida por outro atendente, mensagens vêm vazias e mensagens_bloqueadas=true
+      const mensagens_bloqueadas = data?.mensagens_bloqueadas ?? conversa?.mensagens_bloqueadas ?? false
+      const atendente_nome = data?.atendente_nome ?? conversa?.atendente_nome ?? null
+      if (conversa) {
+        conversa = { ...conversa, mensagens_bloqueadas, atendente_nome }
+      }
+
       const nextCursor = data?.next_cursor ?? conversa?.next_cursor ?? null
 
       if (Array.isArray(mensagens)) {
@@ -178,9 +185,16 @@ export const useConversaStore = create((set, get) => ({
 
       if (String(get().selectedId) !== String(id)) return
 
-      const conversa = data?.conversa ? data.conversa : (data ?? null)
+      let conversa = data?.conversa ? data.conversa : (data ?? null)
       let mensagens = data?.mensagens ?? conversa?.mensagens ?? []
       const tags = data?.tags ?? conversa?.tags ?? []
+
+      // Backend: quando assumida por outro atendente, mensagens vêm vazias e mensagens_bloqueadas=true
+      const mensagens_bloqueadas = data?.mensagens_bloqueadas ?? conversa?.mensagens_bloqueadas ?? false
+      const atendente_nome = data?.atendente_nome ?? conversa?.atendente_nome ?? null
+      if (conversa) {
+        conversa = { ...conversa, mensagens_bloqueadas, atendente_nome }
+      }
 
       const nextCursor = data?.next_cursor ?? conversa?.next_cursor ?? null
 
@@ -243,8 +257,9 @@ export const useConversaStore = create((set, get) => ({
      PAGINAÇÃO
   ===================================================== */
   loadMore: async () => {
-    const { selectedId, cursor, hasMore, loadingMore } = get()
+    const { selectedId, cursor, hasMore, loadingMore, conversa } = get()
     if (!selectedId || !hasMore || !cursor || loadingMore) return
+    if (conversa?.mensagens_bloqueadas) return
 
     set({ loadingMore: true })
 
@@ -610,11 +625,15 @@ export const useConversaStore = create((set, get) => ({
   patchConversa: (partial) => {
     if (!partial?.id) return
     const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil"]
+    const preserveBlocked = ["mensagens_bloqueadas", "atendente_nome"]
     set((state) => {
       if (!state.conversa || String(state.conversa.id) !== String(partial.id))
         return state
       const cur = state.conversa
       const merged = { ...cur, ...partial }
+      for (const k of preserveBlocked) {
+        if (merged[k] === undefined && cur[k] !== undefined) merged[k] = cur[k]
+      }
       // Não sobrescreve campos fixos do header com valor vazio — mantém nome e telefone estáveis
       for (const k of fixedFields) {
         const newVal = partial[k]

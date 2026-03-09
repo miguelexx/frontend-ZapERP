@@ -311,7 +311,12 @@ export function initSocket(token) {
 
     /* ----------------------------------
        conversa aberta → anexar msg e limpar indicador de digitação
+       Ignora quando mensagens_bloqueadas (conversa assumida por outro atendente)
     ---------------------------------- */
+    const convAberta = convStore.conversa
+    if (convAberta?.mensagens_bloqueadas && String(convAberta?.id) === String(conversaId)) {
+      return
+    }
     convStore.clearTyping(conversaId)
     convStore.anexarMensagem(msg)
   })

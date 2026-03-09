@@ -819,6 +819,24 @@
   box-shadow: var(--wa-shadow-subtle);
 }
 
+.wa-messages-emptyCard--blocked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+}
+
+.wa-messages-emptyCard--blocked strong {
+  color: var(--wa-text);
+  font-weight: 600;
+}
+
+.wa-messages-blocked-icon {
+  font-size: 32px;
+  opacity: 0.8;
+}
+
 /* =========================================================
    BOLHAS DE MENSAGEM — modernas, cantos 14–16px, sombra leve, tipografia 13–14px
 ========================================================= */

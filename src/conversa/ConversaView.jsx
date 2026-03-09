@@ -1476,12 +1476,13 @@ export default function ConversaView() {
 
   const podeEnviar = useMemo(() => {
     if (!user?.id || !conversa?.id) return false;
+    if (conversa?.mensagens_bloqueadas) return false;
     const perfil = String(user?.perfil || user?.role || "").toLowerCase();
     if (perfil === "admin") return true;
     const atendenteId = conversa?.atendente_id ?? null;
     if (atendenteId == null || atendenteId === "") return false;
     return String(atendenteId) === String(user.id);
-  }, [user?.id, user?.perfil, user?.role, conversa?.atendente_id, conversa?.id]);
+  }, [user?.id, user?.perfil, user?.role, conversa?.atendente_id, conversa?.id, conversa?.mensagens_bloqueadas]);
 
   const [texto, setTexto] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -3414,7 +3415,14 @@ export default function ConversaView() {
             </div>
           ) : null}
 
-          {mensagensComSeparadores.length === 0 ? (
+          {conversa?.mensagens_bloqueadas ? (
+            <div className="wa-messages-empty">
+              <div className="wa-messages-emptyCard wa-messages-emptyCard--blocked">
+                <span className="wa-messages-blocked-icon" aria-hidden="true">🔒</span>
+                <strong>Este atendimento foi assumido por {conversa?.atendente_nome?.trim() ? conversa.atendente_nome : "outro usuário"}.</strong>
+              </div>
+            </div>
+          ) : mensagensComSeparadores.length === 0 ? (
             <div className="wa-messages-empty">
               <div className="wa-messages-emptyCard">Sem mensagens ainda.</div>
             </div>
@@ -4037,7 +4045,9 @@ export default function ConversaView() {
             <>
               {!podeEnviar && (
                 <div className="wa-footer-hint" role="status">
-                  Assuma esta conversa para enviar mensagens
+                  {conversa?.mensagens_bloqueadas
+                    ? `Este atendimento foi assumido por ${conversa?.atendente_nome?.trim() ? conversa.atendente_nome : "outro usuário"}.`
+                    : "Assuma esta conversa para enviar mensagens"}
                 </div>
               )}
               <button
@@ -4112,11 +4122,11 @@ export default function ConversaView() {
                 onChange={(e) => setTexto(e.target.value)}
                 onBlur={emitTypingStop}
                 onPaste={handlePaste}
-                placeholder={podeEnviar ? "Digite uma mensagem" : "Assuma esta conversa para responder"}
+                placeholder={podeEnviar ? "Digite uma mensagem" : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário." : "Assuma esta conversa para responder")}
                 className="wa-input"
                 onKeyDown={handleKeyDownInput}
                 disabled={sending || !conversaId || !podeEnviar}
-                aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Esc para fechar painéis." : "Assuma esta conversa para responder."}
+                aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Esc para fechar painéis." : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário. Você não pode enviar mensagens." : "Assuma esta conversa para responder.")}
               />
 
               <div className="wa-footer-right">
