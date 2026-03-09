@@ -176,9 +176,11 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Arial;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg-app);
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Mobile: viewport fixa, sem scroll da página, visual app */
@@ -862,15 +864,15 @@ body:has(.login-wrap) {
   padding: 12px 14px;
   border-radius: 10px;
   font-size: 14px;
-  background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  background: var(--ds-error-soft);
+  color: var(--ds-error);
   border: 1px solid rgba(220, 38, 38, 0.25);
 }
 
 [data-theme="dark"] .login-form .login-error {
-  background: rgba(220, 38, 38, 0.15);
-  color: #f87171;
-  border-color: rgba(220, 38, 38, 0.3);
+  background: var(--ds-error-soft);
+  color: var(--ds-error);
+  border-color: rgba(248, 113, 113, 0.3);
 }
 
 /* 404 */

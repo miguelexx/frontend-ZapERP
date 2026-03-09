@@ -90,6 +90,30 @@ export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
   return data;
 }
 
+/**
+ * Encaminha um arquivo/mídia para outra conversa — re-envia o arquivo para exibir como card (estilo WhatsApp).
+ * Usado quando a mensagem original tem tipo arquivo, imagem ou vídeo.
+ */
+export async function encaminharArquivo(conversaId, msg, getMediaUrl) {
+  if (!msg?.url) throw new Error("Arquivo sem URL disponível para encaminhar.");
+  const mediaUrl = getMediaUrl ? getMediaUrl(msg.url) : msg.url;
+  if (!mediaUrl) throw new Error("URL do arquivo não disponível.");
+
+  const urlToFetch = mediaUrl.startsWith("http") ? mediaUrl : (msg.url.startsWith("/") ? msg.url : `/${msg.url}`);
+  const { data: blob } = await api.get(urlToFetch, { responseType: "blob" });
+  const nomeArquivo = String(msg?.nome_arquivo || "arquivo").trim() || "arquivo";
+  const file = new File([blob], nomeArquivo, { type: blob.type || "application/octet-stream" });
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("encaminhado", "true");
+
+  const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
 export async function enviarReacao(conversaId, mensagemId, reaction) {
   const body = { reaction };
   const { data } = await api.post(`/chats/${conversaId}/mensagens/${mensagemId}/reacao`, body);

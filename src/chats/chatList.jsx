@@ -1165,25 +1165,11 @@ export default function ChatList() {
   return (
     <div className="chat-list-root">
       {zapiStatusLoaded && zapiConnected === false && (
-        <div
-          style={{
-            background: "#fff3cd",
-            borderBottom: "1px solid #ffc107",
-            color: "#856404",
-            fontSize: "0.78rem",
-            padding: "6px 12px",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>⚠️</span>
+        <div className="chat-list-zapi-alert" role="alert">
+          <span className="chat-list-zapi-alert__icon" aria-hidden>⚠️</span>
           <span>
             WhatsApp desconectado — mensagens não serão entregues.{" "}
-            <a
-              href="/configuracoes"
-              style={{ color: "#856404", fontWeight: 600, textDecoration: "underline" }}
-            >
+            <a href="/configuracoes" className="chat-list-zapi-alert__link">
               Reconectar
             </a>
           </span>

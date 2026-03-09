@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConversaStore } from "./conversaStore";
-import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao, enviarLink } from "./conversaService";
+import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao, enviarLink, encaminharArquivo } from "./conversaService";
 import { isGroupConversation } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
@@ -485,6 +485,7 @@ function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup, ou
   const bytes = msg?.tamanho ?? msg?.tamanho_bytes;
   const size = formatFileSize(bytes);
   const typeSize = size ? `${ext} · ${size}` : ext;
+  const encaminhado = !!msg?.encaminhado || (typeof msg?.texto === "string" && msg.texto.trimStart().startsWith("[Encaminhado]"));
 
   const handleCardClick = (e) => {
     if (!selectMode) e.stopPropagation();
@@ -492,6 +493,7 @@ function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup, ou
 
   return (
     <div className={`wa-bubble-fileCard ${out ? "wa-bubble-fileCard--out" : ""}`} onClick={handleCardClick}>
+      {encaminhado ? <div className="wa-bubble-encaminhado">[Encaminhado]</div> : null}
       <div className="wa-bubble-fileTop">
         <div className={`wa-bubble-fileIconWrap wa-bubble-fileIconWrap--${ext.toLowerCase()}`} aria-hidden="true">
           <span className="wa-bubble-fileExt">{ext}</span>
@@ -2740,12 +2742,36 @@ export default function ConversaView() {
     setForwardSending(false);
   }, []);
 
+  const execEncaminhar = useCallback(
+    async (destConversaId) => {
+      const tipo = String(forwardMsg?.tipo || "").toLowerCase();
+      const hasMediaUrl = !!(forwardMsg?.url && getMediaUrl(forwardMsg.url));
+      const podeEncaminharComoArquivo = hasMediaUrl && (tipo === "arquivo" || tipo === "imagem" || tipo === "vídeo" || tipo === "video");
+
+      if (podeEncaminharComoArquivo) {
+        try {
+          const data = await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
+          if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
+            anexarMensagem(data);
+          }
+          return;
+        } catch (e) {
+          console.warn("Encaminhar como arquivo falhou, fallback para texto:", e);
+          await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+        }
+      } else {
+        await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+      }
+    },
+    [forwardMsg, anexarMensagem, conversaId]
+  );
+
   const confirmForwardTo = useCallback(
     async (destConversaId) => {
       if (!destConversaId || !forwardMsg || forwardSending) return;
       setForwardSending(true);
       try {
-        await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+        await execEncaminhar(destConversaId);
         showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
         closeForward();
       } catch (e) {
@@ -2755,7 +2781,7 @@ export default function ConversaView() {
         setForwardSending(false);
       }
     },
-    [forwardMsg, forwardSending, showToast, closeForward]
+    [forwardMsg, forwardSending, showToast, closeForward, execEncaminhar]
   );
 
   const confirmForwardToCliente = useCallback(
@@ -2767,9 +2793,8 @@ export default function ConversaView() {
         const conv = data?.conversa || data || null;
         const destId = conv?.id || null;
         if (!destId) throw new Error("Não foi possível abrir a conversa do cliente.");
-        // garante na lista (opcional)
         try { useChatStore.getState().addChat(conv); } catch {}
-        await enviarMensagem(destId, buildForwardText(forwardMsg));
+        await execEncaminhar(destId);
         showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
         closeForward();
       } catch (e) {
@@ -2779,7 +2804,7 @@ export default function ConversaView() {
         setForwardSending(false);
       }
     },
-    [forwardMsg, forwardSending, showToast, closeForward]
+    [forwardMsg, forwardSending, showToast, closeForward, execEncaminhar]
   );
 
   useEffect(() => {

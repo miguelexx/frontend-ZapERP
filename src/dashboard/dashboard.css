@@ -86,6 +86,20 @@
   border-color: var(--ds-border-strong);
 }
 
+/* KpiCard (componente ds-card) */
+.kpi-card__label {
+  font-size: 12px;
+  color: var(--ds-text-tertiary);
+  font-weight: 500;
+}
+
+.kpi-card__value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ds-text-primary);
+  margin-top: 4px;
+}
+
 .dash-card-label {
   font-size: 12px;
   font-weight: 500;
@@ -271,6 +285,10 @@
   text-align: center;
   color: var(--dash-muted);
   font-size: 15px;
+}
+
+.dash-loading-skeleton {
+  margin-bottom: 28px;
 }
 
 .dash-empty {

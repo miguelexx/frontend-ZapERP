@@ -4,6 +4,8 @@ import * as dashboardApi from '../api/dashboardService'
 import './dashboard.css'
 import ConversasPorAtendente from './charts/ConversasPorAtendente'
 import AtendimentoPorHora from './charts/AtendimentoPorHora'
+import { SkeletonGrid } from '../components/feedback/Skeleton'
+import '../components/feedback/skeleton.css'
 
 const TABS = [
   { id: 'overview', label: 'Visão geral' },
@@ -104,7 +106,11 @@ export default function Dashboard() {
 // --- Visão geral (KPIs + gráficos) ---
 function DashboardOverview({ overview, loading, loadErr, rangeDays, onRefresh }) {
   if (loading) {
-    return <div className="dash-loading">Carregando métricas...</div>
+    return (
+      <div className="dash-loading-skeleton">
+        <SkeletonGrid count={6} />
+      </div>
+    )
   }
   if (!overview) {
     return (

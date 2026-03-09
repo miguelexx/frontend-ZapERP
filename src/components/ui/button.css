@@ -1,0 +1,95 @@
+/* Button — Design System ZapERP */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+  border-radius: var(--ds-radius);
+  border: none;
+  cursor: pointer;
+  transition:
+    background var(--ds-transition),
+    color var(--ds-transition),
+    border-color var(--ds-transition),
+    box-shadow var(--ds-transition),
+    transform var(--ds-transition-fast);
+}
+
+.ds-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ds-btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.ds-btn:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Tamanhos */
+.ds-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.ds-btn {
+  height: 40px;
+  padding: 0 16px;
+}
+
+.ds-btn--lg {
+  height: 48px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+/* Variantes */
+.ds-btn--primary {
+  background: var(--ds-accent);
+  color: #fff;
+}
+
+.ds-btn--primary:hover:not(:disabled) {
+  background: var(--ds-accent-hover);
+}
+
+.ds-btn--secondary,
+.ds-btn--outline {
+  background: transparent;
+  color: var(--ds-text-primary);
+  border: 1px solid var(--ds-border);
+}
+
+.ds-btn--secondary:hover:not(:disabled),
+.ds-btn--outline:hover:not(:disabled) {
+  background: var(--ds-hover);
+  border-color: var(--ds-border-strong);
+}
+
+.ds-btn--ghost {
+  background: transparent;
+  color: var(--ds-text-secondary);
+}
+
+.ds-btn--ghost:hover:not(:disabled) {
+  background: var(--ds-hover);
+  color: var(--ds-text-primary);
+}
+
+.ds-btn--danger {
+  background: var(--ds-error);
+  color: #fff;
+}
+
+.ds-btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+  filter: brightness(1.1);
+}

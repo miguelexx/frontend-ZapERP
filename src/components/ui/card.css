@@ -1,0 +1,16 @@
+/* Card — Design System ZapERP */
+.ds-card {
+  background: var(--ds-surface-1);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  padding: 18px 24px;
+  box-shadow: var(--ds-shadow-xs);
+  transition:
+    box-shadow var(--ds-transition),
+    border-color var(--ds-transition);
+}
+
+.ds-card:hover {
+  box-shadow: var(--ds-shadow-sm);
+  border-color: var(--ds-border-strong);
+}

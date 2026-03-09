@@ -1368,6 +1368,15 @@
   padding-right: 0;
 }
 
+/* Label [Encaminhado] — estilo WhatsApp */
+.wa-bubble-encaminhado {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
 /* Card de arquivo estilo WhatsApp — minimalista, limpo, micro-interação */
 .wa-bubble-fileCard {
   display: flex;
