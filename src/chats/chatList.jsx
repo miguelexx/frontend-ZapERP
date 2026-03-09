@@ -807,11 +807,10 @@ export default function ChatList() {
 
   const showToast = useNotificationStore((s) => s.showToast);
 
-  // Na montagem: verificar conexão Z-API + sincronizar fotos em background
+  // Na montagem: conexão Z-API + sync contatos (nomes corretos) + fotos — em background
   useEffect(() => {
     let cancelled = false;
 
-    // Verificar status de conexão
     getZapiStatus()
       .then((s) => {
         if (cancelled) return;
@@ -822,11 +821,23 @@ export default function ChatList() {
         if (!cancelled) setZapiStatusLoaded(true);
       });
 
-    // Sincronizar fotos em background (não bloqueia a UI; ignora erros)
+    // Sync contatos do WhatsApp (Z-API) → nomes corretos na primeira carga
+    sincronizarContatos()
+      .then(() => {
+        if (!cancelled) loadRef.current?.();
+      })
+      .catch(() => {});
+
     sincronizarFotosPerfil().catch(() => {});
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Atualização automática da lista (nomes, novas conversas) a cada 3 min
+  useEffect(() => {
+    const interval = setInterval(() => loadRef.current?.(), 180_000);
+    return () => clearInterval(interval);
   }, []);
 
   async function load() {
@@ -897,9 +908,10 @@ export default function ChatList() {
     load();
   }, [tagFilter, departamentoFilter, statusFilter, atendenteFilter, dataInicio, dataFim, debouncedSearch, mineOnly, order]);
 
-  // Atualiza lista quando sync de contatos terminar (própria aba ou outra)
+  // loadRef para sync/interval — deve estar definido antes dos effects que o usam
   const loadRef = useRef(load);
   loadRef.current = load;
+
   useEffect(() => {
     function onSyncContatos() {
       loadRef.current?.();

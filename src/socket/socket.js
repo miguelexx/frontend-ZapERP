@@ -249,24 +249,22 @@ export function initSocket(token) {
 
     if (!jaNaLista) {
       const isAbertaParaInc = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
+      // Nome imutável: usar só o da mensagem (inbound); outbound não inventa nome
       const nomeInicial = nomeContato || undefined
       chatStore.addChat({
         id: conversaId,
-        contato_nome: nomeInicial || "Conversa",
+        contato_nome: nomeInicial,
         foto_perfil: fotoContato,
         unread_count: isAbertaParaInc ? 0 : 1,
         ultima_mensagem: msg
       })
     } else {
-      // Só preenche nome/foto quando vazio — NUNCA sobrescrever contato_nome com msg outbound
-      const existing = chats.find(c => String(c.id) === String(conversaId))
-      const patch = {}
-      const nomeVazio = !existing?.contato_nome || !String(existing.contato_nome).trim()
-      const fotoVazia = !existing?.foto_perfil || !String(existing.foto_perfil).trim()
-      if (nomeContato && nomeVazio) patch.contato_nome = nomeContato
-      if (fotoContato && fotoVazia) patch.foto_perfil = fotoContato
-      if (Object.keys(patch).length > 0) {
-        chatStore.updateChatContato(conversaId, patch)
+      // Só preenche quando vazio — nome NUNCA troca uma vez definido
+      if (nomeContato || fotoContato) {
+        chatStore.updateChatContato(conversaId, {
+          contato_nome: nomeContato || undefined,
+          foto_perfil: fotoContato || undefined
+        })
       }
     }
 

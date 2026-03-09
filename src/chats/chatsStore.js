@@ -98,14 +98,14 @@ export const useChatStore = create((set, get) => ({
     if (newIdx >= 0) {
       const next = [...chats]
       const existing = next[newIdx]
-      const nomeAtual = (existing.contato_nome || existing.nome || "").trim()
+      const nomeAtual = (existing.contato_nome || existing.nome || existing.nome_contato_cache || "").trim()
       const nomeNovo = (mergedNome || "").trim()
-      // Merge defensivo: não sobrescrever com spread cego — preservar nome/foto quando payload é parcial
+      // NOME IMUTÁVEL: se já temos nome válido (não "Conversa"), NUNCA trocar
+      const manterNome = nomeAtual && nomeAtual !== "Conversa" && nomeAtual.toLowerCase() !== "conversa"
       const updated = {
         ...existing,
         ...merged,
-        // NUNCA trocar nome válido por "Conversa", vazio ou nome longo do cadastro
-        contato_nome: nomeAtual && (!nomeNovo || nomeNovo === "Conversa") ? nomeAtual : (mergedNome ?? existing.contato_nome),
+        contato_nome: manterNome ? nomeAtual : (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : existing.contato_nome ?? mergedNome),
         foto_perfil: (existing.foto_perfil && String(existing.foto_perfil).trim()) || mergedFoto || existing.foto_perfil,
         // Preservar metadados quando payload é parcial (envio otimista)
         cliente: merged.cliente !== undefined ? merged.cliente : existing.cliente,
@@ -142,22 +142,23 @@ export const useChatStore = create((set, get) => ({
     const cur = next[idx]
     const merged = { ...cur }
 
-    // Merge defensivo: nunca sobrescrever com undefined; strings vazias só em nome/foto (bloqueados abaixo)
+    // Nome/foto: IMUTÁVEIS — NUNCA sobrescrever. Uma vez definido, permanece.
     const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil"])
     for (const k of Object.keys(partial)) {
       if (k === "id" || skipKeys.has(k)) continue
       if (partial[k] !== undefined) merged[k] = partial[k]
     }
-
-    // Nome/foto: só quando valor válido (preserva nome completo da agenda)
-    if (partial.contato_nome != null && String(partial.contato_nome).trim() !== "") {
+    // Só preencher nome/foto quando atualmente vazios — nunca trocar nome existente
+    const nomeVazio = !cur.contato_nome || !String(cur.contato_nome).trim()
+    const fotoVazia = !cur.foto_perfil || !String(cur.foto_perfil).trim()
+    if (nomeVazio && partial.contato_nome != null && String(partial.contato_nome).trim() !== "") {
       merged.contato_nome = partial.contato_nome
       merged.nome_contato_cache = partial.nome_contato_cache ?? partial.contato_nome
-    } else if (partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "") {
+    } else if (nomeVazio && partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "") {
       merged.contato_nome = partial.nome_contato_cache
       merged.nome_contato_cache = partial.nome_contato_cache
     }
-    if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
+    if (fotoVazia && partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
       merged.foto_perfil = partial.foto_perfil
     }
 
@@ -176,23 +177,22 @@ export const useChatStore = create((set, get) => ({
     set({ chats: sortConversasByRecent(next) })
   },
 
-  /** Atualiza nome e foto do contato em tempo real (sync Z-API) */
+  /** Atualiza nome/foto — SÓ quando vazios. Nome é imutável: nunca trocar o existente. */
   updateChatContato: (conversa_id, { contato_nome, foto_perfil }) => {
     if (conversa_id == null) return
     const chats = get().chats || []
     const idx = chats.findIndex(c => String(c.id) === String(conversa_id))
     if (idx === -1) return
+    const cur = chats[idx]
+    const patch = {}
+    if (contato_nome != null && String(contato_nome).trim() !== "" && (!cur?.contato_nome || !String(cur.contato_nome).trim()))
+      patch.contato_nome = contato_nome
+    if (foto_perfil != null && String(foto_perfil).trim() !== "" && (!cur?.foto_perfil || !String(cur.foto_perfil).trim()))
+      patch.foto_perfil = foto_perfil
+    if (Object.keys(patch).length === 0) return
     const next = [...chats]
-    const cur = next[idx]
-    next[idx] = {
-      ...cur,
-      ...(contato_nome != null && String(contato_nome).trim() !== "" && {
-        contato_nome,
-        nome_contato_cache: contato_nome,
-      }),
-      ...(foto_perfil !== undefined && foto_perfil != null && String(foto_perfil).trim() !== "" && { foto_perfil }),
-    }
-    set({ chats: next })
+    next[idx] = { ...cur, ...patch, nome_contato_cache: patch.contato_nome ?? cur.nome_contato_cache }
+    set({ chats: sortConversasByRecent(next) })
   },
 
   /** Só preenche nome/foto quando vazio — evita sobrescrever com dados inconsistentes */

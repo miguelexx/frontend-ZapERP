@@ -2390,9 +2390,10 @@ export default function ConversaView() {
     const chats = chatStore.chats || [];
     const jaNaLista = chats.some((c) => String(c?.id) === String(conversaId));
     if (!jaNaLista && conversa) {
+      const nome = conversa?.contato_nome || conversa?.nome_contato_cache || conversa?.cliente_nome || conversa?.nome_grupo
       chatStore.addChat({
         id: conversaId,
-        contato_nome: conversa?.contato_nome || conversa?.cliente_nome || conversa?.nome_grupo || "Conversa",
+        contato_nome: nome || undefined,
         foto_perfil: conversa?.foto_perfil,
         ultima_mensagem: optimisticMsg,
       });
