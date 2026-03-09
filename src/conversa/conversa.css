@@ -585,6 +585,17 @@
   background: var(--wa-header-bg);
 }
 
+.wa-tagItem--remover {
+  margin-top: 8px;
+  border-top: 1px solid rgba(0,0,0,.08);
+  padding-top: 12px;
+  color: #64748b;
+}
+.wa-tagItem--remover:hover:not(:disabled) {
+  color: #dc2626;
+  background: rgba(220,38,38,.06);
+}
+
 /* =========================================================
    DROP OVERLAY (arrastar arquivo)
 ========================================================= */

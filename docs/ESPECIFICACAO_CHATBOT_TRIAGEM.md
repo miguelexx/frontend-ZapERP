@@ -1,6 +1,6 @@
 # Especificação — Página de Chatbot de Triagem (ZapERP)
 
-**Versão:** 1.0  
+**Versão:** 1.1  
 **Última atualização:** Março 2025  
 **Status:** Página existente — corrigir, integrar e finalizar
 
@@ -10,7 +10,7 @@
 
 A página de **Chatbot de Triagem** configura o roteador automático de atendimento via webhook Z-API. O usuário define mensagens, opções numéricas e vincula cada opção a um departamento. Quando o cliente envia mensagem no WhatsApp, recebe o menu; ao responder com um número válido, a conversa é encaminhada automaticamente para o departamento correspondente.
 
-**Contexto técnico:** O ZapERP usa apenas Z-API. O chatbot opera via webhook Z-API. A página já existe como aba "Chatbot de Triagem" dentro de IA/Bot (`/ia?tab=chatbot`). O foco é **corrigir o que está quebrado, integrar com os endpoints reais, garantir persistência e manter o padrão visual do ZapERP** — não recriar do zero.
+**Contexto técnico:** O ZapERP usa apenas Z-API. O chatbot opera via webhook Z-API. A página existe como aba "Chatbot de Triagem" dentro de IA/Bot (`/ia?tab=chatbot`). O foco é **corrigir o que está quebrado, integrar com os endpoints reais, garantir persistência e manter o padrão visual do ZapERP** — não recriar do zero.
 
 ---
 
@@ -54,7 +54,6 @@ A página de **Chatbot de Triagem** configura o roteador automático de atendime
     "options": []
   },
   "bot_global": { ... },
-  "roteamento": { ... },
   "ia": { ... },
   "automacoes": { ... }
 }
@@ -68,6 +67,17 @@ Array de objetos: `{ id, nome, company_id }`
 
 Array de objetos: `{ id, conversa_id, tipo, detalhes, criado_em }`  
 Tipos: `menu_enviado`, `opcao_valida`, `opcao_invalida`, `menu_reenviado`, `erro`
+
+### 3.4 Estrutura de `options`
+
+Cada item de `options` deve conter:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `key` | string | Número da opção (ex.: "1", "2") |
+| `label` | string | Nome exibido (ex.: "Atendimento") |
+| `departamento_id` | number | ID do departamento vinculado |
+| `active` | boolean | Se a opção está ativa |
 
 ---
 
@@ -106,15 +116,15 @@ Tipos: `menu_enviado`, `opcao_valida`, `opcao_invalida`, `menu_reenviado`, `erro
 
 **Obrigatórias antes de salvar:**
 
-- Se `enabled = true`: pelo menos 1 opção válida (label + `departamento_id`)
 - Se `enabled = true`: `welcomeMessage` não pode estar vazio
+- Se `enabled = true`: pelo menos 1 opção válida (label + `departamento_id`)
 - `key` deve ser única em todas as opções
 - Toda opção ativa deve ter `label` e `departamento_id` preenchidos
 - Payload deve ser consistente (objeto válido, `options` array)
 
 **Feedback:** Erros de validação devem ser exibidos via toast (não `alert`).
 
-**Correções necessárias na implementação:** O componente `SecaoChatbotTriagem` deve implementar a função `validate()` que retorne string de erro ou `null`, aplicando as regras acima. A função é chamada antes de `onSave`; se retornar string, exibir toast de erro e abortar o salvamento.
+**Implementação:** O componente `SecaoChatbotTriagem` implementa a função `validate()` que retorna string de erro ou `null`, aplicando as regras acima. A função é chamada antes de `onSave`; se retornar string, exibe toast de erro e aborta o salvamento.
 
 ---
 
@@ -178,20 +188,7 @@ O frontend envia apenas a seção alterada. Para o chatbot:
 
 ---
 
-## 8. Estrutura de `options`
-
-Cada item de `options` deve conter:
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `key` | string | Número da opção (ex.: "1", "2") |
-| `label` | string | Nome exibido (ex.: "Atendimento") |
-| `departamento_id` | number | ID do departamento vinculado |
-| `active` | boolean | Se a opção está ativa |
-
----
-
-## 9. Pré-requisitos
+## 8. Pré-requisitos
 
 - Z-API conectada (instância em `empresa_zapi`)
 - Departamentos cadastrados em Configurações
@@ -199,14 +196,14 @@ Cada item de `options` deve conter:
 
 ---
 
-## 10. Rota da página
+## 9. Rota da página
 
 - **Principal:** `/ia?tab=chatbot`
 - **Alternativa:** `/configuracoes/chatbot` → redireciona para `/ia?tab=chatbot`
 
 ---
 
-## 11. Integração com backend real
+## 10. Integração com backend real
 
 A tela deve estar 100% conectada ao backend:
 
@@ -219,7 +216,7 @@ A tela deve estar 100% conectada ao backend:
 
 ---
 
-## 12. Checklist final de certificação (Z-API)
+## 11. Checklist final de certificação (Z-API)
 
 ### Backend
 

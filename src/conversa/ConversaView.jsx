@@ -799,13 +799,15 @@ function AudioWavePlayer({ src, msgKey, avatarUrl, avatarLabel, onDuration }) {
   );
 }
 
-function getReplySenderLabel(replyMsg, peerName) {
-  if (!replyMsg) return "Contato";
+function getReplySenderLabel(replyMsg, peerName, chat) {
+  const contactDisplayName = chat ? getDisplayName(chat) : null;
+  if (!replyMsg) return contactDisplayName || "Contato";
   const out = String(replyMsg?.direcao || "").toLowerCase() === "out";
   if (out) return "Você";
   const groupSender = safeString(replyMsg?.remetente_nome || replyMsg?.remetente_telefone);
   if (groupSender) return groupSender;
-  return safeString(peerName) || "Contato";
+  const contactName = safeString(peerName) || contactDisplayName;
+  return contactName || "Contato";
 }
 
 function nameColor(seed) {
@@ -1071,7 +1073,11 @@ const Bubble = memo(function Bubble({
             >
               <div className="wa-replyCtx-bar" aria-hidden="true" />
               <div className="wa-replyCtx-content">
-                <div className="wa-replyCtx-name">{replyMeta.name}</div>
+                <div className="wa-replyCtx-name">
+                  {replyMeta.name && replyMeta.name !== "Contato"
+                    ? replyMeta.name
+                    : (peerName || replyMeta.name)}
+                </div>
                 <div className="wa-replyCtx-snippet">{replyMeta.snippet}</div>
               </div>
             </div>
@@ -2350,10 +2356,11 @@ export default function ConversaView() {
     const t = safeString(texto);
     if (!t) return;
     emitTypingStop();
+    const chatParaNome = fromChat ?? conversa;
     const replyMeta =
       replyTo
         ? {
-            name: getReplySenderLabel(replyTo, nome),
+            name: getReplySenderLabel(replyTo, nome, chatParaNome),
             snippet: snippetFromMsg(replyTo),
             ts: Date.now(),
             replyToId: replyTo?.whatsapp_id || replyTo?.id,
@@ -2432,10 +2439,11 @@ export default function ConversaView() {
     const descricao = safeString(linkDescricao);
     const imagem = safeString(linkImagem);
 
+    const chatParaNome = fromChat ?? conversa;
     const replyMeta =
       replyTo
         ? {
-            name: getReplySenderLabel(replyTo, nome),
+            name: getReplySenderLabel(replyTo, nome, chatParaNome),
             snippet: snippetFromMsg(replyTo),
             ts: Date.now(),
             replyToId: replyTo?.whatsapp_id || replyTo?.id,
@@ -2931,6 +2939,29 @@ export default function ConversaView() {
     [conversaId, refresh, showToast, transferirSetorLoading]
   );
 
+  const handleRemoverSetor = useCallback(
+    async () => {
+      if (!conversaId || transferirSetorLoading) return;
+      setTransferirSetorLoading(true);
+      try {
+        await api.put(`/chats/${conversaId}/departamento`, { remover_setor: true });
+        await refresh({ silent: true });
+        setShowTransferirSetor(false);
+        showToast({ type: "success", title: "Setor removido", message: "A conversa não possui mais setor vinculado." });
+      } catch (e) {
+        console.error("Erro ao remover setor:", e);
+        showToast({
+          type: "error",
+          title: "Falha ao remover setor",
+          message: e?.response?.data?.error || "Tente novamente.",
+        });
+      } finally {
+        setTransferirSetorLoading(false);
+      }
+    },
+    [conversaId, refresh, showToast, transferirSetorLoading]
+  );
+
   const carregarTags = useCallback(
     async (opts = {}) => {
       const showError = opts.showErrorToUser !== false;
@@ -3242,6 +3273,15 @@ export default function ConversaView() {
                   ))}
                 </div>
               )}
+              <button
+                type="button"
+                className="wa-tagItem wa-tagItem--remover"
+                onClick={handleRemoverSetor}
+                disabled={transferirSetorLoading || !conversa?.departamento_id}
+                title={conversa?.departamento_id ? "Remover setor da conversa" : "Conversa já está sem setor"}
+              >
+                Sem setor
+              </button>
               {transferirSetorLoading && (
                 <div className="wa-muted" style={{ marginTop: 8 }}>Salvando...</div>
               )}
@@ -3675,7 +3715,7 @@ export default function ConversaView() {
           <div className="wa-replyBar" role="region" aria-label="Respondendo">
             <div className="wa-replyBar-bar" aria-hidden="true" />
             <div className="wa-replyBar-left">
-              <div className="wa-replyBar-title">{getReplySenderLabel(replyTo, nome)}</div>
+              <div className="wa-replyBar-title">{getReplySenderLabel(replyTo, nome, fromChat ?? conversa)}</div>
               <div className="wa-replyBar-text">{snippetFromMsg(replyTo)}</div>
             </div>
             <button

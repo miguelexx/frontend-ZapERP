@@ -16,6 +16,7 @@ import NovoContato from "../pages/NovoContato";
 import NovoGrupo from "../pages/NovoGrupo";
 import NovaComunidade from "../pages/NovaComunidade";
 import ConnectWhatsApp from "../pages/ConnectWhatsApp";
+import Permissoes from "../pages/Permissoes";
 
 export default function AppRoutes() {
   const { token, user } = useAuthStore();
@@ -108,6 +109,16 @@ export default function AppRoutes() {
             element={
               canAccessUsers ? (
                 <Navigate to="/configuracoes?tab=usuarios" replace />
+              ) : (
+                <Navigate to="/atendimento" replace />
+              )
+            }
+          />
+          <Route
+            path="/permissoes"
+            element={
+              canAccessUsers ? (
+                <Permissoes />
               ) : (
                 <Navigate to="/atendimento" replace />
               )
