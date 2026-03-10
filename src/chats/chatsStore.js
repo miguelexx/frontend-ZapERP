@@ -277,7 +277,7 @@ export const useChatStore = create((set, get) => ({
         String(c.id) === String(conversa_id)
           ? {
               ...c,
-              ultima_mensagem: msg,
+              ultima_mensagem: { ...c.ultima_mensagem, ...msg },
               ultima_atividade: msg?.criado_em || c.ultima_atividade,
             }
           : c

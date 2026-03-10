@@ -834,9 +834,9 @@ export default function ChatList() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Atualização automática da lista (nomes, novas conversas) a cada 3 min
+  // Atualização automática da lista (nomes, novas conversas) a cada 5 min — evita "refresh" constante
   useEffect(() => {
-    const interval = setInterval(() => loadRef.current?.(), 180_000);
+    const interval = setInterval(() => loadRef.current?.(), 300_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -881,12 +881,18 @@ export default function ChatList() {
         const merged = list.map((c) => {
           const existing = c?.id != null ? byIdPrev.get(String(c.id)) : null;
           const nomeJaExiste = (existing?.contato_nome || existing?.nome || "").trim();
+          const uApi = c?.ultima_mensagem;
+          const uPrev = existing?.ultima_mensagem;
+          const sameMsg = uPrev && uApi && (String(uPrev.id) === String(uApi.id) || String(uPrev.whatsapp_id) === String(uApi.whatsapp_id) || (uPrev.criado_em && uApi.criado_em && String(uPrev.criado_em) === String(uApi.criado_em)));
+          const ultima = (sameMsg && uPrev) ? { ...uApi, ...uPrev } : uApi || uPrev;
           return {
             ...c,
             contato_nome: nomeJaExiste || c?.contato_nome || c?.nome || existing?.contato_nome,
             foto_perfil: (existing?.foto_perfil && String(existing.foto_perfil).trim()) || c?.foto_perfil,
             nome_grupo: c?.nome_grupo || existing?.nome_grupo,
             cliente: c?.cliente || existing?.cliente,
+            ultima_mensagem: ultima,
+            ultima_atividade: ultima?.criado_em || c?.ultima_atividade || existing?.ultima_atividade,
           };
         });
         const extra = arr.filter((c) => c?.id != null && !fromApi.has(String(c.id)));

@@ -391,13 +391,45 @@ function DaySeparator({ label }) {
  * - tenta inferir por campos comuns (status, lida_em, lidaEm, read_at, etc.)
  * - grupos: nunca mostra "read" (azul) — WhatsApp não envia confirmação de leitura em grupos
  */
+const TickSvg = ({ kind }) => (
+  <svg className="wa-ticksSvg" viewBox="0 0 18 12" width="18" height="12" aria-hidden="true" focusable="false">
+    {kind === "sent" || kind === "delivered" || kind === "read" ? (
+      <path d="M2.2 6.2 5.2 9.1 10.4 3.1" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    ) : null}
+    {kind === "delivered" || kind === "read" ? (
+      <path d="M7.0 6.2 10.0 9.1 15.2 3.1" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    ) : null}
+    {kind === "pending" ? (
+      <> <circle cx="9" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.35" opacity="0.9" />
+        <path d="M9 3.8v2.5l1.6 1.0" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ) : null}
+    {kind === "err" ? (
+      <> <circle cx="9" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.35" opacity="0.9" />
+        <path d="M9 3.6v3.2" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+        <circle cx="9" cy="10" r="0.8" fill="currentColor" />
+      </>
+    ) : null}
+  </svg>
+);
+
 function MessageTicks({ msg, isGroup }) {
   const out = msg?.direcao === "out";
   if (!out) return null;
 
-  const rawStatus = safeString(msg?.status_mensagem || msg?.status || msg?.situacao).toLowerCase();
+  const raw = msg?.status_mensagem ?? msg?.status ?? msg?.situacao;
+  const maybeNum = typeof raw === "number" && Number.isFinite(raw) ? raw : (/^\d+$/.test(String(raw || "").trim()) ? Number(raw) : null);
+  const rawStatus = raw != null && maybeNum == null ? safeString(raw).toLowerCase() : String(maybeNum ?? "");
   const hasReadAt = !!(msg?.lida_em || msg?.lidaEm || msg?.read_at || msg?.readAt);
   const hasDeliveredAt = !!(msg?.entregue_em || msg?.entregueEm || msg?.delivered_at || msg?.deliveredAt);
+
+  if (maybeNum != null) {
+    if (maybeNum <= 0) return <span className="wa-ticks isPending"><TickSvg kind="pending" /></span>;
+    if (maybeNum === 1) return <span className="wa-ticks"><TickSvg kind="sent" /></span>;
+    if (maybeNum === 2) return <span className="wa-ticks isDelivered"><TickSvg kind="delivered" /></span>;
+    if (maybeNum >= 3 && !isGroup) return <span className="wa-ticks isRead"><TickSvg kind="read" /></span>;
+    if (maybeNum >= 3 && isGroup) return <span className="wa-ticks isDelivered"><TickSvg kind="delivered" /></span>;
+  }
 
   const s = rawStatus;
   const hasReadKeyword = /lida|read|seen|visualiz|played/.test(s);
@@ -418,56 +450,6 @@ function MessageTicks({ msg, isGroup }) {
   // sent: mensagem confirmada pelo servidor WA mas ainda não entregue ao dispositivo
   const isSent = !isErr && !isPending && !isDelivered && !isRead &&
     (!s || s === "sent" || s === "enviada" || s === "enviado");
-
-  // Ticks finos e minimalistas (estilo WhatsApp Web)
-  const TickSvg = ({ kind }) => (
-    <svg
-      className="wa-ticksSvg"
-      viewBox="0 0 18 12"
-      width="18"
-      height="12"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {/* primeiro tick */}
-      {kind === "sent" || kind === "delivered" || kind === "read" ? (
-        <path
-          d="M2.2 6.2 5.2 9.1 10.4 3.1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.55"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ) : null}
-      {/* segundo tick (bem colado) */}
-      {kind === "delivered" || kind === "read" ? (
-        <path
-          d="M7.0 6.2 10.0 9.1 15.2 3.1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.55"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ) : null}
-      {/* relógio (pending) */}
-      {kind === "pending" ? (
-        <>
-          <circle cx="9" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.35" opacity="0.9" />
-          <path d="M9 3.8v2.5l1.6 1.0" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : null}
-      {/* erro */}
-      {kind === "err" ? (
-        <>
-          <circle cx="9" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.35" opacity="0.9" />
-          <path d="M9 3.6v3.2" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-          <circle cx="9" cy="10" r="0.8" fill="currentColor" />
-        </>
-      ) : null}
-    </svg>
-  );
 
   return (
     <span className={`wa-ticks ${isDelivered ? "isDelivered" : ""} ${isRead ? "isRead" : ""} ${isErr ? "isErr" : ""} ${isPending ? "isPending" : ""}`}>
@@ -4096,16 +4078,6 @@ export default function ConversaView() {
                     : "Assuma esta conversa para enviar mensagens"}
                 </div>
               )}
-              <button
-                type="button"
-                className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
-                onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); }}
-                title="Emojis"
-                aria-label="Emojis"
-                disabled={sending || !conversaId || !podeEnviar}
-              >
-                <IconEmoji />
-              </button>
               <div className="wa-attachWrap" ref={attachMenuRef}>
                 <button
                   type="button"
@@ -4175,6 +4147,17 @@ export default function ConversaView() {
                 aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Esc para fechar painéis." : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário. Você não pode enviar mensagens." : "Assuma esta conversa para responder.")}
               />
 
+              <button
+                type="button"
+                className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
+                onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); }}
+                title="Emojis"
+                aria-label="Emojis"
+                disabled={sending || !conversaId || !podeEnviar}
+              >
+                <IconEmoji />
+              </button>
+
               <div className="wa-footer-right">
                 <button
                   onClick={handleStartRecording}
@@ -4186,18 +4169,6 @@ export default function ConversaView() {
                 >
                   <IconMic />
                 </button>
-                {!isGroup && (
-                  <button
-                  onClick={() => setCallModalOpen(true)}
-                  disabled={sending || !conversaId || !podeEnviar}
-                  className="wa-micBtn"
-                    title="Ligar pelo WhatsApp"
-                    type="button"
-                    aria-label="Ligar pelo WhatsApp"
-                  >
-                    📞
-                  </button>
-                )}
                 <button
                   onClick={handleEnviar}
                   disabled={sending || !safeString(texto) || !conversaId || !podeEnviar}

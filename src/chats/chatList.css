@@ -23,10 +23,10 @@
   --cl-beige-200: #dfdbd5;
   --cl-beige-300: #d5d0c8;
 
-  --cl-green: #0d9488;
-  --cl-green-soft: rgba(13, 148, 136, 0.08);
-  --cl-green-border: rgba(13, 148, 136, 0.25);
-  --cl-chip-active: #0d9488;
+  --cl-green: var(--ds-accent);
+  --cl-green-soft: rgba(0, 168, 132, 0.08);
+  --cl-green-border: rgba(0, 168, 132, 0.25);
+  --cl-chip-active: var(--ds-accent);
   --cl-beige-light: #f5f3ef;
   --cl-beige-warm: #e9e5df;
 
@@ -44,7 +44,7 @@
   --cl-radius-md: 10px;
   --cl-radius-full: 50%;
 
-  --cl-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --cl-font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
   /* Um pouco maior (WhatsApp-like), mantendo responsivo */
   --cl-font-size-xs: clamp(11px, 0.85vw, 12px);
   --cl-font-size-sm: clamp(12px, 0.9vw, 13px);
@@ -274,17 +274,14 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(13, 148, 136, 0.6),
-    rgba(6, 182, 212, 0.45),
-    rgba(34, 197, 94, 0.4),
-    rgba(13, 148, 136, 0.6),
+    rgba(13, 148, 136, 0.5),
+    rgba(13, 148, 136, 0.35),
     transparent
   );
-  opacity: 0.4;
+  opacity: 0.2;
   transform: scaleX(0.78);
   transform-origin: center;
   filter: blur(0.2px);
-  animation: clBrandLine 8s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -295,7 +292,6 @@ a { color: inherit; text-decoration: none; }
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: clBrandShimmer 14s ease-in-out infinite;
 }
 
 .chat-list-erp {
@@ -305,7 +301,6 @@ a { color: inherit; text-decoration: none; }
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: clBrandShimmer 14s ease-in-out infinite;
 }
 
 .chat-list-header-sub {
@@ -774,7 +769,7 @@ a { color: inherit; text-decoration: none; }
   border-bottom: 1px solid var(--cl-border-subtle);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s ease, opacity 0.15s ease;
   position: relative;
   min-height: 68px;
   align-items: center;
