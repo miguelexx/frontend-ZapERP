@@ -12,6 +12,19 @@ export async function getZapiConnectStatus() {
 }
 
 /**
+ * GET /integrations/zapi/operational-status
+ * Retorna: connected, syncStatus, syncPending, lastSyncAt, modoSeguro, processamentoPausado
+ */
+export async function getZapiOperationalStatus() {
+  try {
+    const { data } = await api.get("/api/integrations/zapi/operational-status");
+    return data || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * POST /integrations/zapi/connect/qrcode
  * Retornos possíveis:
  * - 200 { connected: true }

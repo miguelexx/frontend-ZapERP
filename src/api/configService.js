@@ -177,3 +177,47 @@ export async function removeClienteTag(clienteId, tagId) {
   const { data } = await api.delete(`/clientes/${clienteId}/tags/${tagId}`)
   return data
 }
+
+// Operacional - configurações e auditoria
+export async function getOperacional() {
+  const { data } = await api.get('/config/operacional')
+  return data
+}
+
+export async function putOperacional(payload) {
+  const { data } = await api.put('/config/operacional', payload)
+  return data
+}
+
+export async function getAuditoriaEventos(params = {}) {
+  const { data } = await api.get('/config/auditoria-eventos', { params })
+  return data?.eventos || []
+}
+
+// Operacional - Jobs
+export async function getJobs(status) {
+  const { data } = await api.get('/jobs', { params: status ? { status } : {} })
+  return data?.jobs || []
+}
+
+export async function postJobSyncContatos() {
+  const { data } = await api.post('/jobs/sync-contatos')
+  return data
+}
+
+export async function postJobSyncFotos() {
+  const { data } = await api.post('/jobs/sync-fotos')
+  return data
+}
+
+export async function retryJob(id) {
+  await api.post(`/jobs/${id}/retry`)
+}
+
+export async function pauseAllJobs() {
+  await api.post('/jobs/pause-all')
+}
+
+export async function resumeAllJobs() {
+  await api.post('/jobs/resume-all')
+}

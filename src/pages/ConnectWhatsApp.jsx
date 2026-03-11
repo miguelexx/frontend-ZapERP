@@ -5,10 +5,32 @@ import {
   getZapiConnectStatus,
   getZapiConnectQrCode,
   postZapiConnectRestart,
+  getZapiOperationalStatus,
 } from "../api/zapiIntegration";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import "../components/layout/breadcrumb.css";
 import "./IA.css";
+
+function ConnectedSyncStatus({ opStatus, onRefresh }) {
+  const navigate = useNavigate();
+  if (!opStatus) return null;
+  const pending = opStatus.syncPending || opStatus.syncStatus === "running";
+  return (
+    <div style={{ marginTop: 12, padding: "8px 12px", background: "#f1f5f9", borderRadius: 6, fontSize: 13 }}>
+      {pending ? (
+        <span>Sessão conectada / Sincronização em andamento</span>
+      ) : opStatus.lastSyncAt ? (
+        <span>Último sync: {new Date(opStatus.lastSyncAt).toLocaleString("pt-BR")}</span>
+      ) : (
+        <span>Sessão conectada / Sincronização pendente</span>
+      )}
+      {" — "}
+      <button type="button" className="ia-btn ia-btn--outline" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => navigate("/configuracoes?tab=clientes")}>
+        Ir para Clientes
+      </button>
+    </div>
+  );
+}
 
 function getStatusBadge(status) {
   if (!status) return { label: "Verificando…", tone: "muted", icon: "⏳" };
@@ -34,6 +56,7 @@ export default function ConnectWhatsApp() {
   const [retryCountdown, setRetryCountdown] = useState(null);
   const [lastQrUpdate, setLastQrUpdate] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [opStatus, setOpStatus] = useState(null);
 
   const qrPollRef = useRef(null);
   const countdownRef = useRef(null);
@@ -274,6 +297,14 @@ export default function ConnectWhatsApp() {
     }
   };
 
+  useEffect(() => {
+    if (connected) {
+      getZapiOperationalStatus().then((d) => { if (isMountedRef.current) setOpStatus(d); });
+    } else {
+      setOpStatus(null);
+    }
+  }, [connected]);
+
   const badge = getStatusBadge(status);
   const hasInstance = status?.hasInstance !== false;
   const needsRestore = status?.needsRestore === true;
@@ -341,6 +372,10 @@ export default function ConnectWhatsApp() {
                       ? "Sua instância está conectada e o celular está online."
                       : "O celular pode estar sem internet. A conexão será restabelecida automaticamente."}
                   </p>
+                  <ConnectedSyncStatus
+                    opStatus={opStatus}
+                    onRefresh={() => getZapiOperationalStatus().then((d) => { if (isMountedRef.current) setOpStatus(d); })}
+                  />
                 </div>
               </div>
               <div className="zapi-instructions">
