@@ -3250,7 +3250,7 @@ export default function ConversaView() {
             </button>
 
             <div className="wa-actions">
-              <AtendimentoActions />
+              {!isGroup && <AtendimentoActions />}
             </div>
 
             <button

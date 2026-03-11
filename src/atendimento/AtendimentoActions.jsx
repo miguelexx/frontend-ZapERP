@@ -56,12 +56,22 @@ export default function AtendimentoActions() {
   const isEmAtendimento =
     status === "em_atendimento" || status === "em atendimento";
 
-  // ✅ REGRAS (TotalChat-like)
+  // Validação de setor: conversa com setor só pode ser assumida por usuário do mesmo setor (admin ignora)
+  const convDepId = conversa?.departamento_id ?? null;
+  const userDepId = user?.departamento_id ?? null;
+  const mesmaSetorOuSemRestricao =
+    isPrivileged ||
+    convDepId == null ||
+    (userDepId != null && Number(convDepId) === Number(userDepId));
+
+  // ✅ REGRAS: conversa aberta = sem responsável (apenas setor); só mostra Assumir quando em fila e disponível
   const podeAssumir =
     typeof canAssumir === "function" &&
     canAssumir(user) &&
     !isFechada &&
-    (isFila || !hasAtendente);
+    isFila &&
+    !hasAtendente &&
+    mesmaSetorOuSemRestricao;
 
   const podeTransferir =
     typeof canTransferir === "function" &&

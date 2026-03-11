@@ -19,12 +19,19 @@ export default function Login() {
       await login(email.trim(), senha)
       navigate("/", { replace: true })
     } catch (err) {
-      setErro(
+      const status = err?.response?.status
+      const msg =
         err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          err?.message ||
-          "Falha no login. Verifique e-mail e senha."
-      )
+        err?.response?.data?.message ||
+        err?.message ||
+        "Falha no login. Verifique e-mail e senha."
+      if (status === 429) {
+        setErro("Muitas tentativas. Aguarde 1 minuto e tente novamente.")
+      } else if (err?.message === "Network Error" || err?.code === "ECONNABORTED") {
+        setErro("Sem conexão. Verifique sua internet e tente novamente.")
+      } else {
+        setErro(msg)
+      }
     }
   }
 
