@@ -6,7 +6,7 @@ import { isGroupConversation } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
 import { useAuthStore } from "../auth/authStore";
-import { canGerenciarSetores, canTag } from "../auth/permissions";
+import { canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
 import { fetchChats, abrirConversaCliente } from "../chats/chatService";
@@ -1459,6 +1459,7 @@ export default function ConversaView() {
   const user = useAuthStore((s) => s.user);
   const myUserId = user?.id != null ? Number(user.id) : null;
   const podeGerenciarSetores = canGerenciarSetores(user);
+  const podeTransferirSetor = canTransferirSetorConversa(user);
   const podeGerenciarTags = canTag(user);
 
   const podeEnviar = useMemo(() => {
@@ -3179,7 +3180,7 @@ export default function ConversaView() {
               {!isGroup && (setorAtual ? (
                 <div className="wa-header-setorRow">
                   <span className="wa-header-setor">Setor: {setorAtual}</span>
-                  {podeGerenciarSetores && (
+                  {podeTransferirSetor && (
                     <button
                       type="button"
                       className="wa-header-setorBtn"
@@ -3193,7 +3194,7 @@ export default function ConversaView() {
               ) : (
                 <div className="wa-header-setorRow">
                   <span className="wa-header-setor wa-muted">Sem setor</span>
-                  {podeGerenciarSetores && (
+                  {podeTransferirSetor && (
                     <button
                       type="button"
                       className="wa-header-setorBtn"
@@ -3265,7 +3266,7 @@ export default function ConversaView() {
           </div>
         </div>
 
-        {!isGroup && podeGerenciarSetores && showTransferirSetor && (
+        {!isGroup && podeTransferirSetor && showTransferirSetor && (
           <div
             className="wa-tagsPanel"
             role="dialog"

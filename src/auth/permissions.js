@@ -75,6 +75,11 @@ export function canGerenciarSetores(user) {
   return can("departamentos_gerenciar", user) || role(user) === "admin";
 }
 
+/** Admin, supervisor e atendente podem transferir setor da conversa */
+export function canTransferirSetorConversa(user) {
+  return ["admin", "supervisor", "atendente"].includes(role(user));
+}
+
 /** Supervisor e admin podem acessar Dashboard (usa can() para priorizar API) */
 export function canAcessarDashboard(user) {
   return can("dashboard_acessar", user);
