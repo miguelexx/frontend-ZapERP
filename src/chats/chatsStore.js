@@ -92,8 +92,11 @@ export const useChatStore = create((set, get) => ({
     }
     const nomeNorm = (v) => (v != null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'name' ? String(v).trim() : null)
     const fotoNorm = (v) => (v != null && String(v).trim().startsWith('http') ? String(v).trim() : null)
-    const mergedNome = merged.contato_nome != null && merged.contato_nome !== '' ? merged.contato_nome : nomeNorm(merged.chatName) ?? nomeNorm(merged.senderName) ?? null
-    const mergedFoto = merged.foto_perfil !== undefined && merged.foto_perfil != null ? merged.foto_perfil : fotoNorm(merged.senderPhoto) ?? fotoNorm(merged.photo) ?? null
+    // NUNCA usar chatName/senderName — vêm da última mensagem e podem ser o nome do atendente (ex.: "Miguel") em msgs outbound
+    const mergedNome = merged.contato_nome != null && merged.contato_nome !== '' ? merged.contato_nome
+      : nomeNorm(merged.nome_contato_cache) ?? nomeNorm(merged.cliente?.nome) ?? nomeNorm(merged.clientes?.nome) ?? null
+    const mergedFoto = merged.foto_perfil !== undefined && merged.foto_perfil != null ? merged.foto_perfil
+      : fotoNorm(merged.foto_perfil_contato_cache) ?? fotoNorm(merged.cliente?.foto_perfil) ?? null
     const newIdx = chats.findIndex(c => String(c.id) === String(chat.id))
     if (newIdx >= 0) {
       const next = [...chats]

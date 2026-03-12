@@ -1588,9 +1588,8 @@ export default function ConversaView() {
     const raw =
       conversa?.contato_nome ||
       conversa?.nome_contato_cache ||
-      conversa?.cliente?.pushname ||
-      conversa?.pushname ||
       conversa?.cliente?.nome ||
+      conversa?.clientes?.nome ||
       conversa?.cliente_nome ||
       conversa?.nome ||
       "";
@@ -1620,8 +1619,6 @@ export default function ConversaView() {
         fromChat?.foto_perfil_contato_cache ??
         conversa?.cliente?.foto_perfil ??
         conversa?.clientes?.foto_perfil ??
-        conversa?.senderPhoto ??
-        conversa?.photo ??
         null
       );
   const avatarUrl = rawAvatarUrl && String(rawAvatarUrl).trim().startsWith("http") ? String(rawAvatarUrl).trim() : null;

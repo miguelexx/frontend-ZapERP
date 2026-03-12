@@ -135,7 +135,7 @@ export const useConversaStore = create((set, get) => ({
           const merged = { ...conversa }
           if (!merged.contato_nome && fromList.contato_nome) merged.contato_nome = fromList.contato_nome
           if (!merged.contato_nome && fromList.nome_contato_cache) merged.contato_nome = fromList.nome_contato_cache
-          if (!merged.contato_nome && fromList.pushname) merged.contato_nome = fromList.pushname
+          if (!merged.contato_nome && fromList.cliente?.nome) merged.contato_nome = fromList.cliente.nome
           if (!merged.cliente_nome && (fromList.contato_nome || fromList.nome || fromList.nome_contato_cache)) {
             merged.cliente_nome = fromList.contato_nome || fromList.nome || fromList.nome_contato_cache
           }
@@ -229,7 +229,7 @@ export const useConversaStore = create((set, get) => ({
             }
             return null
           }
-          if (!merged.contato_nome) merged.contato_nome = pick("contato_nome") ?? fromList?.nome_contato_cache ?? fromList?.pushname
+          if (!merged.contato_nome) merged.contato_nome = pick("contato_nome") ?? fromList?.nome_contato_cache ?? fromList?.cliente?.nome
           if (!merged.cliente_nome) merged.cliente_nome = pick("cliente_nome") ?? pick("contato_nome")
           if (!merged.telefone && !merged.telefone_exibivel) merged.telefone_exibivel = pick("telefone_exibivel") ?? pick("telefone") ?? pick("cliente_telefone")
           if (!merged.telefone_exibivel && merged.telefone) merged.telefone_exibivel = merged.telefone

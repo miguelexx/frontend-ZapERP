@@ -478,12 +478,13 @@ export function getDisplayName(chat) {
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
     return formatPhoneForDisplay(getPhone(chat)) || "Grupo";
   }
+  // Prioridade: contato_nome (backend) > nome_contato_cache (contatos WhatsApp) > cliente.nome (CRM) > telefone
+  // NUNCA usar pushname — pode vir da última msg e ser o nome do atendente em conversas onde você enviou
   const raw =
     chat?.contato_nome ??
     chat?.nome_contato_cache ??
-    chat?.cliente?.pushname ??
-    chat?.pushname ??
     chat?.cliente?.nome ??
+    chat?.clientes?.nome ??
     chat?.cliente_nome ??
     chat?.nome ??
     "";
@@ -502,6 +503,7 @@ function getContactDisplay(chat) {
   const isGroup = isGroupConversation(chat);
   const displayName = getDisplayName(chat);
   const phone = formatPhoneForDisplay(chat?.telefone_exibivel ?? chat?.telefone ?? chat?.cliente_telefone ?? chat?.numero ?? "");
+  // NUNCA usar senderPhoto/photo — vêm da última msg e podem ser nossa foto em msgs outbound
   const rawFoto = isGroup
     ? (chat?.foto_grupo ?? null)
     : (
@@ -509,8 +511,6 @@ function getContactDisplay(chat) {
         chat?.foto_perfil_contato_cache ??
         chat?.cliente?.foto_perfil ??
         chat?.clientes?.foto_perfil ??
-        chat?.senderPhoto ??
-        chat?.photo ??
         null
       );
   const avatarUrl = rawFoto != null && String(rawFoto).trim().startsWith("http") ? String(rawFoto).trim() : null;
@@ -883,11 +883,17 @@ export default function ChatList() {
         const arr = Array.isArray(prev) ? prev : [];
         const byIdPrev = new Map(arr.map((c) => [String(c.id), c]));
         const fromApi = new Set(list.map((c) => String(c?.id)).filter(Boolean));
+        const nomeUsuario = (user?.nome ?? user?.name ?? "").trim().toLowerCase();
         const merged = list.map((c) => {
           const existing = c?.id != null ? byIdPrev.get(String(c.id)) : null;
-          const nomeApi = (c?.contato_nome ?? c?.nome ?? "").trim();
+          let nomeApi = (c?.contato_nome ?? c?.nome ?? "").trim();
+          const nomeContatoCache = (c?.nome_contato_cache ?? "").trim();
+          const nomeCliente = (c?.cliente?.nome ?? c?.clientes?.nome ?? "").trim();
+          if (nomeUsuario && nomeApi.toLowerCase() === nomeUsuario) {
+            nomeApi = nomeContatoCache || nomeCliente || nomeApi;
+          }
           const nomeJaExiste = (existing?.contato_nome || existing?.nome || "").trim();
-          const contato_nome = nomeApi || nomeJaExiste || existing?.contato_nome || c?.contato_nome || c?.nome;
+          const contato_nome = nomeApi || nomeJaExiste || nomeContatoCache || nomeCliente || existing?.contato_nome || c?.contato_nome || c?.nome;
           const fotoApi = c?.foto_perfil != null && String(c.foto_perfil).trim().startsWith("http") ? String(c.foto_perfil).trim() : null;
           const fotoExisting = existing?.foto_perfil && String(existing.foto_perfil).trim().startsWith("http") ? String(existing.foto_perfil).trim() : null;
           const foto_perfil = fotoApi ?? (c?.foto_perfil === null ? null : fotoExisting);
