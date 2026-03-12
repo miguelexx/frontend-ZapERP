@@ -257,10 +257,12 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   }, [cliEmpresa, cliente?.empresa, conversa?.cliente?.empresa, conversa?.cliente_empresa, conversa?.empresa]);
 
   const fotoPerfil = useMemo(() => {
-    const url = conversa?.cliente?.foto_perfil || conversa?.foto_perfil || conversa?.foto_perfil_contato_cache || conversa?.clientes?.foto_perfil || null;
+    const url = isGroup
+      ? (conversa?.foto_grupo ?? null)
+      : (conversa?.foto_perfil ?? conversa?.foto_perfil_contato_cache ?? conversa?.cliente?.foto_perfil ?? conversa?.clientes?.foto_perfil ?? null);
     const s = url ? String(url).trim() : "";
     return s && s.startsWith("http") ? s : null;
-  }, [conversa]);
+  }, [conversa, isGroup]);
 
   const statusLabel = useMemo(() => {
     const s = String(conversa?.status_atendimento || "").toLowerCase();

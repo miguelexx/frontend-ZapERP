@@ -419,18 +419,23 @@ export function initSocket(token) {
 
   /* ===========================
      Z-API: SYNC DE CONTATOS FINALIZADO (auto)
+     Toast apenas no início da sessão (primeira sincronização após conectar)
   =========================== */
+  let syncToastJaMostradoNestaSessao = false
   socket.on("zapi_sync_contatos", (payload) => {
     try {
       const p = payload || {}
       const total = p.total_contatos ?? 0
       const criados = p.criados ?? 0
       const atualizados = p.atualizados ?? 0
-      useNotificationStore.getState().showToast({
-        type: "success",
-        title: "Z-API",
-        message: `Contatos sincronizados: ${total} (${criados} novos, ${atualizados} atualizados).`,
-      })
+      if (!syncToastJaMostradoNestaSessao) {
+        syncToastJaMostradoNestaSessao = true
+        useNotificationStore.getState().showToast({
+          type: "success",
+          title: "Z-API",
+          message: `Contatos sincronizados: ${total} (${criados} novos, ${atualizados} atualizados).`,
+        })
+      }
     } catch (_) {}
 
     if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {

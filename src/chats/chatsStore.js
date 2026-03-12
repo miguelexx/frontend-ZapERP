@@ -142,23 +142,20 @@ export const useChatStore = create((set, get) => ({
     const cur = next[idx]
     const merged = { ...cur }
 
-    // Nome/foto: IMUTÁVEIS — NUNCA sobrescrever. Uma vez definido, permanece.
+    // conversa_atualizada: merge defensivo — só atualizar nome/foto quando vier valor definido (nunca sobrescrever com vazio)
     const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil"])
     for (const k of Object.keys(partial)) {
       if (k === "id" || skipKeys.has(k)) continue
       if (partial[k] !== undefined) merged[k] = partial[k]
     }
-    // Só preencher nome/foto quando atualmente vazios — nunca trocar nome existente
-    const nomeVazio = !cur.contato_nome || !String(cur.contato_nome).trim()
-    const fotoVazia = !cur.foto_perfil || !String(cur.foto_perfil).trim()
-    if (nomeVazio && partial.contato_nome != null && String(partial.contato_nome).trim() !== "") {
-      merged.contato_nome = partial.contato_nome
-      merged.nome_contato_cache = partial.nome_contato_cache ?? partial.contato_nome
-    } else if (nomeVazio && partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "") {
+    if (partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "") {
       merged.contato_nome = partial.nome_contato_cache
       merged.nome_contato_cache = partial.nome_contato_cache
+    } else if (partial.contato_nome != null && String(partial.contato_nome).trim() !== "") {
+      merged.contato_nome = partial.contato_nome
+      merged.nome_contato_cache = partial.nome_contato_cache ?? partial.contato_nome
     }
-    if (fotoVazia && partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
+    if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
       merged.foto_perfil = partial.foto_perfil
     }
 

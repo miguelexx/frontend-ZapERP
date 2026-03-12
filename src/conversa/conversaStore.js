@@ -615,8 +615,24 @@ export const useConversaStore = create((set, get) => ({
       for (const k of preserveBlocked) {
         if (merged[k] === undefined && cur[k] !== undefined) merged[k] = cur[k]
       }
-      // Não sobrescreve campos fixos do header com valor vazio — mantém nome e telefone estáveis
+      // conversa_atualizada: merge defensivo — só atualizar se vier valor definido (prioridade nome_contato_cache)
+      const nomeValido = (v) => v != null && String(v).trim() !== ""
+      const temNomePayload = nomeValido(partial.nome_contato_cache) || nomeValido(partial.contato_nome)
+      const temFotoPayload = partial.foto_perfil != null && String(partial.foto_perfil).trim() !== ""
+      if (nomeValido(partial.nome_contato_cache)) {
+        merged.contato_nome = partial.nome_contato_cache
+        merged.nome_contato_cache = partial.nome_contato_cache
+      } else if (nomeValido(partial.contato_nome)) {
+        merged.contato_nome = partial.contato_nome
+      }
+      if (temFotoPayload) merged.foto_perfil = partial.foto_perfil
+      // Não sobrescrever com vazio: quando payload tem valor vazio e cur tem valor, restaurar
+      if (!temNomePayload && (cur.contato_nome != null && String(cur.contato_nome).trim() !== ""))
+        merged.contato_nome = cur.contato_nome
+      if (!temFotoPayload && (cur.foto_perfil != null && String(cur.foto_perfil).trim() !== ""))
+        merged.foto_perfil = cur.foto_perfil
       for (const k of fixedFields) {
+        if (k === "contato_nome" || k === "foto_perfil") continue
         const newVal = partial[k]
         const isEmpty = newVal == null || String(newVal || "").trim() === ""
         if (isEmpty && (cur[k] != null && String(cur[k] || "").trim() !== ""))

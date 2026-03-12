@@ -466,7 +466,11 @@ function formatPhoneForDisplay(phone) {
   return p || "";
 }
 
-/** contato_nome || nome_contato_cache || cliente.pushname || cliente.nome || telefone — nome completo, sem truncar */
+/**
+ * Nome do contato/conversa.
+ * Contatos: contato_nome principal; fallback telefone_exibivel ou telefone.
+ * Grupos: nome_grupo principal.
+ */
 export function getDisplayName(chat) {
   if (isGroupConversation(chat)) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome_contato_cache ?? chat?.nome ?? "";
@@ -485,13 +489,14 @@ export function getDisplayName(chat) {
     "";
   const nome = String(raw || "").trim();
   if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
+  // Fallback: telefone_exibivel ou telefone quando contato_nome vazio
   const tel = getPhone(chat);
   return tel ? formatPhoneForDisplay(tel) : "Contato";
 }
 
 /**
- * Par único nome + foto do mesmo contato (evita desalinhamento).
- * cliente.foto_perfil || foto_perfil_contato_cache || foto_grupo || avatar padrão
+ * Par nome + foto. foto_perfil: só usa se URL http válida; null → avatar padrão.
+ * Grupos: foto_grupo ou fallback. Layout não quebra quando foto_perfil é null.
  */
 function getContactDisplay(chat) {
   const isGroup = isGroupConversation(chat);
@@ -508,7 +513,7 @@ function getContactDisplay(chat) {
         chat?.photo ??
         null
       );
-  const avatarUrl = rawFoto && String(rawFoto).trim().startsWith("http") ? String(rawFoto).trim() : null;
+  const avatarUrl = rawFoto != null && String(rawFoto).trim().startsWith("http") ? String(rawFoto).trim() : null;
   return { displayName, avatarUrl, phone, isGroup };
 }
 
@@ -873,22 +878,27 @@ export default function ChatList() {
           ? new Date(getTs(a)) - new Date(getTs(b))
           : new Date(getTs(b)) - new Date(getTs(a))
       );
-      // Merge: SEMPRE preserva contato_nome quando já existe (nunca sobrescrever com vazio). Preserva chats locais não retornados pela API.
+      // Merge defensivo: nunca sobrescrever contato_nome/foto_perfil com undefined ou string vazia. Preserva chats locais não retornados pela API.
       setChats((prev) => {
         const arr = Array.isArray(prev) ? prev : [];
         const byIdPrev = new Map(arr.map((c) => [String(c.id), c]));
         const fromApi = new Set(list.map((c) => String(c?.id)).filter(Boolean));
         const merged = list.map((c) => {
           const existing = c?.id != null ? byIdPrev.get(String(c.id)) : null;
+          const nomeApi = (c?.contato_nome ?? c?.nome ?? "").trim();
           const nomeJaExiste = (existing?.contato_nome || existing?.nome || "").trim();
+          const contato_nome = nomeApi || nomeJaExiste || existing?.contato_nome || c?.contato_nome || c?.nome;
+          const fotoApi = c?.foto_perfil != null && String(c.foto_perfil).trim().startsWith("http") ? String(c.foto_perfil).trim() : null;
+          const fotoExisting = existing?.foto_perfil && String(existing.foto_perfil).trim().startsWith("http") ? String(existing.foto_perfil).trim() : null;
+          const foto_perfil = fotoApi ?? (c?.foto_perfil === null ? null : fotoExisting);
           const uApi = c?.ultima_mensagem;
           const uPrev = existing?.ultima_mensagem;
           const sameMsg = uPrev && uApi && (String(uPrev.id) === String(uApi.id) || String(uPrev.whatsapp_id) === String(uApi.whatsapp_id) || (uPrev.criado_em && uApi.criado_em && String(uPrev.criado_em) === String(uApi.criado_em)));
           const ultima = (sameMsg && uPrev) ? { ...uApi, ...uPrev } : uApi || uPrev;
           return {
             ...c,
-            contato_nome: nomeJaExiste || c?.contato_nome || c?.nome || existing?.contato_nome,
-            foto_perfil: (existing?.foto_perfil && String(existing.foto_perfil).trim()) || c?.foto_perfil,
+            contato_nome,
+            foto_perfil,
             nome_grupo: c?.nome_grupo || existing?.nome_grupo,
             cliente: c?.cliente || existing?.cliente,
             ultima_mensagem: ultima,
