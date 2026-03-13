@@ -232,20 +232,17 @@ export function initSocket(token) {
 
     /* Não fazer early-return por "jaExiste": anexarMensagem faz UPSERT — merge status/whatsapp_id se já existir */
 
-    // Nome/foto: NUNCA atualizar a partir de msg outbound (sender somos nós)
+    // Nome/foto do CONTATO (quem estamos conversando): usar sempre que vier no payload
+    // Inbound: pushname do remetente. Outbound (envio pelo celular): sync UltraMSG traz nome/foto do destinatário
     const isOutbound = msg?.direcao === "out" || msg?.fromMe
-    const nomeContato = isOutbound
-      ? null
-      : (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
-        ? String(msg.chatName).trim()
-        : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
-          ? String(msg.senderName).trim()
-          : null
-    const fotoContato = isOutbound
-      ? null
-      : (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
-        : (msg.photo && String(msg.photo).trim().startsWith("http")) ? String(msg.photo).trim()
-          : null
+    const nomeContato = (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
+      ? String(msg.chatName).trim()
+      : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
+        ? String(msg.senderName).trim()
+        : null
+    const fotoContato = (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
+      : (msg.photo && String(msg.photo).trim().startsWith("http")) ? String(msg.photo).trim()
+        : null
 
     if (!jaNaLista) {
       const isAbertaParaInc = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
@@ -504,22 +501,19 @@ export function initSocket(token) {
     }, 400)
   })
 
-  /* Nome e foto do contato atualizados pela Z-API (tempo real) — só preenche quando vazio */
+  /* Nome e foto do contato atualizados pela Z-API (tempo real) — name da API tem prioridade sobre pushname */
   socket.on("contato_atualizado", ({ conversa_id, contato_nome, foto_perfil }) => {
     if (conversa_id == null) return
-    useChatStore.getState().updateChatContatoSeVazio(conversa_id, { contato_nome, foto_perfil })
+    if (contato_nome != null || foto_perfil != null) {
+      useChatStore.getState().updateChat({ id: conversa_id, contato_nome: contato_nome || undefined, nome_contato_cache: contato_nome || undefined, foto_perfil: foto_perfil || undefined })
+    }
     const convStore = useConversaStore.getState()
-    if (String(convStore.selectedId) === String(conversa_id)) {
-      const conv = convStore.conversa
-      const nomeVazio = !conv?.contato_nome && !conv?.cliente_nome
-      const fotoVazia = !conv?.foto_perfil
-      if ((nomeVazio && contato_nome) || (fotoVazia && foto_perfil)) {
-        convStore.patchConversa({
-          id: conversa_id,
-          ...(nomeVazio && contato_nome && { contato_nome, cliente_nome: contato_nome }),
-          ...(fotoVazia && foto_perfil && { foto_perfil })
-        })
-      }
+    if (String(convStore.selectedId) === String(conversa_id) && (contato_nome || foto_perfil)) {
+      convStore.patchConversa({
+        id: conversa_id,
+        ...(contato_nome && { contato_nome, cliente_nome: contato_nome }),
+        ...(foto_perfil && { foto_perfil })
+      })
     }
   })
 
