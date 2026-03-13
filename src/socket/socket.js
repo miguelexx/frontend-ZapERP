@@ -501,18 +501,26 @@ export function initSocket(token) {
     }, 400)
   })
 
-  /* Nome e foto do contato atualizados pela Z-API (tempo real) — name da API tem prioridade sobre pushname */
-  socket.on("contato_atualizado", ({ conversa_id, contato_nome, foto_perfil }) => {
+  /* Nome e foto do contato atualizados pela API UltraMsg (tempo real) — name (nome salvo no celular) tem prioridade sobre pushname */
+  socket.on("contato_atualizado", ({ conversa_id, contato_nome, nome_contato_cache, foto_perfil, foto_perfil_contato_cache }) => {
     if (conversa_id == null) return
-    if (contato_nome != null || foto_perfil != null) {
-      useChatStore.getState().updateChat({ id: conversa_id, contato_nome: contato_nome || undefined, nome_contato_cache: contato_nome || undefined, foto_perfil: foto_perfil || undefined })
+    const nome = contato_nome ?? nome_contato_cache
+    const foto = foto_perfil ?? foto_perfil_contato_cache
+    if (nome != null || foto != null) {
+      useChatStore.getState().updateChat({
+        id: conversa_id,
+        contato_nome: nome || undefined,
+        nome_contato_cache: nome || undefined,
+        foto_perfil: foto || undefined,
+        foto_perfil_contato_cache: foto || undefined
+      })
     }
     const convStore = useConversaStore.getState()
-    if (String(convStore.selectedId) === String(conversa_id) && (contato_nome || foto_perfil)) {
+    if (String(convStore.selectedId) === String(conversa_id) && (nome || foto)) {
       convStore.patchConversa({
         id: conversa_id,
-        ...(contato_nome && { contato_nome, cliente_nome: contato_nome }),
-        ...(foto_perfil && { foto_perfil })
+        ...(nome && { contato_nome: nome, cliente_nome: nome, nome_contato_cache: nome }),
+        ...(foto && { foto_perfil: foto, foto_perfil_contato_cache: foto })
       })
     }
   })

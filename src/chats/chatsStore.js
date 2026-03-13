@@ -160,6 +160,7 @@ export const useChatStore = create((set, get) => ({
     }
     if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
       merged.foto_perfil = partial.foto_perfil
+      merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache ?? partial.foto_perfil
     }
 
     // ultima_mensagem: usar para preview na lista (evita refetch)
