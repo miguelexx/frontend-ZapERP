@@ -105,11 +105,14 @@ export const useChatStore = create((set, get) => ({
       const nomeNovo = (mergedNome || "").trim()
       // NOME IMUTÁVEL: se já temos nome válido (não "Conversa"), NUNCA trocar
       const manterNome = nomeAtual && nomeAtual !== "Conversa" && nomeAtual.toLowerCase() !== "conversa"
+      const nomeGrupoValido = (v) => v != null && String(v).trim() !== "" && !String(v).toLowerCase().startsWith("lid:")
       const updated = {
         ...existing,
         ...merged,
         contato_nome: manterNome ? nomeAtual : (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : existing.contato_nome ?? mergedNome),
         foto_perfil: (existing.foto_perfil && String(existing.foto_perfil).trim()) || mergedFoto || existing.foto_perfil,
+        nome_grupo: nomeGrupoValido(merged.nome_grupo) ? merged.nome_grupo : (existing.nome_grupo ?? merged.nome_grupo),
+        foto_grupo: (merged.foto_grupo && String(merged.foto_grupo).trim().startsWith("http")) ? merged.foto_grupo : (existing.foto_grupo ?? merged.foto_grupo),
         // Preservar metadados quando payload é parcial (envio otimista)
         cliente: merged.cliente !== undefined ? merged.cliente : existing.cliente,
         telefone: merged.telefone !== undefined ? merged.telefone : existing.telefone,
@@ -146,7 +149,7 @@ export const useChatStore = create((set, get) => ({
     const merged = { ...cur }
 
     // conversa_atualizada: merge defensivo — só atualizar nome/foto quando vier valor definido (nunca sobrescrever com vazio)
-    const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil"])
+    const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil", "nome_grupo", "foto_grupo"])
     for (const k of Object.keys(partial)) {
       if (k === "id" || skipKeys.has(k)) continue
       if (partial[k] !== undefined) merged[k] = partial[k]
@@ -161,6 +164,17 @@ export const useChatStore = create((set, get) => ({
     if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
       merged.foto_perfil = partial.foto_perfil
       merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache ?? partial.foto_perfil
+    }
+    // Grupos: nunca sobrescrever nome_grupo/foto_grupo com vazio
+    if (partial.nome_grupo != null && String(partial.nome_grupo).trim() !== "" && !String(partial.nome_grupo).toLowerCase().startsWith("lid:")) {
+      merged.nome_grupo = partial.nome_grupo
+    } else if ((!partial.nome_grupo || String(partial.nome_grupo || "").trim() === "") && (cur.nome_grupo != null && String(cur.nome_grupo).trim() !== "")) {
+      merged.nome_grupo = cur.nome_grupo
+    }
+    if (partial.foto_grupo != null && String(partial.foto_grupo).trim().startsWith("http")) {
+      merged.foto_grupo = partial.foto_grupo
+    } else if (!partial.foto_grupo && cur.foto_grupo) {
+      merged.foto_grupo = cur.foto_grupo
     }
 
     // ultima_mensagem: usar para preview na lista (evita refetch)

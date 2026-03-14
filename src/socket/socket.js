@@ -50,6 +50,13 @@ function playFallbackBeep() {
 function getChatDisplayName(conversaId) {
   const chats = useChatStore.getState().chats || []
   const c = chats.find((x) => String(x.id) === String(conversaId))
+  if (!c) return "Nova mensagem"
+  // Grupos: nome_grupo tem prioridade
+  const jid = c.remoteJid ?? c.telefone ?? c.phone ?? ""
+  if (String(jid).endsWith("@g.us") || c.is_group || c.isGroup) {
+    const gn = c?.nome_grupo ?? c?.contato_nome ?? c?.nome ?? ""
+    if (String(gn || "").trim() && !String(gn).toLowerCase().startsWith("lid:")) return String(gn).trim()
+  }
   const nome = c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone
   return nome || "Nova mensagem"
 }
@@ -248,13 +255,21 @@ export function initSocket(token) {
       const isAbertaParaInc = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
       // Nome imutável: usar só o da mensagem (inbound); outbound não inventa nome
       const nomeInicial = nomeContato || undefined
-      chatStore.addChat({
+      const isGroup = msg?.isGroup || msg?.is_group || String(msg?.chatId ?? msg?.remoteJid ?? "").endsWith("@g.us")
+      const payload = {
         id: conversaId,
         contato_nome: nomeInicial,
         foto_perfil: fotoContato,
         unread_count: isAbertaParaInc ? 0 : 1,
         ultima_mensagem: msg
-      })
+      }
+      if (isGroup) {
+        payload.is_group = true
+        if (nomeContato && String(nomeContato).trim() && String(nomeContato).toLowerCase() !== "name") {
+          payload.nome_grupo = nomeContato.trim()
+        }
+      }
+      chatStore.addChat(payload)
     } else {
       // Só preenche quando vazio — nome NUNCA troca uma vez definido
       if (nomeContato || fotoContato) {
@@ -262,6 +277,16 @@ export function initSocket(token) {
           contato_nome: nomeContato || undefined,
           foto_perfil: fotoContato || undefined
         })
+      }
+      // Grupos: preencher nome_grupo quando vier na mensagem e o chat ainda não tiver
+      const isGroup = msg?.isGroup || msg?.is_group || String(msg?.chatId ?? msg?.remoteJid ?? "").endsWith("@g.us")
+      if (isGroup && nomeContato && String(nomeContato).trim() && String(nomeContato).toLowerCase() !== "name") {
+        const chats = chatStore.chats || []
+        const c = chats.find((x) => String(x.id) === String(conversaId))
+        const nomeGrupoAtual = c?.nome_grupo
+        if (!nomeGrupoAtual || !String(nomeGrupoAtual).trim() || String(nomeGrupoAtual).toLowerCase().startsWith("lid:")) {
+          chatStore.updateChat({ id: conversaId, nome_grupo: nomeContato.trim(), is_group: true })
+        }
       }
     }
 
@@ -351,6 +376,7 @@ export function initSocket(token) {
 
   /* ===========================
      ✅ STATUS DA MENSAGEM (Z-API) — fallback por whatsapp_id
+     Sincroniza ticks em tempo real: conversa aberta + lista de chats
   =========================== */
   socket.on("status_mensagem", (payload) => {
     // Suporte a payload aninhado (ex: { data: { ... } }) e chaves alternativas (Z-API, etc.)
@@ -373,17 +399,20 @@ export function initSocket(token) {
     const convStore = useConversaStore.getState()
     const partial = { status_mensagem: s, status: s }
     if (whatsapp_id) partial.whatsapp_id = whatsapp_id
-    // Sempre tenta patch quando há conversa aberta — patchMensagem filtra por conversa internamente
-    // (conversa_id do payload pode vir em formato diferente do selectedId)
-    if (convStore.selectedId) {
+
+    // Patch na conversa aberta: só quando for a mesma conversa (ou conversa_id ausente)
+    const selectedId = convStore.selectedId
+    const isConversaAberta = selectedId != null
+    const conversaIdMatch = !conversa_id || String(conversa_id) === String(selectedId)
+    if (isConversaAberta && conversaIdMatch) {
       convStore.patchMensagem(mensagem_id, partial, {
-        conversa_id: conversa_id ?? convStore.conversa?.id ?? convStore.selectedId,
+        conversa_id: conversa_id ?? convStore.conversa?.id ?? selectedId,
         whatsapp_id,
       })
     }
 
-    // Sincronizar setas na lista de conversas (preview da última mensagem = mesma lógica do bubble no chat)
-    // Fallback: match por mensagem_id ou whatsapp_id
+    // Sincronizar setas na lista de conversas (preview da última mensagem)
+    // Match por mensagem_id, whatsapp_id ou fallback: última mensagem "out" recente (optimistic)
     if (conversa_id) {
       const chatStore = useChatStore.getState()
       const chats = chatStore.chats || []
@@ -395,11 +424,21 @@ export function initSocket(token) {
         const lastFromArray = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null
         const matchById = (m) => mensagem_id && String(m?.id) === String(mensagem_id)
         const matchByWa = (m) => whatsapp_id && String(m?.whatsapp_id) === String(whatsapp_id)
-        const match = (m) => matchById(m) || matchByWa(m)
-        if (u && match(u)) {
-          chatStore.setUltimaMensagem(conversa_id, { ...u, status_mensagem: s, status: s })
-        } else if (lastFromArray && match(lastFromArray)) {
-          chatStore.setUltimaMensagem(conversa_id, { ...lastFromArray, status_mensagem: s, status: s })
+        const match = (m) => m && (matchById(m) || matchByWa(m))
+
+        let targetMsg = null
+        if (u && match(u)) targetMsg = u
+        else if (lastFromArray && match(lastFromArray)) targetMsg = lastFromArray
+        else if (u && String(u?.direcao || "").toLowerCase() === "out") {
+          // Fallback: última msg out (ticks só aplicam a mensagens enviadas por nós)
+          // Útil quando status chega antes do whatsapp_id ser atribuído (optimistic)
+          const recentMs = 60_000
+          const ts = new Date(u?.criado_em || 0).getTime()
+          if (Date.now() - ts < recentMs) targetMsg = u
+        }
+
+        if (targetMsg) {
+          chatStore.setUltimaMensagem(conversa_id, { ...targetMsg, status_mensagem: s, status: s })
         }
       }
     }
@@ -502,18 +541,21 @@ export function initSocket(token) {
   })
 
   /* Nome e foto do contato atualizados pela API UltraMsg (tempo real) — name (nome salvo no celular) tem prioridade sobre pushname */
-  socket.on("contato_atualizado", ({ conversa_id, contato_nome, nome_contato_cache, foto_perfil, foto_perfil_contato_cache }) => {
+  socket.on("contato_atualizado", ({ conversa_id, contato_nome, nome_contato_cache, nome_grupo, foto_perfil, foto_perfil_contato_cache, foto_grupo }) => {
     if (conversa_id == null) return
     const nome = contato_nome ?? nome_contato_cache
     const foto = foto_perfil ?? foto_perfil_contato_cache
-    if (nome != null || foto != null) {
-      useChatStore.getState().updateChat({
+    if (nome != null || foto != null || nome_grupo != null || foto_grupo != null) {
+      const patch = {
         id: conversa_id,
         contato_nome: nome || undefined,
         nome_contato_cache: nome || undefined,
         foto_perfil: foto || undefined,
         foto_perfil_contato_cache: foto || undefined
-      })
+      }
+      if (nome_grupo != null && String(nome_grupo).trim()) patch.nome_grupo = nome_grupo.trim()
+      if (foto_grupo != null && String(foto_grupo).trim().startsWith("http")) patch.foto_grupo = foto_grupo
+      useChatStore.getState().updateChat(patch)
     }
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(conversa_id) && (nome || foto)) {
