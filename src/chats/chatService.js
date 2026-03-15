@@ -61,6 +61,26 @@ export async function abrirConversaCliente(cliente_id) {
   return data;
 }
 
+/** Busca ou cria conversa pelo telefone (para cartão de contato compartilhado) */
+export async function abrirConversaPorTelefone(nome, telefone) {
+  const tel = String(telefone || "").replace(/\D/g, "");
+  if (!tel) throw new Error("Telefone obrigatório");
+  const list = await fetchChats({ palavra: tel, incluir_todos_clientes: true });
+  const digitsMatch = (a, b) => {
+    const da = String(a || "").replace(/\D/g, "");
+    const db = String(b || "").replace(/\D/g, "");
+    return da && db && (da.includes(db) || db.includes(da));
+  };
+  const chat = Array.isArray(list)
+    ? list.find((c) => digitsMatch(c?.telefone ?? c?.cliente_telefone ?? c?.telefone_exibivel ?? c?.numero, tel))
+    : null;
+  if (chat?.id) return { conversa: chat };
+  const created = await criarContato(nome || "Contato", telefone);
+  const clienteId = created?.cliente?.id ?? created?.id ?? created?.cliente_id;
+  if (!clienteId) throw new Error("Não foi possível criar o contato.");
+  return abrirConversaCliente(clienteId);
+}
+
 /** Sincroniza contatos do celular conectado (Z-API Get contacts) → clientes + fotos */
 export async function sincronizarContatos() {
   const { data } = await api.post("/chats/sincronizar-contatos");

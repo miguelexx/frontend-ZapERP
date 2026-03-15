@@ -1617,6 +1617,150 @@
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
+/* ===========================================
+   CARTÃO DE CONTATO (tipo contact)
+   =========================================== */
+.wa-bubble-contactCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 0 6px;
+  color: var(--wa-text);
+  font-size: 13px;
+  max-width: 100%;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.wa-bubble-contactCard:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.wa-bubble-contactCard--out:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.wa-bubble-contactHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wa-bubble-contactAvatarWrap {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(145deg, #5a6572 0%, #374151 80%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wa-bubble-contactAvatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wa-bubble-contactInitials {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.wa-bubble-contactInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-bubble-contactName {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--wa-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-bubble-contactPhone {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-bubble-contactTimeMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--wa-text-muted);
+  font-size: 11px;
+}
+
+.wa-bubble-contactTime {
+  white-space: nowrap;
+}
+
+.wa-bubble-contactDivider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 8px 0 6px;
+}
+
+.wa-bubble-contactCard--out .wa-bubble-contactDivider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.wa-bubble-contactActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wa-bubble-contactAction {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wa-green);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.wa-bubble-contactAction:hover:not(:disabled) {
+  color: var(--ds-accent-hover);
+  text-decoration: underline;
+}
+
+.wa-bubble-contactAction:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+[data-theme="dark"] .wa-bubble-contactCard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .wa-bubble-contactCard--out:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .wa-bubble-contactDivider {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* Reação já enviada — fora do balão, visível apenas no hover */
 .wa-bubble-out .wa-bubble-reaction {
   right: 100%;

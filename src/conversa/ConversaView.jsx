@@ -9,7 +9,7 @@ import { useAuthStore } from "../auth/authStore";
 import { canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
-import { fetchChats, abrirConversaCliente } from "../chats/chatService";
+import { fetchChats, abrirConversaCliente, abrirConversaPorTelefone } from "../chats/chatService";
 import { getDisplayName } from "../chats/chatList";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { getSocket } from "../socket/socket";
@@ -523,6 +523,102 @@ function FileBubbleContent({ msg, mediaUrl, selectMode, onOpenMedia, isGroup, ou
   );
 }
 
+/** Formata telefone para exibição (+55 11 99999-9999) */
+function formatPhoneContact(phone) {
+  let p = String(phone || "").replace(/\D/g, "");
+  if (p.startsWith("55") && p.length > 11) p = p.slice(2);
+  if (p.length >= 10) {
+    const ddd = p.length >= 11 ? p.slice(0, 2) : "";
+    const rest = p.length >= 11 ? p.slice(2) : p;
+    if (ddd && rest.length >= 8) return `+55 ${ddd} ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    return `+55 ${p}`;
+  }
+  return p ? `+${p}` : "";
+}
+
+/** Cartão de contato compartilhado — estilo WhatsApp (foto, nome, horário, status, botões Conversar/Adicionar a um grupo) */
+function ContactBubbleContent({
+  msg,
+  selectMode,
+  isGroup,
+  out,
+  onConversar,
+  onAdicionarGrupo,
+}) {
+  const meta = msg?.contact_meta || { nome: msg?.texto || "Contato", telefone: null, foto_perfil: null };
+  const nome = meta.nome || msg?.texto || "Contato";
+  const telefone = meta.telefone || null;
+  const fotoPerfil = meta.foto_perfil && String(meta.foto_perfil).trim().startsWith("http")
+    ? String(meta.foto_perfil).trim()
+    : null;
+  const iniciais = nome
+    .trim()
+    .split(/\s+/)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "?";
+
+  const handleCardClick = (e) => {
+    if (!selectMode) e.stopPropagation();
+  };
+
+  return (
+    <div className={`wa-bubble-contactCard ${out ? "wa-bubble-contactCard--out" : ""}`} onClick={handleCardClick}>
+      <div className="wa-bubble-contactHeader">
+        <div className="wa-bubble-contactAvatarWrap">
+          {fotoPerfil ? (
+            <img
+              src={fotoPerfil}
+              alt=""
+              className="wa-bubble-contactAvatar"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+          ) : (
+            <span className="wa-bubble-contactInitials" aria-hidden="true">{iniciais}</span>
+          )}
+        </div>
+        <div className="wa-bubble-contactInfo">
+          <span className="wa-bubble-contactName">{nome}</span>
+          {telefone ? <span className="wa-bubble-contactPhone">{formatPhoneContact(telefone)}</span> : null}
+          <span className="wa-bubble-contactTimeMeta">
+            <span className="wa-bubble-contactTime">{formatHora(msg?.criado_em)}</span>
+            <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
+          </span>
+        </div>
+      </div>
+      <div className="wa-bubble-contactDivider" />
+      <div className="wa-bubble-contactActions">
+        <button
+          type="button"
+          className="wa-bubble-contactAction"
+          disabled={!!selectMode}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!selectMode && onConversar) onConversar({ nome, telefone });
+          }}
+        >
+          Conversar
+        </button>
+        <button
+          type="button"
+          className="wa-bubble-contactAction"
+          disabled={!!selectMode}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!selectMode && onAdicionarGrupo) onAdicionarGrupo({ nome, telefone });
+          }}
+        >
+          Adicionar a um grupo
+        </button>
+      </div>
+    </div>
+  );
+}
+
 async function copyTextToClipboard(text) {
   const t = safeString(text);
   if (!t) return false;
@@ -569,6 +665,7 @@ function snippetFromMsg(msg) {
   if (tipo === "video") return "(vídeo)";
   if (tipo === "sticker") return "(figurinha)";
   if (tipo === "arquivo") return msg?.nome_arquivo ? String(msg.nome_arquivo) : "(arquivo)";
+  if (tipo === "contact") return msg?.contact_meta?.nome || msg?.texto || "(contato)";
   return "(mídia)";
 }
 
@@ -830,6 +927,8 @@ const Bubble = memo(function Bubble({
   onReact,
   onRemoveReaction,
   reactionBusy,
+  onConversarContact,
+  onAdicionarGrupoContact,
 }) {
   const out = msg?.direcao === "out";
   const canDeleteForEveryone = useMemo(() => {
@@ -843,6 +942,7 @@ const Bubble = memo(function Bubble({
   const isFile = msg?.tipo === "arquivo";
   const isAudio = msg?.tipo === "audio";
   const isVideo = msg?.tipo === "video";
+  const isContact = msg?.tipo === "contact" && !!msg?.contact_meta;
   const texto = safeString(msg?.texto);
   const hasText = !!texto;
   const mediaUrl = getMediaUrl(msg?.url);
@@ -1009,6 +1109,7 @@ const Bubble = memo(function Bubble({
           isSticker ? "wa-bubble-sticker sticker-message" : "",
           isImg && !isSticker ? "image-message" : "",
           isFile ? "wa-bubble-fileWrap" : "",
+          isContact ? "wa-bubble-contactWrap" : "",
           isAudio ? "wa-bubble-audio audio-message" : "",
           isVideo ? "wa-bubble-video" : "",
           selected ? "isSelected" : "",
@@ -1111,6 +1212,15 @@ const Bubble = memo(function Bubble({
                   isGroup={isGroup}
                   out={out}
                 />
+              ) : isContact ? (
+                <ContactBubbleContent
+                  msg={msg}
+                  selectMode={selectMode}
+                  isGroup={isGroup}
+                  out={out}
+                  onConversar={onConversarContact}
+                  onAdicionarGrupo={onAdicionarGrupoContact}
+                />
               ) : hasText ? (
                 inlineMeta ? (
                   <span className="wa-bubble-text wa-bubble-textInline">
@@ -1185,6 +1295,15 @@ const Bubble = memo(function Bubble({
               onOpenMedia={onOpenMedia}
               isGroup={isGroup}
               out={out}
+            />
+          ) : isContact ? (
+            <ContactBubbleContent
+              msg={msg}
+              selectMode={selectMode}
+              isGroup={isGroup}
+              out={out}
+              onConversar={onConversarContact}
+              onAdicionarGrupo={onAdicionarGrupoContact}
             />
           ) : isCall ? (
             <div className="wa-callBubble">
@@ -1496,6 +1615,11 @@ export default function ConversaView() {
   const [shareContactList, setShareContactList] = useState([]);
   const [shareContactLoading, setShareContactLoading] = useState(false);
   const [shareContactSending, setShareContactSending] = useState(false);
+
+  const [addToGroupModal, setAddToGroupModal] = useState({ open: false, telefone: null, nome: null });
+  const [addToGroupGrupos, setAddToGroupGrupos] = useState([]);
+  const [addToGroupLoading, setAddToGroupLoading] = useState(false);
+  const [addToGroupSending, setAddToGroupSending] = useState(false);
 
   const [callModalOpen, setCallModalOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(5);
@@ -2806,11 +2930,94 @@ export default function ConversaView() {
     [forwardMsg, forwardSending, showToast, closeForward, execEncaminhar]
   );
 
+  const handleConversarContact = useCallback(
+    async (meta) => {
+      if (!meta?.telefone) {
+        showToast({ type: "warning", title: "Telefone indisponível", message: "Este contato não possui número para iniciar conversa." });
+        return;
+      }
+      try {
+        const data = await abrirConversaPorTelefone(meta.nome || "Contato", meta.telefone);
+        const conv = data?.conversa || data || null;
+        if (!conv?.id) throw new Error("Não foi possível abrir a conversa.");
+        try { useChatStore.getState().addChat(conv); } catch {}
+        setSelectedId(conv.id);
+        carregarConversa(conv.id);
+        showToast({ type: "success", title: "Conversa aberta", message: `Conversa com ${meta.nome || "contato"} iniciada.` });
+      } catch (e) {
+        console.error("Erro ao abrir conversa do contato:", e);
+        showToast({
+          type: "error",
+          title: "Falha ao abrir conversa",
+          message: e.response?.data?.error || e.message || "Não foi possível abrir a conversa com este contato.",
+        });
+      }
+    },
+    [showToast, setSelectedId, carregarConversa]
+  );
+
+  const handleAdicionarGrupoContact = useCallback((meta) => {
+    if (!meta?.telefone) {
+      showToast({ type: "warning", title: "Telefone indisponível", message: "Este contato não possui número." });
+      return;
+    }
+    setAddToGroupModal({ open: true, telefone: meta.telefone, nome: meta.nome || "Contato" });
+  }, [showToast]);
+
+  const closeAddToGroupModal = useCallback(() => {
+    setAddToGroupModal({ open: false, telefone: null, nome: null });
+    setAddToGroupGrupos([]);
+    setAddToGroupSending(false);
+  }, []);
+
+  const confirmAddToGroup = useCallback(
+    async (grupo) => {
+      if (!grupo?.id || !addToGroupModal?.telefone || addToGroupSending) return;
+      setAddToGroupSending(true);
+      try {
+        await api.post(`/chats/${grupo.id}/participantes`, { telefone: addToGroupModal.telefone });
+        showToast({ type: "success", title: "Adicionado", message: `${addToGroupModal.nome} foi adicionado ao grupo.` });
+        closeAddToGroupModal();
+      } catch (e) {
+        const status = e?.response?.status;
+        const msg = e?.response?.data?.error || e.message;
+        if (status === 404 || status === 501 || msg?.toLowerCase?.().includes("not found") || msg?.toLowerCase?.().includes("não suportado")) {
+          showToast({
+            type: "info",
+            title: "Funcionalidade indisponível",
+            message: "Adicionar contato a grupo pode não estar disponível nesta instância.",
+          });
+        } else {
+          showToast({ type: "error", title: "Falha ao adicionar", message: msg || "Não foi possível adicionar ao grupo." });
+        }
+      } finally {
+        setAddToGroupSending(false);
+      }
+    },
+    [addToGroupModal, addToGroupSending, showToast, closeAddToGroupModal]
+  );
+
   useEffect(() => {
     if (showTimeline && conversaId) {
       carregarAtendimentos(conversaId);
     }
   }, [showTimeline, conversaId, carregarAtendimentos]);
+
+  useEffect(() => {
+    if (!addToGroupModal?.open) {
+      setAddToGroupGrupos([]);
+      setAddToGroupLoading(false);
+      return;
+    }
+    setAddToGroupLoading(true);
+    fetchChats({ incluir_todos_clientes: true })
+      .then((list) => {
+        const grupos = (Array.isArray(list) ? list : []).filter((c) => isGroupConversation(c));
+        setAddToGroupGrupos(grupos);
+      })
+      .catch(() => setAddToGroupGrupos([]))
+      .finally(() => setAddToGroupLoading(false));
+  }, [addToGroupModal?.open]);
 
   useEffect(() => {
     clearPending();
@@ -3486,6 +3693,8 @@ export default function ConversaView() {
                   onReact={handleSendReaction}
                   onRemoveReaction={handleRemoveReaction}
                   reactionBusy={Boolean(reactionLoading[String(msgKey)])}
+                  onConversarContact={handleConversarContact}
+                  onAdicionarGrupoContact={handleAdicionarGrupoContact}
                 />
               );
             })}
@@ -3934,6 +4143,58 @@ export default function ConversaView() {
                           {c.telefone ? (
                             <div className="wa-forwardItem-sub">{String(c.telefone)}</div>
                           ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
+        {addToGroupModal?.open ? createPortal(
+          <div
+            className="wa-modalOverlay"
+            role="dialog"
+            aria-label="Adicionar a um grupo"
+            onMouseDown={() => {
+              if (addToGroupSending) return;
+              closeAddToGroupModal();
+            }}
+          >
+            <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Adicionar {addToGroupModal?.nome || "contato"} a um grupo</div>
+                <button
+                  type="button"
+                  className="wa-iconBtn"
+                  onClick={closeAddToGroupModal}
+                  disabled={addToGroupSending}
+                  title="Fechar"
+                >
+                  <IconClose />
+                </button>
+              </div>
+              <div className="wa-modal-body">
+                <div className="wa-modal-row" style={{ maxHeight: 260, overflowY: "auto", paddingRight: 4 }}>
+                  {addToGroupLoading ? (
+                    <div className="wa-muted">Carregando grupos...</div>
+                  ) : addToGroupGrupos.length === 0 ? (
+                    <div className="wa-muted">Nenhum grupo encontrado.</div>
+                  ) : (
+                    <div className="wa-forwardList">
+                      {addToGroupGrupos.map((g) => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          className="wa-forwardItem"
+                          disabled={addToGroupSending}
+                          onClick={() => confirmAddToGroup(g)}
+                        >
+                          <div className="wa-forwardItem-name">{getDisplayName(g)}</div>
+                          <div className="wa-forwardItem-sub">Grupo</div>
                         </button>
                       ))}
                     </div>
