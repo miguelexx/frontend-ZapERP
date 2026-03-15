@@ -1168,6 +1168,11 @@ const Bubble = memo(function Bubble({
               </div>
             </div>
           )}
+          {out && msg?.enviado_por_usuario && safeString(msg?.usuario_nome) ? (
+            <div className="wa-bubble-atendente" aria-label={`Enviado por ${msg.usuario_nome}`}>
+              {msg.usuario_nome}
+            </div>
+          ) : null}
           {remetente ? (
             <div className="wa-bubble-remetente">
               <span className="wa-bubble-remetente-nome">

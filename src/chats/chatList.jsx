@@ -360,6 +360,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   const out = String(last?.direcao || "").toLowerCase() === "out";
   const status = last?.status ?? last?.status_mensagem ?? chat?.status ?? "";
   const isGroup = isGroupConversation(chat);
+  const senderPrefix = out && last?.enviado_por_usuario && String(last?.usuario_nome || "").trim() ? `${last.usuario_nome}: ` : "";
 
   const txtRaw = last?.conteudo || last?.body || last?.texto || "";
   const txt = String(txtRaw || "").trim();
@@ -392,6 +393,7 @@ function PreviewLine({ chat, audioDurationSec }) {
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="audio" className={out ? "is-accent" : ""} />
+        {senderPrefix ? <span className="chat-list-previewText">{senderPrefix}</span> : null}
         <span className={`chat-list-previewDur ${out ? "is-accent" : ""}`}>{durLabel}</span>
       </span>
     );
@@ -402,7 +404,7 @@ function PreviewLine({ chat, audioDurationSec }) {
       <span className="chat-list-previewLine">
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="imagem" />
-        <span className="chat-list-previewText">{cap ? `Foto · ${cap}` : "Foto"}</span>
+        <span className="chat-list-previewText">{senderPrefix}{cap ? `Foto · ${cap}` : "Foto"}</span>
       </span>
     );
   }
@@ -411,7 +413,7 @@ function PreviewLine({ chat, audioDurationSec }) {
       <span className="chat-list-previewLine">
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="video" />
-        <span className="chat-list-previewText">{cap ? `Vídeo · ${cap}` : "Vídeo"}</span>
+        <span className="chat-list-previewText">{senderPrefix}{cap ? `Vídeo · ${cap}` : "Vídeo"}</span>
       </span>
     );
   }
@@ -420,7 +422,7 @@ function PreviewLine({ chat, audioDurationSec }) {
       <span className="chat-list-previewLine">
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="sticker" />
-        <span className="chat-list-previewText">{cap ? `Figurinha · ${cap}` : "Figurinha"}</span>
+        <span className="chat-list-previewText">{senderPrefix}{cap ? `Figurinha · ${cap}` : "Figurinha"}</span>
       </span>
     );
   }
@@ -430,7 +432,7 @@ function PreviewLine({ chat, audioDurationSec }) {
       <span className="chat-list-previewLine">
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="arquivo" />
-        <span className="chat-list-previewText">{n || "Documento"}</span>
+        <span className="chat-list-previewText">{senderPrefix}{n || "Documento"}</span>
       </span>
     );
   }
@@ -438,7 +440,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   return (
     <span className="chat-list-previewLine">
       {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
-      <span className="chat-list-previewText">{txt || "Sem mensagens"}</span>
+      <span className="chat-list-previewText">{senderPrefix}{txt || "Sem mensagens"}</span>
     </span>
   );
 }
