@@ -520,10 +520,15 @@ export function initSocket(token) {
 
   /* Sinal do webhook Z-API: conversa teve atividade (status, transferência, etc.)
      Backend NÃO emite para mensagem nova (usa nova_mensagem).
-     Refetchar só a LISTA — nunca as mensagens do chat aberto (evita "aparecer e sumir"). */
+     NUNCA refetchar mensagens do chat aberto — isso causa "aparecer e sumir".
+     Apenas atualizar item na lista quando for outra conversa. */
   const atualizarDebounce = {}
   socket.on("atualizar_conversa", ({ id } = {}) => {
     if (!id) return
+    const selectedId = useConversaStore.getState().selectedId
+    if (String(id) === String(selectedId)) {
+      return
+    }
     const key = String(id)
     if (atualizarDebounce[key]) clearTimeout(atualizarDebounce[key])
     atualizarDebounce[key] = setTimeout(async () => {
@@ -534,7 +539,6 @@ export function initSocket(token) {
         const chat = data?.conversa ? data.conversa : data
         if (chat?.id) {
           useChatStore.getState().addChat(chat)
-          // NUNCA aplicar mensagens ao conversaStore — a lista pode ter chat.mensagens, mas conversaStore.mensagens vem só de nova_mensagem/carregarConversa
         }
       } catch (_) {}
     }, 400)

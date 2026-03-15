@@ -581,11 +581,18 @@ function Chip({ active, onClick, children }) {
   );
 }
 
-function StatusPill({ status }) {
+function StatusPill({ status, exibirBadgeAberta }) {
+  const exibirAberta = exibirBadgeAberta === true;
   const s = String(status || "");
-  if (!s) return null;
+  if (exibirAberta) {
+    return (
+      <span className="chat-list-status open" title="Aberta">
+        Aberta
+      </span>
+    );
+  }
+  if (!s || s === "aberta") return null;
   const map = {
-    aberta: { label: "Aberta", cls: "chat-list-status open" },
     em_atendimento: { label: "Em atendimento", cls: "chat-list-status in" },
     fechada: { label: "Finalizada", cls: "chat-list-status closed" },
   };
@@ -739,7 +746,7 @@ function ChatRow({
             {semConversa ? (
               <span className="chat-list-badge-sem-conversa" title="Clique para iniciar conversa">Sem conversa</span>
             ) : (
-              <StatusPill status={chat?.status_atendimento} />
+              <StatusPill status={chat?.status_atendimento} exibirBadgeAberta={chat?.exibir_badge_aberta} />
             )}
           </div>
         </div>

@@ -148,11 +148,15 @@ export const useChatStore = create((set, get) => ({
     const cur = next[idx]
     const merged = { ...cur }
 
-    // conversa_atualizada: merge defensivo — só atualizar nome/foto quando vier valor definido (nunca sobrescrever com vazio)
+    // conversa_atualizada: merge defensivo — nunca sobrescrever com undefined ou string vazio
     const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil", "nome_grupo", "foto_grupo"])
+    const isEmptyStr = (v) => typeof v === "string" && v.trim() === ""
     for (const k of Object.keys(partial)) {
       if (k === "id" || skipKeys.has(k)) continue
-      if (partial[k] !== undefined) merged[k] = partial[k]
+      const v = partial[k]
+      if (v === undefined) continue
+      if (isEmptyStr(v) && cur[k] != null && !isEmptyStr(cur[k])) continue
+      merged[k] = v
     }
     if (partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "") {
       merged.contato_nome = partial.nome_contato_cache
@@ -177,16 +181,29 @@ export const useChatStore = create((set, get) => ({
       merged.foto_grupo = cur.foto_grupo
     }
 
-    // ultima_mensagem: usar para preview na lista (evita refetch)
+    // ultima_mensagem_preview: só preview na lista — NUNCA adicionar às mensagens (não tem id)
+    if (partial.ultima_mensagem_preview != null) {
+      merged.ultima_mensagem_preview = partial.ultima_mensagem_preview
+      merged.ultima_mensagem = partial.ultima_mensagem_preview
+      if (partial.ultima_mensagem_preview?.criado_em) merged.ultima_atividade = partial.ultima_mensagem_preview.criado_em
+    }
+    // ultima_mensagem: se vier sem id, tratar como preview (retrocompatibilidade)
     if (partial.ultima_mensagem != null) {
-      merged.ultima_mensagem = partial.ultima_mensagem
-      if (partial.ultima_mensagem?.criado_em) merged.ultima_atividade = partial.ultima_mensagem.criado_em
+      if (partial.ultima_mensagem.id != null && partial.ultima_mensagem.id !== "") {
+        merged.ultima_mensagem = partial.ultima_mensagem
+        if (partial.ultima_mensagem?.criado_em) merged.ultima_atividade = partial.ultima_mensagem.criado_em
+      } else {
+        merged.ultima_mensagem_preview = partial.ultima_mensagem
+        merged.ultima_mensagem = partial.ultima_mensagem
+        if (partial.ultima_mensagem?.criado_em) merged.ultima_atividade = partial.ultima_mensagem.criado_em
+      }
     }
     if (partial.ultima_atividade != null) merged.ultima_atividade = partial.ultima_atividade
     if (partial.tem_novas_mensagens === true) {
       merged.tem_novas_mensagens = true
       merged.lida = false
     }
+    if (partial.exibir_badge_aberta !== undefined) merged.exibir_badge_aberta = !!partial.exibir_badge_aberta
 
     next[idx] = merged
     set({ chats: sortConversasByRecent(next) })
