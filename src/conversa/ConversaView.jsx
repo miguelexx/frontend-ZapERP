@@ -1168,6 +1168,7 @@ const Bubble = memo(function Bubble({
               </div>
             </div>
           )}
+          {/* Nome do atendente acima da mensagem enviada pelo sistema */}
           {out && msg?.enviado_por_usuario && safeString(msg?.usuario_nome) ? (
             <div className="wa-bubble-atendente" aria-label={`Enviado por ${msg.usuario_nome}`}>
               {msg.usuario_nome}

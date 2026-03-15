@@ -1064,16 +1064,6 @@
 }
 
 /* =========================================================
-   ATENDENTE (mensagens enviadas pelo sistema)
-========================================================= */
-.wa-bubble-atendente {
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--wa-text-muted);
-}
-
-/* =========================================================
    REMETENTE (GRUPOS)
 ========================================================= */
 
@@ -3137,6 +3127,27 @@
 [data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-snippet { color: rgba(255, 255, 255, 0.85); }
 [data-theme="dark"] .wa-replyCtx-bar { background: rgba(255, 255, 255, 0.5); }
 [data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-bar { background: var(--ds-accent); }
+
+/* Nome do atendente acima da mensagem enviada pelo sistema — discreto, premium */
+.wa-bubble-atendente {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #0b5d4c;
+  opacity: 0.7;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+.wa-bubble-out:hover .wa-bubble-atendente {
+  opacity: 0.9;
+}
+[data-theme="dark"] .wa-bubble-atendente {
+  color: rgba(255, 255, 255, 0.85);
+  opacity: 0.65;
+}
+[data-theme="dark"] .wa-bubble-out:hover .wa-bubble-atendente {
+  opacity: 0.9;
+}
 
 /* highlight ao scroll para mensagem citada (reply) — inovador: glow + leve breathe */
 .highlight-reply {
