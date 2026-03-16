@@ -929,6 +929,7 @@ const Bubble = memo(function Bubble({
   reactionBusy,
   onConversarContact,
   onAdicionarGrupoContact,
+  mostrarNomeAoCliente = true,
 }) {
   const out = msg?.direcao === "out";
   const canDeleteForEveryone = useMemo(() => {
@@ -1168,8 +1169,8 @@ const Bubble = memo(function Bubble({
               </div>
             </div>
           )}
-          {/* Nome do atendente acima da mensagem enviada pelo sistema */}
-          {out && msg?.enviado_por_usuario && safeString(msg?.usuario_nome) ? (
+          {/* Nome do atendente acima da mensagem enviada pelo sistema (respeita mostrar_nome_ao_cliente) */}
+          {out && msg?.enviado_por_usuario && safeString(msg?.usuario_nome) && mostrarNomeAoCliente ? (
             <div className="wa-bubble-atendente" aria-label={`Enviado por ${msg.usuario_nome}`}>
               {msg.usuario_nome}
             </div>
@@ -3701,6 +3702,7 @@ export default function ConversaView() {
                   reactionBusy={Boolean(reactionLoading[String(msgKey)])}
                   onConversarContact={handleConversarContact}
                   onAdicionarGrupoContact={handleAdicionarGrupoContact}
+                  mostrarNomeAoCliente={user?.mostrar_nome_ao_cliente !== false}
                 />
               );
             })}

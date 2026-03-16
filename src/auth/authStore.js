@@ -78,6 +78,23 @@ export const useAuthStore = create((set) => ({
     window.location.href = "/login"
   },
 
+  /** Atualiza dados do usuário logado (ex.: após PATCH /usuarios/me) */
+  updateUser: (patch) => {
+    set((state) => {
+      if (!state.user) return state
+      const next = { ...state.user, ...patch }
+      try {
+        const raw = localStorage.getItem("zap_erp_auth")
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          parsed.user = next
+          localStorage.setItem("zap_erp_auth", JSON.stringify(parsed))
+        }
+      } catch {}
+      return { user: next }
+    })
+  },
+
   // ======================
   // RESTORE (refresh da página)
   // ======================

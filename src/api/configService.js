@@ -26,6 +26,17 @@ export async function registrarAuditoria(payload) {
   return data
 }
 
+// Usuário logado (perfil)
+export async function getUsuarioMe() {
+  const { data } = await api.get('/usuarios/me')
+  return data
+}
+
+export async function patchUsuarioMe(payload) {
+  const { data } = await api.patch('/usuarios/me', payload)
+  return data
+}
+
 // Usuários (admin)
 export async function getUsuarios() {
   const { data } = await api.get('/usuarios')

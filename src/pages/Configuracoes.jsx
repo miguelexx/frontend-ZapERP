@@ -7,6 +7,7 @@ import api from "../api/http";
 import * as cfg from "../api/configService";
 import * as chatService from "../chats/chatService";
 import { canAcessarConfiguracoes, canAcessarUsuarios } from "../auth/permissions";
+import { useNotificationStore } from "../notifications/notificationStore";
 import SecaoPermissoes from "./SecaoPermissoes";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import { SkeletonGrid } from "../components/feedback/Skeleton";
@@ -294,6 +295,38 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
   const [msg, setMsg] = useState(null); // { type: "ok"|"err", text }
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
+  const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
+  const showToast = useNotificationStore((s) => s.showToast);
+  const [mostrarNomeAoCliente, setMostrarNomeAoCliente] = useState(user?.mostrar_nome_ao_cliente !== false);
+  const [mostrarNomeLoading, setMostrarNomeLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    cfg.getUsuarioMe()
+      .then((me) => {
+        if (!cancelled && me?.mostrar_nome_ao_cliente !== undefined) {
+          setMostrarNomeAoCliente(me.mostrar_nome_ao_cliente !== false);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleMostrarNomeToggle = async (on) => {
+    setMostrarNomeLoading(true);
+    try {
+      const res = await cfg.patchUsuarioMe({ mostrar_nome_ao_cliente: on });
+      setMostrarNomeAoCliente(res?.mostrar_nome_ao_cliente !== false);
+      updateUser({ mostrar_nome_ao_cliente: res?.mostrar_nome_ao_cliente });
+      showToast?.({ type: "success", title: "Preferência salva", message: "Alteração aplicada às suas mensagens." });
+    } catch (e) {
+      showToast?.({ type: "error", title: "Erro", message: e?.response?.data?.error || "Não foi possível salvar." });
+    } finally {
+      setMostrarNomeLoading(false);
+    }
+  };
+
   const handleDarkModeToggle = (on) => {
     const theme = on ? "dark" : "light";
     setDarkMode(on);
@@ -304,7 +337,21 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
 
   return (
     <div className="ia-section">
-      <h4>Aparência</h4>
+      <h4>Meu perfil</h4>
+      <div className="ia-field config-appearance-row">
+        <label>Mostrar meu nome nas mensagens ao cliente</label>
+        <Switch
+          checked={mostrarNomeAoCliente}
+          onChange={handleMostrarNomeToggle}
+          disabled={mostrarNomeLoading}
+          aria-label="Mostrar nome ao cliente"
+        />
+        <span className="ia-muted config-appearance-hint">
+          Quando ativado, o cliente verá seu nome acima das mensagens que você envia no WhatsApp.
+        </span>
+      </div>
+
+      <h4 style={{ marginTop: 24 }}>Aparência</h4>
       <div className="ia-field config-appearance-row">
         <label>Modo escuro</label>
         <Switch checked={darkMode} onChange={handleDarkModeToggle} />
