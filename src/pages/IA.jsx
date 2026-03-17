@@ -866,7 +866,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 checked={v.sendOnlyFirstTime !== false}
                 onChange={(e) => setV((c) => ({ ...c, sendOnlyFirstTime: e.target.checked }))}
               />
-              <label htmlFor="sendOnlyFirstTime" title="Se marcado, o menu só é enviado quando o cliente manda a primeira mensagem.">
+              <label htmlFor="sendOnlyFirstTime" title="Se marcado, o menu só é enviado na primeira mensagem. Exceto quando a conversa reabre após finalização (cliente voltou) — nesse caso o menu é enviado novamente.">
                 Enviar menu apenas na primeira mensagem
               </label>
             </div>
