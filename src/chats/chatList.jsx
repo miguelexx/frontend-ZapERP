@@ -585,27 +585,29 @@ function Chip({ active, onClick, children }) {
 }
 
 function StatusPill({ status, exibirBadgeAberta }) {
-  const exibirAberta = exibirBadgeAberta === true;
-  const s = String(status || "");
-  if (exibirAberta) {
+  const s = String(status || "").toLowerCase().trim().replace(/\s+/g, "_");
+  // status_atendimento tem prioridade: em_atendimento e fechada sincronizam com o header do chat
+  const map = {
+    em_atendimento: { label: "Em atendimento", cls: "chat-list-status in" },
+    fechada: { label: "Finalizada", cls: "chat-list-status closed" },
+  };
+  const it = map[s];
+  if (it) {
+    return (
+      <span className={it.cls} title={it.label}>
+        {it.label}
+      </span>
+    );
+  }
+  // Aberta ou vazio: usar exibir_badge_aberta para decidir se mostra "Aberta"
+  if (exibirBadgeAberta === true) {
     return (
       <span className="chat-list-status open" title="Aberta">
         Aberta
       </span>
     );
   }
-  if (!s || s === "aberta") return null;
-  const map = {
-    em_atendimento: { label: "Em atendimento", cls: "chat-list-status in" },
-    fechada: { label: "Finalizada", cls: "chat-list-status closed" },
-  };
-  const it = map[s];
-  if (!it) return null;
-  return (
-    <span className={it.cls} title={it.label}>
-      {it.label}
-    </span>
-  );
+  return null;
 }
 
 function ChatRow({

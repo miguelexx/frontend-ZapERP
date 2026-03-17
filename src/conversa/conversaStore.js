@@ -163,6 +163,14 @@ export const useConversaStore = create((set, get) => ({
         socket.emit("marcar_conversa_lida", { conversa_id: normalizedId })
       }
       useChatStore.getState().clearUnread(normalizedId)
+      // Sincroniza status_atendimento na lista lateral (ex.: em_atendimento no header = em_atendimento na lista)
+      if (conversa?.status_atendimento != null || conversa?.exibir_badge_aberta !== undefined) {
+        useChatStore.getState().updateChat({
+          id: normalizedId,
+          status_atendimento: conversa?.status_atendimento,
+          exibir_badge_aberta: conversa?.exibir_badge_aberta,
+        })
+      }
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || "Erro ao carregar conversa"
       console.error("Erro ao carregar conversa:", err)
@@ -247,6 +255,15 @@ export const useConversaStore = create((set, get) => ({
         cursor: nextCursor,
         hasMore: !!nextCursor,
       })
+
+      // Sincroniza status_atendimento na lista (ex.: após assumir = em_atendimento)
+      if (merged?.status_atendimento != null || merged?.exibir_badge_aberta !== undefined) {
+        useChatStore.getState().updateChat({
+          id,
+          status_atendimento: merged?.status_atendimento,
+          exibir_badge_aberta: merged?.exibir_badge_aberta,
+        })
+      }
     } catch (err) {
       console.error("Erro ao atualizar conversa:", err)
       set({ loading: false })
