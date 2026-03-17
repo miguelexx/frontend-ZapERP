@@ -44,6 +44,8 @@ const DEFAULT_CONFIG = {
     welcomeMessage: "",
     invalidOptionMessage: "Opção inválida. Por favor, responda apenas com o número do setor desejado.",
     confirmSelectionMessage: "Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade.",
+    enviarMensagemFinalizacao: false,
+    mensagemFinalizacao: "Atendimento finalizado com sucesso. (Segue seu protocolo: {{protocolo}}.\nPor favor, informe uma nota entre 0 e 10 para avaliar o atendimento prestado.)",
     sendOnlyFirstTime: true,
     fallbackToAI: false,
     businessHoursOnly: false,
@@ -661,6 +663,8 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
     welcomeMessage: (vals.welcomeMessage || "").trim(),
     invalidOptionMessage: (vals.invalidOptionMessage || "").trim(),
     confirmSelectionMessage: (vals.confirmSelectionMessage || "").trim(),
+    enviarMensagemFinalizacao: !!vals.enviarMensagemFinalizacao,
+    mensagemFinalizacao: (vals.mensagemFinalizacao || "").trim(),
     sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,
     fallbackToAI: vals.fallbackToAI ?? false,
     businessHoursOnly: vals.businessHoursOnly ?? false,
@@ -685,6 +689,10 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
       const activeOpts = opts.filter((o) => o.active !== false);
       const validOpts = activeOpts.filter((o) => (o.label || "").trim() && o.departamento_id);
       if (validOpts.length === 0) return "Adicione pelo menos uma opção válida (label e departamento) quando o chatbot está ativo.";
+    }
+    if (vals.enviarMensagemFinalizacao) {
+      const msg = (vals.mensagemFinalizacao || "").trim();
+      if (!msg) return "Mensagem de finalização é obrigatória quando está ativo o envio ao finalizar.";
     }
     const keys = opts.map((o) => String(o.key || "").trim()).filter(Boolean);
     const uniqueKeys = [...new Set(keys)];
@@ -711,6 +719,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
   const opts = v.options || [];
   const previewDept = departamentos.find((d) => d.id === (opts.find((o) => o.active)?.departamento_id))?.nome || "Vendas";
   const previewConfirm = (v.confirmSelectionMessage || "").replace(/\{\{departamento\}\}/gi, previewDept);
+  const previewFinal = (v.mensagemFinalizacao || "")
+    .replace(/\{\{protocolo\}\}/gi, "12345")
+    .replace(/\{\{nome_atendente\}\}/gi, "Maria");
 
   return (
     <div className="chatbot-section">
@@ -766,6 +777,40 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 onChange={(e) => setV((c) => ({ ...c, confirmSelectionMessage: e.target.value }))}
                 placeholder="Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade."
               />
+            </div>
+          </div>
+
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">Mensagem ao finalizar atendimento</h3>
+            <p className="chatbot-card-subtitle">
+              Enviada automaticamente quando o atendente clicar em &quot;Finalizar conversa&quot;. O cliente pode responder 0–10 para avaliar.
+            </p>
+            <div className="ia-checkbox-row">
+              <input
+                type="checkbox"
+                id="enviarMensagemFinalizacao"
+                checked={v.enviarMensagemFinalizacao === true}
+                onChange={(e) => setV((c) => ({ ...c, enviarMensagemFinalizacao: e.target.checked }))}
+              />
+              <label htmlFor="enviarMensagemFinalizacao" title="Ao ativar, a mensagem abaixo é enviada automaticamente ao finalizar a conversa.">
+                Enviar mensagem automaticamente quando finalizar conversa
+              </label>
+            </div>
+            <div className="ia-field">
+              <label title="Use {{protocolo}} para o número do atendimento e {{nome_atendente}} para o nome.">
+                Mensagem (use {"{{protocolo}}"} e {"{{nome_atendente}}"})
+              </label>
+              <textarea
+                className="ia-textarea"
+                rows={5}
+                value={v.mensagemFinalizacao || ""}
+                onChange={(e) => setV((c) => ({ ...c, mensagemFinalizacao: e.target.value }))}
+                placeholder="Atendimento finalizado com sucesso. (Segue seu protocolo: {{protocolo}}.\nPor favor, informe uma nota entre 0 e 10 para avaliar o atendimento prestado.)"
+                disabled={!v.enviarMensagemFinalizacao}
+              />
+              <p className="chatbot-hint" style={{ marginTop: 6 }}>
+                Placeholders: <code>{"{{protocolo}}"}</code> = número do protocolo (ID do atendimento); <code>{"{{nome_atendente}}"}</code> = nome do atendente que finalizou.
+              </p>
             </div>
           </div>
 
@@ -926,6 +971,14 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               </div>
             </div>
             <p className="chatbot-preview-hint">Simulação: cliente responde "1" → recebe confirmação com setor "{previewDept}"</p>
+            {v.enviarMensagemFinalizacao && (v.mensagemFinalizacao || "").trim() && (
+              <div className="chatbot-preview-final" style={{ marginTop: 16, padding: 12, background: "var(--ia-bg-secondary, #1e293b)", borderRadius: 8 }}>
+                <p className="chatbot-preview-hint" style={{ marginBottom: 8 }}>Mensagem ao finalizar (ex.: protocolo 12345, atendente Maria):</p>
+                <div className="chatbot-bubble chatbot-bubble--in">
+                  <div className="chatbot-bubble-text" style={{ whiteSpace: "pre-wrap" }}>{previewFinal}</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
