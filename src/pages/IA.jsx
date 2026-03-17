@@ -46,6 +46,7 @@ const DEFAULT_CONFIG = {
     confirmSelectionMessage: "Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade.",
     enviarMensagemFinalizacao: false,
     mensagemFinalizacao: "Atendimento finalizado com sucesso. (Segue seu protocolo: {{protocolo}}.\nPor favor, informe uma nota entre 0 e 10 para avaliar o atendimento prestado.)",
+    intervaloEnvioSegundos: 3,
     sendOnlyFirstTime: true,
     fallbackToAI: false,
     businessHoursOnly: false,
@@ -665,6 +666,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
     confirmSelectionMessage: (vals.confirmSelectionMessage || "").trim(),
     enviarMensagemFinalizacao: !!vals.enviarMensagemFinalizacao,
     mensagemFinalizacao: (vals.mensagemFinalizacao || "").trim(),
+    intervaloEnvioSegundos: Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos) || 3)),
     sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,
     fallbackToAI: vals.fallbackToAI ?? false,
     businessHoursOnly: vals.businessHoursOnly ?? false,
@@ -817,19 +819,33 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
           <div className="chatbot-card">
             <h3 className="chatbot-card-title">Comportamento</h3>
             <div className="ia-field">
-              <label title="Define o que acontece quando o cliente responde com o número do setor.">
+              <label title="Define o que acontece quando o cliente responde com o número do setor (ex: 1 para Vendas).">
                 Como a conversa chega ao setor
               </label>
               <select
                 className="ia-select"
                 value={v.tipo_distribuicao ?? "fila"}
                 onChange={(e) => setV((c) => ({ ...c, tipo_distribuicao: e.target.value }))}
-                title="Define o que acontece quando o cliente responde com o número do setor."
+                title="Define o que acontece quando o cliente responde com o número do setor (ex: 1 para Vendas)."
               >
                 <option value="fila">Todos do setor veem — quem assumir primeiro atende (recomendado)</option>
                 <option value="round_robin">Rotação automática entre atendentes do setor</option>
                 <option value="menor_carga">Atribuir ao atendente com menos conversas</option>
               </select>
+            </div>
+            <div className="ia-field">
+              <label title="Intervalo mínimo entre envios de mensagens automáticas. Evita bloqueio WhatsApp/Z-API. 0 = sem delay.">
+                Intervalo entre envios (segundos)
+              </label>
+              <input
+                type="number"
+                className="ia-input chatbot-input-cmd"
+                min={0}
+                max={60}
+                value={v.intervaloEnvioSegundos ?? 3}
+                onChange={(e) => setV((c) => ({ ...c, intervaloEnvioSegundos: Number(e.target.value) || 0 }))}
+                placeholder="3"
+              />
             </div>
             <div className="ia-field">
               <label title="O cliente pode digitar este comando (ex: 0) para ver o menu novamente.">
