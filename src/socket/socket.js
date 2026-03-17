@@ -306,7 +306,13 @@ export function initSocket(token) {
        incUnread só para direcao 'in' (mensagem recebida)
     ---------------------------------- */
     if (!isAberta) {
-      if (jaNaLista && msg.direcao === "in") chatStore.incUnread(conversaId, 1)
+      if (jaNaLista && msg.direcao === "in") {
+        if (typeof chatStore.incUnreadComBadge === "function") {
+          chatStore.incUnreadComBadge(conversaId, 1)
+        } else {
+          chatStore.incUnread(conversaId, 1)
+        }
+      }
       updateDocumentTitleFromChats()
 
       if (msg.direcao === "in") {

@@ -316,7 +316,9 @@ export const useConversaStore = create((set, get) => ({
   anexarMensagem: (msg) => {
     const conversaId = msg?.conversa_id ?? get().conversa?.id
     if (!conversaId) return
-    const key = msg?.whatsapp_id ?? msg?.id ?? msg?.tempId
+    // UPSERT: id OU (conversa_id + whatsapp_id) — inbound pode vir sem id (backend envia whatsapp_id)
+    const key = msg?.whatsapp_id ?? msg?.id ?? msg?.tempId ??
+      (msg?.direcao === "in" ? `in-${conversaId}-${msg?.criado_em || Date.now()}-${String(msg?.texto || msg?.conteudo || "").slice(0, 50)}` : null)
     if (!key) return
     set((state) => {
       const list = state.mensagens || []
@@ -444,13 +446,13 @@ export const useConversaStore = create((set, get) => ({
 
       // Nova mensagem: adicionar com dedupe por Map
       const byId = new Map()
-      list.forEach((m) => {
-        const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : null
-        if (k) byId.set(k, m)
+      list.forEach((m, i) => {
+        const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : `legacy-${i}`
+        byId.set(k, m)
       })
       const newMsg = { ...msg }
       if (convId) newMsg.conversa_id = convId
-      const newK = msg.whatsapp_id ? `wa-${msg.whatsapp_id}` : msg.id ? String(msg.id) : `temp-${msg.tempId}`
+      const newK = msg.whatsapp_id ? `wa-${msg.whatsapp_id}` : msg.id ? String(msg.id) : msg.tempId ? `temp-${msg.tempId}` : key
       byId.set(newK, newMsg)
       return { mensagens: get()._sortMensagensByCriadoEmAsc(Array.from(byId.values())) }
     })
@@ -605,7 +607,7 @@ export const useConversaStore = create((set, get) => ({
   ===================================================== */
   patchConversa: (partial) => {
     if (!partial?.id) return
-    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil"]
+    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil", "foto_perfil_contato_cache"]
     const preserveBlocked = ["mensagens_bloqueadas", "atendente_nome"]
     set((state) => {
       if (!state.conversa || String(state.conversa.id) !== String(partial.id))
@@ -632,7 +634,7 @@ export const useConversaStore = create((set, get) => ({
       if (!temFotoPayload && (cur.foto_perfil != null && String(cur.foto_perfil).trim() !== ""))
         merged.foto_perfil = cur.foto_perfil
       for (const k of fixedFields) {
-        if (k === "contato_nome" || k === "foto_perfil") continue
+        if (k === "contato_nome" || k === "foto_perfil" || k === "foto_perfil_contato_cache") continue
         const newVal = partial[k]
         const isEmpty = newVal == null || String(newVal || "").trim() === ""
         if (isEmpty && (cur[k] != null && String(cur[k] || "").trim() !== ""))

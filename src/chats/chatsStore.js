@@ -149,6 +149,7 @@ export const useChatStore = create((set, get) => ({
     const merged = { ...cur }
 
     // conversa_atualizada: merge defensivo — nunca sobrescrever com undefined ou string vazio
+    // telefone e cliente_id vêm ao enviar msg para deduplicação estável
     const skipKeys = new Set(["contato_nome", "nome_contato_cache", "foto_perfil", "nome_grupo", "foto_grupo"])
     const isEmptyStr = (v) => typeof v === "string" && v.trim() === ""
     for (const k of Object.keys(partial)) {
@@ -168,6 +169,9 @@ export const useChatStore = create((set, get) => ({
     if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
       merged.foto_perfil = partial.foto_perfil
       merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache ?? partial.foto_perfil
+    } else if (partial.foto_perfil_contato_cache != null && String(partial.foto_perfil_contato_cache).trim() !== "") {
+      merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache
+      merged.foto_perfil = merged.foto_perfil || partial.foto_perfil_contato_cache
     }
     // Grupos: nunca sobrescrever nome_grupo/foto_grupo com vazio
     if (partial.nome_grupo != null && String(partial.nome_grupo).trim() !== "" && !String(partial.nome_grupo).toLowerCase().startsWith("lid:")) {
@@ -337,6 +341,21 @@ export const useChatStore = create((set, get) => ({
         if (String(c.id) !== String(conversa_id)) return c
         const cur = Number(c.unread_count || 0)
         return { ...c, unread_count: cur + Number(inc) }
+      })
+    })),
+
+  /** Para nova_mensagem direcao 'in': incrementa unread + tem_novas_mensagens + lida=false */
+  incUnreadComBadge: (conversa_id, inc = 1) =>
+    set((state) => ({
+      chats: state.chats.map(c => {
+        if (String(c.id) !== String(conversa_id)) return c
+        const cur = Number(c.unread_count || 0)
+        return {
+          ...c,
+          unread_count: cur + Number(inc),
+          tem_novas_mensagens: true,
+          lida: false,
+        }
       })
     })),
 
