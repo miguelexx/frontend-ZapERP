@@ -14,15 +14,6 @@ import "../components/ui/switch.css";
 import "./IA.css";
 
 const DEFAULT_CONFIG = {
-  bot_global: {
-    ativo: false,
-    mensagem_boas_vindas: "",
-    mensagem_inicial_automatica: "",
-    mensagem_fora_horario: "",
-    mensagem_ausencia: "",
-    mensagem_encerramento: "",
-    tempo_limite_sem_resposta_min: 30,
-  },
   ia: {
     usar_ia: false,
     sugerir_respostas: true,
@@ -64,7 +55,6 @@ const DEFAULT_CONFIG = {
 };
 
 const TABS = [
-  { id: "bot", label: "Bot global" },
   { id: "chatbot", label: "Chatbot de Triagem" },
   { id: "respostas", label: "Respostas automáticas" },
   { id: "ia", label: "IA (sugestões)" },
@@ -79,11 +69,12 @@ export default function IA() {
   const isAdmin = canAcessarConfiguracoes(user);
 
   const tabFromUrl = searchParams.get("tab");
-  const initialTab = TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "bot";
-  const [tab, setTab] = useState(initialTab);
+  const resolvedTab = tabFromUrl === "bot" ? "chatbot" : (TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "chatbot");
+  const [tab, setTab] = useState(resolvedTab);
 
   useEffect(() => {
-    if (TABS.some((t) => t.id === tabFromUrl)) setTab(tabFromUrl);
+    const next = tabFromUrl === "bot" ? "chatbot" : (TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "chatbot");
+    setTab(next);
   }, [tabFromUrl]);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -218,7 +209,6 @@ export default function IA() {
 
   const cfg = config || DEFAULT_CONFIG;
 
-  const bg = cfg.bot_global || {};
   const ia = cfg.ia || {};
   const auto = cfg.automacoes || {};
 
@@ -261,13 +251,6 @@ export default function IA() {
             saving={saving}
           />
         )}
-        {tab === "bot" && (
-          <SecaoBotGlobal
-            config={bg}
-            onSave={(v) => handleSaveConfig("bot_global", v)}
-            saving={saving}
-          />
-        )}
         {tab === "respostas" && (
           <SecaoRespostasAutomaticas
             regras={regras}
@@ -294,82 +277,6 @@ export default function IA() {
           />
         )}
         {tab === "logs" && <SecaoLogs logs={logs} onRefresh={loadLogs} />}
-      </div>
-    </div>
-  );
-}
-
-function SecaoBotGlobal({ config, onSave, saving }) {
-  const [v, setV] = useState(config);
-  useEffect(() => setV(config), [config]);
-
-  return (
-    <div className="ia-section">
-      <h4>1. Bot global</h4>
-      <p className="ia-muted">Se OFF, nenhuma automação roda. Se ON, habilita todas as regras.</p>
-
-      <div className="ds-switch-row">
-        <Switch checked={v.ativo} onChange={(x) => setV((c) => ({ ...c, ativo: x }))} />
-        <span>Ativar Bot</span>
-      </div>
-
-      <div className="ia-field">
-        <label>Mensagem de boas-vindas</label>
-        <textarea
-          className="ia-textarea"
-          value={v.mensagem_boas_vindas || ""}
-          onChange={(e) => setV((c) => ({ ...c, mensagem_boas_vindas: e.target.value }))}
-          placeholder="Olá! Como posso ajudar?"
-        />
-      </div>
-      <div className="ia-field">
-        <label>Mensagem inicial automática</label>
-        <textarea
-          className="ia-textarea"
-          value={v.mensagem_inicial_automatica || ""}
-          onChange={(e) => setV((c) => ({ ...c, mensagem_inicial_automatica: e.target.value }))}
-        />
-      </div>
-      <div className="ia-field">
-        <label>Mensagem fora do horário</label>
-        <textarea
-          className="ia-textarea"
-          value={v.mensagem_fora_horario || ""}
-          onChange={(e) => setV((c) => ({ ...c, mensagem_fora_horario: e.target.value }))}
-          placeholder="No momento estamos fora do expediente..."
-        />
-      </div>
-      <div className="ia-field">
-        <label>Mensagem de ausência</label>
-        <textarea
-          className="ia-textarea"
-          value={v.mensagem_ausencia || ""}
-          onChange={(e) => setV((c) => ({ ...c, mensagem_ausencia: e.target.value }))}
-        />
-      </div>
-      <div className="ia-field">
-        <label>Mensagem de encerramento</label>
-        <textarea
-          className="ia-textarea"
-          value={v.mensagem_encerramento || ""}
-          onChange={(e) => setV((c) => ({ ...c, mensagem_encerramento: e.target.value }))}
-        />
-      </div>
-      <div className="ia-field">
-        <label>Tempo limite sem resposta (minutos)</label>
-        <input
-          type="number"
-          className="ia-input"
-          min={1}
-          max={1440}
-          value={v.tempo_limite_sem_resposta_min ?? 30}
-          onChange={(e) => setV((c) => ({ ...c, tempo_limite_sem_resposta_min: Number(e.target.value) || 30 }))}
-        />
-      </div>
-      <div className="ia-btn-row">
-        <button className="ia-btn ia-btn--primary" onClick={() => onSave(v)} disabled={saving}>
-          {saving ? "Salvando..." : "Salvar"}
-        </button>
       </div>
     </div>
   );
@@ -647,9 +554,17 @@ const DIAS_SEMANA = [
   { num: 6, label: "Sáb" },
 ];
 
+function formatTimeForInput(t) {
+  if (!t || typeof t !== "string") return "09:00";
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return "09:00";
+  const h = Math.max(0, Math.min(23, parseInt(m[1], 10)));
+  const min = Math.max(0, Math.min(59, parseInt(m[2], 10)));
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLogs, saving }) {
   const [v, setV] = useState(config);
-  const [foraHorarioExpanded, setForaHorarioExpanded] = useState(true);
   const [novaDataFechada, setNovaDataFechada] = useState("");
   useEffect(() => setV(config), [config]);
 
@@ -788,8 +703,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
 
       <div className="chatbot-grid">
         <div className="chatbot-form">
+          {/* SEÇÃO 1 — Ativar + Mensagem de boas-vindas */}
           <div className="chatbot-card">
-            <h3 className="chatbot-card-title">Mensagens</h3>
+            <h3 className="chatbot-card-title">1. Mensagem de boas-vindas</h3>
             <div className="ia-field">
               <label title="Enviada quando o cliente manda a primeira mensagem. Inclua as opções do menu (ex: 1 - Atendimento, 2 - Vendas).">
                 Mensagem de boas-vindas
@@ -804,7 +720,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
             </div>
             <div className="ia-field">
               <label title="Enviada quando o cliente digita um número que não está no menu.">
-                Mensagem de opção inválida
+                Mensagem quando o cliente digita opção errada
               </label>
               <textarea
                 className="ia-textarea"
@@ -816,7 +732,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
             </div>
             <div className="ia-field">
               <label title="Após o cliente escolher uma opção válida. Use {{departamento}} para substituir pelo nome do setor.">
-                Mensagem de confirmação (use {"{{departamento}}"} para o nome do setor)
+                Mensagem de confirmação (use {"{{departamento}}"})
               </label>
               <textarea
                 className="ia-textarea"
@@ -826,23 +742,119 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 placeholder="Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade."
               />
             </div>
-          </div>
-
-          <div className="chatbot-card">
-            <h3 className="chatbot-card-title">Mensagem ao finalizar atendimento</h3>
-            <p className="chatbot-card-subtitle">
-              Enviada automaticamente quando o atendente clicar em &quot;Finalizar conversa&quot;. O cliente pode responder 0–10 para avaliar.
-            </p>
+            <div className="ia-field">
+              <label title="O cliente pode digitar este comando (ex: 0) para ver o menu novamente.">
+                Comando para ver o menu de novo
+              </label>
+              <input
+                type="text"
+                className="ia-input chatbot-input-cmd"
+                value={v.reopenMenuCommand ?? "0"}
+                onChange={(e) => setV((c) => ({ ...c, reopenMenuCommand: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
             <div className="ia-checkbox-row">
               <input
                 type="checkbox"
-                id="enviarMensagemFinalizacao"
-                checked={v.enviarMensagemFinalizacao === true}
-                onChange={(e) => setV((c) => ({ ...c, enviarMensagemFinalizacao: e.target.checked }))}
+                id="sendOnlyFirstTime"
+                checked={v.sendOnlyFirstTime !== false}
+                onChange={(e) => setV((c) => ({ ...c, sendOnlyFirstTime: e.target.checked }))}
               />
-              <label htmlFor="enviarMensagemFinalizacao" title="Ao ativar, a mensagem abaixo é enviada automaticamente ao finalizar a conversa.">
-                Enviar mensagem automaticamente quando finalizar conversa
+              <label htmlFor="sendOnlyFirstTime" title="Se marcado, o menu só é enviado na primeira mensagem.">
+                Enviar menu apenas na primeira mensagem
               </label>
+            </div>
+          </div>
+
+          {/* SEÇÃO 2 — Escolhas do menu */}
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">2. Escolhas que o cliente verá no WhatsApp</h3>
+            <p className="chatbot-card-subtitle">O que aparece quando alguém manda a primeira mensagem</p>
+            <div className="chatbot-table-wrap">
+              <table className="ia-table chatbot-table">
+                <thead>
+                  <tr>
+                    <th title="O número que o cliente digita para escolher (1, 2, 3...)">Nº</th>
+                    <th title="O texto que aparece no menu (ex: Atendimento, Vendas)">O que o cliente vê</th>
+                    <th title="Para qual equipe a conversa vai quando o cliente escolher esta opção">Setor que recebe</th>
+                    <th title="Se desmarcado, esta opção não aparece no menu">Opção ativa</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {opts.map((o, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <input
+                          type="text"
+                          className="ia-input chatbot-input-key"
+                          value={o.key ?? ""}
+                          onChange={(e) => updateOption(idx, "key", e.target.value)}
+                          placeholder="1"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          className="ia-input"
+                          value={o.label ?? ""}
+                          onChange={(e) => updateOption(idx, "label", e.target.value)}
+                          placeholder="Atendimento"
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className="ia-select"
+                          value={o.departamento_id ?? ""}
+                          onChange={(e) => updateOption(idx, "departamento_id", e.target.value)}
+                        >
+                          <option value="">Selecione</option>
+                          {departamentos.map((d) => (
+                            <option key={d.id} value={d.id}>{d.nome}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={o.active !== false}
+                          onChange={(e) => updateOption(idx, "active", e.target.checked)}
+                          aria-label="Opção ativa"
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="chatbot-btn-remove"
+                          onClick={() => removeOption(idx)}
+                          aria-label="Remover"
+                        >
+                          Remover
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {departamentos.length === 0 && (
+              <p className="chatbot-hint">Cadastre departamentos em Configurações para vincular às opções.</p>
+            )}
+            <button type="button" className="chatbot-btn-add" onClick={addOption}>
+              + Adicionar nova escolha
+            </button>
+          </div>
+
+          {/* SEÇÃO 3 — Mensagem ao finalizar atendimento */}
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">3. Mensagem ao finalizar atendimento</h3>
+            <p className="chatbot-card-subtitle">
+              Enviada automaticamente quando o atendente clicar em &quot;Finalizar conversa&quot;. O cliente pode responder 0–10 para avaliar.
+            </p>
+            <div className="ds-switch-row" style={{ marginBottom: 16 }}>
+              <Switch checked={v.enviarMensagemFinalizacao === true} onChange={(x) => setV((c) => ({ ...c, enviarMensagemFinalizacao: x }))} />
+              <span>Enviar mensagem automaticamente quando finalizar conversa</span>
             </div>
             <div className="ia-field">
               <label title="Use {{protocolo}} para o número do atendimento e {{nome_atendente}} para o nome.">
@@ -862,24 +874,15 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
             </div>
           </div>
 
-          <div className="chatbot-card chatbot-card--expandable">
-            <div className="chatbot-card-header" onClick={() => setForaHorarioExpanded((x) => !x)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setForaHorarioExpanded((x) => !x)} aria-expanded={foraHorarioExpanded}>
-              <h3 className="chatbot-card-title">
-                <span className="chatbot-card-icon" aria-hidden>📅</span>
-                Mensagem fora do horário comercial
-              </h3>
-              <span className="chatbot-card-toggle">{foraHorarioExpanded ? "▲ Recolher" : "▼ Expandir"}</span>
+          {/* SEÇÃO 4 — Mensagem fora do horário comercial */}
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">4. Mensagem fora do horário comercial</h3>
+            <div className="ds-switch-row" style={{ marginBottom: 16 }}>
+              <Switch checked={v.foraHorarioEnabled === true} onChange={(x) => setV((c) => ({ ...c, foraHorarioEnabled: x }))} />
+              <span>Enviar mensagem automática quando o cliente escrever fora do horário</span>
             </div>
-            {foraHorarioExpanded && (
-              <div className="chatbot-card-body">
-                <div className="ds-switch-row" style={{ marginBottom: 16 }}>
-                  <Switch checked={v.foraHorarioEnabled === true} onChange={(x) => setV((c) => ({ ...c, foraHorarioEnabled: x }))} />
-                  <span style={{ cursor: "default" }}>
-                    Enviar mensagem automática quando o cliente escrever fora do horário ou em dia de folga
-                  </span>
-                </div>
 
-                <div className="chatbot-fora-horario-fields" style={{ opacity: v.foraHorarioEnabled ? 1 : 0.6, pointerEvents: v.foraHorarioEnabled ? "auto" : "none" }}>
+            <div className="chatbot-fora-horario-fields" style={{ opacity: v.foraHorarioEnabled ? 1 : 0.6, pointerEvents: v.foraHorarioEnabled ? "auto" : "none" }}>
                   <div className="chatbot-subsection">
                     <h4 className="chatbot-subsection-title">Horário de atendimento</h4>
                     <div className="chatbot-time-row">
@@ -888,7 +891,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                         <input
                           type="time"
                           className="ia-input"
-                          value={v.horarioInicio || "09:00"}
+                          value={formatTimeForInput(v.horarioInicio) || "09:00"}
                           onChange={(e) => setV((c) => ({ ...c, horarioInicio: e.target.value }))}
                         />
                       </div>
@@ -897,13 +900,13 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                         <input
                           type="time"
                           className="ia-input"
-                          value={v.horarioFim || "18:00"}
+                          value={formatTimeForInput(v.horarioFim) || "18:00"}
                           onChange={(e) => setV((c) => ({ ...c, horarioFim: e.target.value }))}
                         />
                       </div>
                     </div>
                     <p className="chatbot-hint">
-                      Use 24 horas. Ex: 09:00, 13:30, 18:00. Horários que atravessam meia-noite (ex: 22:00 a 06:00) são suportados.
+                      Horários que atravessam meia-noite são suportados (ex: 22:00–06:00).
                     </p>
                   </div>
 
@@ -929,7 +932,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                         );
                       })}
                     </div>
-                    <p className="chatbot-hint">Marcado = dia fechado. Padrão: Sábado e Domingo.</p>
+                    <p className="chatbot-hint">Marcado = não trabalha. Padrão: Dom e Sáb marcados.</p>
                   </div>
 
                   <div className="chatbot-subsection">
@@ -1004,13 +1007,12 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                     />
                     <p className="chatbot-hint">Máximo 1024 caracteres. Enviada quando o cliente escreve fora do horário ou em dia de folga.</p>
                   </div>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
+          {/* SEÇÃO 5 — Configurações avançadas */}
           <div className="chatbot-card">
-            <h3 className="chatbot-card-title">Comportamento</h3>
+            <h3 className="chatbot-card-title">5. Configurações avançadas</h3>
             <div className="ia-field">
               <label title="Define o que acontece quando o cliente responde com o número do setor (ex: 1 para Vendas).">
                 Como a conversa chega ao setor
@@ -1022,7 +1024,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 title="Define o que acontece quando o cliente responde com o número do setor (ex: 1 para Vendas)."
               >
                 <option value="fila">Todos do setor veem — quem assumir primeiro atende (recomendado)</option>
-                <option value="round_robin">Rotação automática entre atendentes do setor</option>
+                <option value="round_robin">Rotação automática entre atendentes</option>
                 <option value="menor_carga">Atribuir ao atendente com menos conversas</option>
               </select>
             </div>
@@ -1040,113 +1042,9 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 placeholder="3"
               />
             </div>
-            <div className="ia-field">
-              <label title="O cliente pode digitar este comando (ex: 0) para ver o menu novamente.">
-                Comando para reabrir menu (ex: 0)
-              </label>
-              <input
-                type="text"
-                className="ia-input chatbot-input-cmd"
-                value={v.reopenMenuCommand ?? "0"}
-                onChange={(e) => setV((c) => ({ ...c, reopenMenuCommand: e.target.value }))}
-                placeholder="0"
-              />
-            </div>
-            <div className="ia-checkbox-row">
-              <input
-                type="checkbox"
-                id="sendOnlyFirstTime"
-                checked={v.sendOnlyFirstTime !== false}
-                onChange={(e) => setV((c) => ({ ...c, sendOnlyFirstTime: e.target.checked }))}
-              />
-              <label htmlFor="sendOnlyFirstTime" title="Se marcado, o menu só é enviado na primeira mensagem. Exceto quando a conversa reabre após finalização (cliente voltou) — nesse caso o menu é enviado novamente.">
-                Enviar menu apenas na primeira mensagem
-              </label>
-            </div>
           </div>
 
-          <div className="chatbot-card">
-            <h3 className="chatbot-card-title">Escolhas que o cliente verá no WhatsApp</h3>
-            <p className="chatbot-card-subtitle">O que aparece quando alguém manda a primeira mensagem</p>
-            <div className="chatbot-table-wrap">
-              <table className="ia-table chatbot-table">
-                <thead>
-                  <tr>
-                    <th title="O número que o cliente digita para escolher (1, 2, 3...)">Nº da opção</th>
-                    <th title="O texto que aparece no menu (ex: Atendimento, Vendas)">O que o cliente vê</th>
-                    <th title="Para qual equipe a conversa vai quando o cliente escolher esta opção">Setor que recebe a conversa</th>
-                    <th title="Se desmarcado, esta opção não aparece no menu">Mostrar no menu</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {opts.map((o, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <input
-                          type="text"
-                          className="ia-input chatbot-input-key"
-                          value={o.key ?? ""}
-                          onChange={(e) => updateOption(idx, "key", e.target.value)}
-                          placeholder="1"
-                          title="O número que o cliente digita para escolher (1, 2, 3...)"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          className="ia-input"
-                          value={o.label ?? ""}
-                          onChange={(e) => updateOption(idx, "label", e.target.value)}
-                          placeholder="Atendimento"
-                          title="O texto que aparece no menu (ex: Atendimento, Vendas)"
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="ia-select"
-                          value={o.departamento_id ?? ""}
-                          onChange={(e) => updateOption(idx, "departamento_id", e.target.value)}
-                          title="Para qual equipe a conversa vai quando o cliente escolher esta opção"
-                        >
-                          <option value="">Selecione</option>
-                          {departamentos.map((d) => (
-                            <option key={d.id} value={d.id}>{d.nome}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td title="Desmarque para ocultar esta opção do menu (opção desativada)">
-                        <input
-                          type="checkbox"
-                          checked={o.active !== false}
-                          onChange={(e) => updateOption(idx, "active", e.target.checked)}
-                          aria-label="Mostrar esta opção no menu"
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="chatbot-btn-remove"
-                          onClick={() => removeOption(idx)}
-                          aria-label="Remover esta opção"
-                          title="Remover esta opção"
-                        >
-                          Remover esta opção
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {departamentos.length === 0 && (
-              <p className="chatbot-hint">Cadastre departamentos em Configurações para vincular às opções.</p>
-            )}
-            <button type="button" className="chatbot-btn-add" onClick={addOption}>
-              + Adicionar nova escolha
-            </button>
-          </div>
-
+          {/* SEÇÃO 6 — Salvar + Logs */}
           <div className="chatbot-actions">
             <button className="ia-btn ia-btn--primary chatbot-btn-save" onClick={handleSave} disabled={saving}>
               {saving ? "Salvando..." : "Salvar configuração"}
