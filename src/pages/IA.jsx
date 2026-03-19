@@ -46,6 +46,12 @@ const DEFAULT_CONFIG = {
     confirmSelectionMessage: "Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade.",
     enviarMensagemFinalizacao: false,
     mensagemFinalizacao: "Atendimento finalizado com sucesso. (Segue seu protocolo: {{protocolo}}.\nPor favor, informe uma nota entre 0 e 10 para avaliar o atendimento prestado.)",
+    foraHorarioEnabled: false,
+    horarioInicio: "09:00",
+    horarioFim: "18:00",
+    diasSemanaDesativados: [0, 6],
+    datasEspecificasFechadas: [],
+    mensagemForaHorario: "Olá! Nosso horário de atendimento é de segunda a sexta, das 09h às 18h. Sua mensagem foi recebida e retornaremos no próximo dia útil. Obrigado!",
     intervaloEnvioSegundos: 3,
     sendOnlyFirstTime: true,
     fallbackToAI: false,
@@ -631,8 +637,20 @@ function SecaoAutomacoes({ config, onSave, saving }) {
   );
 }
 
+const DIAS_SEMANA = [
+  { num: 0, label: "Dom" },
+  { num: 1, label: "Seg" },
+  { num: 2, label: "Ter" },
+  { num: 3, label: "Qua" },
+  { num: 4, label: "Qui" },
+  { num: 5, label: "Sex" },
+  { num: 6, label: "Sáb" },
+];
+
 function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLogs, saving }) {
   const [v, setV] = useState(config);
+  const [foraHorarioExpanded, setForaHorarioExpanded] = useState(true);
+  const [novaDataFechada, setNovaDataFechada] = useState("");
   useEffect(() => setV(config), [config]);
 
   const showToast = useNotificationStore((s) => s.showToast);
@@ -658,28 +676,52 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
     setV((c) => ({ ...c, options: opts }));
   };
 
-  const buildPayload = (vals) => ({
-    ...vals,
-    enabled: !!vals.enabled,
-    welcomeMessage: (vals.welcomeMessage || "").trim(),
-    invalidOptionMessage: (vals.invalidOptionMessage || "").trim(),
-    confirmSelectionMessage: (vals.confirmSelectionMessage || "").trim(),
-    enviarMensagemFinalizacao: !!vals.enviarMensagemFinalizacao,
-    mensagemFinalizacao: (vals.mensagemFinalizacao || "").trim(),
-    intervaloEnvioSegundos: Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos) || 3)),
-    sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,
-    fallbackToAI: vals.fallbackToAI ?? false,
-    businessHoursOnly: vals.businessHoursOnly ?? false,
-    transferMode: vals.transferMode ?? "departamento",
-    reopenMenuCommand: String(vals.reopenMenuCommand ?? "0").trim() || "0",
-    tipo_distribuicao: ["fila", "round_robin", "menor_carga"].includes(vals.tipo_distribuicao) ? vals.tipo_distribuicao : "fila",
-    options: (vals.options || []).map((o) => ({
-      key: String(o.key || "").trim(),
-      label: (o.label || "").trim(),
-      departamento_id: o.departamento_id ? Number(o.departamento_id) : null,
-      active: !!o.active,
-    })),
-  });
+  const buildPayload = (vals) => {
+    const formatTime = (t) => {
+      if (!t || typeof t !== "string") return "09:00";
+      const match = t.trim().match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return "09:00";
+      const h = Math.max(0, Math.min(23, parseInt(match[1], 10)));
+      const m = Math.max(0, Math.min(59, parseInt(match[2], 10)));
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    };
+    const dias = (vals.diasSemanaDesativados || []).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    const datas = (vals.datasEspecificasFechadas || []).filter((d) => {
+      if (typeof d !== "string") return false;
+      const match = d.match(/^\d{4}-\d{2}-\d{2}$/);
+      if (!match) return false;
+      const dt = new Date(d);
+      return !isNaN(dt.getTime());
+    });
+    return {
+      ...vals,
+      enabled: !!vals.enabled,
+      welcomeMessage: (vals.welcomeMessage || "").trim(),
+      invalidOptionMessage: (vals.invalidOptionMessage || "").trim(),
+      confirmSelectionMessage: (vals.confirmSelectionMessage || "").trim(),
+      enviarMensagemFinalizacao: !!vals.enviarMensagemFinalizacao,
+      mensagemFinalizacao: (vals.mensagemFinalizacao || "").trim(),
+      foraHorarioEnabled: !!vals.foraHorarioEnabled,
+      horarioInicio: formatTime(vals.horarioInicio) || "09:00",
+      horarioFim: formatTime(vals.horarioFim) || "18:00",
+      diasSemanaDesativados: dias.length > 0 ? dias : [0, 6],
+      datasEspecificasFechadas: datas,
+      mensagemForaHorario: (vals.mensagemForaHorario || "").trim().slice(0, 1024),
+      intervaloEnvioSegundos: Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos) || 3)),
+      sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,
+      fallbackToAI: vals.fallbackToAI ?? false,
+      businessHoursOnly: vals.businessHoursOnly ?? false,
+      transferMode: vals.transferMode ?? "departamento",
+      reopenMenuCommand: String(vals.reopenMenuCommand ?? "0").trim() || "0",
+      tipo_distribuicao: ["fila", "round_robin", "menor_carga"].includes(vals.tipo_distribuicao) ? vals.tipo_distribuicao : "fila",
+      options: (vals.options || []).map((o) => ({
+        key: String(o.key || "").trim(),
+        label: (o.label || "").trim(),
+        departamento_id: o.departamento_id ? Number(o.departamento_id) : null,
+        active: !!o.active,
+      })),
+    };
+  };
 
   const validate = () => {
     const vals = v;
@@ -695,6 +737,10 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
     if (vals.enviarMensagemFinalizacao) {
       const msg = (vals.mensagemFinalizacao || "").trim();
       if (!msg) return "Mensagem de finalização é obrigatória quando está ativo o envio ao finalizar.";
+    }
+    if (vals.foraHorarioEnabled) {
+      const msgFora = (vals.mensagemForaHorario || "").trim();
+      if (!msgFora) return "Mensagem fora do horário é obrigatória quando está ativo o envio fora do horário comercial.";
     }
     const keys = opts.map((o) => String(o.key || "").trim()).filter(Boolean);
     const uniqueKeys = [...new Set(keys)];
@@ -814,6 +860,153 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 Placeholders: <code>{"{{protocolo}}"}</code> = número do protocolo (ID do atendimento); <code>{"{{nome_atendente}}"}</code> = nome do atendente que finalizou.
               </p>
             </div>
+          </div>
+
+          <div className="chatbot-card chatbot-card--expandable">
+            <div className="chatbot-card-header" onClick={() => setForaHorarioExpanded((x) => !x)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setForaHorarioExpanded((x) => !x)} aria-expanded={foraHorarioExpanded}>
+              <h3 className="chatbot-card-title">
+                <span className="chatbot-card-icon" aria-hidden>📅</span>
+                Mensagem fora do horário comercial
+              </h3>
+              <span className="chatbot-card-toggle">{foraHorarioExpanded ? "▲ Recolher" : "▼ Expandir"}</span>
+            </div>
+            {foraHorarioExpanded && (
+              <div className="chatbot-card-body">
+                <div className="ds-switch-row" style={{ marginBottom: 16 }}>
+                  <Switch checked={v.foraHorarioEnabled === true} onChange={(x) => setV((c) => ({ ...c, foraHorarioEnabled: x }))} />
+                  <span style={{ cursor: "default" }}>
+                    Enviar mensagem automática quando o cliente escrever fora do horário ou em dia de folga
+                  </span>
+                </div>
+
+                <div className="chatbot-fora-horario-fields" style={{ opacity: v.foraHorarioEnabled ? 1 : 0.6, pointerEvents: v.foraHorarioEnabled ? "auto" : "none" }}>
+                  <div className="chatbot-subsection">
+                    <h4 className="chatbot-subsection-title">Horário de atendimento</h4>
+                    <div className="chatbot-time-row">
+                      <div className="ia-field">
+                        <label>Início</label>
+                        <input
+                          type="time"
+                          className="ia-input"
+                          value={v.horarioInicio || "09:00"}
+                          onChange={(e) => setV((c) => ({ ...c, horarioInicio: e.target.value }))}
+                        />
+                      </div>
+                      <div className="ia-field">
+                        <label>Término</label>
+                        <input
+                          type="time"
+                          className="ia-input"
+                          value={v.horarioFim || "18:00"}
+                          onChange={(e) => setV((c) => ({ ...c, horarioFim: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <p className="chatbot-hint">
+                      Use 24 horas. Ex: 09:00, 13:30, 18:00. Horários que atravessam meia-noite (ex: 22:00 a 06:00) são suportados.
+                    </p>
+                  </div>
+
+                  <div className="chatbot-subsection">
+                    <h4 className="chatbot-subsection-title">Dias da semana em que não trabalha</h4>
+                    <div className="chatbot-dias-row">
+                      {DIAS_SEMANA.map((d) => {
+                        const dias = v.diasSemanaDesativados || [0, 6];
+                        const checked = dias.includes(d.num);
+                        return (
+                          <label key={d.num} className="chatbot-dia-check">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const prev = v.diasSemanaDesativados || [0, 6];
+                                const next = checked ? prev.filter((n) => n !== d.num) : [...prev.filter((n) => n !== d.num), d.num].sort((a, b) => a - b);
+                                setV((c) => ({ ...c, diasSemanaDesativados: next.length > 0 ? next : [0, 6] }));
+                              }}
+                            />
+                            <span>{d.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="chatbot-hint">Marcado = dia fechado. Padrão: Sábado e Domingo.</p>
+                  </div>
+
+                  <div className="chatbot-subsection">
+                    <h4 className="chatbot-subsection-title">Datas específicas fechadas (feriados, recesso)</h4>
+                    <div className="chatbot-datas-row">
+                      <input
+                        type="date"
+                        className="ia-input chatbot-input-date"
+                        value={novaDataFechada}
+                        onChange={(e) => setNovaDataFechada(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="ia-btn ia-btn--outline"
+                        onClick={() => {
+                          if (novaDataFechada) {
+                            const datas = v.datasEspecificasFechadas || [];
+                            if (!datas.includes(novaDataFechada)) {
+                              setV((c) => ({ ...c, datasEspecificasFechadas: [...datas, novaDataFechada].sort() }));
+                              setNovaDataFechada("");
+                            }
+                          }
+                        }}
+                      >
+                        + Adicionar data
+                      </button>
+                      <button
+                        type="button"
+                        className="ia-btn ia-btn--outline"
+                        title="Adiciona Natal e Ano Novo do ano atual"
+                        onClick={() => {
+                          const y = new Date().getFullYear();
+                          const natal = `${y}-12-25`;
+                          const anoNovo = `${y + 1}-01-01`;
+                          const datas = v.datasEspecificasFechadas || [];
+                          const toAdd = [natal, anoNovo].filter((d) => !datas.includes(d));
+                          if (toAdd.length > 0) {
+                            setV((c) => ({ ...c, datasEspecificasFechadas: [...(c.datasEspecificasFechadas || []), ...toAdd].sort() }));
+                          }
+                        }}
+                      >
+                        + Feriados comuns
+                      </button>
+                    </div>
+                    {(v.datasEspecificasFechadas || []).length > 0 && (
+                      <ul className="chatbot-datas-list">
+                        {(v.datasEspecificasFechadas || []).map((d) => (
+                          <li key={d} className="chatbot-datas-item">
+                            <span>{new Date(d + "T12:00:00").toLocaleDateString("pt-BR")}</span>
+                            <button
+                              type="button"
+                              className="chatbot-btn-remove"
+                              onClick={() => setV((c) => ({ ...c, datasEspecificasFechadas: (c.datasEspecificasFechadas || []).filter((x) => x !== d) }))}
+                            >
+                              Remover
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="ia-field">
+                    <label>Mensagem enviada fora do horário</label>
+                    <textarea
+                      className="ia-textarea"
+                      rows={5}
+                      maxLength={1024}
+                      value={v.mensagemForaHorario || ""}
+                      onChange={(e) => setV((c) => ({ ...c, mensagemForaHorario: e.target.value }))}
+                      placeholder="Olá! Nosso horário de atendimento é de segunda a sexta, das 09h às 18h. Sua mensagem foi recebida e retornaremos no próximo dia útil. Obrigado!"
+                    />
+                    <p className="chatbot-hint">Máximo 1024 caracteres. Enviada quando o cliente escreve fora do horário ou em dia de folga.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="chatbot-card">
@@ -995,6 +1188,14 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
                 </div>
               </div>
             )}
+            {v.foraHorarioEnabled && (v.mensagemForaHorario || "").trim() && (
+              <div className="chatbot-preview-final" style={{ marginTop: 16, padding: 12, background: "var(--ia-bg-secondary, #1e293b)", borderRadius: 8 }}>
+                <p className="chatbot-preview-hint" style={{ marginBottom: 8 }}>Mensagem fora do horário ({v.horarioInicio || "09:00"}–{v.horarioFim || "18:00"}):</p>
+                <div className="chatbot-bubble chatbot-bubble--in">
+                  <div className="chatbot-bubble-text" style={{ whiteSpace: "pre-wrap" }}>{(v.mensagemForaHorario || "").trim()}</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1016,9 +1217,10 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               const part3 = detalhesStr
                 ? (l.conversa_id ? `${detalhesStr} (conv #${l.conversa_id})` : detalhesStr)
                 : (l.conversa_id ? `conv #${l.conversa_id}` : "");
-              const fullStr = [dataStr, l.tipo, part3].filter(Boolean).join(" — ");
+              const fullStr = [dataStr, l.tipo === "fora_horario" ? "fora do horário" : l.tipo, part3].filter(Boolean).join(" — ");
+              const isForaHorario = l.tipo === "fora_horario";
               return (
-                <div key={l.id} className={`chatbot-log-item ${l.tipo === "erro" ? "chatbot-log-item--error" : ""}`}>
+                <div key={l.id} className={`chatbot-log-item ${l.tipo === "erro" ? "chatbot-log-item--error" : ""} ${isForaHorario ? "chatbot-log-item--fora-horario" : ""}`} title={isForaHorario ? "Cliente escreveu fora do horário comercial" : undefined}>
                   {fullStr}
                 </div>
               );
