@@ -838,13 +838,6 @@ export default function ChatList() {
         if (!cancelled) setZapiStatusLoaded(true);
       });
 
-    // Sync contatos do WhatsApp (Z-API) → nomes corretos na primeira carga
-    sincronizarContatos()
-      .then(() => {
-        if (!cancelled) loadRef.current?.();
-      })
-      .catch(() => {});
-
     sincronizarFotosPerfil().catch(() => {});
 
     return () => { cancelled = true; };
@@ -1046,13 +1039,21 @@ export default function ChatList() {
     setSyncLoading(true);
     try {
       const res = await sincronizarContatos();
-      const inserted = res?.inserted ?? res?.criados ?? res?.inserted_count ?? 0;
-      const updated = res?.updated ?? res?.atualizados ?? res?.updated_count ?? 0;
-      const total = res?.total ?? res?.totalFetched ?? res?.total_contatos ?? (inserted + updated);
+      if (res?.ok === false) {
+        showToast({
+          type: "warning",
+          title: "Sincronizar contatos",
+          message: res.message || "WhatsApp não está conectado. Conecte em Integrações.",
+        });
+        return;
+      }
+      const total = res?.total_contatos ?? 0;
+      const criados = res?.criados ?? 0;
+      const atualizados = res?.atualizados ?? 0;
       showToast({
         type: "success",
         title: "Sincronizar contatos",
-        message: `OK. ${total} contatos (${inserted} novos, ${updated} atualizados).`,
+        message: `${total} contatos, ${criados} novos, ${atualizados} atualizados.`,
       });
       load();
     } catch (e) {
@@ -1060,23 +1061,6 @@ export default function ChatList() {
       const data = e?.response?.data;
       if (status === 401) {
         window.location.href = "/login";
-        return;
-      }
-      if (status === 409 && data?.needsRestore) {
-        showToast({
-          type: "warning",
-          title: "Reconectar WhatsApp",
-          message: "A conexão precisa ser restaurada. Vá em Configurações.",
-        });
-        navigate("/configuracoes");
-        return;
-      }
-      if (status === 502 || status >= 500) {
-        showToast({
-          type: "error",
-          title: "Sincronizar contatos",
-          message: "Falha ao sincronizar. Tente novamente.",
-        });
         return;
       }
       showToast({

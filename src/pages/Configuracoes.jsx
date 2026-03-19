@@ -1128,6 +1128,10 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
     setSyncResult(null);
     try {
       const res = await chatService.sincronizarContatos();
+      if (res?.ok === false) {
+        setSyncResult({ error: res.message || "WhatsApp não está conectado. Conecte em Integrações." });
+        return;
+      }
       setSyncResult(res);
       onSyncContacts?.();
     } catch (e) {
