@@ -7,6 +7,7 @@ import {
   postZapiConnectRestart,
   getZapiOperationalStatus,
 } from "../api/zapiIntegration";
+import { syncContacts, syncGroups, syncAll } from "../api/whatsappIntegration";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import "../components/layout/breadcrumb.css";
 import "./IA.css";
@@ -28,6 +29,171 @@ function ConnectedSyncStatus({ opStatus, onRefresh }) {
       <button type="button" className="ia-btn ia-btn--outline" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => navigate("/configuracoes?tab=clientes")}>
         Ir para Clientes
       </button>
+    </div>
+  );
+}
+
+function SyncButtons({ showToast, onRefreshOpStatus }) {
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
+
+  const handleSyncContacts = async () => {
+    setLoadingContacts(true);
+    try {
+      const res = await syncContacts();
+      if (res?.ok !== false) {
+        const inserted = res?.inserted ?? res?.criados ?? 0;
+        const updated = res?.updated ?? res?.atualizados ?? 0;
+        showToast?.({
+          type: "success",
+          title: "Contatos sincronizados",
+          message: `${inserted} inseridos, ${updated} atualizados`,
+        });
+        onRefreshOpStatus?.();
+      } else {
+        showToast?.({ type: "error", title: "Erro", message: res?.message || "Erro ao sincronizar contatos" });
+      }
+    } catch (e) {
+      const status = e?.response?.status;
+      const data = e?.response?.data;
+      if (status === 404) {
+        showToast?.({
+          type: "error",
+          title: "UltraMsg não configurado",
+          message: "Configure o UltraMsg em Integrações para sincronizar contatos.",
+        });
+      } else if (status === 429) {
+        const sec = data?.retryAfterSeconds ?? 60;
+        showToast?.({
+          type: "warning",
+          title: "Muitas requisições",
+          message: `Aguarde ${sec} segundos antes de tentar novamente.`,
+        });
+      } else {
+        showToast?.({ type: "error", title: "Erro", message: data?.error || e?.message || "Erro ao sincronizar contatos" });
+      }
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const handleSyncGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const res = await syncGroups();
+      if (res?.ok !== false) {
+        const inserted = res?.inserted ?? 0;
+        const updated = res?.updated ?? 0;
+        showToast?.({
+          type: "success",
+          title: "Grupos sincronizados",
+          message: `${inserted} inseridos, ${updated} atualizados`,
+        });
+        onRefreshOpStatus?.();
+      } else {
+        showToast?.({ type: "error", title: "Erro", message: res?.message || "Erro ao sincronizar grupos" });
+      }
+    } catch (e) {
+      const status = e?.response?.status;
+      const data = e?.response?.data;
+      if (status === 404) {
+        showToast?.({
+          type: "error",
+          title: "UltraMsg não configurado",
+          message: "Configure o UltraMsg em Integrações para sincronizar grupos.",
+        });
+      } else if (status === 429) {
+        const sec = data?.retryAfterSeconds ?? 60;
+        showToast?.({
+          type: "warning",
+          title: "Muitas requisições",
+          message: `Aguarde ${sec} segundos antes de tentar novamente.`,
+        });
+      } else {
+        showToast?.({ type: "error", title: "Erro", message: data?.error || e?.message || "Erro ao sincronizar grupos" });
+      }
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    setLoadingAll(true);
+    try {
+      const res = await syncAll();
+      if (res?.ok !== false) {
+        const contacts = res?.contacts ?? {};
+        const groups = res?.groups ?? {};
+        const chats = res?.chats ?? {};
+        const msg = [
+          `Contatos: ${contacts.inserted ?? 0} novos, ${contacts.updated ?? 0} atualizados`,
+          `Grupos: ${groups.inserted ?? 0} novos, ${groups.updated ?? 0} atualizados`,
+          `Chats: ${chats.inserted ?? 0} novos, ${chats.updated ?? 0} atualizados`,
+        ].join(" | ");
+        showToast?.({ type: "success", title: "Sincronização concluída", message: msg });
+        onRefreshOpStatus?.();
+      } else {
+        showToast?.({ type: "error", title: "Erro", message: res?.message || "Erro ao sincronizar" });
+      }
+    } catch (e) {
+      const status = e?.response?.status;
+      const data = e?.response?.data;
+      if (status === 404) {
+        showToast?.({
+          type: "error",
+          title: "UltraMsg não configurado",
+          message: "Configure o UltraMsg em Integrações para sincronizar.",
+        });
+      } else if (status === 429) {
+        const sec = data?.retryAfterSeconds ?? 60;
+        showToast?.({
+          type: "warning",
+          title: "Muitas requisições",
+          message: `Aguarde ${sec} segundos antes de tentar novamente.`,
+        });
+      } else {
+        showToast?.({ type: "error", title: "Erro", message: data?.error || e?.message || "Erro ao sincronizar" });
+      }
+    } finally {
+      setLoadingAll(false);
+    }
+  };
+
+  const anyLoading = loadingContacts || loadingGroups || loadingAll;
+
+  return (
+    <div className="zapi-sync-section" style={{ marginTop: 20, padding: 16, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+      <h4 style={{ margin: "0 0 12px 0", fontSize: 15 }}>Sincronização</h4>
+      <p className="ia-muted" style={{ margin: "0 0 12px 0", fontSize: 13 }}>
+        Atualize contatos, grupos e chats a partir do celular conectado.
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button
+          type="button"
+          className="ia-btn ia-btn--outline"
+          disabled={anyLoading}
+          onClick={handleSyncContacts}
+        >
+          {loadingContacts ? "Sincronizando…" : "Sincronizar contatos"}
+        </button>
+        <button
+          type="button"
+          className="ia-btn ia-btn--outline"
+          disabled={anyLoading}
+          onClick={handleSyncGroups}
+        >
+          {loadingGroups ? "Sincronizando…" : "Sincronizar grupos"}
+        </button>
+        <button
+          type="button"
+          className="ia-btn ia-btn--primary"
+          disabled={anyLoading}
+          onClick={handleSyncAll}
+        >
+          {loadingAll ? "Sincronizando…" : "Sincronizar tudo"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -375,6 +541,10 @@ export default function ConnectWhatsApp() {
                   <ConnectedSyncStatus
                     opStatus={opStatus}
                     onRefresh={() => getZapiOperationalStatus().then((d) => { if (isMountedRef.current) setOpStatus(d); })}
+                  />
+                  <SyncButtons
+                    showToast={showToast}
+                    onRefreshOpStatus={() => getZapiOperationalStatus().then((d) => { if (isMountedRef.current) setOpStatus(d); })}
                   />
                 </div>
               </div>
