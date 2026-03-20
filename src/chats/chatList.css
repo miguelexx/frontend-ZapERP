@@ -696,7 +696,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* -----------------------------------------------------------------------
-   Z-API alert (desconectado) — usa tokens do Design System
+   UltraMSG alert (desconectado) — usa tokens do Design System
 ----------------------------------------------------------------------- */
 .chat-list-zapi-alert {
   background: var(--ds-warning-soft);

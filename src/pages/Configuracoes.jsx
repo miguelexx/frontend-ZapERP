@@ -468,7 +468,7 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
       <SecaoEmpresasWhatsapp lista={empresasWhatsapp} onRefresh={onRefresh} />
       <div className="zapi-connectHint">
         <div>
-          <strong>Conexão Z-API / WhatsApp</strong>
+          <strong>Conexão UltraMSG / WhatsApp</strong>
           <p className="ia-muted" style={{ margin: "4px 0 0" }}>
             Use a página dedicada para conectar o WhatsApp via QR Code, como no WhatsApp Web.
           </p>
@@ -1140,7 +1140,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
     try {
       const res = await chatService.sincronizarContatos();
       if (res?.ok === false) {
-        setSyncResult({ error: res.message || "WhatsApp não está conectado. Conecte em Integrações." });
+        setSyncResult({ error: res.message || "Erro ao sincronizar. Verifique a configuração do UltraMSG em Integrações." });
         return;
       }
       setSyncResult(res);
@@ -1253,7 +1253,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
       <div className="ia-field" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <p className="ia-muted" style={{ margin: 0 }}>
-            Importe nomes e fotos de perfil do WhatsApp conectado (celular).
+            Importe nomes e fotos de perfil da agenda do celular via UltraMSG.
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="ia-muted">Auto-sync ao conectar</span>
@@ -1290,7 +1290,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
         )}
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
-        <p className="ia-muted">Atualize as fotos de perfil de todos os clientes a partir do WhatsApp (Z-API).</p>
+        <p className="ia-muted">Atualize as fotos de perfil de todos os clientes a partir do WhatsApp (UltraMSG).</p>
         <button
           type="button"
           className="ia-btn ia-btn--outline"

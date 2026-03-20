@@ -486,7 +486,7 @@ export default function ConnectWhatsApp() {
         <Breadcrumb items={[{ label: "Configurações", to: "/configuracoes" }, { label: "Conectar WhatsApp" }]} />
         <h1 className="ia-title">Conectar WhatsApp</h1>
         <p className="ia-subtitle">
-          Conecte a instância Z-API da sua empresa via QR Code, como no WhatsApp Web.
+          Conecte a instância UltraMSG da sua empresa via QR Code, como no WhatsApp Web.
         </p>
       </header>
 
@@ -512,12 +512,12 @@ export default function ConnectWhatsApp() {
           ) : !hasInstance ? (
             <div className="zapi-empty">
               <h3>Sua empresa ainda não tem instância configurada</h3>
-              <p>Contate o suporte para configurar a instância Z-API da sua empresa.</p>
+              <p>Contate o suporte para configurar a instância UltraMSG da sua empresa.</p>
             </div>
           ) : needsRestore ? (
             <div className="zapi-empty">
               <h3>Instância precisa ser reiniciada</h3>
-              <p>A instância Z-API precisa ser reiniciada antes de gerar um novo QR Code.</p>
+              <p>A instância UltraMSG precisa ser reiniciada antes de gerar um novo QR Code.</p>
               <button
                 type="button"
                 className="ia-btn ia-btn--primary"
@@ -710,7 +710,7 @@ export default function ConnectWhatsApp() {
             </div>
             <div className="wa-modal-body">
               <p style={{ marginBottom: 12 }}>
-                Tem certeza que deseja reiniciar a instância Z-API desta empresa?
+                Tem certeza que deseja reiniciar a instância UltraMSG desta empresa?
               </p>
               <p className="ia-muted" style={{ marginBottom: 0 }}>
                 As conexões ativas podem cair por alguns instantes. Um novo QR Code poderá ser

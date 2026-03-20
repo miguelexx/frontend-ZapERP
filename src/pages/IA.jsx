@@ -1029,7 +1029,7 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
               </select>
             </div>
             <div className="ia-field">
-              <label title="Intervalo mínimo entre envios de mensagens automáticas. Evita bloqueio WhatsApp/Z-API. 0 = sem delay.">
+              <label title="Intervalo mínimo entre envios de mensagens automáticas. Evita bloqueio WhatsApp/UltraMSG. 0 = sem delay.">
                 Intervalo entre envios (segundos)
               </label>
               <input

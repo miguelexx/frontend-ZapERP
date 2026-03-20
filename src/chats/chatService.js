@@ -81,19 +81,19 @@ export async function abrirConversaPorTelefone(nome, telefone) {
   return abrirConversaCliente(clienteId);
 }
 
-/** Sincroniza contatos do celular conectado (Z-API Get contacts) → clientes + fotos */
+/** Sincroniza contatos do celular conectado (UltraMSG Get contacts) → clientes + fotos */
 export async function sincronizarContatos() {
   const { data } = await api.post("/chats/sincronizar-contatos");
   return data;
 }
 
-/** Sincroniza fotos de perfil de todos os clientes (Z-API Get profile-picture) */
+/** Sincroniza fotos de perfil de todos os clientes (UltraMSG Get profile-picture) */
 export async function sincronizarFotosPerfil() {
   const { data } = await api.post("/chats/sincronizar-fotos-perfil");
   return data;
 }
 
-/** Verifica se a instância Z-API está conectada ao WhatsApp */
+/** Verifica se a instância UltraMSG está conectada ao WhatsApp */
 export async function getZapiStatus() {
   const { data } = await api.get("/chats/zapi-status");
   return data;

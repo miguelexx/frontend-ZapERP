@@ -1043,7 +1043,7 @@ export default function ChatList() {
         showToast({
           type: "warning",
           title: "Sincronizar contatos",
-          message: res.message || "WhatsApp não está conectado. Conecte em Integrações.",
+          message: res.message || "Erro ao sincronizar. Verifique a configuração do UltraMSG em Integrações.",
         });
         return;
       }

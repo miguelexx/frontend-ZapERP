@@ -474,7 +474,7 @@ export function initSocket(token) {
         syncToastJaMostradoNestaSessao = true
         useNotificationStore.getState().showToast({
           type: "success",
-          title: "Z-API",
+          title: "UltraMSG",
           message: `Contatos sincronizados: ${total} (${criados} novos, ${atualizados} atualizados).`,
         })
       }
