@@ -1084,11 +1084,11 @@ const Bubble = memo(function Bubble({
   );
 
   return (
-    <div
-      className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}`}
-      data-msg-id={msg?.id}
-      data-group-start={showRemetente && !out ? "1" : "0"}
-    >
+      <div
+        className={`wa-row ${out ? "wa-row-out" : "wa-row-in"}${localReaction ? " wa-row--hasReaction" : ""}`}
+        data-msg-id={msg?.id}
+        data-group-start={showRemetente && !out ? "1" : "0"}
+      >
       {selectMode ? (
         <button
           type="button"

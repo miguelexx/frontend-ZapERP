@@ -306,7 +306,7 @@ export function initSocket(token) {
        incUnread só para direcao 'in' (mensagem recebida)
     ---------------------------------- */
     if (!isAberta) {
-      if (jaNaLista && msg.direcao === "in") {
+      if (jaNaLista && !msg.fromMe && msg.direcao === "in") {
         if (typeof chatStore.incUnreadComBadge === "function") {
           chatStore.incUnreadComBadge(conversaId, 1)
         } else {
@@ -315,7 +315,7 @@ export function initSocket(token) {
       }
       updateDocumentTitleFromChats()
 
-      if (msg.direcao === "in") {
+      if (!msg.fromMe && msg.direcao === "in") {
         const contato = getChatDisplayName(conversaId)
         const tipo = (msg.tipo || "").toLowerCase()
         const textoBruto = (msg.texto || "").trim()
