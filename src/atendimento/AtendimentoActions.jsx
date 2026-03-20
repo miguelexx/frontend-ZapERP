@@ -58,11 +58,15 @@ export default function AtendimentoActions() {
 
   // Validação de setor: conversa com setor só pode ser assumida por usuário do mesmo setor (admin ignora)
   const convDepId = conversa?.departamento_id ?? null;
-  const userDepId = user?.departamento_id ?? null;
+  const userDepIds = Array.isArray(user?.departamento_ids)
+    ? user.departamento_ids.map((id) => Number(id))
+    : user?.departamento_id != null
+      ? [Number(user.departamento_id)]
+      : [];
   const mesmaSetorOuSemRestricao =
     isPrivileged ||
     convDepId == null ||
-    (userDepId != null && Number(convDepId) === Number(userDepId));
+    (userDepIds.length > 0 && userDepIds.includes(Number(convDepId)));
 
   // ✅ REGRAS: conversa aberta = sem responsável (apenas setor); só mostra Assumir quando em fila e disponível
   const podeAssumir =

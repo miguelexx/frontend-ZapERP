@@ -505,6 +505,17 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
   );
 }
 
+/** Formata departamentos do usuário para exibição (array ou objeto único) */
+function formatUserDepartamentos(u) {
+  if (!u) return "—";
+  const deps = u.departamentos;
+  if (Array.isArray(deps) && deps.length > 0) {
+    return deps.map((d) => d?.nome).filter(Boolean).join(", ") || "—";
+  }
+  if (deps?.nome) return deps.nome;
+  return "—";
+}
+
 function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew, onEditarPermissoes }) {
   return (
     <div className="ia-section">
@@ -526,7 +537,7 @@ function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew, onEd
             <th>Nome</th>
             <th>Email</th>
             <th>Perfil</th>
-            <th>Setor</th>
+            <th>Setores</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -544,7 +555,7 @@ function SecaoUsuarios({ usuarios, departamentos, onRefresh, onEdit, onNew, onEd
               <td>{u.nome}</td>
               <td>{u.email}</td>
               <td>{u.perfil || "atendente"}</td>
-              <td>{u.departamentos?.nome || "—"}</td>
+              <td><span className="config-departamentos-cell">{formatUserDepartamentos(u)}</span></td>
               <td>{u.ativo ? "Ativo" : "Inativo"}</td>
               <td>
                 <button className="ia-btn ia-btn--small ia-btn--outline" onClick={() => onEdit(u)}>Editar</button>
@@ -1470,13 +1481,23 @@ function SecaoAuditoria({ auditoria, onRefresh }) {
   );
 }
 
+/** Normaliza departamento_ids do usuário para array de números */
+function normalizeDepartamentoIds(u) {
+  if (!u) return [];
+  const ids = u.departamento_ids;
+  if (Array.isArray(ids)) return ids.map((id) => Number(id)).filter((n) => !Number.isNaN(n));
+  if (u.departamento_id != null) return [Number(u.departamento_id)];
+  if (Array.isArray(u.departamentos)) return u.departamentos.map((d) => Number(d?.id)).filter((n) => !Number.isNaN(n));
+  return [];
+}
+
 function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
   const isNew = !usuario?.id;
   const [nome, setNome] = useState(usuario?.nome || "");
   const [email, setEmail] = useState(usuario?.email || "");
   const [senha, setSenha] = useState("");
   const [perfil, setPerfil] = useState(usuario?.perfil || "atendente");
-  const [departamento_id, setDepartamento_id] = useState(usuario?.departamento_id != null ? String(usuario.departamento_id) : "");
+  const [departamento_ids, setDepartamento_ids] = useState(() => normalizeDepartamentoIds(usuario));
   const [ativo, setAtivo] = useState(usuario?.ativo !== false);
 
   useEffect(() => {
@@ -1485,10 +1506,10 @@ function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
       setEmail(usuario.email || "");
       setSenha("");
       setPerfil(usuario.perfil || "atendente");
-      setDepartamento_id(usuario.departamento_id != null ? String(usuario.departamento_id) : "");
+      setDepartamento_ids(normalizeDepartamentoIds(usuario));
       setAtivo(usuario.ativo !== false);
     }
-  }, [usuario?.id, usuario?.nome, usuario?.email, usuario?.perfil, usuario?.departamento_id, usuario?.ativo]);
+  }, [usuario?.id, usuario?.nome, usuario?.email, usuario?.perfil, usuario?.departamento_id, usuario?.departamento_ids, usuario?.departamentos, usuario?.ativo]);
   const [saving, setSaving] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
 
@@ -1501,10 +1522,12 @@ function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
     }
     setSaving(true);
     try {
+      const payload = { nome: nome.trim(), email: email.trim(), perfil, departamento_ids: departamento_ids, ativo };
       if (isNew) {
-        await cfg.criarUsuario({ nome: nome.trim(), email: email.trim(), senha: senha.trim(), perfil, departamento_id: departamento_id || null, ativo });
+        payload.senha = senha.trim();
+        await cfg.criarUsuario(payload);
       } else {
-        await cfg.atualizarUsuario(usuario.id, { nome: nome.trim(), email: email.trim(), perfil, departamento_id: departamento_id || null, ativo });
+        await cfg.atualizarUsuario(usuario.id, { nome: payload.nome, email: payload.email, perfil, departamento_ids: payload.departamento_ids, ativo: payload.ativo });
         if (senha.trim()) await cfg.redefinirSenha(usuario.id, senha.trim());
       }
       onSaved();
@@ -1541,12 +1564,31 @@ function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
             </select>
           </div>
           <div className="ia-field">
-            <label>Setor (Departamento)</label>
-            <select className="ia-select" value={departamento_id} onChange={(e) => setDepartamento_id(e.target.value)}>
-              <option value="">Nenhum</option>
-              {departamentos.map((d) => <option key={d.id} value={String(d.id)}>{d.nome}</option>)}
-            </select>
-            <span className="ia-muted" style={{ fontSize: 12, marginTop: 4, display: "block" }}>Atendentes só veem conversas do setor. Efeito no próximo login.</span>
+            <label>Setores (Departamentos)</label>
+            <div className="config-departamentos-multiselect">
+              {departamentos.map((d) => {
+                const depId = Number(d.id);
+                const checked = departamento_ids.includes(depId);
+                return (
+                  <label key={d.id} className="config-departamento-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setDepartamento_ids((prev) =>
+                          checked ? prev.filter((id) => id !== depId) : [...prev, depId]
+                        );
+                      }}
+                    />
+                    <span>{d.nome}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {departamentos.length === 0 && (
+              <p className="ia-muted" style={{ fontSize: 12, marginTop: 4 }}>Cadastre departamentos na aba Departamentos.</p>
+            )}
+            <span className="ia-muted" style={{ fontSize: 12, marginTop: 4, display: "block" }}>Atendentes só veem conversas dos setores selecionados. Efeito no próximo login.</span>
           </div>
           {!isNew && (
             <div className="ia-checkbox-row">

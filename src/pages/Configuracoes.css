@@ -477,3 +477,30 @@
   cursor: pointer;
 }
 
+/* Multi-select de departamentos no modal de usuário */
+.config-departamentos-multiselect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 12px 0;
+}
+
+.config-departamento-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.config-departamento-checkbox input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.config-departamentos-cell {
+  font-size: 13px;
+  color: var(--ds-text-secondary, #475569);
+}
+

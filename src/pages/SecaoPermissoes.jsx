@@ -10,6 +10,17 @@ const VALOR_GRANT = "grant";
 const VALOR_DENY = "deny";
 const VALOR_DEFAULT = "default";
 
+/** Formata departamentos do usuário para exibição (array ou objeto único) */
+function formatUsuarioDepartamentos(u) {
+  if (!u) return "—";
+  const deps = u.departamentos;
+  if (Array.isArray(deps) && deps.length > 0) {
+    return deps.map((d) => d?.nome).filter(Boolean).join(", ") || "—";
+  }
+  if (deps?.nome) return deps.nome;
+  return "—";
+}
+
 /**
  * Converte catálogo em lista plana agrupada por categoria.
  * Aceita formatos:
@@ -77,7 +88,7 @@ export default function SecaoPermissoes({
   onRefresh,
 }) {
   const [usuarioId, setUsuarioId] = useState(usuarioIdInicial);
-  const [usuarioInfo, setUsuarioInfo] = useState(null); // { nome, email, perfil, departamento_id }
+  const [usuarioInfo, setUsuarioInfo] = useState(null); // { nome, email, perfil, departamento_ids, departamentos }
   const [catalogo, setCatalogo] = useState([]);
   const [permissoesUsuario, setPermissoesUsuario] = useState({});
   const [localOverrides, setLocalOverrides] = useState({}); // { codigo: "grant"|"deny"|"default" }
@@ -285,10 +296,9 @@ export default function SecaoPermissoes({
           <span>{usuarioInfo.email || "—"}</span>
           <span>Perfil: {usuarioInfo.perfil || "atendente"}</span>
           <span>
-            Setor:{" "}
-            {usuarioInfo?.departamentos?.nome ??
-              usuarioInfo?.setor ??
-              usuarios.find((u) => String(u.id) === String(usuarioId))?.departamentos?.nome ??
+            Setores:{" "}
+            {formatUsuarioDepartamentos(usuarioInfo) ||
+              formatUsuarioDepartamentos(usuarios.find((u) => String(u.id) === String(usuarioId))) ||
               "—"}
           </span>
         </div>

@@ -2208,9 +2208,8 @@ export default function ConversaView() {
 
       setSending(true);
       try {
-        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        // Não definir Content-Type — o axios define automaticamente multipart/form-data com boundary
+        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData);
 
         clearPending();
         if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {

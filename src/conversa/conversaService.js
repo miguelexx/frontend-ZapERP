@@ -108,9 +108,8 @@ export async function encaminharArquivo(conversaId, msg, getMediaUrl) {
   formData.append("file", file);
   formData.append("encaminhado", "true");
 
-  const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  // Não definir Content-Type — axios define automaticamente multipart/form-data com boundary
+  const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData);
   return data;
 }
 
