@@ -1761,6 +1761,91 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ===========================================
+   LOCALIZAÇÃO (tipo location) — clicável para Google Maps
+   =========================================== */
+.wa-bubble-locationCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 2px;
+  color: var(--wa-text);
+  font-size: 13px;
+  max-width: 100%;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.wa-bubble-locationCard:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.wa-bubble-locationCard--out:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.wa-bubble-locationLink {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+  border-radius: 4px;
+  padding: 2px 0;
+}
+
+.wa-bubble-locationLink:hover {
+  color: var(--wa-green);
+}
+
+.wa-bubble-locationLink:hover .wa-bubble-locationHint {
+  text-decoration: underline;
+}
+
+.wa-bubble-locationIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.wa-bubble-locationText {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.wa-bubble-locationHint {
+  font-size: 11px;
+  color: var(--wa-text-muted);
+  transition: color 0.15s ease;
+}
+
+.wa-bubble-locationLink:hover .wa-bubble-locationHint {
+  color: var(--wa-green);
+}
+
+.wa-bubble-locationTimeMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--wa-text-muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.wa-bubble-locationTime {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] .wa-bubble-locationCard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .wa-bubble-locationCard--out:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* Reação já enviada — embaixo do balão, sempre visível (estilo WhatsApp) */
 .wa-bubble-out .wa-bubble-reaction {
   left: 6px;

@@ -620,6 +620,40 @@ function ContactBubbleContent({
   );
 }
 
+/** Mensagem de localização clicável — abre Google Maps */
+function LocationBubbleContent({ msg, selectMode, isGroup, out }) {
+  const texto = safeString(msg?.texto) || "Ver localização";
+  const url =
+    (msg?.url && String(msg.url).trim()) ||
+    `https://www.google.com/maps/search/${encodeURIComponent(texto === "Ver localização" ? "localização" : texto)}`;
+
+  const handleCardClick = (e) => {
+    if (!selectMode) e.stopPropagation();
+  };
+
+  return (
+    <div
+      className={`wa-bubble-locationCard ${out ? "wa-bubble-locationCard--out" : ""}`}
+      onClick={handleCardClick}
+    >
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="wa-bubble-locationLink"
+      >
+        <span className="wa-bubble-locationIcon" aria-hidden="true">📍</span>
+        <span className="wa-bubble-locationText">{texto}</span>
+        <span className="wa-bubble-locationHint">Clique para abrir no mapa →</span>
+      </a>
+      <span className="wa-bubble-locationTimeMeta">
+        <span className="wa-bubble-locationTime">{formatHora(msg?.criado_em)}</span>
+        <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
+      </span>
+    </div>
+  );
+}
+
 async function copyTextToClipboard(text) {
   const t = safeString(text);
   if (!t) return false;
@@ -667,6 +701,7 @@ function snippetFromMsg(msg) {
   if (tipo === "sticker") return "(figurinha)";
   if (tipo === "arquivo") return msg?.nome_arquivo ? String(msg.nome_arquivo) : "(arquivo)";
   if (tipo === "contact") return msg?.contact_meta?.nome || msg?.texto || "(contato)";
+  if (tipo === "location") return msg?.texto || "(localização)";
   return "(mídia)";
 }
 
@@ -945,6 +980,7 @@ const Bubble = memo(function Bubble({
   const isAudio = msg?.tipo === "audio";
   const isVideo = msg?.tipo === "video";
   const isContact = msg?.tipo === "contact" && !!msg?.contact_meta;
+  const isLocation = msg?.tipo === "location";
   const texto = safeString(msg?.texto);
   const hasText = !!texto;
   const mediaUrl = getMediaUrl(msg?.url, msg?.url_absoluta);
@@ -1112,6 +1148,7 @@ const Bubble = memo(function Bubble({
           isImg && !isSticker ? "image-message" : "",
           isFile ? "wa-bubble-fileWrap" : "",
           isContact ? "wa-bubble-contactWrap" : "",
+          isLocation ? "wa-bubble-locationWrap" : "",
           isAudio ? "wa-bubble-audio audio-message" : "",
           isVideo ? "wa-bubble-video" : "",
           selected ? "isSelected" : "",
@@ -1220,6 +1257,8 @@ const Bubble = memo(function Bubble({
                   isGroup={isGroup}
                   out={out}
                 />
+              ) : isLocation ? (
+                <LocationBubbleContent msg={msg} selectMode={selectMode} isGroup={isGroup} out={out} />
               ) : isContact ? (
                 <ContactBubbleContent
                   msg={msg}
@@ -1304,6 +1343,8 @@ const Bubble = memo(function Bubble({
               isGroup={isGroup}
               out={out}
             />
+          ) : isLocation ? (
+            <LocationBubbleContent msg={msg} selectMode={selectMode} isGroup={isGroup} out={out} />
           ) : isContact ? (
             <ContactBubbleContent
               msg={msg}

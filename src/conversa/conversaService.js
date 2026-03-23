@@ -162,6 +162,17 @@ export async function puxarChatFila() {
   return data; // { conversa_id }
 }
 
+export async function enviarLocalizacao(conversaId, { address, lat, lng }) {
+  if (conversaId == null) throw new Error("conversaId obrigatório");
+  const body = {
+    lat: Number(lat),
+    lng: Number(lng),
+  };
+  if (address != null && String(address).trim()) body.address = String(address).trim();
+  const { data } = await api.post(`/chats/${conversaId}/localizacao`, body);
+  return data;
+}
+
 export async function enviarContato(conversaId, cliente_id, messageId) {
   const body = { cliente_id };
   if (messageId) body.messageId = messageId;
