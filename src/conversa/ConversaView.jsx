@@ -213,7 +213,8 @@ function isAudioFile(file) {
   return /\.(mp3|ogg|wav|m4a|webm|aac|opus)$/i.test(name);
 }
 
-function getMediaUrl(url) {
+function getMediaUrl(url, urlAbsoluta) {
+  if (urlAbsoluta) return urlAbsoluta;
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   const base = getApiBaseUrl();
@@ -946,7 +947,7 @@ const Bubble = memo(function Bubble({
   const isContact = msg?.tipo === "contact" && !!msg?.contact_meta;
   const texto = safeString(msg?.texto);
   const hasText = !!texto;
-  const mediaUrl = getMediaUrl(msg?.url);
+  const mediaUrl = getMediaUrl(msg?.url, msg?.url_absoluta);
   const remetente = showRemetente && !out && (msg?.remetente_nome || msg?.remetente_telefone);
   const isPlaceholderCaption =
     !texto ||
@@ -2772,7 +2773,7 @@ export default function ConversaView() {
     if (!m) return "";
     const t = safeString(m?.texto);
     if (t) return `[Encaminhado]\n${t}`;
-    const url = getMediaUrl(m?.url);
+    const url = getMediaUrl(m?.url, m?.url_absoluta);
     const nome = safeString(m?.nome_arquivo);
     if (url) return `[Encaminhado]\n${nome ? `${nome}\n` : ""}${url}`;
     return "[Encaminhado]\n(mídia)";
