@@ -137,6 +137,40 @@ function isPlaceholderFileText(txt) {
   return t === "(arquivo)" || t === "(documento)";
 }
 
+/** Detecta se mensagem é contato compartilhado (vCard) */
+function isContactMessage(last) {
+  const tipo = String(last?.tipo || "").toLowerCase();
+  if (tipo === "contact") return true;
+  const txt = last?.texto ?? last?.conteudo ?? last?.body ?? "";
+  return typeof txt === "string" && txt.includes("BEGIN:VCARD");
+}
+
+/** Extrai nome do vCard (FN:) quando contact_meta for null */
+function extrairNomeVCard(texto) {
+  if (!texto || typeof texto !== "string") return null;
+  const m = texto.match(/FN:([^\r\n]+)/i);
+  return m ? m[1].trim() : null;
+}
+
+/** Extrai primeiro telefone do vCard (TEL:) quando contact_meta for null */
+function extrairTelefoneVCard(texto) {
+  if (!texto || typeof texto !== "string") return null;
+  const m = texto.match(/TEL[^:]*:([^\r\n]+)/i);
+  return m ? m[1].trim() : null;
+}
+
+/** Formata telefone para preview compacto */
+function formatPhonePreview(phone) {
+  if (!phone) return "";
+  const p = String(phone).replace(/\D/g, "");
+  if (p.startsWith("55") && p.length > 11) {
+    const ddd = p.slice(2, 4);
+    const rest = p.slice(4);
+    if (rest.length >= 8) return `+55 ${ddd} ${rest.slice(0, 5)}-${rest.slice(5)}`;
+  }
+  return p.length >= 10 ? `+${p}` : String(phone);
+}
+
 function PreviewIcon({ type, className = "" }) {
   const t = String(type || "").toLowerCase();
   if (t === "audio") {
@@ -185,6 +219,16 @@ function PreviewIcon({ type, className = "" }) {
         <path
           fill="currentColor"
           d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-6Zm1 7V3.5L18.5 9H15Z"
+        />
+      </svg>
+    );
+  }
+  if (t === "contact") {
+    return (
+      <svg className={`chat-preview-ico ${className}`} width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-7-2a3 3 0 0 0 3-3a3 3 0 0 0-6 0a3 3 0 0 0 3 3Zm0-10a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5Zm0 8.5a4 4 0 0 1 3.47-2a.5.5 0 0 1 .86.5a5.5 5.5 0 0 1-9.66 0a.5.5 0 0 1 .86-.5A4 4 0 0 1 12 15.5Z"
         />
       </svg>
     );
@@ -264,12 +308,8 @@ function loadAudioDuration(url) {
 }
 
 function getPreview(chat, { audioDurationSec } = {}) {
-  const ultima = chat?.ultima_mensagem;
-  if (ultima && (ultima.texto ?? ultima.conteudo ?? ultima.body)) {
-    const t = ultima.texto ?? ultima.conteudo ?? ultima.body ?? "";
-    if (t) return String(t);
-  }
-  const last = getLastMessage(chat);
+  const ultima = chat?.ultima_mensagem || chat?.ultima_mensagem_preview;
+  const last = ultima || getLastMessage(chat);
   if (!last) return "Sem mensagens";
 
   const outPrefix = String(last?.direcao || "").toLowerCase() === "out" ? "Você: " : "";
@@ -282,7 +322,17 @@ function getPreview(chat, { audioDurationSec } = {}) {
     (isPlaceholderImageText(txt) ? "imagem" : "") ||
     (isPlaceholderVideoText(txt) ? "video" : "") ||
     (isPlaceholderStickerText(txt) ? "sticker" : "") ||
-    (isPlaceholderFileText(txt) ? "arquivo" : "");
+    (isPlaceholderFileText(txt) ? "arquivo" : "") ||
+    (isContactMessage(last) ? "contact" : "");
+
+  if (tipo === "contact") {
+    const meta = last?.contact_meta;
+    const nome = meta?.nome || extrairNomeVCard(txt) || "Contato";
+    const telefone = meta?.telefone || extrairTelefoneVCard(txt);
+    const phoneStr = telefone ? ` · ${formatPhonePreview(telefone)}` : "";
+    return `${outPrefix}📇 Contato: ${nome}${phoneStr}`;
+  }
+
   const isPlaceholder =
     !txt ||
     txt === "(mídia)" ||
@@ -374,7 +424,8 @@ function PreviewLine({ chat, audioDurationSec }) {
     (isPlaceholderImageText(txt) ? "imagem" : "") ||
     (isPlaceholderVideoText(txt) ? "video" : "") ||
     (isPlaceholderStickerText(txt) ? "sticker" : "") ||
-    (isPlaceholderFileText(txt) ? "arquivo" : "");
+    (isPlaceholderFileText(txt) ? "arquivo" : "") ||
+    (isContactMessage(last) ? "contact" : "");
 
   const isPlaceholder =
     !txt ||
@@ -434,6 +485,46 @@ function PreviewLine({ chat, audioDurationSec }) {
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="arquivo" />
         <span className="chat-list-previewText">{atendentePrefix}{n || "Documento"}</span>
+      </span>
+    );
+  }
+
+  if (tipo === "contact") {
+    const meta = last?.contact_meta;
+    const nome = meta?.nome || extrairNomeVCard(txt) || "Contato";
+    const telefone = meta?.telefone || extrairTelefoneVCard(txt);
+    const fotoPerfil = meta?.foto_perfil && String(meta.foto_perfil).trim().startsWith("http")
+      ? String(meta.foto_perfil).trim()
+      : null;
+    const iniciais = nome
+      .trim()
+      .split(/\s+/)
+      .map((s) => s[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "?";
+
+    const phoneStr = telefone ? ` · ${formatPhonePreview(telefone)}` : "";
+    return (
+      <span className="chat-list-previewLine chat-list-previewLine--contact">
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        <PreviewIcon type="contact" className={out ? "is-accent" : ""} />
+        <span className="chat-list-previewContact">
+          {fotoPerfil ? (
+            <img
+              src={fotoPerfil}
+              alt=""
+              className="chat-list-previewContactAvatar"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+          ) : (
+            <span className="chat-list-previewContactInitials" aria-hidden="true">{iniciais}</span>
+          )}
+          <span className="chat-list-previewContactText" title={`${nome}${phoneStr}`}>
+            {atendentePrefix}{nome}{phoneStr}
+          </span>
+        </span>
       </span>
     );
   }

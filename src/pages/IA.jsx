@@ -25,6 +25,7 @@ const DEFAULT_CONFIG = {
   },
   automacoes: {
     encerrar_automatico_min: 0,
+    mensagem_encerramento_inatividade: "-conversa encerrada por conta de inatividade-",
     transferir_para_humano_apos_bot: true,
     limite_mensagens_bot: 5,
     auto_assumir: false,
@@ -492,6 +493,22 @@ function SecaoAutomacoes({ config, onSave, saving }) {
           onChange={(e) => setV((c) => ({ ...c, encerrar_automatico_min: Number(e.target.value) || 0 }))}
         />
       </div>
+
+      {(v.encerrar_automatico_min ?? 0) > 0 && (
+        <div className="ia-field">
+          <label>Mensagem ao encerrar por inatividade</label>
+          <textarea
+            className="ia-textarea"
+            rows={3}
+            value={v.mensagem_encerramento_inatividade ?? ""}
+            onChange={(e) => setV((c) => ({ ...c, mensagem_encerramento_inatividade: e.target.value }))}
+            placeholder="-conversa encerrada por conta de inatividade-"
+          />
+          <p className="ia-muted" style={{ marginTop: 6, marginBottom: 0, fontSize: 12 }}>
+            Enviada ao cliente quando a conversa é fechada automaticamente por não ter respondido ao chatbot dentro do tempo configurado. Exceção: não encerra quando a última mensagem do bot foi a de fora do horário.
+          </p>
+        </div>
+      )}
 
       <div className="ia-checkbox-row">
         <input
