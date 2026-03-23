@@ -105,11 +105,13 @@ export async function encaminharArquivo(conversaId, msg, getMediaUrl) {
   const file = new File([blob], nomeArquivo, { type: blob.type || "application/octet-stream" });
 
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", file, nomeArquivo);
   formData.append("encaminhado", "true");
 
-  // Não definir Content-Type — axios define automaticamente multipart/form-data com boundary
-  const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData);
+  // Content-Type: false remove o header para o browser definir multipart/form-data com boundary.
+  const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
+    headers: { "Content-Type": false },
+  });
   return data;
 }
 

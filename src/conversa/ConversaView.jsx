@@ -2204,12 +2204,16 @@ export default function ConversaView() {
       }
 
       const formData = new FormData();
-      formData.append("file", file);
+      // Inclui nome quando disponível (File tem .name; Blob precisa do 3º parâmetro)
+      const nomeArquivo = file?.name || (file?.type?.includes("ogg") ? "audio.ogg" : "audio.webm");
+      formData.append("file", file, nomeArquivo);
 
       setSending(true);
       try {
-        // Não definir Content-Type — o axios define automaticamente multipart/form-data com boundary
-        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData);
+        // Content-Type: false remove o header para o browser definir multipart/form-data com boundary.
+        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
+          headers: { "Content-Type": false },
+        });
 
         clearPending();
         if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
