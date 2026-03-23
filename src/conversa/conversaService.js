@@ -95,8 +95,8 @@ export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
  * Usado quando a mensagem original tem tipo arquivo, imagem ou vídeo.
  */
 export async function encaminharArquivo(conversaId, msg, getMediaUrl) {
-  if (!msg?.url) throw new Error("Arquivo sem URL disponível para encaminhar.");
-  const mediaUrl = getMediaUrl ? getMediaUrl(msg.url) : msg.url;
+  if (!msg?.url && !msg?.url_absoluta) throw new Error("Arquivo sem URL disponível para encaminhar.");
+  const mediaUrl = msg?.url_absoluta || (getMediaUrl ? getMediaUrl(msg.url) : msg.url);
   if (!mediaUrl) throw new Error("URL do arquivo não disponível.");
 
   const urlToFetch = mediaUrl.startsWith("http") ? mediaUrl : (msg.url.startsWith("/") ? msg.url : `/${msg.url}`);

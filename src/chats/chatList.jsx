@@ -100,7 +100,8 @@ function getLastMessage(chat) {
   return msgs[msgs.length - 1];
 }
 
-function getMediaUrl(url) {
+function getMediaUrl(url, urlAbsoluta) {
+  if (urlAbsoluta) return urlAbsoluta;
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   const base = getApiBaseUrl();
@@ -731,8 +732,8 @@ function ChatRow({
   const ts = last?.criado_em || chat?.criado_em;
   const hora = formatHora(ts);
   const audioUrl =
-    !semConversa && lastTipoResolved === "audio" && last?.url
-      ? getMediaUrl(String(last.url))
+    !semConversa && lastTipoResolved === "audio" && (last?.url || last?.url_absoluta)
+      ? (last?.url_absoluta || getMediaUrl(String(last.url)))
       : "";
   const [audioSec, setAudioSec] = useState(() => (audioUrl && audioDurationCache.has(audioUrl) ? audioDurationCache.get(audioUrl) : null));
 

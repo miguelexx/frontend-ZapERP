@@ -2342,6 +2342,14 @@ export default function ConversaView() {
         const finalType = recorder.mimeType || mimeType || "audio/webm";
         const ext = finalType.includes("ogg") ? "ogg" : "webm";
         const blob = new Blob(audioChunksRef.current, { type: finalType });
+        if (blob.size < 50) {
+          showToast({
+            type: "warning",
+            title: "Áudio muito curto",
+            message: "Grave por pelo menos 1 segundo antes de enviar.",
+          });
+          return;
+        }
         const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: finalType });
         await handleEnviarArquivo(file);
       };
@@ -2879,7 +2887,7 @@ export default function ConversaView() {
   const execEncaminhar = useCallback(
     async (destConversaId) => {
       const tipo = String(forwardMsg?.tipo || "").toLowerCase();
-      const hasMediaUrl = !!(forwardMsg?.url && getMediaUrl(forwardMsg.url));
+      const hasMediaUrl = !!(forwardMsg?.url || forwardMsg?.url_absoluta);
       const podeEncaminharComoArquivo = hasMediaUrl && (tipo === "arquivo" || tipo === "imagem" || tipo === "vídeo" || tipo === "video");
 
       if (podeEncaminharComoArquivo) {
