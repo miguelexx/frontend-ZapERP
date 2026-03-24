@@ -8,7 +8,7 @@ import { useAuthStore } from "../auth/authStore";
 import { isGroupConversation } from "../utils/conversaUtils";
 import api from "../api/http";
 import { getApiBaseUrl } from "../api/baseUrl";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useNotificationStore } from "../notifications/notificationStore";
 import EmptyState from "../components/feedback/EmptyState";
@@ -17,6 +17,7 @@ import "../components/feedback/empty-state.css";
 import "../components/feedback/skeleton.css";
 import "../components/ui/button.css";
 import "./chatList.css";
+import NovoContatoModal from "./NovoContatoModal";
 
 /* =====================================================
    COMPONENTES (mantidos + refinados visualmente)
@@ -933,6 +934,7 @@ export default function ChatList() {
   const loading = useChatStore((s) => s.loading);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const carregarConversa = useConversaStore((s) => s.carregarConversa);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
@@ -959,6 +961,8 @@ export default function ChatList() {
   const [order, setOrder] = useState("recentes");
   const [showFilters, setShowFilters] = useState(false);
 
+  const [novoContatoModalOpen, setNovoContatoModalOpen] = useState(false);
+
   // menu "Novo" (botão +)
   const [showNovoMenu, setShowNovoMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -975,6 +979,13 @@ export default function ChatList() {
   const [syncLoading, setSyncLoading] = useState(false);
 
   const showToast = useNotificationStore((s) => s.showToast);
+
+  useEffect(() => {
+    if (location.state?.openNovoContatoModal) {
+      setNovoContatoModalOpen(true);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   // Na montagem: conexão Z-API + sync contatos (nomes corretos) + fotos — em background
   useEffect(() => {
@@ -1126,6 +1137,10 @@ export default function ChatList() {
       }
 
       if (k === "escape") {
+        if (novoContatoModalOpen) {
+          setNovoContatoModalOpen(false);
+          return;
+        }
         // ESC: fecha filtros e limpa busca
         setShowFilters(false);
         setSearch("");
@@ -1141,7 +1156,7 @@ export default function ChatList() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [novoContatoModalOpen]);
 
   // posiciona menu abaixo do botão Novo
   useEffect(() => {
@@ -1177,8 +1192,12 @@ export default function ChatList() {
   function emitNovoAction(type) {
     setShowNovoMenu(false);
 
+    if (type === "novo_contato") {
+      setNovoContatoModalOpen(true);
+      return;
+    }
+
     const routes = {
-      novo_contato: "/atendimento/novo-contato",
       novo_grupo: "/atendimento/novo-grupo",
       nova_comunidade: "/atendimento/nova-comunidade",
     };
@@ -1650,7 +1669,7 @@ export default function ChatList() {
               title="Nenhuma conversa encontrada"
               description="Suas conversas aparecerão aqui quando você receber mensagens ou iniciar um atendimento."
               actionLabel="Criar novo contato"
-              action={() => navigate("/atendimento/novo-contato")}
+              action={() => setNovoContatoModalOpen(true)}
             />
           </div>
         ) : (
@@ -1675,6 +1694,25 @@ export default function ChatList() {
           })
         )}
       </div>
+
+      <NovoContatoModal
+        open={novoContatoModalOpen}
+        onClose={() => setNovoContatoModalOpen(false)}
+        onSuccess={(conversa) => {
+          if (conversa?.id) {
+            addChat(conversa);
+            load();
+            setSelectedId(conversa.id);
+            carregarConversa(conversa.id);
+            setUnread(conversa.id, 0);
+          }
+          showToast({
+            type: "success",
+            title: "Contato pronto",
+            message: "Conversa iniciada. Você já pode enviar mensagens.",
+          });
+        }}
+      />
     </div>
   );
 }

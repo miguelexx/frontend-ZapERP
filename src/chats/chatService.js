@@ -50,9 +50,44 @@ export async function criarComunidade(nome) {
   const { data } = await api.post("/chats/comunidades", { nome });
   return data;
 }
+/**
+ * Cria ou reutiliza conversa por telefone (BR).
+ * Em 400, lança Error com `codigo`, `detalhe`, `formato_esperado`, `exemplos`, `isApiValidation`.
+ */
 export async function criarContato(nome, telefone) {
-  const { data } = await api.post("/chats/contato", { nome, telefone });
-  return data;
+  const nomeTrim = nome != null ? String(nome).trim() : "";
+  const body = { telefone };
+  if (nomeTrim) body.nome = nomeTrim;
+
+  try {
+    const { data } = await api.post("/chats/contato", body);
+    return data;
+  } catch (err) {
+    const status = err?.response?.status;
+    const payload = err?.response?.data;
+    if (status === 400 && payload && typeof payload === "object") {
+      const msg =
+        payload.detalhe ||
+        payload.error ||
+        "Não foi possível criar o contato. Verifique o número.";
+      const e = new Error(msg);
+      e.name = "ContatoApiError";
+      e.codigo = payload.codigo;
+      e.detalhe = payload.detalhe;
+      e.formato_esperado = payload.formato_esperado;
+      e.exemplos = Array.isArray(payload.exemplos) ? payload.exemplos : [];
+      e.isApiValidation = true;
+      throw e;
+    }
+    throw err;
+  }
+}
+
+/** Extrai o objeto conversa da resposta POST /chats/contato (formatos variados). */
+export function conversaFromContatoResponse(data) {
+  if (!data) return null;
+  if (data.id != null) return data;
+  return data.conversa ?? data.chat ?? null;
 }
 
 /** Abre (ou cria) conversa para um cliente da lista — retorna a conversa para abrir no atendimento */
@@ -110,7 +145,8 @@ const chatService = {
   // novos
   criarGrupo,
   criarComunidade,
-  criarContato
+  criarContato,
+  conversaFromContatoResponse,
 
 };
 
