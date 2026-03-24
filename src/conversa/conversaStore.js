@@ -181,6 +181,43 @@ export const useConversaStore = create((set, get) => ({
   /* =====================================================
      REFRESH
   ===================================================== */
+  /** UPSERT: mescla mensagens da API com as existentes. Preserva mensagens que chegaram via socket e ainda não estão na API (evita "aparecer e sumir"). */
+  _mergeMensagensFromApi: (existing, fromApi, conversaId) => {
+    if (!Array.isArray(fromApi)) fromApi = []
+    const byId = new Map()
+    const byWa = new Map()
+    existing.forEach((m) => {
+      const copy = { ...m, conversa_id: conversaId }
+      if (m?.id) byId.set(String(m.id), copy)
+      else if (m?.whatsapp_id) byWa.set(String(m.whatsapp_id), copy)
+      else byId.set(`temp-${m?.tempId || Math.random()}`, copy)
+    })
+    fromApi.forEach((m) => {
+      const copy = { ...m, conversa_id: conversaId }
+      const id = m?.id
+      const waId = m?.whatsapp_id
+      if (id) {
+        const cur = byId.get(String(id)) || byWa.get(String(waId || ""))
+        byId.set(String(id), { ...cur, ...copy })
+        if (waId) byWa.set(String(waId), byId.get(String(id)))
+      } else if (waId) {
+        const cur = byWa.get(String(waId))
+        byWa.set(String(waId), { ...cur, ...copy })
+      }
+    })
+    const combined = new Map()
+    byId.forEach((v, k) => { if (!k.startsWith("temp-")) combined.set(k, v) })
+    byWa.forEach((v, k) => { if (!combined.has(String(v?.id)) && v?.id) combined.set(String(v.id), v); else if (!v?.id) combined.set(`wa-${k}`, v) })
+    byId.forEach((v, k) => { if (k.startsWith("temp-")) combined.set(k, v) })
+    return Array.from(combined.values())
+      .filter((m) => m?.id || m?.whatsapp_id || m?.tempId)
+      .sort((a, b) =>
+        new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
+        (Number(a.id || 0) - Number(b.id || 0)) ||
+        String(a.tempId || "").localeCompare(String(b.tempId || ""))
+      )
+  },
+
   refresh: async (opts = {}) => {
     const id = get().selectedId
     if (!id) return
@@ -194,7 +231,7 @@ export const useConversaStore = create((set, get) => ({
       if (String(get().selectedId) !== String(id)) return
 
       let conversa = data?.conversa ? data.conversa : (data ?? null)
-      let mensagens = data?.mensagens ?? conversa?.mensagens ?? []
+      const apiMensagens = data?.mensagens ?? conversa?.mensagens ?? []
       const tags = data?.tags ?? conversa?.tags ?? []
 
       // Backend: quando assumida por outro atendente, mensagens vêm vazias e mensagens_bloqueadas=true
@@ -206,19 +243,12 @@ export const useConversaStore = create((set, get) => ({
 
       const nextCursor = data?.next_cursor ?? conversa?.next_cursor ?? null
 
-      if (Array.isArray(mensagens)) {
-        const byId = new Map()
-        mensagens.forEach((m) => {
-          if (m?.id != null) byId.set(String(m.id), m)
-        })
-        mensagens = Array.from(byId.values()).sort(
-          (a, b) =>
-            new Date(a.criado_em || 0) - new Date(b.criado_em || 0) ||
-            (Number(a.id) - Number(b.id))
-        )
-      } else {
-        mensagens = []
-      }
+      // MERGE: nunca substituir — preserva mensagens via nova_mensagem que ainda não estão na API
+      // Quando mensagens_bloqueadas (assumida por outro), API envia vazio → substituir
+      const existing = get().mensagens || []
+      let mensagens = mensagens_bloqueadas
+        ? []
+        : get()._mergeMensagensFromApi(existing, apiMensagens, id)
       mensagens = attachReplyMeta(id, mensagens)
 
       // Preserva nome, telefone e foto — dados fixos do contato não devem mudar após refresh
@@ -624,7 +654,7 @@ export const useConversaStore = create((set, get) => ({
   ===================================================== */
   patchConversa: (partial) => {
     if (!partial?.id) return
-    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil", "foto_perfil_contato_cache"]
+    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil", "foto_perfil_contato_cache", "exibir_badge_aberta", "status_atendimento"]
     const preserveBlocked = ["mensagens_bloqueadas", "atendente_nome"]
     set((state) => {
       if (!state.conversa || String(state.conversa.id) !== String(partial.id))

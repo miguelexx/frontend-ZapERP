@@ -490,14 +490,51 @@ export function initSocket(token) {
   /* ===========================
      STATUS / AÇÕES DE ATENDIMENTO
      conversa_atualizada: merge defensivo na lista; NUNCA refetchar mensagens do chat aberto
+     ultima_mensagem_preview: só preview na lista — NUNCA adicionar às mensagens do chat (não tem id)
   =========================== */
-  async function patchEverywhere(payload) {
+  function handleConversaAtualizada(payload) {
     if (!payload?.id) return
-
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
+    if (idx >= 0) {
+      const next = { ...chats[idx] }
+      if (payload.ultima_atividade != null) next.ultima_atividade = payload.ultima_atividade
+      if (payload.contato_nome != null && payload.contato_nome !== "") next.contato_nome = payload.contato_nome
+      if (payload.nome_contato_cache != null && payload.nome_contato_cache !== "") next.nome_contato_cache = payload.nome_contato_cache
+      if (payload.foto_perfil != null && payload.foto_perfil !== "") next.foto_perfil = payload.foto_perfil
+      if (payload.foto_perfil_contato_cache != null && payload.foto_perfil_contato_cache !== "") next.foto_perfil_contato_cache = payload.foto_perfil_contato_cache
+      if (payload.status_atendimento != null) next.status_atendimento = payload.status_atendimento
+      if (payload.telefone != null) next.telefone = payload.telefone
+      if (payload.cliente_id != null) next.cliente_id = payload.cliente_id
+      if (payload.exibir_badge_aberta !== undefined) next.exibir_badge_aberta = !!payload.exibir_badge_aberta
+      if (payload.ultima_mensagem_preview != null) {
+        next.ultima_mensagem_preview = payload.ultima_mensagem_preview
+        next.ultima_mensagem = payload.ultima_mensagem_preview
+        if (payload.ultima_mensagem_preview?.criado_em) next.ultima_atividade = payload.ultima_mensagem_preview.criado_em
+      }
+      if (payload.ultima_mensagem != null && !payload.ultima_mensagem?.id) {
+        next.ultima_mensagem_preview = payload.ultima_mensagem
+        next.ultima_mensagem = payload.ultima_mensagem
+        if (payload.ultima_mensagem?.criado_em) next.ultima_atividade = payload.ultima_mensagem.criado_em
+      }
+      if (payload.tem_novas_mensagens === true) {
+        next.tem_novas_mensagens = true
+        next.lida = false
+      }
+      chatStore.updateChat({ id: payload.id, ...next })
+    }
+    const convStore = useConversaStore.getState()
+    if (String(convStore.selectedId) === String(payload.id)) {
+      convStore.patchConversa(payload)
+    }
+  }
 
+  async function patchEverywhere(payload) {
+    if (!payload?.id) return
+    const chatStore = useChatStore.getState()
+    const chats = chatStore.chats || []
+    const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
     if (idx >= 0) {
       chatStore.updateChat(payload)
     } else {
@@ -507,15 +544,13 @@ export function initSocket(token) {
         if (chat?.id) chatStore.addChat(chat)
       } catch (_) {}
     }
-
-    // conversa aberta: patch apenas metadados (conversa), nunca mensagens
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(payload.id)) {
       convStore.patchConversa(payload)
     }
   }
 
-  socket.on("conversa_atualizada", patchEverywhere)
+  socket.on("conversa_atualizada", handleConversaAtualizada)
   socket.on("conversa_encerrada", patchEverywhere)
   socket.on("conversa_transferida", patchEverywhere)
   socket.on("conversa_reaberta", patchEverywhere)

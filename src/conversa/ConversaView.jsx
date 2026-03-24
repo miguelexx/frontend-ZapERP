@@ -167,9 +167,9 @@ function normalizeTelefone(v) {
   return digits;
 }
 
-function statusBadge(status) {
+/** Badge do header: em_atendimento, fechada ou Aberta (só se exibir_badge_aberta). */
+function statusBadge(status, exibirBadgeAberta) {
   const s = safeString(status).toLowerCase();
-
   if (s === "em_atendimento") {
     return {
       text: "Em atendimento",
@@ -188,6 +188,7 @@ function statusBadge(status) {
       dot: "var(--wa-status-orange)",
     };
   }
+  if (exibirBadgeAberta !== true) return null;
   return {
     text: "Aberta",
     bg: "rgba(34,197,94,0.12)",
@@ -620,12 +621,55 @@ function ContactBubbleContent({
   );
 }
 
-/** Mensagem de localização clicável — abre Google Maps */
+/** Formata coordenadas com no máx. 5 decimais */
+function formatCoords(lat, lng) {
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
+  const rounded = (n) => Math.round(n * 100000) / 100000;
+  return `${rounded(la)}, ${rounded(ln)}`;
+}
+
+/** Extrai endereço e coordenadas do texto da mensagem de localização */
+function parseLocationText(texto) {
+  const raw = safeString(texto).trim();
+  if (!raw) return { address: null, coords: null, coordsFormatted: null };
+
+  const coordsMatch = raw.match(/\(?(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)?/);
+  const isCoordsOnly = /^\(?\s*-?\d+\.?\d*,\s*-?\d+\.?\d*\s*\)?$/.test(raw.replace(/\s+/g, " ").trim());
+  const hasAddress = raw.includes("•") && !isCoordsOnly;
+
+  let address = null;
+  let coordsFormatted = null;
+
+  if (coordsMatch) {
+    coordsFormatted = formatCoords(coordsMatch[1], coordsMatch[2]);
+  }
+
+  if (isCoordsOnly && coordsMatch) {
+    return { address: null, coords: raw, coordsFormatted };
+  }
+
+  if (hasAddress) {
+    const withoutCoords = raw.replace(/\s*\(?(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)?\s*$/, "").trim().replace(/\s*•\s*$/, "").trim();
+    address = withoutCoords || null;
+  }
+
+  return { address, coords: coordsMatch ? `${coordsMatch[1]}, ${coordsMatch[2]}` : null, coordsFormatted };
+}
+
+/** Mensagem de localização — card profissional com badge, coordenadas formatadas e link para mapa */
 function LocationBubbleContent({ msg, selectMode, isGroup, out }) {
-  const texto = safeString(msg?.texto) || "Ver localização";
-  const url =
+  const texto = safeString(msg?.texto);
+  const isLive = msg?.location_live === true;
+  const mapUrl =
     (msg?.url && String(msg.url).trim()) ||
-    `https://www.google.com/maps/search/${encodeURIComponent(texto === "Ver localização" ? "localização" : texto)}`;
+    `https://www.google.com/maps/search/${encodeURIComponent(texto || "localização")}`;
+
+  const { address, coordsFormatted } = parseLocationText(texto);
+  const hasAddress = !!address;
+  const hasCoords = !!coordsFormatted;
+  const displayAddress = address || (texto && !hasCoords ? texto : null);
 
   const handleCardClick = (e) => {
     if (!selectMode) e.stopPropagation();
@@ -636,20 +680,31 @@ function LocationBubbleContent({ msg, selectMode, isGroup, out }) {
       className={`wa-bubble-locationCard ${out ? "wa-bubble-locationCard--out" : ""}`}
       onClick={handleCardClick}
     >
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="wa-bubble-locationLink"
-      >
+      <span className="wa-bubble-locationBadge">
+        {isLive ? "🟢 Localização em tempo real" : "📍 Localização atual"}
+      </span>
+      <div className="wa-bubble-locationContent">
         <span className="wa-bubble-locationIcon" aria-hidden="true">📍</span>
-        <span className="wa-bubble-locationText">{texto}</span>
-        <span className="wa-bubble-locationHint">Clique para abrir no mapa →</span>
-      </a>
-      <span className="wa-bubble-locationTimeMeta">
+        {displayAddress ? (
+          <p className="wa-bubble-locationAddress">{displayAddress}</p>
+        ) : null}
+        {hasCoords ? (
+          <p className="wa-bubble-locationCoords">{coordsFormatted}</p>
+        ) : null}
+        <a
+          href={mapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="wa-bubble-locationCta"
+          onClick={(e) => e.stopPropagation()}
+        >
+          🔗 Abrir no mapa →
+        </a>
+      </div>
+      <div className="wa-bubble-locationFooter">
         <span className="wa-bubble-locationTime">{formatHora(msg?.criado_em)}</span>
         <MessageTicks msg={msg} isGroup={Boolean(isGroup)} />
-      </span>
+      </div>
     </div>
   );
 }
@@ -1800,8 +1855,8 @@ export default function ConversaView() {
   const showAvatarImg = Boolean(avatarUrl && !avatarImgError);
 
   const badge = useMemo(
-    () => statusBadge(conversa?.status_atendimento),
-    [conversa?.status_atendimento]
+    () => statusBadge(conversa?.status_atendimento, conversa?.exibir_badge_aberta),
+    [conversa?.status_atendimento, conversa?.exibir_badge_aberta]
   );
 
   useEffect(() => {
@@ -3429,17 +3484,19 @@ export default function ConversaView() {
                 <span className="wa-header-name" title={nome}>
                   {nome}
                 </span>
-                <span
-                  className="wa-status-pill"
-                  style={{
-                    background: badge.bg,
-                    borderColor: badge.border,
-                    color: badge.color,
-                  }}
-                  title={badge.text}
-                >
-                  {badge.text}
-                </span>
+                {badge ? (
+                  <span
+                    className="wa-status-pill"
+                    style={{
+                      background: badge.bg,
+                      borderColor: badge.border,
+                      color: badge.color,
+                    }}
+                    title={badge.text}
+                  >
+                    {badge.text}
+                  </span>
+                ) : null}
               </div>
               {!isGroup && (setorAtual ? (
                 <div className="wa-header-setorRow">
