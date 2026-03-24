@@ -162,13 +162,18 @@ export async function puxarChatFila() {
   return data; // { conversa_id }
 }
 
-export async function enviarLocalizacao(conversaId, { address, lat, lng }) {
+export async function enviarLocalizacao(conversaId, payload = {}) {
   if (conversaId == null) throw new Error("conversaId obrigatório");
-  const body = {
-    lat: Number(lat),
-    lng: Number(lng),
-  };
-  if (address != null && String(address).trim()) body.address = String(address).trim();
+  const lat = payload.lat ?? payload.latitude;
+  const lng = payload.lng ?? payload.longitude;
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln)) throw new Error("Latitude e longitude obrigatórias");
+  const body = { lat: la, lng: ln };
+  const nome = payload.nome ?? payload.name ?? payload.placeName;
+  const endereco = payload.endereco ?? payload.address;
+  if (nome != null && String(nome).trim()) body.nome = String(nome).trim();
+  if (endereco != null && String(endereco).trim()) body.endereco = String(endereco).trim();
   const { data } = await api.post(`/chats/${conversaId}/localizacao`, body);
   return data;
 }

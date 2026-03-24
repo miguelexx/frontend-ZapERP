@@ -1792,6 +1792,37 @@
   font-weight: 500;
 }
 
+.wa-bubble-locationMapLink {
+  display: block;
+  margin: 0 0 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  line-height: 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.wa-bubble-locationMap {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  min-height: 120px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.06);
+  vertical-align: top;
+}
+
+[data-theme="dark"] .wa-bubble-locationMapLink {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.wa-bubble-locationAddress--sub {
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 0.92;
+  margin-top: 0;
+}
+
 .wa-bubble-locationContent {
   display: flex;
   flex-direction: column;
@@ -2985,6 +3016,21 @@
   align-items: start;
 }
 
+.wa-modal-row.wa-modal-row--hint {
+  grid-template-columns: 1fr;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--wa-text-muted);
+}
+
+.wa-modal-row.wa-modal-row--actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
 .wa-modal-label {
   font-size: 12px;
   color: var(--wa-text-muted);
@@ -3642,6 +3688,7 @@
 .wa-attachIcon-camera { background: rgba(226, 68, 92, 0.25); }
 .wa-attachIcon-audio { background: rgba(207, 147, 60, 0.25); }
 .wa-attachIcon-contact { background: rgba(77, 178, 201, 0.25); }
+.wa-attachIcon-location { background: rgba(214, 152, 62, 0.28); }
 .wa-attachIcon-clip { background: rgba(79, 195, 127, 0.25); }
 
 /* Barra de gravação — mesma altura do input (44px) para alinhamento */
@@ -3741,15 +3788,23 @@
   flex: 1 1 0%;
   min-width: 80px;
   width: 100%;
-  height: 44px;
   min-height: 44px;
-  padding: 0 16px;
+  max-height: 160px;
+  height: auto;
+  padding: 10px 16px;
   border-radius: 24px;
   border: none;
   background: var(--wa-input-bg);
   color: var(--wa-text);
   font-size: 15px;
+  font-family: inherit;
+  line-height: 1.45;
   outline: none;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
   max-width: 100%;
@@ -5068,9 +5123,9 @@
 
   .wa-input {
     min-height: 36px;
-    height: 36px;
+    max-height: 120px;
     min-width: 60px;
-    padding: 0 10px;
+    padding: 8px 10px;
     font-size: 15px;
     border-radius: 20px;
   }
@@ -5113,8 +5168,8 @@
   .wa-input {
     min-width: 80px;
     min-height: 34px;
-    height: 34px;
-    padding: 0 8px;
+    max-height: 110px;
+    padding: 6px 8px;
     font-size: 14px;
   }
 

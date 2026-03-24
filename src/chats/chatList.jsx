@@ -137,6 +137,10 @@ function isPlaceholderFileText(txt) {
   const t = String(txt || "").trim().toLowerCase();
   return t === "(arquivo)" || t === "(documento)";
 }
+function isPlaceholderLocationText(txt) {
+  const t = String(txt || "").trim().toLowerCase();
+  return t === "(localização)" || t === "(localizacao)";
+}
 
 /** Detecta se mensagem é contato compartilhado (vCard) */
 function isContactMessage(last) {
@@ -234,6 +238,16 @@ function PreviewIcon({ type, className = "" }) {
       </svg>
     );
   }
+  if (t === "location") {
+    return (
+      <svg className={`chat-preview-ico ${className}`} width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"
+        />
+      </svg>
+    );
+  }
   return null;
 }
 
@@ -324,6 +338,7 @@ function getPreview(chat, { audioDurationSec } = {}) {
     (isPlaceholderVideoText(txt) ? "video" : "") ||
     (isPlaceholderStickerText(txt) ? "sticker" : "") ||
     (isPlaceholderFileText(txt) ? "arquivo" : "") ||
+    (isPlaceholderLocationText(txt) ? "location" : "") ||
     (isContactMessage(last) ? "contact" : "");
 
   if (tipo === "contact") {
@@ -334,6 +349,22 @@ function getPreview(chat, { audioDurationSec } = {}) {
     return `${outPrefix}📇 Contato: ${nome}${phoneStr}`;
   }
 
+  if (tipo === "location") {
+    const lm = last?.location_meta;
+    if (lm && typeof lm === "object") {
+      const la = Number(lm.latitude);
+      const ln = Number(lm.longitude);
+      if (Number.isFinite(la) && Number.isFinite(ln)) {
+        const n = String(lm.nome || "").trim();
+        const e = String(lm.endereco || "").trim();
+        const bits = [n, e].filter(Boolean);
+        if (bits.length) return `${outPrefix}📍 ${bits.join(" • ")}`;
+      }
+    }
+    const capLoc = txt && !isPlaceholderLocationText(txt) ? txt.slice(0, 60) : "";
+    return `${outPrefix}📍 ${capLoc || "Localização"}`;
+  }
+
   const isPlaceholder =
     !txt ||
     txt === "(mídia)" ||
@@ -342,7 +373,8 @@ function getPreview(chat, { audioDurationSec } = {}) {
     txt === "(áudio)" ||
     txt === "(vídeo)" ||
     txt === "(figurinha)" ||
-    txt === "(arquivo)";
+    txt === "(arquivo)" ||
+    isPlaceholderLocationText(txt);
   const cap = !isPlaceholder ? txt.slice(0, 60) : "";
 
   // Preferir preview por tipo (estilo WhatsApp)
@@ -426,6 +458,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     (isPlaceholderVideoText(txt) ? "video" : "") ||
     (isPlaceholderStickerText(txt) ? "sticker" : "") ||
     (isPlaceholderFileText(txt) ? "arquivo" : "") ||
+    (isPlaceholderLocationText(txt) ? "location" : "") ||
     (isContactMessage(last) ? "contact" : "");
 
   const isPlaceholder =
@@ -436,7 +469,8 @@ function PreviewLine({ chat, audioDurationSec }) {
     isPlaceholderAudioText(txt) ||
     isPlaceholderVideoText(txt) ||
     isPlaceholderStickerText(txt) ||
-    isPlaceholderFileText(txt);
+    isPlaceholderFileText(txt) ||
+    isPlaceholderLocationText(txt);
 
   const cap = !isPlaceholder ? txt.slice(0, 60) : "";
 
@@ -486,6 +520,32 @@ function PreviewLine({ chat, audioDurationSec }) {
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="arquivo" />
         <span className="chat-list-previewText">{atendentePrefix}{n || "Documento"}</span>
+      </span>
+    );
+  }
+
+  if (tipo === "location") {
+    const lm = last?.location_meta;
+    let line = cap;
+    if (lm && typeof lm === "object") {
+      const la = Number(lm.latitude);
+      const ln = Number(lm.longitude);
+      if (Number.isFinite(la) && Number.isFinite(ln)) {
+        const n = String(lm.nome || "").trim();
+        const e = String(lm.endereco || "").trim();
+        const bits = [n, e].filter(Boolean);
+        if (bits.length) line = bits.join(" · ");
+        else if (txt && !isPlaceholderLocationText(txt)) line = txt.slice(0, 60);
+        else line = "Localização";
+      }
+    } else if (!line || isPlaceholderLocationText(txt)) {
+      line = txt && !isPlaceholderLocationText(txt) ? txt.slice(0, 60) : "Localização";
+    }
+    return (
+      <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        <PreviewIcon type="location" className={out ? "is-accent" : ""} />
+        <span className="chat-list-previewText">{atendentePrefix}{line}</span>
       </span>
     );
   }

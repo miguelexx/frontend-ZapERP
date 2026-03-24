@@ -1,7 +1,17 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConversaStore } from "./conversaStore";
-import { enviarMensagem, excluirMensagem, enviarReacao, removerReacao, enviarContato, registrarLigacao, enviarLink, encaminharArquivo } from "./conversaService";
+import {
+  enviarMensagem,
+  excluirMensagem,
+  enviarReacao,
+  removerReacao,
+  enviarContato,
+  registrarLigacao,
+  enviarLink,
+  encaminharArquivo,
+  enviarLocalizacao,
+} from "./conversaService";
 import { isGroupConversation } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
@@ -27,6 +37,9 @@ import { SkeletonLine } from "../components/feedback/Skeleton";
 import "../components/feedback/empty-state.css";
 import "../components/feedback/skeleton.css";
 import "../components/feedback/toast.css";
+
+/** Altura máxima do campo de mensagem (estilo WhatsApp Web). */
+const WA_INPUT_MAX_HEIGHT_PX = 160;
 
 /* =========================================================
    Utils
@@ -658,18 +671,38 @@ function parseLocationText(texto) {
   return { address, coords: coordsMatch ? `${coordsMatch[1]}, ${coordsMatch[2]}` : null, coordsFormatted };
 }
 
-/** Mensagem de localização — card profissional com badge, coordenadas formatadas e link para mapa */
+/** Mapa estático (OSM) — sem API key; fallback é só o link em `url`. */
+function buildStaticMapUrl(lat, lng) {
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
+  return `https://staticmap.openstreetmap.de/staticmap.php?center=${la},${ln}&zoom=15&size=320x160&maptype=mapnik&markers=${la},${ln},red-pushpin`;
+}
+
+/** Mensagem de localização — `location_meta` + mapa/link; fallback texto/url legado */
 function LocationBubbleContent({ msg, selectMode, isGroup, out }) {
   const texto = safeString(msg?.texto);
   const isLive = msg?.location_live === true;
+  const meta = msg?.location_meta && typeof msg.location_meta === "object" ? msg.location_meta : null;
+  const latM = meta != null ? Number(meta.latitude) : NaN;
+  const lngM = meta != null ? Number(meta.longitude) : NaN;
+  const hasMetaCoords = Number.isFinite(latM) && Number.isFinite(lngM);
+
   const mapUrl =
     (msg?.url && String(msg.url).trim()) ||
-    `https://www.google.com/maps/search/${encodeURIComponent(texto || "localização")}`;
+    (hasMetaCoords
+      ? `https://www.google.com/maps?q=${encodeURIComponent(`${latM},${lngM}`)}`
+      : `https://www.google.com/maps/search/${encodeURIComponent(texto || "localização")}`);
+
+  const staticMapUrl = hasMetaCoords ? buildStaticMapUrl(latM, lngM) : null;
+
+  const nomeMeta = meta ? safeString(meta.nome) : "";
+  const enderecoMeta = meta ? safeString(meta.endereco) : "";
 
   const { address, coordsFormatted } = parseLocationText(texto);
-  const hasAddress = !!address;
   const hasCoords = !!coordsFormatted;
-  const displayAddress = address || (texto && !hasCoords ? texto : null);
+  const legacyLine =
+    !hasMetaCoords && (address || (texto && !hasCoords ? texto : null) || null);
 
   const handleCardClick = (e) => {
     if (!selectMode) e.stopPropagation();
@@ -681,14 +714,45 @@ function LocationBubbleContent({ msg, selectMode, isGroup, out }) {
       onClick={handleCardClick}
     >
       <span className="wa-bubble-locationBadge">
-        {isLive ? "🟢 Localização em tempo real" : "📍 Localização atual"}
+        {isLive ? "Localização em tempo real" : "Localização"}
       </span>
+      {staticMapUrl ? (
+        <a
+          href={mapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="wa-bubble-locationMapLink"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Abrir localização no mapa"
+        >
+          <img
+            src={staticMapUrl}
+            alt=""
+            className="wa-bubble-locationMap"
+            loading="lazy"
+            decoding="async"
+          />
+        </a>
+      ) : null}
       <div className="wa-bubble-locationContent">
         <span className="wa-bubble-locationIcon" aria-hidden="true">📍</span>
-        {displayAddress ? (
-          <p className="wa-bubble-locationAddress">{displayAddress}</p>
+        {hasMetaCoords ? (
+          <>
+            {nomeMeta ? <p className="wa-bubble-locationAddress">{nomeMeta}</p> : null}
+            {enderecoMeta ? (
+              <p
+                className={`wa-bubble-locationAddress ${nomeMeta ? "wa-bubble-locationAddress--sub" : ""}`}
+              >
+                {enderecoMeta}
+              </p>
+            ) : null}
+          </>
+        ) : legacyLine ? (
+          <p className="wa-bubble-locationAddress">{legacyLine}</p>
         ) : null}
-        {hasCoords ? (
+        {hasMetaCoords ? (
+          <p className="wa-bubble-locationCoords">{formatCoords(latM, lngM)}</p>
+        ) : hasCoords ? (
           <p className="wa-bubble-locationCoords">{coordsFormatted}</p>
         ) : null}
         <a
@@ -698,7 +762,7 @@ function LocationBubbleContent({ msg, selectMode, isGroup, out }) {
           className="wa-bubble-locationCta"
           onClick={(e) => e.stopPropagation()}
         >
-          🔗 Abrir no mapa →
+          Abrir no mapa
         </a>
       </div>
       <div className="wa-bubble-locationFooter">
@@ -756,7 +820,20 @@ function snippetFromMsg(msg) {
   if (tipo === "sticker") return "(figurinha)";
   if (tipo === "arquivo") return msg?.nome_arquivo ? String(msg.nome_arquivo) : "(arquivo)";
   if (tipo === "contact") return msg?.contact_meta?.nome || msg?.texto || "(contato)";
-  if (tipo === "location") return msg?.texto || "(localização)";
+  if (tipo === "location") {
+    const lm = msg?.location_meta;
+    if (lm && typeof lm === "object") {
+      const la = Number(lm.latitude);
+      const ln = Number(lm.longitude);
+      if (Number.isFinite(la) && Number.isFinite(ln)) {
+        const n = safeString(lm.nome);
+        const e = safeString(lm.endereco);
+        const line = n && e ? `${n} • ${e}` : n || e || "";
+        if (line) return line.length > 80 ? `${line.slice(0, 79)}…` : line;
+      }
+    }
+    return msg?.texto || "(localização)";
+  }
   return "(mídia)";
 }
 
@@ -1720,6 +1797,15 @@ export default function ConversaView() {
   const [shareContactLoading, setShareContactLoading] = useState(false);
   const [shareContactSending, setShareContactSending] = useState(false);
 
+  const [shareLocationOpen, setShareLocationOpen] = useState(false);
+  const [shareLocationGeoLoading, setShareLocationGeoLoading] = useState(false);
+  const [shareLocationGeoError, setShareLocationGeoError] = useState(null);
+  const [shareLocationLat, setShareLocationLat] = useState("");
+  const [shareLocationLng, setShareLocationLng] = useState("");
+  const [shareLocationNome, setShareLocationNome] = useState("");
+  const [shareLocationEndereco, setShareLocationEndereco] = useState("");
+  const [shareLocationSending, setShareLocationSending] = useState(false);
+
   const [addToGroupModal, setAddToGroupModal] = useState({ open: false, telefone: null, nome: null });
   const [addToGroupGrupos, setAddToGroupGrupos] = useState([]);
   const [addToGroupLoading, setAddToGroupLoading] = useState(false);
@@ -1780,6 +1866,35 @@ export default function ConversaView() {
   const cameraInputRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+
+  const focusMessageInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        try {
+          el.focus({ preventScroll: true });
+        } catch {
+          el.focus();
+        }
+      });
+    });
+  }, []);
+
+  const syncTextareaHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el || el.tagName !== "TEXTAREA") return;
+    el.style.height = "auto";
+    const maxPx = parseFloat(getComputedStyle(el).maxHeight);
+    const cap =
+      Number.isFinite(maxPx) && maxPx > 0 ? Math.min(maxPx, WA_INPUT_MAX_HEIGHT_PX) : WA_INPUT_MAX_HEIGHT_PX;
+    const next = Math.min(el.scrollHeight, cap);
+    el.style.height = `${next}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    syncTextareaHeight();
+  }, [texto, syncTextareaHeight]);
 
   const conversaId = conversa?.id || null;
   const typingInfo = conversaId ? typing[String(conversaId)] : null;
@@ -2076,6 +2191,87 @@ export default function ConversaView() {
     galleryInputRef.current?.click();
   }, [conversaId]);
 
+  const openShareLocation = useCallback(() => {
+    setAttachMenuOpen(false);
+    setShareLocationGeoError(null);
+    setShareLocationNome("");
+    setShareLocationEndereco("");
+    setShareLocationLat("");
+    setShareLocationLng("");
+    setShareLocationOpen(true);
+    setShareLocationGeoLoading(true);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setShareLocationGeoLoading(false);
+      setShareLocationGeoError("Geolocalização indisponível neste navegador. Informe latitude e longitude abaixo.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setShareLocationLat(String(pos.coords.latitude));
+        setShareLocationLng(String(pos.coords.longitude));
+        setShareLocationGeoLoading(false);
+      },
+      () => {
+        setShareLocationGeoLoading(false);
+        setShareLocationGeoError(
+          "Não foi possível obter sua posição. Permita o acesso à localização ou informe latitude e longitude manualmente."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, []);
+
+  const handleEnviarLocalizacao = useCallback(async () => {
+    if (!conversaId || shareLocationSending) return;
+    const la = Number(String(shareLocationLat).replace(",", "."));
+    const ln = Number(String(shareLocationLng).replace(",", "."));
+    if (!Number.isFinite(la) || !Number.isFinite(ln)) {
+      showToast({
+        type: "error",
+        title: "Coordenadas inválidas",
+        message: "Informe latitude e longitude válidas.",
+      });
+      return;
+    }
+    setShareLocationSending(true);
+    try {
+      await enviarLocalizacao(conversaId, {
+        lat: la,
+        lng: ln,
+        nome: shareLocationNome.trim() || undefined,
+        endereco: shareLocationEndereco.trim() || undefined,
+      });
+      setShareLocationOpen(false);
+      setShareLocationGeoError(null);
+      showToast({
+        type: "success",
+        title: "Localização enviada",
+        message: "A mensagem aparecerá na conversa quando o servidor confirmar.",
+      });
+    } catch (err) {
+      console.error("Erro ao enviar localização:", err);
+      const is403 = err?.response?.status === 403;
+      const apiMsg = err?.response?.data?.error;
+      showToast({
+        type: "error",
+        title: is403 ? "Acesso restrito" : "Falha ao enviar localização",
+        message:
+          apiMsg ||
+          (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar a localização."),
+      });
+    } finally {
+      setShareLocationSending(false);
+    }
+  }, [
+    conversaId,
+    shareLocationSending,
+    shareLocationLat,
+    shareLocationLng,
+    shareLocationNome,
+    shareLocationEndereco,
+    showToast,
+  ]);
+
   const insertEmoji = useCallback((emoji) => {
     const em = String(emoji || "");
     if (!em) return;
@@ -2091,11 +2287,13 @@ export default function ConversaView() {
     const next = cur.slice(0, start) + em + cur.slice(end);
     setTexto(next);
     requestAnimationFrame(() => {
-      try {
-        el.focus();
-        const pos = start + em.length;
-        el.setSelectionRange?.(pos, pos);
-      } catch {}
+      requestAnimationFrame(() => {
+        try {
+          el.focus({ preventScroll: true });
+          const pos = start + em.length;
+          el.setSelectionRange?.(pos, pos);
+        } catch {}
+      });
     });
   }, [texto]);
 
@@ -2329,10 +2527,10 @@ export default function ConversaView() {
         });
       } finally {
         setSending(false);
-        requestAnimationFrame(() => inputRef.current?.focus());
+        focusMessageInput();
       }
     },
-    [conversaId, refresh, showToast, clearPending, anexarMensagem, podeEnviar]
+    [conversaId, refresh, showToast, clearPending, anexarMensagem, podeEnviar, focusMessageInput]
   );
 
   const handleFileInputChange = useCallback(
@@ -2662,9 +2860,9 @@ export default function ConversaView() {
       });
     } finally {
       setSending(false);
-      requestAnimationFrame(() => inputRef.current?.focus());
+      focusMessageInput();
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem, reconciliarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, reconciliarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar, focusMessageInput]);
 
   const handleEnviarLink = useCallback(async () => {
     if (!conversaId) return;
@@ -2731,9 +2929,9 @@ export default function ConversaView() {
       });
     } finally {
       setSending(false);
-      requestAnimationFrame(() => inputRef.current?.focus());
+      focusMessageInput();
     }
-  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast, podeEnviar]);
+  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast, podeEnviar, focusMessageInput]);
 
   const onEscape = useCallback(() => {
     if (isRecording) handleCancelRecording();
@@ -2780,17 +2978,18 @@ export default function ConversaView() {
 
   useGlobalHotkeys({
     onToggleTimeline: () => setShowTimeline((v) => !v),
-    onFocusInput: () => inputRef.current?.focus(),
+    onFocusInput: focusMessageInput,
     onEscape,
     disabled: loading,
   });
 
   const handleKeyDownInput = useCallback(
     (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleEnviar();
-      }
+      if (e.key !== "Enter") return;
+      if (e.shiftKey) return;
+      if (e.nativeEvent?.isComposing || e.isComposing) return;
+      e.preventDefault();
+      handleEnviar();
     },
     [handleEnviar]
   );
@@ -2856,8 +3055,8 @@ export default function ConversaView() {
 
   const handleReplyAction = useCallback((msg) => {
     setReplyTo(msg || null);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
+    focusMessageInput();
+  }, [focusMessageInput]);
 
   const handleInfoAction = useCallback((msg) => {
     if (!msg) return;
@@ -3259,9 +3458,9 @@ export default function ConversaView() {
       if (!texto) return;
       setTexto((prev) => (prev ? prev + "\n" + texto : texto));
       setShowRespostasSalvas(false);
-      inputRef.current?.focus();
+      focusMessageInput();
     },
-    []
+    [focusMessageInput]
   );
 
   const handleTransferirSetor = useCallback(
@@ -4272,6 +4471,104 @@ export default function ConversaView() {
           document.body
         ) : null}
 
+        {shareLocationOpen ? createPortal(
+          <div
+            className="wa-modalOverlay"
+            role="dialog"
+            aria-label="Enviar localização"
+            onMouseDown={() => {
+              if (shareLocationSending) return;
+              setShareLocationOpen(false);
+            }}
+          >
+            <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Enviar localização</div>
+                <button
+                  type="button"
+                  className="wa-iconBtn"
+                  onClick={() => {
+                    if (shareLocationSending) return;
+                    setShareLocationOpen(false);
+                  }}
+                  title="Fechar"
+                >
+                  <IconClose />
+                </button>
+              </div>
+              <div className="wa-modal-body">
+                {shareLocationGeoLoading ? <div className="wa-muted">Obtendo localização…</div> : null}
+                {shareLocationGeoError ? (
+                  <div className="wa-modal-row wa-modal-row--hint">{shareLocationGeoError}</div>
+                ) : null}
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Latitude</span>
+                  <input
+                    className="wa-input"
+                    inputMode="decimal"
+                    value={shareLocationLat}
+                    onChange={(e) => setShareLocationLat(e.target.value)}
+                    placeholder="-19.5"
+                    disabled={shareLocationSending}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Longitude</span>
+                  <input
+                    className="wa-input"
+                    inputMode="decimal"
+                    value={shareLocationLng}
+                    onChange={(e) => setShareLocationLng(e.target.value)}
+                    placeholder="-44.0"
+                    disabled={shareLocationSending}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Nome do local (opcional)</span>
+                  <input
+                    className="wa-input"
+                    value={shareLocationNome}
+                    onChange={(e) => setShareLocationNome(e.target.value)}
+                    placeholder="Ex.: nome do estabelecimento"
+                    disabled={shareLocationSending}
+                  />
+                </div>
+                <div className="wa-modal-row">
+                  <span className="wa-modal-label">Endereço (opcional)</span>
+                  <input
+                    className="wa-input"
+                    value={shareLocationEndereco}
+                    onChange={(e) => setShareLocationEndereco(e.target.value)}
+                    placeholder="Ex.: Rua, número"
+                    disabled={shareLocationSending}
+                  />
+                </div>
+                <div className="wa-modal-row wa-modal-row--actions">
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    disabled={shareLocationSending}
+                    onClick={() => setShareLocationOpen(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-primary"
+                    disabled={shareLocationSending || shareLocationGeoLoading}
+                    onClick={handleEnviarLocalizacao}
+                  >
+                    {shareLocationSending ? "Enviando…" : "Enviar"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+
         {addToGroupModal?.open ? createPortal(
           <div
             className="wa-modalOverlay"
@@ -4485,6 +4782,10 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-contact" aria-hidden="true">👤</span>
                       <span>Contato</span>
                     </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={openShareLocation}>
+                      <span className="wa-attachItem-icon wa-attachIcon-location" aria-hidden="true">📍</span>
+                      <span>Localização</span>
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -4511,7 +4812,7 @@ export default function ConversaView() {
                 onChange={handleCameraInputChange}
               />
 
-              <input
+              <textarea
                 ref={inputRef}
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
@@ -4521,7 +4822,9 @@ export default function ConversaView() {
                 className="wa-input"
                 onKeyDown={handleKeyDownInput}
                 disabled={sending || !conversaId || !podeEnviar}
-                aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Esc para fechar painéis." : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário. Você não pode enviar mensagens." : "Assuma esta conversa para responder.")}
+                aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Shift+Enter para nova linha, Esc para fechar painéis." : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário. Você não pode enviar mensagens." : "Assuma esta conversa para responder.")}
+                rows={1}
+                enterKeyHint="send"
               />
 
               <button
@@ -4547,11 +4850,15 @@ export default function ConversaView() {
                   <IconMic />
                 </button>
                 <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                  }}
                   onClick={handleEnviar}
                   disabled={sending || !safeString(texto) || !conversaId || !podeEnviar}
                   className="wa-sendBtn"
                   title="Enviar"
-                  type="button"
                   aria-label="Enviar mensagem"
                 >
                   {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
