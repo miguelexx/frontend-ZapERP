@@ -148,6 +148,7 @@ export function initSocket(token) {
   off("nova_conversa")
   off("nova_mensagem")
   off("mensagem_excluida")
+  off("mensagem_editada")
   off("mensagem_oculta")
   off("status_mensagem")
   off("mensagens_lidas")
@@ -369,6 +370,24 @@ export function initSocket(token) {
     if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
       convStore.removerMensagem(mensagem_id)
     }
+  })
+
+  /* ===========================
+     ✏️ MENSAGEM EDITADA (WhatsApp)
+     Atualiza apenas o texto da mensagem pelo id — nunca remove ou reordena
+  =========================== */
+  socket.on("mensagem_editada", (msg) => {
+    if (!msg?.id) return
+    const convStore = useConversaStore.getState()
+    const selectedId = convStore.selectedId
+    if (!selectedId) return
+    const conversaId = msg?.conversa_id
+    if (conversaId && String(conversaId) !== String(selectedId)) return
+    convStore.patchMensagem(msg.id, {
+      texto: msg.texto ?? msg.conteudo,
+      conteudo: msg.conteudo ?? msg.texto,
+      editado: true,
+    })
   })
 
   /* Mensagem ocultada "pra mim" (somente usuário) */
