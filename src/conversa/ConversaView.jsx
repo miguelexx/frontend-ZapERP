@@ -1864,6 +1864,7 @@ export default function ConversaView() {
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const audioInputRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -2189,6 +2190,11 @@ export default function ConversaView() {
   const openGalleryPicker = useCallback(() => {
     if (!conversaId) return;
     galleryInputRef.current?.click();
+  }, [conversaId]);
+
+  const openAudioPicker = useCallback(() => {
+    if (!conversaId) return;
+    audioInputRef.current?.click();
   }, [conversaId]);
 
   const openShareLocation = useCallback(() => {
@@ -4778,6 +4784,10 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-camera" aria-hidden="true">📷</span>
                       <span>Câmera</span>
                     </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openAudioPicker(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-audio" aria-hidden="true">🎵</span>
+                      <span>Áudio</span>
+                    </button>
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { setShareContactOpen(true); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-contact" aria-hidden="true">👤</span>
                       <span>Contato</span>
@@ -4810,6 +4820,13 @@ export default function ConversaView() {
                 accept="image/*,video/*"
                 capture="environment"
                 onChange={handleCameraInputChange}
+              />
+              <input
+                ref={audioInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="audio/*,.mp3,.m4a,.ogg,.wav,.aac,.opus,.webm"
+                onChange={handleFileInputChange}
               />
 
               <textarea

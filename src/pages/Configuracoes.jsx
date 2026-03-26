@@ -1677,7 +1677,12 @@ function ModalCliente({ mode, cliente, onClose, onSaved, allTags = [] }) {
           observacoes: String(observacoes || "").trim() || null,
         });
       } else {
+        if (!String(telefone || "").trim()) {
+          alert("Telefone é obrigatório.");
+          return;
+        }
         await cfg.atualizarCliente(cliente.id, {
+          telefone: String(telefone || "").trim(),
           nome: String(nome || "").trim() || null,
           email: String(email || "").trim() || null,
           empresa: String(empresa || "").trim() || null,
@@ -1712,10 +1717,8 @@ function ModalCliente({ mode, cliente, onClose, onSaved, allTags = [] }) {
               value={telefone}
               onChange={(e) => setTelefone(e.target.value)}
               placeholder="+55 11 99999-9999"
-              disabled={!isNew}
-              required={isNew}
+              required
             />
-            {!isNew ? <span className="ia-muted" style={{ fontSize: 12, marginTop: 4, display: "block" }}>Telefone não é editável (use sincronização/novo cadastro se necessário).</span> : null}
           </div>
           <div className="ia-field">
             <label>Email</label>
