@@ -10,6 +10,7 @@ import {
   registrarLigacao,
   enviarLink,
   encaminharArquivo,
+  encaminharMensagemViaAPI,
   enviarLocalizacao,
 } from "./conversaService";
 import { isGroupConversation } from "../utils/conversaUtils";
@@ -1110,6 +1111,8 @@ const Bubble = memo(function Bubble({
   const isSticker = msg?.tipo === "sticker";
   const isFile = msg?.tipo === "arquivo";
   const isAudio = msg?.tipo === "audio";
+  const isVoice = msg?.tipo === "voice";
+  const isAudioOrVoice = isAudio || isVoice;
   const isVideo = msg?.tipo === "video";
   const isContact = msg?.tipo === "contact" && !!msg?.contact_meta;
   const isLocation = msg?.tipo === "location";
@@ -1123,11 +1126,14 @@ const Bubble = memo(function Bubble({
     texto === "(mensagem vazia)" ||
     texto === "(imagem)" ||
     texto === "(áudio)" ||
+    texto === "(áudio de voz)" ||
     texto === "(vídeo)" ||
     texto === "(figurinha)" ||
     texto === "(arquivo)";
   const showCaption = (isImg || isVideo || isSticker) && hasText && !isPlaceholderCaption;
-  const showAudioText = isAudio && hasText && !isPlaceholderCaption;
+  const showAudioText = isAudioOrVoice && hasText && !isPlaceholderCaption;
+  // Detecta mensagem encaminhada: campo encaminhado=true ou texto começa com [Encaminhado]
+  const isEncaminhado = !!msg?.encaminhado || (typeof msg?.texto === "string" && msg.texto.trimStart().startsWith("[Encaminhado]"));
   const inlineMeta = true;
   const replyMeta = msg?.reply_meta || null;
   const hasReply = !!(replyMeta && (replyMeta.name || replyMeta.snippet));
@@ -1281,7 +1287,7 @@ const Bubble = memo(function Bubble({
           isFile ? "wa-bubble-fileWrap" : "",
           isContact ? "wa-bubble-contactWrap" : "",
           isLocation ? "wa-bubble-locationWrap" : "",
-          isAudio ? "wa-bubble-audio audio-message" : "",
+          isAudioOrVoice ? "wa-bubble-audio audio-message" : "",
           isVideo ? "wa-bubble-video" : "",
           selected ? "isSelected" : "",
         ].join(" ")}
@@ -1306,6 +1312,16 @@ const Bubble = memo(function Bubble({
           </button>
         ) : null}
         <div className="wa-bubble-body">
+          {/* Badge de mensagem encaminhada — acima de tudo */}
+          {isEncaminhado && !isFile && !isContact && !isLocation ? (
+            <div className="wa-bubble-fwd-badge">
+              <svg className="wa-bubble-fwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="15 10 20 15 15 20" />
+                <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+              </svg>
+              <span>Encaminhado</span>
+            </div>
+          ) : null}
           {/* Citação (reply) — sempre no topo, antes de qualquer conteúdo */}
           {hasReply && (
             <div
@@ -1446,7 +1462,7 @@ const Bubble = memo(function Bubble({
               </button>
               {showCaption ? <div className="wa-bubble-caption">{renderTextWithLinks(texto)}</div> : null}
             </div>
-          ) : isAudio && mediaUrl ? (
+          ) : isAudioOrVoice && mediaUrl ? (
             <div className="wa-bubble-audioStack">
               <div className="wa-bubble-audioWrap">
                 <AudioWavePlayer
@@ -3189,17 +3205,32 @@ export default function ConversaView() {
     async (destConversaId) => {
       const tipo = String(forwardMsg?.tipo || "").toLowerCase();
       const hasMediaUrl = !!(forwardMsg?.url || forwardMsg?.url_absoluta);
-      const podeEncaminharComoArquivo = hasMediaUrl && (tipo === "arquivo" || tipo === "imagem" || tipo === "vídeo" || tipo === "video");
 
-      if (podeEncaminharComoArquivo) {
+      // Tenta sempre via API backend que preserva tipo e metadados originais
+      if (forwardMsg?.id) {
         try {
-          const data = await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
-          if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
-            anexarMensagem(data);
+          const mensagemEncaminhada = await encaminharMensagemViaAPI(destConversaId, forwardMsg.id);
+          if (mensagemEncaminhada?.id) {
+            if (Number(mensagemEncaminhada?.conversa_id) === Number(conversaId)) {
+              anexarMensagem(mensagemEncaminhada);
+            }
           }
           return;
         } catch (e) {
-          console.warn("Encaminhar como arquivo falhou, fallback para texto:", e);
+          console.warn("Encaminhar via API falhou, tentando fallback:", e?.response?.data?.error || e?.message);
+          // Fallback para re-upload de arquivo se a API falhou
+          if (hasMediaUrl && (tipo === "arquivo" || tipo === "imagem" || tipo === "video" || tipo === "vídeo")) {
+            try {
+              const data = await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
+              if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
+                anexarMensagem({ ...data, encaminhado: true });
+              }
+              return;
+            } catch (e2) {
+              console.warn("Fallback arquivo também falhou:", e2);
+            }
+          }
+          // Último fallback: texto
           await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
         }
       } else {

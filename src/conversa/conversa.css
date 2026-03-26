@@ -1375,13 +1375,54 @@
   padding-right: 0;
 }
 
-/* Label [Encaminhado] — estilo WhatsApp */
+/* Label [Encaminhado] — estilo WhatsApp (legado, usado em FileBubbleContent) */
 .wa-bubble-encaminhado {
   font-size: 12px;
   font-weight: 600;
   color: var(--wa-text-muted);
   margin-bottom: 6px;
   letter-spacing: 0.02em;
+}
+
+/* Badge premium de encaminhamento — aparece no topo da bolha (áudio, imagem, texto, etc.) */
+.wa-bubble-fwd-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-style: italic;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 0 0 6px 0;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  user-select: none;
+}
+
+.wa-bubble-in .wa-bubble-fwd-badge {
+  color: rgba(17, 27, 33, 0.42);
+}
+
+.wa-bubble-fwd-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.75;
+  display: block;
+}
+
+/* Adaptação de espaçamento nas bolhas de áudio e vídeo */
+.wa-bubble-audio .wa-bubble-fwd-badge,
+.wa-bubble-video .wa-bubble-fwd-badge {
+  padding-bottom: 4px;
+}
+
+/* Imagens: badge fica em cima do conteúdo visual */
+.wa-bubble-media .wa-bubble-fwd-badge {
+  position: relative;
+  z-index: 1;
+  background: none;
+  margin: 0;
 }
 
 /* Card de arquivo estilo WhatsApp — minimalista, limpo, micro-interação */

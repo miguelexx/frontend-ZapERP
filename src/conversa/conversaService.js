@@ -91,8 +91,19 @@ export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
 }
 
 /**
- * Encaminha um arquivo/mídia para outra conversa — re-envia o arquivo para exibir como card (estilo WhatsApp).
- * Usado quando a mensagem original tem tipo arquivo, imagem ou vídeo.
+ * Encaminha qualquer mensagem via API backend — preserva tipo, url e metadados originais.
+ * É o método preferido pois não faz re-upload desnecessário.
+ */
+export async function encaminharMensagemViaAPI(conversaId, mensagemId) {
+  const { data } = await api.post(`/chats/${conversaId}/encaminhar`, { mensagem_id: mensagemId });
+  // Retorna mensagem com encaminhado: true para exibição visual correta
+  const mensagem = data?.mensagem || data;
+  return mensagem ? { ...mensagem, encaminhado: true } : mensagem;
+}
+
+/**
+ * Encaminha um arquivo/mídia para outra conversa — re-envia o arquivo via re-upload.
+ * Usado como fallback quando a API de encaminhamento não está disponível.
  */
 export async function encaminharArquivo(conversaId, msg, getMediaUrl) {
   if (!msg?.url && !msg?.url_absoluta) throw new Error("Arquivo sem URL disponível para encaminhar.");
