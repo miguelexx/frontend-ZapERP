@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil, sincronizarContatos } from "./chatService";
 import { useChatStore } from "./chatsStore";
@@ -944,6 +944,17 @@ export default function ChatList() {
 
   const searchRef = useRef(null);
 
+  const scrollRef = useRef(null);
+  const scrollSaveRef = useRef(0);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => { scrollSaveRef.current = el.scrollTop; };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
   // busca / filtros avançados (mantidos)
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 220);
@@ -1347,6 +1358,15 @@ export default function ChatList() {
     return list;
   }, [chats, debouncedSearch, statusFilter, tagFilter, mineOnly, order, tab, user?.id]);
 
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = scrollSaveRef.current;
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = saved;
+    });
+  }, [chatsFiltrados]);
+
   // KPIs
   const total = chats.length;
   const countNaoLidas = chats.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0).length;
@@ -1660,7 +1680,7 @@ export default function ChatList() {
         </div>
       )}
 
-      <div className="chat-list-list chat-list-scroll">
+      <div ref={scrollRef} className="chat-list-list chat-list-scroll">
         {loading && (!chats || chats.length === 0) ? (
           <SkeletonChatList />
         ) : chatsFiltrados.length === 0 ? (
