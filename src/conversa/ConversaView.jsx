@@ -25,6 +25,7 @@ import { getDisplayName } from "../chats/chatList";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { getSocket } from "../socket/socket";
 import { saveReplyMeta } from "./replyMeta";
+import { isNearBottom, scrollToBottom } from "./scrollUtils";
 import {
   listarTags,
   adicionarTagConversa,
@@ -1682,36 +1683,45 @@ function useStableTimeout() {
   return { set, clear };
 }
 
-function useAutoScroll({ conversaId, lastMsgId, bottomRef }) {
+function useAutoScroll({ conversaId, lastMsgKey, lastMsg, myUserId, messagesContainerRef, shouldStickToBottomRef }) {
   const prevConversaIdRef = useRef(null);
-  const prevLastIdRef = useRef(null);
+  const prevLastKeyRef = useRef(null);
 
   useEffect(() => {
     const conversaIdAtual = conversaId ? String(conversaId) : null;
+    const container = messagesContainerRef?.current;
 
     // primeira conversa carregada
     if (!prevConversaIdRef.current && conversaIdAtual) {
       prevConversaIdRef.current = conversaIdAtual;
-      prevLastIdRef.current = lastMsgId;
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "auto" }));
+      prevLastKeyRef.current = lastMsgKey;
+      requestAnimationFrame(() => scrollToBottom(container, "auto"));
       return;
     }
 
     // troca de conversa
     if (conversaIdAtual && prevConversaIdRef.current !== conversaIdAtual) {
       prevConversaIdRef.current = conversaIdAtual;
-      prevLastIdRef.current = lastMsgId;
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "auto" }));
+      prevLastKeyRef.current = lastMsgKey;
+      shouldStickToBottomRef.current = true;
+      requestAnimationFrame(() => scrollToBottom(container, "auto"));
       return;
     }
 
     // novas mensagens
-    if (lastMsgId && lastMsgId !== prevLastIdRef.current) {
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
+    if (lastMsgKey && lastMsgKey !== prevLastKeyRef.current) {
+      const fromMe =
+        lastMsg?.direcao === "out" ||
+        lastMsg?.fromMe === true ||
+        (myUserId != null && lastMsg?.autor_usuario_id != null && String(lastMsg.autor_usuario_id) === String(myUserId));
+      const shouldAutoScroll = Boolean(shouldStickToBottomRef.current || fromMe);
+      if (shouldAutoScroll) {
+        requestAnimationFrame(() => scrollToBottom(container, "smooth"));
+      }
     }
 
-    prevLastIdRef.current = lastMsgId;
-  }, [conversaId, lastMsgId, bottomRef]);
+    prevLastKeyRef.current = lastMsgKey;
+  }, [conversaId, lastMsgKey, lastMsg, myUserId, messagesContainerRef, shouldStickToBottomRef]);
 }
 
 function useGlobalHotkeys({ onToggleTimeline, onFocusInput, onEscape, disabled }) {
@@ -1833,6 +1843,7 @@ export default function ConversaView() {
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const attachMenuRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef(null);
@@ -2000,10 +2011,19 @@ export default function ConversaView() {
     [tags]
   );
 
-  const lastMsgId = useMemo(
-    () => (mensagens?.length ? mensagens[mensagens.length - 1]?.id : null),
+  const lastMsg = useMemo(
+    () => (mensagens?.length ? mensagens[mensagens.length - 1] : null),
     [mensagens]
   );
+  const lastMsgKey = useMemo(() => {
+    if (!lastMsg) return null;
+    return String(
+      lastMsg.id ??
+      lastMsg.whatsapp_id ??
+      lastMsg.tempId ??
+      `${lastMsg.criado_em || ""}-${lastMsg.direcao || ""}-${(lastMsg.texto || lastMsg.conteudo || "").slice(0, 24)}`
+    );
+  }, [lastMsg]);
 
   const pinnedSet = useMemo(() => new Set((pinnedIds || []).map(String)), [pinnedIds]);
   const starredSet = useMemo(() => new Set((starredIds || []).map(String)), [starredIds]);
@@ -2115,7 +2135,7 @@ export default function ConversaView() {
     return `${diffD} dia(s)`;
   }, [mensagens]);
 
-  useAutoScroll({ conversaId, lastMsgId, bottomRef });
+  useAutoScroll({ conversaId, lastMsgKey, lastMsg, myUserId, messagesContainerRef, shouldStickToBottomRef });
 
   const showToast = useCallback(
     (next) => {
@@ -2348,7 +2368,9 @@ export default function ConversaView() {
 
   const handleMessagesScroll = useCallback(() => {
     const el = messagesContainerRef.current;
-    if (!el || !hasMore || loadingMore || !cursor) return;
+    if (!el) return;
+    shouldStickToBottomRef.current = isNearBottom(el, 120);
+    if (!hasMore || loadingMore || !cursor) return;
     if (el.scrollTop < 120) {
       loadMoreScrollRef.current = { top: el.scrollTop, height: el.scrollHeight };
       loadMore();

@@ -15,6 +15,26 @@ function getApiErrorMessage(e) {
   return e?.response?.data?.error || e?.message || "Erro na operação.";
 }
 
+function getMessagesScrollMetrics() {
+  if (typeof document === "undefined") return null;
+  const container = document.querySelector(".wa-messages");
+  if (!container) return null;
+  return {
+    scrollTop: Number(container.scrollTop || 0),
+    scrollHeight: Number(container.scrollHeight || 0),
+    clientHeight: Number(container.clientHeight || 0),
+  };
+}
+
+function logActionScroll(action, phase) {
+  const metrics = getMessagesScrollMetrics();
+  if (!metrics) {
+    console.debug(`[scroll-debug] ${action}:${phase} sem-container`);
+    return;
+  }
+  console.debug(`[scroll-debug] ${action}:${phase}`, metrics);
+}
+
 export default function AtendimentoActions() {
   // ✅ Zustand: funciona com store inteiro OU selector
   const userFromSelector = useAuthStore((s) => s?.user);
@@ -125,10 +145,12 @@ export default function AtendimentoActions() {
   // ========================================
   async function handleAssumir() {
     if (busy) return;
+    logActionScroll("assumir", "antes");
     setBusy(true);
     try {
       if (typeof assumirConversa === "function") {
         await assumirConversa(conversa.id);
+        logActionScroll("assumir", "depois");
         if (showToast) showToast({ title: "Conversa assumida", message: "Você está atendendo esta conversa." });
       }
     } catch (e) {
@@ -141,10 +163,12 @@ export default function AtendimentoActions() {
 
   async function handleEncerrar() {
     if (busy) return;
+    logActionScroll("encerrar", "antes");
     setBusy(true);
     try {
       if (typeof encerrarConversa === "function") {
         await encerrarConversa(conversa.id);
+        logActionScroll("encerrar", "depois");
         if (showToast) showToast({ title: "Conversa encerrada", message: "Você pode reabrir quando precisar." });
       }
     } catch (e) {
@@ -157,10 +181,12 @@ export default function AtendimentoActions() {
 
   async function handleReabrir() {
     if (busy) return;
+    logActionScroll("reabrir", "antes");
     setBusy(true);
     try {
       if (typeof reabrirConversa === "function") {
         await reabrirConversa(conversa.id);
+        logActionScroll("reabrir", "depois");
         if (showToast) showToast({ title: "Conversa reaberta", message: "Atendimento disponível novamente." });
       }
     } catch (e) {

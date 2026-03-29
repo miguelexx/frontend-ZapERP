@@ -13,6 +13,17 @@ import { attachReplyMeta } from "./replyMeta"
 
 const PAGE_LIMIT = 50
 
+function getCurrentUserFromStorage() {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.user ?? null
+  } catch {
+    return null
+  }
+}
+
 export const useConversaStore = create((set, get) => ({
   selectedId: null,
   conversa: null,
@@ -608,9 +619,19 @@ export const useConversaStore = create((set, get) => ({
      AÇÕES DE ATENDIMENTO
   ===================================================== */
   assumirConversa: async (conversaId) => {
-    await assumirChat(conversaId)
-    await get().refresh()
-    useChatStore.getState().requestChatListScrollToTop()
+    const data = await assumirChat(conversaId)
+    const payload = data?.conversa ?? data ?? {}
+    const me = getCurrentUserFromStorage()
+    const optimistic = {
+      id: conversaId,
+      status_atendimento: "em_atendimento",
+      exibir_badge_aberta: false,
+      ...(me?.id != null ? { atendente_id: me.id } : {}),
+      ...(me?.nome ? { atendente_nome: me.nome } : {}),
+    }
+    const patch = { ...optimistic, ...payload, id: conversaId }
+    get().patchConversa(patch)
+    useChatStore.getState().updateChat(patch)
     set({ atendimentosLoadedFor: null })
   },
 
@@ -621,15 +642,30 @@ export const useConversaStore = create((set, get) => ({
   },
 
   encerrarConversa: async (conversaId) => {
-    await encerrarChat(conversaId)
-    await get().refresh()
-    useChatStore.getState().requestChatListScrollToTop()
+    const data = await encerrarChat(conversaId)
+    const payload = data?.conversa ?? data ?? {}
+    const optimistic = {
+      id: conversaId,
+      status_atendimento: "encerrada",
+      exibir_badge_aberta: false,
+    }
+    const patch = { ...optimistic, ...payload, id: conversaId }
+    get().patchConversa(patch)
+    useChatStore.getState().updateChat(patch)
     set({ atendimentosLoadedFor: null })
   },
 
   reabrirConversa: async (conversaId) => {
-    await reabrirChat(conversaId)
-    await get().refresh()
+    const data = await reabrirChat(conversaId)
+    const payload = data?.conversa ?? data ?? {}
+    const optimistic = {
+      id: conversaId,
+      status_atendimento: "fila",
+      exibir_badge_aberta: true,
+    }
+    const patch = { ...optimistic, ...payload, id: conversaId }
+    get().patchConversa(patch)
+    useChatStore.getState().updateChat(patch)
     set({ atendimentosLoadedFor: null })
   },
 

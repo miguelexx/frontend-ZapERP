@@ -101,6 +101,28 @@ function showDesktopNotification(title, body) {
   }
 }
 
+function getMessagesScrollMetrics() {
+  if (typeof document === "undefined") return null
+  const container = document.querySelector(".wa-messages")
+  if (!container) return null
+  return {
+    scrollTop: Number(container.scrollTop || 0),
+    scrollHeight: Number(container.scrollHeight || 0),
+    clientHeight: Number(container.clientHeight || 0),
+  }
+}
+
+function logSocketConversaDebug(eventName, payload) {
+  const selectedId = useConversaStore.getState().selectedId
+  const payloadId = payload?.id ?? payload?.conversa_id ?? null
+  if (selectedId == null || payloadId == null) return
+  if (String(selectedId) !== String(payloadId)) return
+  console.debug(`[scroll-debug] socket:${eventName}`, {
+    conversaId: payloadId,
+    metrics: getMessagesScrollMetrics(),
+  })
+}
+
 let socket = null
 /** Ref para idempotência de join — evita joins duplicados ao reconectar ou trocar conversa */
 let currentConversationId = null
@@ -513,6 +535,7 @@ export function initSocket(token) {
   =========================== */
   function handleConversaAtualizada(payload) {
     if (!payload?.id) return
+    logSocketConversaDebug("conversa_atualizada", payload)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
@@ -551,6 +574,7 @@ export function initSocket(token) {
 
   async function patchEverywhere(payload) {
     if (!payload?.id) return
+    logSocketConversaDebug("patch_everywhere", payload)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
@@ -570,9 +594,15 @@ export function initSocket(token) {
   }
 
   socket.on("conversa_atualizada", handleConversaAtualizada)
-  socket.on("conversa_encerrada", patchEverywhere)
+  socket.on("conversa_encerrada", (payload) => {
+    logSocketConversaDebug("conversa_encerrada", payload)
+    patchEverywhere(payload)
+  })
   socket.on("conversa_transferida", patchEverywhere)
-  socket.on("conversa_reaberta", patchEverywhere)
+  socket.on("conversa_reaberta", (payload) => {
+    logSocketConversaDebug("conversa_reaberta", payload)
+    patchEverywhere(payload)
+  })
   socket.on("conversa_atribuida", (payload) => {
     if (payload?.id) patchEverywhere(payload)
     updateDocumentTitleFromChats()
@@ -585,6 +615,7 @@ export function initSocket(token) {
   const atualizarDebounce = {}
   socket.on("atualizar_conversa", ({ id } = {}) => {
     if (!id) return
+    logSocketConversaDebug("atualizar_conversa", { id })
     const selectedId = useConversaStore.getState().selectedId
     if (String(id) === String(selectedId)) {
       return
