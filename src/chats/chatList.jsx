@@ -932,6 +932,7 @@ export default function ChatList() {
   const setUnread = useChatStore((s) => s.setUnread);
   const addChat = useChatStore((s) => s.addChat);
   const loading = useChatStore((s) => s.loading);
+  const chatListScrollToTopNonce = useChatStore((s) => s.chatListScrollToTopNonce ?? 0);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -946,6 +947,7 @@ export default function ChatList() {
 
   const scrollRef = useRef(null);
   const scrollSaveRef = useRef(0);
+  const scrollTopNoncePrevRef = useRef(0);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1361,11 +1363,22 @@ export default function ChatList() {
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const n = chatListScrollToTopNonce;
+    if (n !== scrollTopNoncePrevRef.current) {
+      scrollTopNoncePrevRef.current = n;
+      if (n > 0) {
+        scrollSaveRef.current = 0;
+        requestAnimationFrame(() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = 0;
+        });
+        return;
+      }
+    }
     const saved = scrollSaveRef.current;
     requestAnimationFrame(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = saved;
     });
-  }, [chatsFiltrados]);
+  }, [chatsFiltrados, chatListScrollToTopNonce]);
 
   // KPIs
   const total = chats.length;

@@ -59,6 +59,11 @@ export const useChatStore = create((set, get) => ({
   ========================================= */
   chats: [],
   loading: false,
+  /** Incrementado após assumir/encerrar — ChatList rola ao topo (últimas conversas). */
+  chatListScrollToTopNonce: 0,
+
+  requestChatListScrollToTop: () =>
+    set((s) => ({ chatListScrollToTopNonce: (s.chatListScrollToTopNonce || 0) + 1 })),
 
   /* =========================================
      BASE

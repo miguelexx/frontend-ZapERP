@@ -610,6 +610,7 @@ export const useConversaStore = create((set, get) => ({
   assumirConversa: async (conversaId) => {
     await assumirChat(conversaId)
     await get().refresh()
+    useChatStore.getState().requestChatListScrollToTop()
     set({ atendimentosLoadedFor: null })
   },
 
@@ -622,6 +623,7 @@ export const useConversaStore = create((set, get) => ({
   encerrarConversa: async (conversaId) => {
     await encerrarChat(conversaId)
     await get().refresh()
+    useChatStore.getState().requestChatListScrollToTop()
     set({ atendimentosLoadedFor: null })
   },
 
