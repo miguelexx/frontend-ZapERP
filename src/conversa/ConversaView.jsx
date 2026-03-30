@@ -245,6 +245,79 @@ function fileToPreviewURL(file) {
   }
 }
 
+function shouldConvertWebmAudioForUpload(file) {
+  if (!isAudioFile(file)) return false;
+  const type = String(file?.type || "").toLowerCase();
+  const name = String(file?.name || "").toLowerCase();
+  if (type.startsWith("video/")) return false;
+  return type.includes("audio/webm") || /\.webm$/i.test(name);
+}
+
+function audioBufferToWavBlob(audioBuffer) {
+  const sampleRate = audioBuffer.sampleRate;
+  const frameCount = audioBuffer.length;
+  const channelCount = Math.max(1, Number(audioBuffer.numberOfChannels || 1));
+
+  let mono;
+  if (channelCount === 1) {
+    mono = audioBuffer.getChannelData(0);
+  } else {
+    mono = new Float32Array(frameCount);
+    for (let ch = 0; ch < channelCount; ch += 1) {
+      const data = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < frameCount; i += 1) mono[i] += data[i] / channelCount;
+    }
+  }
+
+  const bytesPerSample = 2;
+  const dataSize = frameCount * bytesPerSample;
+  const out = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(out);
+
+  const writeString = (offset, str) => {
+    for (let i = 0; i < str.length; i += 1) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true); // PCM chunk size
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true); // byteRate
+  view.setUint16(32, bytesPerSample, true); // blockAlign
+  view.setUint16(34, 16, true); // bitsPerSample
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < mono.length; i += 1) {
+    const s = Math.max(-1, Math.min(1, mono[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+
+  return new Blob([out], { type: "audio/wav" });
+}
+
+async function convertAudioBlobToWavFile(file, baseName = `audio-${Date.now()}`) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) throw new Error("AudioContext indisponível para conversão.");
+  const ctx = new Ctx();
+  try {
+    const ab = await file.arrayBuffer();
+    const decoded = await ctx.decodeAudioData(ab.slice(0));
+    const wavBlob = audioBufferToWavBlob(decoded);
+    return new File([wavBlob], `${baseName}.wav`, { type: "audio/wav" });
+  } finally {
+    try {
+      await ctx.close();
+    } catch {}
+  }
+}
+
 /* =========================================================
    Icons — finos (stroke ~1.5px), minimalistas
 ========================================================= */
@@ -2542,10 +2615,24 @@ export default function ConversaView() {
         return;
       }
 
+      let fileForUpload = file;
+      if (shouldConvertWebmAudioForUpload(file)) {
+        try {
+          const baseName = String(file?.name || `audio-${Date.now()}`).replace(/\.[^/.]+$/, "");
+          fileForUpload = await convertAudioBlobToWavFile(file, baseName);
+          console.debug("[audio-upload] webm convertido para wav", {
+            original: { name: file?.name, type: file?.type, size: file?.size },
+            converted: { name: fileForUpload?.name, type: fileForUpload?.type, size: fileForUpload?.size },
+          });
+        } catch (convErr) {
+          console.warn("[audio-upload] falha ao converter webm para wav; mantendo original", convErr);
+        }
+      }
+
       const formData = new FormData();
       // Inclui nome quando disponível (File tem .name; Blob precisa do 3º parâmetro)
-      const nomeArquivo = file?.name || (file?.type?.includes("ogg") ? "audio.ogg" : "audio.webm");
-      formData.append("file", file, nomeArquivo);
+      const nomeArquivo = fileForUpload?.name || (fileForUpload?.type?.includes("ogg") ? "audio.ogg" : "audio.wav");
+      formData.append("file", fileForUpload, nomeArquivo);
 
       setSending(true);
       try {
@@ -2657,10 +2744,10 @@ export default function ConversaView() {
 
       // Escolhe o melhor mimeType disponível (melhora compatibilidade)
       const preferred = [
-        "audio/webm;codecs=opus",
-        "audio/webm",
         "audio/ogg;codecs=opus",
         "audio/ogg",
+        "audio/webm;codecs=opus",
+        "audio/webm",
       ];
       const mimeType =
         typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported
