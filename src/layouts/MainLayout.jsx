@@ -66,7 +66,9 @@ export default function MainLayout() {
           {canAccessDashboard_ && <NavItem to="/campanhas" label="Campanhas" icon={<IconCampanhas />} />}
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
           {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
-          {canAccessChatbot_ && <NavItem to="/ia" label="Chatbot" icon={<IconIASparkle />} />}
+          {canAccessChatbot_ && (
+            <NavItem to="/ia" label="Bot" icon={<IconIASparkle />} title="Chatbot / automação" />
+          )}
           {canAccessUsers && <NavItem to="/permissoes" label="Permissões" icon={<IconPermissoes />} />}
         </nav>
         <div className="sidebar-spacer" />
@@ -94,9 +96,9 @@ export default function MainLayout() {
   );
 }
 
-function NavItem({ to, label, icon }) {
+function NavItem({ to, label, icon, title }) {
   return (
-    <NavLink to={to} className="sidebar-nav-item" title={label}>
+    <NavLink to={to} className="sidebar-nav-item" title={title ?? label}>
       <span className="sidebar-nav-icon">{icon}</span>
       <span className="sidebar-nav-label">{label}</span>
     </NavLink>

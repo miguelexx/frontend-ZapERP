@@ -183,30 +183,36 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Mobile: viewport fixa, sem scroll da página, visual app */
+/* Mobile: scroll da página liberado no CRM; “app fullscreen” só no Atendimento */
 @media (max-width: 640px) {
   html {
-    height: 100%;
-    overflow: hidden;
     overflow-x: hidden;
   }
 
   body {
-    height: 100%;
-    min-height: 100vh;
-    min-height: 100dvh;
-    overflow: hidden;
-    overflow-x: hidden;
     width: 100%;
     max-width: 100vw;
-    overscroll-behavior: none;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
     -webkit-overflow-scrolling: touch;
   }
 
-  #root {
+  html:has(.atendimento-layout),
+  body:has(.atendimento-layout) {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body:has(.atendimento-layout) #root {
     height: 100%;
     min-height: 0;
     overflow: hidden;
+  }
+
+  #root {
+    min-height: 0;
   }
 }
 
@@ -451,11 +457,18 @@ body {
   }
 
   .app-layout--crm .sidebar-nav--compact .sidebar-nav-label {
-    display: block;
-    font-size: 10px;
-    line-height: 1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.1;
     color: var(--ds-text-tertiary);
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    max-width: 64px;
+    word-break: break-word;
+    hyphens: auto;
   }
 
   [data-theme="dark"] .app-layout--crm .sidebar-nav--compact .sidebar-nav-label {
@@ -469,8 +482,10 @@ body {
   }
 
   .app-layout--crm .sidebar-theme-toggle {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     flex-shrink: 0;
   }
 
@@ -502,10 +517,18 @@ body {
   .main-content {
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
     overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+    padding-top: env(safe-area-inset-top, 0);
     height: 100%;
+  }
+
+  /* Atendimento: rolagem só dentro do layout (lista + chat), não no main */
+  .main-content:has(.atendimento-layout) {
+    overflow: hidden;
+    padding-top: 0;
   }
 
   /* Atendimento ocupa toda a área disponível, tela fixa */
@@ -1173,4 +1196,31 @@ body:has(.login-wrap) {
 
 .page button:hover {
   background: #02c39a;
+}
+
+/* ==============================
+   MOBILE — legibilidade, toque, sem zoom iOS
+============================== */
+
+@media (max-width: 480px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+
+  .page input {
+    font-size: max(16px, 1em);
+  }
+
+  .login-form input {
+    font-size: max(16px, 1em);
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content .ia-table-wrap,
+  .main-content .dash-table-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
 }

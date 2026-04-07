@@ -258,3 +258,27 @@
     transform: rotate(360deg);
   }
 }
+
+@media (max-width: 480px) {
+  .ncm-overlay {
+    padding: var(--ds-space-3);
+    padding-left: max(var(--ds-space-3), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--ds-space-3), env(safe-area-inset-right, 0px));
+    padding-bottom: max(var(--ds-space-3), env(safe-area-inset-bottom, 0px));
+  }
+
+  .ncm-dialog {
+    max-width: 100%;
+    max-height: min(90dvh, 90vh);
+  }
+
+  .ncm-btn {
+    min-height: 44px;
+    padding: 0 var(--ds-space-4);
+  }
+
+  .ncm-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

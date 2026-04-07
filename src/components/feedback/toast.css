@@ -25,6 +25,17 @@
   }
 }
 
+@keyframes ds-toast-in-mobile {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes ds-toast-in {
   from {
     opacity: 0;
@@ -111,4 +122,25 @@
 .ds-toast__close:focus-visible {
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
+}
+
+/* Acima da barra inferior do CRM no mobile */
+@media (max-width: 768px) {
+  .ds-toast {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    max-width: none;
+    min-width: 0;
+    width: auto;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0));
+    box-sizing: border-box;
+    animation: ds-toast-in-mobile 0.2s ease-out;
+  }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .ds-toast {
+    animation: none;
+  }
 }

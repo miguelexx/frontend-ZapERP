@@ -3816,42 +3816,50 @@ export default function ConversaView() {
           </div>
 
           <div className="wa-header-right">
-            {!isGroup && podeGerenciarTags && (
+            <div className="wa-header-innerRow">
+              <div className="wa-header-iconsLine">
+                {!isGroup && podeGerenciarTags && (
+                  <button
+                    type="button"
+                    className={`wa-header-btn wa-tagsBtn ${tagsOpen ? "isActive" : ""}`}
+                    onClick={handleToggleTagPanel}
+                    disabled={!conversaId}
+                    title="Tags do cliente"
+                    aria-label="Tags do cliente"
+                  >
+                    <IconTag />
+                  </button>
+                )}
+
+                <button
+                  onClick={toggleTimeline}
+                  title="Histórico de atendimentos (Ctrl/Cmd + H)"
+                  className={`wa-header-btn ${showTimeline ? "isActive" : ""}`}
+                  type="button"
+                  aria-label="Histórico"
+                >
+                  <IconClock />
+                </button>
+              </div>
+
+              {!isGroup && (
+                <div className="wa-header-actionsRow">
+                  <div className="wa-actions">
+                    <AtendimentoActions />
+                  </div>
+                </div>
+              )}
+
               <button
+                title="Mais opções"
+                className="wa-header-btn wa-header-moreBtn"
                 type="button"
-                className={`wa-header-btn wa-tagsBtn ${tagsOpen ? "isActive" : ""}`}
-                onClick={handleToggleTagPanel}
-                disabled={!conversaId}
-                title="Tags do cliente"
-                aria-label="Tags do cliente"
+                onClick={() => setShowClienteSide(true)}
+                aria-label="Mais opções"
               >
-                <IconTag />
+                <IconMore />
               </button>
-            )}
-
-            <button
-              onClick={toggleTimeline}
-              title="Histórico de atendimentos (Ctrl/Cmd + H)"
-              className={`wa-header-btn ${showTimeline ? "isActive" : ""}`}
-              type="button"
-              aria-label="Histórico"
-            >
-              <IconClock />
-            </button>
-
-            <div className="wa-actions">
-              {!isGroup && <AtendimentoActions />}
             </div>
-
-            <button
-              title="Mais opções"
-              className="wa-header-btn"
-              type="button"
-              onClick={() => setShowClienteSide(true)}
-              aria-label="Mais opções"
-            >
-              <IconMore />
-            </button>
           </div>
         </div>
 
