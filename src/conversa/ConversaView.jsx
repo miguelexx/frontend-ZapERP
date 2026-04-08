@@ -1903,6 +1903,8 @@ export default function ConversaView() {
   const cameraInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const inputRef = useRef(null);
+  const waShellRef = useRef(null);
+  const waHeaderRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
   const focusMessageInput = useCallback(() => {
@@ -1935,6 +1937,70 @@ export default function ConversaView() {
   }, [texto, syncTextareaHeight]);
 
   const conversaId = conversa?.id || null;
+
+  /* Mobile: cabeçalho fixo (viewport) + padding no shell; teclado via visualViewport e foco no input */
+  useLayoutEffect(() => {
+    const shell = waShellRef.current;
+    const header = waHeaderRef.current;
+    const input = inputRef.current;
+    if (!shell || !header) return;
+
+    const mq = window.matchMedia("(max-width: 640px)");
+
+    const syncHeaderLayout = () => {
+      if (!mq.matches) {
+        shell.style.removeProperty("--wa-mobile-header-h");
+        shell.style.removeProperty("--wa-vv-top");
+        return;
+      }
+      shell.style.setProperty("--wa-mobile-header-h", `${header.offsetHeight}px`);
+      const vvNow = window.visualViewport;
+      if (vvNow) {
+        shell.style.setProperty("--wa-vv-top", `${vvNow.offsetTop}px`);
+      }
+    };
+
+    syncHeaderLayout();
+
+    const ro = new ResizeObserver(syncHeaderLayout);
+    ro.observe(header);
+
+    const onMqChange = () => syncHeaderLayout();
+    if (mq.addEventListener) mq.addEventListener("change", onMqChange);
+    else mq.addListener(onMqChange);
+
+    const vv = window.visualViewport;
+    const onVv = () => syncHeaderLayout();
+    if (vv) {
+      vv.addEventListener("resize", onVv);
+      vv.addEventListener("scroll", onVv);
+    }
+
+    const onInputFocusBlur = () => {
+      requestAnimationFrame(syncHeaderLayout);
+    };
+    if (input) {
+      input.addEventListener("focus", onInputFocusBlur);
+      input.addEventListener("blur", onInputFocusBlur);
+    }
+
+    return () => {
+      ro.disconnect();
+      if (mq.removeEventListener) mq.removeEventListener("change", onMqChange);
+      else mq.removeListener(onMqChange);
+      if (vv) {
+        vv.removeEventListener("resize", onVv);
+        vv.removeEventListener("scroll", onVv);
+      }
+      if (input) {
+        input.removeEventListener("focus", onInputFocusBlur);
+        input.removeEventListener("blur", onInputFocusBlur);
+      }
+      shell.style.removeProperty("--wa-mobile-header-h");
+      shell.style.removeProperty("--wa-vv-top");
+    };
+  }, [conversaId]);
+
   const typingInfo = conversaId ? typing[String(conversaId)] : null;
   const isSomeoneTyping = Boolean(
     typingInfo &&
@@ -3699,7 +3765,7 @@ export default function ConversaView() {
   }
 
   return (
-    <div className="wa-shell" onDragEnter={onDragEnter}>
+    <div ref={waShellRef} className="wa-shell" onDragEnter={onDragEnter}>
         <ChatToast toast={toast} onClose={() => setToast(null)} />
 
         {dragOver ? (
@@ -3718,7 +3784,7 @@ export default function ConversaView() {
         ) : null}
 
         {/* HEADER — nome do contato + status discreto + ações */}
-        <div className="wa-header">
+        <div ref={waHeaderRef} className="wa-header">
           <button
             type="button"
             className="wa-header-back"
@@ -3834,7 +3900,7 @@ export default function ConversaView() {
                 <button
                   onClick={toggleTimeline}
                   title="Histórico de atendimentos (Ctrl/Cmd + H)"
-                  className={`wa-header-btn ${showTimeline ? "isActive" : ""}`}
+                  className={`wa-header-btn wa-header-historyBtn ${showTimeline ? "isActive" : ""}`}
                   type="button"
                   aria-label="Histórico"
                 >
