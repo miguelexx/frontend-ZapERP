@@ -3842,7 +3842,8 @@ export default function ConversaView() {
                       onClick={handleOpenTransferirSetor}
                       title="Transferir para outro setor"
                     >
-                      Transferir setor
+                      <span className="wa-setorBtn-label wa-setorBtn-label--full">Transferir setor</span>
+                      <span className="wa-setorBtn-label wa-setorBtn-label--short">Trocar</span>
                     </button>
                   )}
                 </div>
@@ -3856,7 +3857,8 @@ export default function ConversaView() {
                       onClick={handleOpenTransferirSetor}
                       title="Definir setor"
                     >
-                      Definir setor
+                      <span className="wa-setorBtn-label wa-setorBtn-label--full">Definir setor</span>
+                      <span className="wa-setorBtn-label wa-setorBtn-label--short">Setor</span>
                     </button>
                   )}
                 </div>

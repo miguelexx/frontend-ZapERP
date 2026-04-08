@@ -245,7 +245,8 @@ export default function AtendimentoActions() {
           title={!hasAtendente ? "Clique para assumir e enviar mensagens" : "Assumir atendimento"}
           aria-label="Assumir atendimento"
         >
-          Assumir
+          <span className="wa-atendLabel--long">Assumir</span>
+          <span className="wa-atendLabel--short">Assum.</span>
         </button>
       )}
 
@@ -258,7 +259,8 @@ export default function AtendimentoActions() {
           title="Transferir atendimento"
           aria-label="Transferir atendimento"
         >
-          Transferir
+          <span className="wa-atendLabel--long">Transferir</span>
+          <span className="wa-atendLabel--short">Transf.</span>
         </button>
       )}
 
@@ -271,7 +273,8 @@ export default function AtendimentoActions() {
           title="Encerrar conversa"
           aria-label="Encerrar conversa"
         >
-          Encerrar
+          <span className="wa-atendLabel--long">Encerrar</span>
+          <span className="wa-atendLabel--short">Encerr.</span>
         </button>
       )}
 
@@ -284,7 +287,8 @@ export default function AtendimentoActions() {
           title="Reabrir conversa"
           aria-label="Reabrir conversa"
         >
-          Reabrir
+          <span className="wa-atendLabel--long">Reabrir</span>
+          <span className="wa-atendLabel--short">Reabr.</span>
         </button>
       )}
 

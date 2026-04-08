@@ -421,6 +421,14 @@
   gap:6px;
 }
 
+/* Texto completo no desktop; versão curta só em mobile (≤640px) */
+.wa-actions .wa-atendLabel--short {
+  display: none;
+}
+.wa-header-setorBtn .wa-setorBtn-label--short {
+  display: none;
+}
+
 /* -------------------------
    BASE BOTÃO
 ------------------------- */
@@ -4989,9 +4997,9 @@
   .wa-header {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 8px 10px;
-    padding: 8px 12px 10px;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 6px 12px 8px;
     padding-top: max(8px, env(safe-area-inset-top, 0px));
     height: auto;
     min-height: 0;
@@ -5024,7 +5032,8 @@
   .wa-header-back {
     order: 1;
     flex: 0 0 auto;
-    margin-top: 2px;
+    margin-top: 0;
+    align-self: center;
   }
 
   .wa-header-left {
@@ -5039,6 +5048,26 @@
     flex: 1 1 auto;
     min-width: 0;
     max-width: 100%;
+    gap: 0;
+  }
+
+  /* Mobile: rótulos curtos nas ações CRM + setor */
+  .wa-actions .wa-atendLabel--long {
+    display: none;
+  }
+  .wa-actions .wa-atendLabel--short {
+    display: inline;
+  }
+  .wa-header-setorBtn .wa-setorBtn-label--full {
+    display: none;
+  }
+  .wa-header-setorBtn .wa-setorBtn-label--short {
+    display: inline;
+  }
+
+  /* Sem a linha "Sem setor" — o botão já indica a ação */
+  .wa-header-setorRow:has(.wa-header-setorBtn) .wa-header-setor.wa-muted {
+    display: none;
   }
 
   .wa-header-name {
@@ -5072,11 +5101,13 @@
     align-self: stretch;
   }
 
+  /* Uma linha: tag + ações (rolagem) + ⋮ — menos altura */
   .wa-header-innerRow {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    gap: 8px 10px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto;
+    gap: 6px 8px;
+    align-items: center;
     width: 100%;
     max-width: 100%;
   }
@@ -5091,7 +5122,7 @@
   }
 
   .wa-header-moreBtn {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
     justify-self: end;
   }
@@ -5118,14 +5149,15 @@
   }
 
   .wa-header-actionsRow {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-column: 2;
+    grid-row: 1;
     min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    justify-self: stretch;
   }
 
   .wa-header-actionsRow::-webkit-scrollbar {
@@ -5210,7 +5242,7 @@
     align-items: center;
     gap: 6px;
     flex-wrap: nowrap;
-    margin-top: 3px;
+    margin-top: 1px;
     max-width: 100%;
     overflow: hidden;
     font-size: 11px;
