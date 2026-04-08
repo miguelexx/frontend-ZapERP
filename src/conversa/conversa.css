@@ -79,11 +79,17 @@
   max-width: 100%;
 }
 
-/* Cabeçalho sempre no topo e visível (contato = foto + nome) */
+/* Cabeçalho no topo da coluna; no mobile ver @media (sticky + sem avatar) */
 .wa-shell .wa-header {
   order: 1;
   flex: 0 0 auto;
   min-height: 56px;
+}
+
+@media (max-width: 640px) {
+  .wa-shell .wa-header {
+    min-height: 0;
+  }
 }
 
 .wa-shell .wa-messages {
@@ -4944,37 +4950,71 @@
 
 /* =========================================================
    RESPONSIVIDADE MOBILE — estilo WhatsApp Mobile
-   Header e input fixos; só a área de mensagens rola.
-   Touch-friendly (min 44px). Largura 100%, sem overflow.
+   Cabeçalho fixo (sticky + coluna flex): só .wa-messages rola.
+   Avatar oculto; ações CRM compactas; nome do cliente com espaço máximo.
 ========================================================= */
 
 @media (max-width: 640px) {
-  .wa-header-back {
-    display: flex !important;
-    min-width: 44px;
-    min-height: 44px;
+  .wa-shell {
+    /* Garante coluna estável: topo fixo, meio rolável, rodapé fixo */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    isolation: isolate;
   }
 
-  /* Duas faixas: (voltar + contato) | barra de ícones + ações CRM em largura total */
+  .wa-header-back {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+
+  /* Foto removida no mobile — mais espaço para nome e status */
+  .wa-header-left .wa-avatarWrap {
+    display: none !important;
+  }
+
+  .wa-header-left {
+    gap: 8px;
+  }
+
+  /* Duas faixas: (voltar + contato) | ícones + ações CRM */
   .wa-header {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 10px;
-    padding: 8px 10px 10px;
+    align-items: flex-start;
+    gap: 6px 8px;
+    padding: 6px 10px 8px;
+    padding-top: max(6px, env(safe-area-inset-top, 0px));
     height: auto;
-    min-height: 52px;
+    min-height: 0;
     flex-shrink: 0;
     flex: 0 0 auto;
     background: var(--wa-header-bg);
     visibility: visible;
     opacity: 1;
     overflow: visible;
+    position: sticky;
+    top: 0;
+    z-index: 35;
+    align-self: stretch;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  [data-theme="dark"] .wa-header {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
   }
 
   .wa-header-back {
     order: 1;
     flex: 0 0 auto;
+    margin-top: 2px;
   }
 
   .wa-header-left {
@@ -4982,6 +5022,35 @@
     flex: 1 1 0;
     min-width: 0;
     justify-content: flex-start;
+    align-items: flex-start;
+  }
+
+  .wa-header-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .wa-header-name {
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.25;
+    max-width: 100%;
+    letter-spacing: -0.01em;
+  }
+
+  .wa-header-nameRow {
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .wa-status-pill {
+    flex-shrink: 0;
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .wa-header-right {
@@ -4997,7 +5066,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
-    gap: 8px 10px;
+    gap: 6px 8px;
     width: 100%;
     max-width: 100%;
   }
@@ -5005,7 +5074,7 @@
   .wa-header-iconsLine {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     grid-column: 1;
     grid-row: 1;
     min-width: 0;
@@ -5017,6 +5086,15 @@
     justify-self: end;
   }
 
+  /* Ícones do cabeçalho — compactos, ainda tocáveis */
+  .wa-header-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    touch-action: manipulation;
+  }
+
   .wa-header-actionsRow {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -5024,34 +5102,37 @@
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .wa-header-actionsRow::-webkit-scrollbar {
+    display: none;
+    height: 0;
   }
 
   .wa-header-actionsRow .wa-actions {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     width: max-content;
     max-width: none;
-    min-height: 44px;
-    padding-right: 4px;
+    min-height: 0;
+    padding: 2px 4px 2px 0;
   }
 
+  /* Assumir, Transferir, Encerrar, Reabrir — compactos no celular */
   .wa-header-actionsRow .wa-actions button {
     flex-shrink: 0;
-    min-height: 40px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-
-  .wa-header-name {
+    height: 30px;
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 11px;
     font-weight: 600;
-  }
-
-  .wa-header-btn {
-    min-width: 44px;
-    min-height: 44px;
+    border-radius: 6px;
+    line-height: 1;
+    touch-action: manipulation;
   }
 
   .wa-messages {
@@ -5102,17 +5183,19 @@
     max-width: 100%;
   }
 
-  .wa-header-nameRow {
-    flex-wrap: nowrap;
-    overflow: hidden;
-  }
-
-  .wa-header-name {
-    max-width: min(60vw, 220px);
-  }
-
   .wa-header-setorRow {
     flex-wrap: wrap;
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .wa-header-setor {
+    font-size: 11px;
+  }
+
+  .wa-header-setorBtn {
+    padding: 3px 8px;
+    font-size: 10px;
   }
 
   .wa-footer {
@@ -5163,14 +5246,12 @@
     overflow: hidden;
   }
 
-  /* Cabeçalho com altura fluida (linha de contato + linha de ações) */
+  /* Refino telas estreitas — cabeçalho continua sticky (herdado ≤640px) */
   .wa-header {
-    height: auto;
-    min-height: 52px;
     flex: 0 0 auto;
-    padding: 8px calc(8px + env(safe-area-inset-left, 0)) 10px calc(8px + env(safe-area-inset-right, 0));
-    padding-top: max(8px, env(safe-area-inset-top, 0));
-    gap: 8px 10px;
+    padding: 6px calc(8px + env(safe-area-inset-left, 0)) 8px calc(8px + env(safe-area-inset-right, 0));
+    padding-top: max(6px, env(safe-area-inset-top, 0));
+    gap: 6px 8px;
     background: #f0f2f5;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     overflow: visible;
@@ -5181,29 +5262,22 @@
     border-bottom-color: var(--wa-panel-border);
   }
 
-  /* Mantém alvo de toque ≥44px (WCAG / praticidade tipo WhatsApp) */
   .wa-header-back {
-    min-width: 44px;
-    min-height: 44px;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
   }
 
   .wa-header-left {
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
-  }
-
-  .wa-avatar {
-    width: 36px;
-    height: 36px;
-    font-size: 13px;
   }
 
   .wa-header-name {
     font-size: 15px;
     font-weight: 600;
-    max-width: min(58vw, 240px);
+    max-width: 100%;
   }
 
   .wa-header-setorRow {
@@ -5218,10 +5292,17 @@
   }
 
   .wa-header-right .wa-header-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .wa-header-actionsRow .wa-actions button {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 10px;
   }
 
   /* Mensagens menores para caber mais na tela */
@@ -5297,7 +5378,10 @@
 
   .wa-messages { overflow-x: hidden; }
 
-  .wa-header-name { max-width: min(52vw, 200px); }
+  .wa-header-name {
+    max-width: 100%;
+    font-size: 14px;
+  }
 
   .wa-bubble { padding: 6px 10px 8px; font-size: 12px; }
 
