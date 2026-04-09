@@ -983,12 +983,12 @@ export default function ChatList() {
   const novoMenuRef = useRef(null);
 
   // tabs estilo WhatsApp (chip row)
-  // todas | nao_lidas | hoje | minha_fila | abertas | em_atendimento | finalizadas
+  // todas | nao_lidas | hoje | abertas | minha_fila | em_atendimento | finalizadas
   const [tab, setTab] = useState("todas");
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
-  /** Lista e contagem via GET /chats?minha_fila=1 (regra de fila no backend). */
+  /** GET /chats?minha_fila=1 — fila do atendente (abertas + em atendimento comigo); sem status_atendimento na query. */
   const [minhaFilaList, setMinhaFilaList] = useState(null);
   const [minhaFilaCount, setMinhaFilaCount] = useState(0);
 
@@ -1060,7 +1060,7 @@ export default function ChatList() {
 
   useEffect(() => {
     void refreshMinhaFila();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fetch minha fila ao mudar de aba (filtros vêm do closure atual)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch ao trocar de aba; filtros disparam via load() + refreshMinhaFila ao final
   }, [tab]);
 
   async function load() {
@@ -1326,7 +1326,7 @@ export default function ChatList() {
           ? [...chats]
           : [];
 
-    // tabs rápidas (minha_fila vem filtrada do backend)
+    // tabs rápidas (minha_fila vem filtrada do backend com minha_fila=1)
     if (tab === "nao_lidas") {
       list = list.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0);
     } else if (tab === "hoje") {
@@ -1628,13 +1628,13 @@ export default function ChatList() {
           <span>Hoje</span>
           <span className="chat-list-chip-count">{countHoje}</span>
         </Chip>
-        <Chip active={tab === "minha_fila"} onClick={() => setTab("minha_fila")}>
-          <span>Minha fila</span>
-          <span className="chat-list-chip-count">{minhaFilaCount}</span>
-        </Chip>
         <Chip active={tab === "abertas"} onClick={() => setTab("abertas")}>
           <span>Abertas</span>
           <span className="chat-list-chip-count">{countAbertas}</span>
+        </Chip>
+        <Chip active={tab === "minha_fila"} onClick={() => setTab("minha_fila")}>
+          <span>Minha fila</span>
+          <span className="chat-list-chip-count">{minhaFilaCount}</span>
         </Chip>
         <Chip active={tab === "em_atendimento"} onClick={() => setTab("em_atendimento")}>
           <span>Em atendimento</span>
