@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil, sincronizarContatos } from "./chatService";
 import { useChatStore } from "./chatsStore";
@@ -983,8 +983,14 @@ export default function ChatList() {
   const novoMenuRef = useRef(null);
 
   // tabs estilo WhatsApp (chip row)
-  // todas | nao_lidas | hoje | abertas | em_atendimento | finalizadas
+  // todas | nao_lidas | hoje | minha_fila | abertas | em_atendimento | finalizadas
   const [tab, setTab] = useState("todas");
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+
+  /** Lista e contagem via GET /chats?minha_fila=1 (regra de fila no backend). */
+  const [minhaFilaList, setMinhaFilaList] = useState(null);
+  const [minhaFilaCount, setMinhaFilaCount] = useState(0);
 
   // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
   const [zapiConnected, setZapiConnected] = useState(null);
@@ -1025,6 +1031,37 @@ export default function ChatList() {
     const interval = setInterval(() => loadRef.current?.(), 300_000);
     return () => clearInterval(interval);
   }, []);
+
+  const refreshMinhaFila = useCallback(async () => {
+    try {
+      const params = {
+        minha_fila: true,
+        tag_id: tagFilter !== "todas" ? tagFilter : undefined,
+        departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
+        atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
+        data_inicio: dataInicio || undefined,
+        data_fim: dataFim || undefined,
+        incluir_todos_clientes: "1",
+      };
+      const data = await fetchChats(params);
+      const list = Array.isArray(data) ? data : [];
+      setMinhaFilaCount(list.length);
+      if (tabRef.current === "minha_fila") {
+        setMinhaFilaList(list);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar Minha fila:", e);
+      setMinhaFilaCount(0);
+      if (tabRef.current === "minha_fila") {
+        setMinhaFilaList([]);
+      }
+    }
+  }, [tagFilter, departamentoFilter, atendenteFilter, dataInicio, dataFim]);
+
+  useEffect(() => {
+    void refreshMinhaFila();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fetch minha fila ao mudar de aba (filtros vêm do closure atual)
+  }, [tab]);
 
   async function load() {
     setLoading(true);
@@ -1099,6 +1136,7 @@ export default function ChatList() {
         combined.sort((a, b) => (order === "antigas" ? getTs(a) - getTs(b) : getTs(b) - getTs(a)));
         return combined;
       });
+      void refreshMinhaFila();
     } catch (e) {
       console.error("Erro ao carregar conversas:", e);
       setChats([]);
@@ -1281,9 +1319,14 @@ export default function ChatList() {
   }
 
   const chatsFiltrados = useMemo(() => {
-    let list = Array.isArray(chats) ? [...chats] : [];
+    let list =
+      tab === "minha_fila"
+        ? [...(Array.isArray(minhaFilaList) ? minhaFilaList : [])]
+        : Array.isArray(chats)
+          ? [...chats]
+          : [];
 
-    // tabs rápidas
+    // tabs rápidas (minha_fila vem filtrada do backend)
     if (tab === "nao_lidas") {
       list = list.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0);
     } else if (tab === "hoje") {
@@ -1358,7 +1401,7 @@ export default function ChatList() {
     });
 
     return list;
-  }, [chats, debouncedSearch, statusFilter, tagFilter, mineOnly, order, tab, user?.id]);
+  }, [chats, minhaFilaList, debouncedSearch, statusFilter, tagFilter, mineOnly, order, tab, user?.id]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -1564,7 +1607,11 @@ export default function ChatList() {
           />
         </div>
         <div className="chat-list-search-hint">
-          <span>{loading ? "Carregando…" : `${chatsFiltrados.length} de ${total}`}</span>
+          <span>
+            {loading ? "Carregando…" : tab === "minha_fila"
+              ? `${chatsFiltrados.length} de ${minhaFilaCount}`
+              : `${chatsFiltrados.length} de ${total}`}
+          </span>
         </div>
       </div>
 
@@ -1580,6 +1627,10 @@ export default function ChatList() {
         <Chip active={tab === "hoje"} onClick={() => setTab("hoje")}>
           <span>Hoje</span>
           <span className="chat-list-chip-count">{countHoje}</span>
+        </Chip>
+        <Chip active={tab === "minha_fila"} onClick={() => setTab("minha_fila")}>
+          <span>Minha fila</span>
+          <span className="chat-list-chip-count">{minhaFilaCount}</span>
         </Chip>
         <Chip active={tab === "abertas"} onClick={() => setTab("abertas")}>
           <span>Abertas</span>
@@ -1695,6 +1746,8 @@ export default function ChatList() {
 
       <div ref={scrollRef} className="chat-list-list chat-list-scroll">
         {loading && (!chats || chats.length === 0) ? (
+          <SkeletonChatList />
+        ) : tab === "minha_fila" && minhaFilaList === null ? (
           <SkeletonChatList />
         ) : chatsFiltrados.length === 0 ? (
           <div className="chat-list-empty-wrap">

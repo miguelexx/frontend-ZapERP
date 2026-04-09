@@ -13,6 +13,7 @@ export async function fetchChats(params = {}) {
   if (params.atendente_id != null && params.atendente_id !== "" && params.atendente_id !== "todos") q.set("atendente_id", params.atendente_id);
   if (params.palavra && String(params.palavra).trim()) q.set("palavra", String(params.palavra).trim());
   if (params.incluir_todos_clientes === true || params.incluir_todos_clientes === "1") q.set("incluir_todos_clientes", "1");
+  if (params.minha_fila === true || params.minha_fila === 1 || params.minha_fila === "1") q.set("minha_fila", "1");
   const query = q.toString();
   const { data } = await api.get(`/chats${query ? `?${query}` : ""}`);
   return data || [];
