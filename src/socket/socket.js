@@ -185,6 +185,12 @@ export function initSocket(token) {
 
   socket.on("connect", () => {
     currentConversationId = null
+    const companyId = getCurrentCompanyId()
+    if (companyId != null) {
+      try {
+        socket.emit("join_empresa", { company_id: companyId, empresa_id: companyId })
+      } catch (_) {}
+    }
     const convId = useConversaStore.getState().selectedId
     if (convId) joinConversaIfNeeded(convId)
     updateDocumentTitleFromChats()
@@ -533,8 +539,21 @@ export function initSocket(token) {
      conversa_atualizada: merge defensivo na lista; NUNCA refetchar mensagens do chat aberto
      ultima_mensagem_preview: só preview na lista — NUNCA adicionar às mensagens do chat (não tem id)
   =========================== */
+  function mergeSetorEAtendenteNoAlvo(alvo, payload) {
+    if ("departamento_id" in payload) alvo.departamento_id = payload.departamento_id
+    if ("atendente_id" in payload) alvo.atendente_id = payload.atendente_id
+    if ("atendente_nome" in payload) alvo.atendente_nome = payload.atendente_nome
+    if ("departamento" in payload) alvo.departamento = payload.departamento
+    if ("departamento_id" in payload && payload.departamento_id == null) {
+      alvo.setor = null
+      alvo.departamento = null
+      alvo.departamentos = null
+    }
+  }
+
   function handleConversaAtualizada(payload) {
     if (!payload?.id) return
+    if (shouldIgnoreByCompany(payload)) return
     logSocketConversaDebug("conversa_atualizada", payload)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
@@ -550,6 +569,7 @@ export function initSocket(token) {
       if (payload.telefone != null) next.telefone = payload.telefone
       if (payload.cliente_id != null) next.cliente_id = payload.cliente_id
       if (payload.exibir_badge_aberta !== undefined) next.exibir_badge_aberta = !!payload.exibir_badge_aberta
+      mergeSetorEAtendenteNoAlvo(next, payload)
       if (payload.ultima_mensagem_preview != null) {
         next.ultima_mensagem_preview = payload.ultima_mensagem_preview
         next.ultima_mensagem = payload.ultima_mensagem_preview
@@ -616,10 +636,6 @@ export function initSocket(token) {
   socket.on("atualizar_conversa", ({ id } = {}) => {
     if (!id) return
     logSocketConversaDebug("atualizar_conversa", { id })
-    const selectedId = useConversaStore.getState().selectedId
-    if (String(id) === String(selectedId)) {
-      return
-    }
     const key = String(id)
     if (atualizarDebounce[key]) clearTimeout(atualizarDebounce[key])
     atualizarDebounce[key] = setTimeout(async () => {
@@ -628,9 +644,15 @@ export function initSocket(token) {
         const data = await fetchChatById(id)
         if (!data) return
         const chat = data?.conversa ? data.conversa : data
-        if (chat?.id) {
-          useChatStore.getState().addChat(chat)
-        }
+        if (!chat?.id) return
+        useChatStore.getState().addChat(chat)
+        const selectedId = useConversaStore.getState().selectedId
+        if (String(id) !== String(selectedId)) return
+        const meta = { id: chat.id }
+        mergeSetorEAtendenteNoAlvo(meta, chat)
+        if ("status_atendimento" in chat) meta.status_atendimento = chat.status_atendimento
+        if ("exibir_badge_aberta" in chat) meta.exibir_badge_aberta = chat.exibir_badge_aberta
+        useConversaStore.getState().patchConversa(meta)
       } catch (_) {}
     }, 400)
   })

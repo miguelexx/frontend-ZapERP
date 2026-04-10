@@ -725,6 +725,16 @@ export const useConversaStore = create((set, get) => ({
         if (isEmpty && (cur[k] != null && String(cur[k] || "").trim() !== ""))
           merged[k] = cur[k]
       }
+      // Setor / responsável: reaplicar depois do merge defensivo — null deve remover vínculo
+      if ("departamento_id" in partial) merged.departamento_id = partial.departamento_id
+      if ("atendente_id" in partial) merged.atendente_id = partial.atendente_id
+      if ("atendente_nome" in partial) merged.atendente_nome = partial.atendente_nome
+      if ("departamento" in partial) merged.departamento = partial.departamento
+      if ("departamento_id" in partial && partial.departamento_id == null) {
+        merged.setor = null
+        merged.departamento = null
+        merged.departamentos = null
+      }
       return { conversa: merged }
     })
   },

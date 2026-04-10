@@ -214,6 +214,17 @@ export const useChatStore = create((set, get) => ({
     }
     if (partial.exibir_badge_aberta !== undefined) merged.exibir_badge_aberta = !!partial.exibir_badge_aberta
 
+    // Setor / responsável: merge explícito — null limpa (não usar ?? com valor antigo)
+    if ("departamento_id" in partial) merged.departamento_id = partial.departamento_id
+    if ("atendente_id" in partial) merged.atendente_id = partial.atendente_id
+    if ("atendente_nome" in partial) merged.atendente_nome = partial.atendente_nome
+    if ("departamento" in partial) merged.departamento = partial.departamento
+    if ("departamento_id" in partial && partial.departamento_id == null) {
+      merged.setor = null
+      merged.departamento = null
+      merged.departamentos = null
+    }
+
     next[idx] = merged
     set({ chats: sortConversasByRecent(next) })
   },

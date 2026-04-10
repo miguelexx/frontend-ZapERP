@@ -3552,7 +3552,10 @@ export default function ConversaView() {
     return "Online";
   }, [telefone]);
 
-  const setorAtual = conversa?.setor ?? conversa?.departamentos?.nome ?? null;
+  const setorAtual =
+    conversa?.departamento_id != null
+      ? (conversa?.setor ?? conversa?.departamento?.nome ?? conversa?.departamentos?.nome ?? null)
+      : null;
 
   const carregarDepartamentos = useCallback(async () => {
     try {

@@ -829,6 +829,10 @@ function ChatRow({
   const [imgError, setImgError] = useState(false);
   const [opening, setOpening] = useState(false);
   const showAvatarImg = Boolean(avatarUrl && !imgError);
+  const setorLabelNome =
+    !isGroup && chat?.departamento_id != null
+      ? String(chat.setor ?? chat?.departamento?.nome ?? chat?.departamentos?.nome ?? "").trim()
+      : "";
 
   useEffect(() => {
     setImgError(false);
@@ -888,9 +892,9 @@ function ChatRow({
                 <TagMini tag={chat.tags[0]} />
               ) : null}
             </div>
-            {!isGroup && chat?.setor ? (
-              <div className="chat-list-setor" title={`Setor: ${chat.setor}`}>
-                {chat.setor}
+            {!isGroup && setorLabelNome ? (
+              <div className="chat-list-setor" title={`Setor: ${setorLabelNome}`}>
+                {setorLabelNome}
               </div>
             ) : null}
             {!isGroup && empresa ? (
@@ -1358,6 +1362,14 @@ export default function ChatList() {
       list = list.filter((c) => String(c.atendente_id) === String(user.id));
     }
 
+    // Filtros por setor/atendente: alinhar lista ao estado local após Socket (ex.: departamento_id vira null)
+    if (String(user?.role || "").toLowerCase() === "admin" && departamentoFilter !== "todos") {
+      list = list.filter((c) => String(c?.departamento_id ?? "") === String(departamentoFilter));
+    }
+    if (atendenteFilter !== "todos") {
+      list = list.filter((c) => String(c?.atendente_id ?? "") === String(atendenteFilter));
+    }
+
     // busca
     const termRaw = String(debouncedSearch || "").trim();
     const term = termRaw.toLowerCase();
@@ -1401,7 +1413,7 @@ export default function ChatList() {
     });
 
     return list;
-  }, [chats, minhaFilaList, debouncedSearch, statusFilter, tagFilter, mineOnly, order, tab, user?.id]);
+  }, [chats, minhaFilaList, debouncedSearch, statusFilter, tagFilter, departamentoFilter, atendenteFilter, mineOnly, order, tab, user?.id, user?.role]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
