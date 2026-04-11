@@ -51,8 +51,9 @@ function IconDotsHorizontal() {
  * @param {object} props
  * @param {boolean} [props.compactToolbar] — mobile: só ação principal + menu com o restante
  * @param {(close: () => void) => import("react").ReactNode} [props.overflowTop] — itens extras no topo do menu (tags, histórico…)
+ * @param {import("react").ReactNode} [props.prepend] — ex.: ícone de histórico à esquerda (só mobile / ConversaView)
  */
-export default function AtendimentoActions({ compactToolbar = false, overflowTop }) {
+export default function AtendimentoActions({ compactToolbar = false, overflowTop, prepend }) {
   const userFromSelector = useAuthStore((s) => s?.user);
   const stateAuth = useAuthStore((s) => s);
   const user = userFromSelector ?? stateAuth?.user ?? null;
@@ -467,13 +468,13 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
   return (
     <>
       <div className="wa-atendToolbar wa-atendToolbar--compact" ref={menuWrapRef}>
-        {primary ? renderToolbarButton(primary) : null}
+        {prepend ? <div className="wa-atendToolbar-prepend">{prepend}</div> : null}
 
         {hasOverflowContent ? (
           <div className="wa-atendToolbar-overflowWrap">
             <button
               type="button"
-              className="wa-header-btn wa-atendToolbar-overflowTrigger"
+              className="wa-header-btn wa-header-btn--micro wa-atendToolbar-overflowTrigger"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
               aria-label="Mais ações do atendimento"
@@ -503,6 +504,8 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
             ) : null}
           </div>
         ) : null}
+
+        {primary ? renderToolbarButton(primary) : null}
       </div>
       {transferModal}
     </>

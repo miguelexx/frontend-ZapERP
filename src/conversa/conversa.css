@@ -412,6 +412,13 @@
 }
 
 /* CRM no mobile: ação principal + menu (⋯) com tags, histórico e demais ações */
+.wa-atendToolbar-prepend {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
 .wa-atendToolbar--compact {
   display: flex;
   flex-direction: row;
@@ -5192,12 +5199,16 @@
     border-bottom-color: var(--wa-panel-border);
   }
 
-  /* Histórico no menu em conversas 1:1; em grupo mantém ícone (sem CRM no header) */
-  .wa-header:not(.wa-header--group) .wa-header-historyBtn {
+  /* Histórico na barra de ícones só em grupo; em 1:1 o relógio fica em .wa-atendToolbar-prepend */
+  .wa-header:not(.wa-header--group) .wa-header-iconsLine .wa-header-historyBtn {
     display: none !important;
   }
 
   .wa-header.wa-header--group .wa-header-historyBtn {
+    display: inline-flex !important;
+  }
+
+  .wa-atendToolbar-prepend .wa-header-historyBtn {
     display: inline-flex !important;
   }
 
@@ -5244,8 +5255,8 @@
 
   .wa-header-name {
     font-weight: 600;
-    font-size: 16px;
-    line-height: 1.25;
+    font-size: 13px;
+    line-height: 1.3;
     max-width: 100%;
     letter-spacing: -0.01em;
   }
@@ -5257,26 +5268,43 @@
   }
 
   .wa-header-metaStrip {
-    gap: 5px 6px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 8px;
+    row-gap: 4px;
   }
 
   .wa-header-metaItem {
-    max-width: min(100%, 200px);
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: min(100%, 46vw);
     font-size: 11px;
   }
 
-  .wa-status-pill--meta {
-    max-width: 40%;
+  /* Status completo (ex.: "Em atendimento") + setor na mesma linha quando couber */
+  .wa-header-metaStrip .wa-status-pill--meta {
+    flex: 0 1 auto;
+    max-width: none;
+    width: auto;
+    min-width: 0;
     font-size: 10px;
-    height: 20px;
-    padding: 0 7px;
+    font-weight: 600;
+    line-height: 1.25;
+    height: auto;
+    min-height: 20px;
+    padding: 3px 8px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
   }
 
-  .wa-status-pill {
-    flex-shrink: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .wa-header-metaStrip .wa-status-pill {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .wa-header-right {
@@ -5326,6 +5354,30 @@
     touch-action: manipulation;
   }
 
+  /* Relógio e ⋯ menores; botão contato mantém área confortável */
+  .wa-header-btn--micro {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    border-radius: 10px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    transform: none !important;
+  }
+
+  [data-theme="light"] .wa-header-btn--micro {
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  .wa-header-btn--micro svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .wa-header-btn--micro:hover {
+    transform: none !important;
+  }
+
   .wa-header-btn.wa-tagsBtn.isActive,
   .wa-header-btn.isActive {
     background: var(--ds-accent-soft);
@@ -5353,7 +5405,7 @@
     padding: 0;
   }
 
-  /* Desktop largo: fileira completa; mobile compacto: só toolbar CRM */
+  /* Ações CRM em fileira completa (desktop em grid estreito) */
   .wa-header-actionsRow .wa-actions button {
     flex-shrink: 0;
     min-height: 36px;
@@ -5365,21 +5417,35 @@
     touch-action: manipulation;
   }
 
+  /* Toolbar compacta: botões Assum./Transf./… menores para caber */
+  .wa-atendToolbar--compact {
+    gap: 4px;
+  }
+
   .wa-atendToolbar--compact .wa-btn-primary,
   .wa-atendToolbar--compact .wa-btn-transferir,
   .wa-atendToolbar--compact .wa-btn-danger,
   .wa-atendToolbar--compact .wa-btn-secondary {
-    min-height: 40px;
-    padding: 0 12px;
-    font-size: 13px;
-    border-radius: 10px;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 0 7px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    border-radius: 7px !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.02em;
   }
 
-  .wa-atendToolbar-overflowTrigger {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
+  .wa-atendToolbar-overflowTrigger.wa-header-btn--micro {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+  }
+
+  .wa-atendToolbar-overflowTrigger svg {
+    width: 16px !important;
+    height: 16px !important;
   }
 
   .wa-messages {
@@ -5539,9 +5605,16 @@
   }
 
   .wa-header-name {
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 600;
     max-width: 100%;
+  }
+
+  .wa-header-right .wa-header-btn--micro {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
   }
 
   .wa-header-setorRow {
@@ -5649,7 +5722,7 @@
 
   .wa-header-name {
     max-width: 100%;
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .wa-bubble { padding: 6px 10px 8px; font-size: 12px; }

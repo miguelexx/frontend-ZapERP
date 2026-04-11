@@ -3932,6 +3932,19 @@ export default function ConversaView() {
                   <div className="wa-actions">
                     <AtendimentoActions
                       compactToolbar={headerCompact}
+                      prepend={
+                        headerCompact && !isGroup ? (
+                          <button
+                            type="button"
+                            className={`wa-header-btn wa-header-btn--micro wa-header-historyBtn ${showTimeline ? "isActive" : ""}`}
+                            onClick={toggleTimeline}
+                            title="Histórico de atendimentos (Ctrl/Cmd + H)"
+                            aria-label="Histórico"
+                          >
+                            <IconClock />
+                          </button>
+                        ) : undefined
+                      }
                       overflowTop={
                         headerCompact
                           ? (close) => (
@@ -3952,19 +3965,6 @@ export default function ConversaView() {
                                     <span className="wa-atendToolbar-sheetLabel">Tags do cliente</span>
                                   </button>
                                 ) : null}
-                                <button
-                                  type="button"
-                                  className="wa-atendToolbar-sheetBtn"
-                                  onClick={() => {
-                                    toggleTimeline();
-                                    close();
-                                  }}
-                                >
-                                  <span className="wa-atendToolbar-sheetIcon" aria-hidden="true">
-                                    <IconClock />
-                                  </span>
-                                  <span className="wa-atendToolbar-sheetLabel">Histórico de atendimentos</span>
-                                </button>
                               </>
                             )
                           : undefined
