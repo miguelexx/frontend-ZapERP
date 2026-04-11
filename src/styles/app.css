@@ -532,6 +532,15 @@ body {
     padding-top: 0;
   }
 
+  /* Conversa aberta no atendimento: some com a barra inferior (IA, Campanhas, etc.) para o chat usar a tela inteira */
+  .app-layout:has(.atendimento-layout.conversation-open) .sidebar {
+    display: none;
+  }
+
+  .app-layout:has(.atendimento-layout.conversation-open) .main-content {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
   /* Atendimento ocupa toda a área disponível, tela fixa */
   .main-content .atendimento-layout {
     height: 100%;
