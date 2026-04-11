@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuthStore } from "../auth/authStore";
 import { useConversaStore } from "../conversa/conversaStore";
@@ -10,6 +10,8 @@ import {
   canReabrir,
 } from "../auth/permissions";
 import api from "../api/http";
+
+const PRIMARY_ORDER = ["assumir", "transferir", "encerrar", "reabrir"];
 
 function getApiErrorMessage(e) {
   return e?.response?.data?.error || e?.message || "Erro na operação.";
@@ -35,13 +37,26 @@ function logActionScroll(action, phase) {
   console.debug(`[scroll-debug] ${action}:${phase}`, metrics);
 }
 
-export default function AtendimentoActions() {
-  // ✅ Zustand: funciona com store inteiro OU selector
+function IconDotsHorizontal() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor">
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
+
+/**
+ * @param {object} props
+ * @param {boolean} [props.compactToolbar] — mobile: só ação principal + menu com o restante
+ * @param {(close: () => void) => import("react").ReactNode} [props.overflowTop] — itens extras no topo do menu (tags, histórico…)
+ */
+export default function AtendimentoActions({ compactToolbar = false, overflowTop }) {
   const userFromSelector = useAuthStore((s) => s?.user);
-  const stateAuth = useAuthStore((s) => s); // fallback
+  const stateAuth = useAuthStore((s) => s);
   const user = userFromSelector ?? stateAuth?.user ?? null;
 
-  // ✅ Zustand conversa: idem
   const conversa = useConversaStore((s) => s?.conversa);
   const assumirConversa = useConversaStore((s) => s?.assumirConversa);
   const transferirConversa = useConversaStore((s) => s?.transferirConversa);
@@ -53,69 +68,31 @@ export default function AtendimentoActions() {
   const [atendentes, setAtendentes] = useState([]);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuWrapRef = useRef(null);
 
-  // ✅ se não tem conversa selecionada ou não tem user logado, não renderiza nada (sem erro)
-  if (!conversa || !user) return null;
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
-  // ===== NORMALIZAÇÕES =====
-  const status = String(conversa?.status_atendimento || "").toLowerCase();
-  const meuId = user?.id;
-  const userRole = String(user?.role || user?.perfil || "").toLowerCase();
-  const isPrivileged = userRole === "admin" || userRole === "supervisor";
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    const onPointer = (e) => {
+      const el = menuWrapRef.current;
+      if (!el || el.contains(e.target)) return;
+      closeMenu();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("touchstart", onPointer, { passive: true });
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("touchstart", onPointer);
+    };
+  }, [menuOpen, closeMenu]);
 
-  const atendenteIdRaw = conversa?.atendente_id ?? null;
-  const atendenteId =
-    atendenteIdRaw === "" || atendenteIdRaw === undefined ? null : atendenteIdRaw;
-
-  const hasAtendente = atendenteId !== null;
-  const isMinha = hasAtendente && String(atendenteId) === String(meuId);
-
-  const isFechada = status === "fechada" || status === "encerrada";
-  const isFila =
-    status === "fila" || status === "aberta" || status === "pendente";
-  const isEmAtendimento =
-    status === "em_atendimento" || status === "em atendimento";
-
-  // Validação de setor: conversa com setor só pode ser assumida por usuário do mesmo setor (admin ignora)
-  const convDepId = conversa?.departamento_id ?? null;
-  const userDepIds = Array.isArray(user?.departamento_ids)
-    ? user.departamento_ids.map((id) => Number(id))
-    : user?.departamento_id != null
-      ? [Number(user.departamento_id)]
-      : [];
-  const mesmaSetorOuSemRestricao =
-    isPrivileged ||
-    convDepId == null ||
-    (userDepIds.length > 0 && userDepIds.includes(Number(convDepId)));
-
-  // ✅ REGRAS: conversa aberta = sem responsável (apenas setor); só mostra Assumir quando em fila e disponível
-  const podeAssumir =
-    typeof canAssumir === "function" &&
-    canAssumir(user) &&
-    !isFechada &&
-    isFila &&
-    !hasAtendente &&
-    mesmaSetorOuSemRestricao;
-
-  const podeTransferir =
-    typeof canTransferir === "function" &&
-    canTransferir(user) &&
-    !isFechada &&
-    (isPrivileged ? (isFila || isEmAtendimento || hasAtendente) : (hasAtendente && isMinha));
-
-  const podeEncerrar =
-    typeof canEncerrar === "function" &&
-    canEncerrar(user) &&
-    !isFechada &&
-    (isEmAtendimento || hasAtendente) &&
-    (isPrivileged ? true : isMinha);
-
-  const podeReabrir =
-    typeof canReabrir === "function" && canReabrir(user) && isFechada;
-
-  // ========================================
-  // CARREGA ATENDENTES (somente quando abre)
-  // ========================================
   useEffect(() => {
     if (!transferOpen) return;
 
@@ -140,9 +117,68 @@ export default function AtendimentoActions() {
     };
   }, [transferOpen]);
 
-  // ========================================
-  // AÇÕES (com proteção de concorrência)
-  // ========================================
+  const filtrados = useMemo(() => {
+    const term = String(search || "").toLowerCase();
+    return (atendentes || []).filter((a) =>
+      String(a?.nome || "").toLowerCase().includes(term)
+    );
+  }, [atendentes, search]);
+
+  if (!conversa || !user) return null;
+
+  const status = String(conversa?.status_atendimento || "").toLowerCase();
+  const meuId = user?.id;
+  const userRole = String(user?.role || user?.perfil || "").toLowerCase();
+  const isPrivileged = userRole === "admin" || userRole === "supervisor";
+
+  const atendenteIdRaw = conversa?.atendente_id ?? null;
+  const atendenteId =
+    atendenteIdRaw === "" || atendenteIdRaw === undefined ? null : atendenteIdRaw;
+
+  const hasAtendente = atendenteId !== null;
+  const isMinha = hasAtendente && String(atendenteId) === String(meuId);
+
+  const isFechada = status === "fechada" || status === "encerrada";
+  const isFila =
+    status === "fila" || status === "aberta" || status === "pendente";
+  const isEmAtendimento =
+    status === "em_atendimento" || status === "em atendimento";
+
+  const convDepId = conversa?.departamento_id ?? null;
+  const userDepIds = Array.isArray(user?.departamento_ids)
+    ? user.departamento_ids.map((id) => Number(id))
+    : user?.departamento_id != null
+      ? [Number(user.departamento_id)]
+      : [];
+  const mesmaSetorOuSemRestricao =
+    isPrivileged ||
+    convDepId == null ||
+    (userDepIds.length > 0 && userDepIds.includes(Number(convDepId)));
+
+  const podeAssumir =
+    typeof canAssumir === "function" &&
+    canAssumir(user) &&
+    !isFechada &&
+    isFila &&
+    !hasAtendente &&
+    mesmaSetorOuSemRestricao;
+
+  const podeTransferir =
+    typeof canTransferir === "function" &&
+    canTransferir(user) &&
+    !isFechada &&
+    (isPrivileged ? (isFila || isEmAtendimento || hasAtendente) : (hasAtendente && isMinha));
+
+  const podeEncerrar =
+    typeof canEncerrar === "function" &&
+    canEncerrar(user) &&
+    !isFechada &&
+    (isEmAtendimento || hasAtendente) &&
+    (isPrivileged ? true : isMinha);
+
+  const podeReabrir =
+    typeof canReabrir === "function" && canReabrir(user) && isFechada;
+
   async function handleAssumir() {
     if (busy) return;
     logActionScroll("assumir", "antes");
@@ -223,160 +259,252 @@ export default function AtendimentoActions() {
     }
   }
 
-  const filtrados = useMemo(() => {
-    const term = String(search || "").toLowerCase();
-    return (atendentes || []).filter((a) =>
-      String(a?.nome || "").toLowerCase().includes(term)
-    );
-  }, [atendentes, search]);
+  const openTransfer = useCallback(() => {
+    setTransferOpen(true);
+    closeMenu();
+  }, [closeMenu]);
 
-  // ========================================
-  // UI
-  // ========================================
-  return (
-    <>
-      {/* Sequência profissional (CRM): Assumir → Transferir → Encerrar → Reabrir */}
-      {podeAssumir && (
-        <button
-          type="button"
-          className={`wa-btn-primary ${!hasAtendente ? "wa-btn-assumir-destaque" : ""}`}
-          onClick={handleAssumir}
-          disabled={busy}
-          title={!hasAtendente ? "Clique para assumir e enviar mensagens" : "Assumir atendimento"}
-          aria-label="Assumir atendimento"
-        >
-          <span className="wa-atendLabel--long">Assumir</span>
-          <span className="wa-atendLabel--short">Assum.</span>
-        </button>
-      )}
+  const actions = [];
+  if (podeAssumir) {
+    actions.push({
+      id: "assumir",
+      className: `wa-btn-primary ${!hasAtendente ? "wa-btn-assumir-destaque" : ""}`,
+      labelLong: "Assumir",
+      labelShort: "Assum.",
+      onClick: handleAssumir,
+      title: !hasAtendente ? "Clique para assumir e enviar mensagens" : "Assumir atendimento",
+      ariaLabel: "Assumir atendimento",
+    });
+  }
+  if (podeTransferir) {
+    actions.push({
+      id: "transferir",
+      className: "wa-btn-transferir",
+      labelLong: "Transferir",
+      labelShort: "Transf.",
+      onClick: openTransfer,
+      title: "Transferir atendimento",
+      ariaLabel: "Transferir atendimento",
+    });
+  }
+  if (podeEncerrar) {
+    actions.push({
+      id: "encerrar",
+      className: "wa-btn-danger",
+      labelLong: "Encerrar",
+      labelShort: "Encerr.",
+      onClick: handleEncerrar,
+      title: "Encerrar conversa",
+      ariaLabel: "Encerrar conversa",
+    });
+  }
+  if (podeReabrir) {
+    actions.push({
+      id: "reabrir",
+      className: "wa-btn-secondary",
+      labelLong: "Reabrir",
+      labelShort: "Reabr.",
+      onClick: handleReabrir,
+      title: "Reabrir conversa",
+      ariaLabel: "Reabrir conversa",
+    });
+  }
 
-      {podeTransferir && (
-        <button
-          type="button"
-          className="wa-btn-transferir"
-          onClick={() => setTransferOpen(true)}
-          disabled={busy}
-          title="Transferir atendimento"
-          aria-label="Transferir atendimento"
-        >
-          <span className="wa-atendLabel--long">Transferir</span>
-          <span className="wa-atendLabel--short">Transf.</span>
-        </button>
-      )}
+  let primary = null;
+  for (const id of PRIMARY_ORDER) {
+    const a = actions.find((x) => x.id === id);
+    if (a) {
+      primary = a;
+      break;
+    }
+  }
+  if (!primary && actions.length > 0) primary = actions[0];
 
-      {podeEncerrar && (
-        <button
-          type="button"
-          className="wa-btn-danger"
-          onClick={handleEncerrar}
-          disabled={busy}
-          title="Encerrar conversa"
-          aria-label="Encerrar conversa"
-        >
-          <span className="wa-atendLabel--long">Encerrar</span>
-          <span className="wa-atendLabel--short">Encerr.</span>
-        </button>
-      )}
+  const secondary = actions.filter((a) => a.id !== primary?.id);
 
-      {podeReabrir && (
-        <button
-          type="button"
-          className="wa-btn-secondary"
-          onClick={handleReabrir}
-          disabled={busy}
-          title="Reabrir conversa"
-          aria-label="Reabrir conversa"
-        >
-          <span className="wa-atendLabel--long">Reabrir</span>
-          <span className="wa-atendLabel--short">Reabr.</span>
-        </button>
-      )}
+  const overflowExtra = typeof overflowTop === "function" ? overflowTop(closeMenu) : null;
+  const hasOverflowContent =
+    Boolean(overflowExtra) || secondary.length > 0;
 
-      {/* MODAL DE TRANSFERÊNCIA */}
-      {transferOpen
-        ? createPortal(
-            <div
-              className="wa-modalOverlay"
-              role="dialog"
-              aria-label="Transferir atendimento"
-              onMouseDown={() => {
-                if (busy) return;
-                setTransferOpen(false);
-                setSearch("");
-              }}
-            >
-              <div className="wa-modal wa-transferModal" onMouseDown={(e) => e.stopPropagation()}>
-                <div className="wa-modal-head">
-                  <div className="wa-modal-title">Transferir atendimento</div>
+  const transferModal =
+    transferOpen
+      ? createPortal(
+          <div
+            className="wa-modalOverlay"
+            role="dialog"
+            aria-label="Transferir atendimento"
+            onMouseDown={() => {
+              if (busy) return;
+              setTransferOpen(false);
+              setSearch("");
+            }}
+          >
+            <div className="wa-modal wa-transferModal" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="wa-modal-head">
+                <div className="wa-modal-title">Transferir atendimento</div>
+                <button
+                  type="button"
+                  className="wa-header-btn"
+                  onClick={() => {
+                    if (busy) return;
+                    setTransferOpen(false);
+                    setSearch("");
+                  }}
+                  aria-label="Fechar"
+                  title="Fechar"
+                  style={{ width: 34, height: 34 }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="wa-modal-body">
+                <input
+                  className="wa-transferSearch"
+                  placeholder="Buscar atendente..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  autoFocus
+                />
+
+                <div className="wa-transferList" role="list">
+                  {filtrados.map((a) => {
+                    const souEu = String(a?.id) === String(meuId);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={`wa-transferItem ${souEu ? "isMe" : ""}`}
+                        onClick={() => handleTransferir(a.id)}
+                        disabled={busy}
+                        role="listitem"
+                        title={a?.nome || ""}
+                      >
+                        <span className="wa-transferName">{a.nome}</span>
+                        {souEu ? <span className="wa-transferBadge">você</span> : null}
+                      </button>
+                    );
+                  })}
+
+                  {filtrados.length === 0 ? (
+                    <div className="wa-transferEmpty">Nenhum atendente encontrado</div>
+                  ) : null}
+                </div>
+
+                <div className="wa-transferFooter">
                   <button
                     type="button"
-                    className="wa-header-btn"
+                    className="wa-btn-secondary"
                     onClick={() => {
                       if (busy) return;
                       setTransferOpen(false);
                       setSearch("");
                     }}
-                    aria-label="Fechar"
-                    title="Fechar"
-                    style={{ width: 34, height: 34 }}
+                    disabled={busy}
                   >
-                    ✕
+                    Cancelar
                   </button>
                 </div>
-
-                <div className="wa-modal-body">
-                  <input
-                    className="wa-transferSearch"
-                    placeholder="Buscar atendente..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    autoFocus
-                  />
-
-                  <div className="wa-transferList" role="list">
-                    {filtrados.map((a) => {
-                      const souEu = String(a?.id) === String(meuId);
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          className={`wa-transferItem ${souEu ? "isMe" : ""}`}
-                          onClick={() => handleTransferir(a.id)}
-                          disabled={busy}
-                          role="listitem"
-                          title={a?.nome || ""}
-                        >
-                          <span className="wa-transferName">{a.nome}</span>
-                          {souEu ? <span className="wa-transferBadge">você</span> : null}
-                        </button>
-                      );
-                    })}
-
-                    {filtrados.length === 0 ? (
-                      <div className="wa-transferEmpty">Nenhum atendente encontrado</div>
-                    ) : null}
-                  </div>
-
-                  <div className="wa-transferFooter">
-                    <button
-                      type="button"
-                      className="wa-btn-secondary"
-                      onClick={() => {
-                        if (busy) return;
-                        setTransferOpen(false);
-                        setSearch("");
-                      }}
-                      disabled={busy}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
               </div>
-            </div>,
-            document.body
-          )
-        : null}
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
+  function renderToolbarButton(a) {
+    return (
+      <button
+        key={a.id}
+        type="button"
+        className={a.className}
+        onClick={a.onClick}
+        disabled={busy}
+        title={a.title}
+        aria-label={a.ariaLabel}
+      >
+        <span className="wa-atendLabel--long">{a.labelLong}</span>
+        <span className="wa-atendLabel--short">{a.labelShort}</span>
+      </button>
+    );
+  }
+
+  function renderMenuRow(a) {
+    return (
+      <button
+        key={a.id}
+        type="button"
+        className={`${a.className} wa-atendToolbar-menuAction`}
+        onClick={() => {
+          a.onClick();
+          closeMenu();
+        }}
+        disabled={busy}
+        role="menuitem"
+      >
+        {a.labelLong}
+      </button>
+    );
+  }
+
+  if (!compactToolbar && actions.length === 0) {
+    return transferModal;
+  }
+
+  if (compactToolbar && actions.length === 0 && !overflowExtra) {
+    return transferModal;
+  }
+
+  if (!compactToolbar) {
+    return (
+      <>
+        <div className="wa-actions">{actions.map((a) => renderToolbarButton(a))}</div>
+        {transferModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="wa-atendToolbar wa-atendToolbar--compact" ref={menuWrapRef}>
+        {primary ? renderToolbarButton(primary) : null}
+
+        {hasOverflowContent ? (
+          <div className="wa-atendToolbar-overflowWrap">
+            <button
+              type="button"
+              className="wa-header-btn wa-atendToolbar-overflowTrigger"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Mais ações do atendimento"
+              title="Mais ações"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <IconDotsHorizontal />
+            </button>
+
+            {menuOpen ? (
+              <>
+                <div
+                  className="wa-atendToolbar-backdrop"
+                  aria-hidden="true"
+                  onClick={closeMenu}
+                />
+                <div className="wa-atendToolbar-dropdown" role="menu" aria-label="Ações do atendimento">
+                  {overflowExtra ? (
+                    <div className="wa-atendToolbar-menuExtras">{overflowExtra}</div>
+                  ) : null}
+                  {overflowExtra && secondary.length > 0 ? (
+                    <div className="wa-atendToolbar-menuDivider" role="separator" />
+                  ) : null}
+                  {secondary.map((a) => renderMenuRow(a))}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {transferModal}
     </>
   );
 }

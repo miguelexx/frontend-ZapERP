@@ -33,6 +33,7 @@ import {
 } from "../api/tagService";
 import * as cfg from "../api/configService";
 import SidebarCliente from "./SidebarCliente";
+import { useMatchMedia } from "../hooks/useMatchMedia";
 import EmptyState from "../components/feedback/EmptyState";
 import DSToast from "../components/feedback/Toast";
 import { SkeletonLine } from "../components/feedback/Skeleton";
@@ -1797,6 +1798,7 @@ export default function ConversaView() {
   const podeGerenciarSetores = canGerenciarSetores(user);
   const podeTransferirSetor = canTransferirSetorConversa(user);
   const podeGerenciarTags = canTag(user);
+  const headerCompact = useMatchMedia("(max-width: 640px)");
 
   const podeEnviar = useMemo(() => {
     if (!user?.id || !conversa?.id) return false;
@@ -3786,8 +3788,8 @@ export default function ConversaView() {
           </div>
         ) : null}
 
-        {/* HEADER — nome do contato + status discreto + ações */}
-        <div ref={waHeaderRef} className="wa-header">
+        {/* HEADER — nome + meta (status/setor) + ações; mobile: toolbar compacta */}
+        <div ref={waHeaderRef} className={`wa-header ${isGroup ? "wa-header--group" : ""}`}>
           <button
             type="button"
             className="wa-header-back"
@@ -3817,61 +3819,71 @@ export default function ConversaView() {
               </div>
             </div>
             <div className="wa-header-info">
-              <div className="wa-header-nameRow">
-                <span className="wa-header-name" title={nome}>
-                  {nome}
-                </span>
-                {badge ? (
-                  <span
-                    className="wa-status-pill"
-                    style={{
-                      background: badge.bg,
-                      borderColor: badge.border,
-                      color: badge.color,
-                    }}
-                    title={badge.text}
-                  >
-                    {badge.text}
+              <div className="wa-header-titleBlock">
+                <div className="wa-header-titleRow">
+                  <span className="wa-header-name" title={nome}>
+                    {nome}
                   </span>
-                ) : null}
+                </div>
+                <div className="wa-header-metaStrip" aria-label="Status e setor">
+                  {badge ? (
+                    <span
+                      className="wa-status-pill wa-status-pill--meta"
+                      style={{
+                        background: badge.bg,
+                        borderColor: badge.border,
+                        color: badge.color,
+                      }}
+                      title={badge.text}
+                    >
+                      {badge.text}
+                    </span>
+                  ) : null}
+                  {!isGroup &&
+                    (setorAtual ? (
+                      <>
+                        {badge ? <span className="wa-header-metaSep" aria-hidden="true" /> : null}
+                        <span className="wa-header-metaItem" title={setorAtual}>
+                          Setor: {setorAtual}
+                        </span>
+                        {podeTransferirSetor ? (
+                          <button
+                            type="button"
+                            className="wa-header-setorBtn"
+                            onClick={handleOpenTransferirSetor}
+                            title="Transferir para outro setor"
+                          >
+                            <span className="wa-setorBtn-label wa-setorBtn-label--full">Transferir setor</span>
+                            <span className="wa-setorBtn-label wa-setorBtn-label--short">Trocar</span>
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        {badge ? <span className="wa-header-metaSep" aria-hidden="true" /> : null}
+                        <span className="wa-header-metaItem wa-muted">Sem setor</span>
+                        {podeTransferirSetor ? (
+                          <button
+                            type="button"
+                            className="wa-header-setorBtn"
+                            onClick={handleOpenTransferirSetor}
+                            title="Definir setor"
+                          >
+                            <span className="wa-setorBtn-label wa-setorBtn-label--full">Definir setor</span>
+                            <span className="wa-setorBtn-label wa-setorBtn-label--short">Setor</span>
+                          </button>
+                        ) : null}
+                      </>
+                    ))}
+                  {isGroup ? (
+                    <>
+                      {badge ? <span className="wa-header-metaSep" aria-hidden="true" /> : null}
+                      <span className="wa-header-metaItem wa-muted">Grupo</span>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              {!isGroup && (setorAtual ? (
-                <div className="wa-header-setorRow">
-                  <span className="wa-header-setor">Setor: {setorAtual}</span>
-                  {podeTransferirSetor && (
-                    <button
-                      type="button"
-                      className="wa-header-setorBtn"
-                      onClick={handleOpenTransferirSetor}
-                      title="Transferir para outro setor"
-                    >
-                      <span className="wa-setorBtn-label wa-setorBtn-label--full">Transferir setor</span>
-                      <span className="wa-setorBtn-label wa-setorBtn-label--short">Trocar</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="wa-header-setorRow">
-                  <span className="wa-header-setor wa-muted">Sem setor</span>
-                  {podeTransferirSetor && (
-                    <button
-                      type="button"
-                      className="wa-header-setorBtn"
-                      onClick={handleOpenTransferirSetor}
-                      title="Definir setor"
-                    >
-                      <span className="wa-setorBtn-label wa-setorBtn-label--full">Definir setor</span>
-                      <span className="wa-setorBtn-label wa-setorBtn-label--short">Setor</span>
-                    </button>
-                  )}
-                </div>
-              ))}
-              {isGroup && (
-                <div className="wa-header-setorRow">
-                  <span className="wa-header-setor wa-muted">Grupo</span>
-                </div>
-              )}
-              {isSomeoneTyping && (
+              {isSomeoneTyping ? (
                 <div className="wa-header-typingRow">
                   <span className="wa-typing-dots">
                     digitando
@@ -3882,14 +3894,14 @@ export default function ConversaView() {
                     </span>
                   </span>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
           <div className="wa-header-right">
             <div className="wa-header-innerRow">
               <div className="wa-header-iconsLine">
-                {!isGroup && podeGerenciarTags && (
+                {!headerCompact && !isGroup && podeGerenciarTags ? (
                   <button
                     type="button"
                     className={`wa-header-btn wa-tagsBtn ${tagsOpen ? "isActive" : ""}`}
@@ -3900,33 +3912,74 @@ export default function ConversaView() {
                   >
                     <IconTag />
                   </button>
-                )}
+                ) : null}
 
-                <button
-                  onClick={toggleTimeline}
-                  title="Histórico de atendimentos (Ctrl/Cmd + H)"
-                  className={`wa-header-btn wa-header-historyBtn ${showTimeline ? "isActive" : ""}`}
-                  type="button"
-                  aria-label="Histórico"
-                >
-                  <IconClock />
-                </button>
+                {(!headerCompact || isGroup) ? (
+                  <button
+                    onClick={toggleTimeline}
+                    title="Histórico de atendimentos (Ctrl/Cmd + H)"
+                    className={`wa-header-btn wa-header-historyBtn ${showTimeline ? "isActive" : ""}`}
+                    type="button"
+                    aria-label="Histórico"
+                  >
+                    <IconClock />
+                  </button>
+                ) : null}
               </div>
 
-              {!isGroup && (
+              {!isGroup ? (
                 <div className="wa-header-actionsRow">
                   <div className="wa-actions">
-                    <AtendimentoActions />
+                    <AtendimentoActions
+                      compactToolbar={headerCompact}
+                      overflowTop={
+                        headerCompact
+                          ? (close) => (
+                              <>
+                                {podeGerenciarTags ? (
+                                  <button
+                                    type="button"
+                                    className="wa-atendToolbar-sheetBtn"
+                                    onClick={() => {
+                                      handleToggleTagPanel();
+                                      close();
+                                    }}
+                                    disabled={!conversaId}
+                                  >
+                                    <span className="wa-atendToolbar-sheetIcon" aria-hidden="true">
+                                      <IconTag />
+                                    </span>
+                                    <span className="wa-atendToolbar-sheetLabel">Tags do cliente</span>
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="wa-atendToolbar-sheetBtn"
+                                  onClick={() => {
+                                    toggleTimeline();
+                                    close();
+                                  }}
+                                >
+                                  <span className="wa-atendToolbar-sheetIcon" aria-hidden="true">
+                                    <IconClock />
+                                  </span>
+                                  <span className="wa-atendToolbar-sheetLabel">Histórico de atendimentos</span>
+                                </button>
+                              </>
+                            )
+                          : undefined
+                      }
+                    />
                   </div>
                 </div>
-              )}
+              ) : null}
 
               <button
                 title="Mais opções"
                 className="wa-header-btn wa-header-moreBtn"
                 type="button"
                 onClick={() => setShowClienteSide(true)}
-                aria-label="Mais opções"
+                aria-label="Dados do contato e mais opções"
               >
                 <IconMore />
               </button>
