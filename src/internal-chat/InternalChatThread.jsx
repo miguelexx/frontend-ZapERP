@@ -14,6 +14,7 @@ function assignRefs(el, a, b) {
 const InternalChatThread = forwardRef(function InternalChatThread(
   {
     conversation,
+    onBackToList,
     myUserId,
     messagesListRef,
     peerOnline = false,
@@ -86,6 +87,7 @@ const InternalChatThread = forwardRef(function InternalChatThread(
         peerOnline={peerOnline}
         peerLastSeen={peerLastSeen}
         formatLastSeen={formatLastSeen}
+        onBack={onBackToList}
       />
 
       <div className="ic-thread-body">

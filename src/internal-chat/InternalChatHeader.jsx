@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
 function HeaderAvatar({ url, name }) {
   const [broken, setBroken] = useState(false);
@@ -12,12 +13,17 @@ function HeaderAvatar({ url, name }) {
   );
 }
 
-export default function InternalChatHeader({ conversation, peerOnline, peerLastSeen, formatLastSeen }) {
+export default function InternalChatHeader({ conversation, peerOnline, peerLastSeen, formatLastSeen, onBack }) {
   const subtitle = conversation.otherEmail || "Conversa interna da equipe";
   const statusLine = peerOnline ? "Online" : peerLastSeen ? `Último acesso: ${formatLastSeen(peerLastSeen)}` : "";
 
   return (
     <header className="ic-thread-header">
+      {typeof onBack === "function" ? (
+        <button type="button" className="ic-thread-back" onClick={onBack} aria-label="Voltar à lista de colaboradores">
+          <ArrowLeft size={22} strokeWidth={2} aria-hidden />
+        </button>
+      ) : null}
       <HeaderAvatar url={conversation.avatarUrl} name={conversation.otherName} />
       <div className="ic-thread-header-text">
         <h2 className="ic-thread-title">{conversation.otherName}</h2>

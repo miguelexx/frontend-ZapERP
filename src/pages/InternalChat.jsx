@@ -678,9 +678,10 @@ export default function InternalChat() {
   }
 
   const rootThemeClass = uiTheme === "dark" ? "internal-chat-root--dark-ui" : "internal-chat-root--light-ui";
+  const threadOpenClass = selected ? "internal-chat-root--thread-open" : "";
 
   return (
-    <div className={`internal-chat-root ${rootThemeClass}`}>
+    <div className={`internal-chat-root ${rootThemeClass} ${threadOpenClass}`.trim()}>
       <aside className="internal-chat-sidebar" aria-label="Lista de equipe e conversas internas">
         <header className="internal-chat-head">
           <h1>Chat interno</h1>
@@ -788,6 +789,7 @@ export default function InternalChat() {
           <InternalChatThread
             ref={threadRef}
             conversation={selected}
+            onBackToList={() => setSelectedConversationId(null)}
             myUserId={user?.id}
             messagesListRef={messagesListRef}
             peerOnline={Boolean(peerEmployee?.isOnline)}
