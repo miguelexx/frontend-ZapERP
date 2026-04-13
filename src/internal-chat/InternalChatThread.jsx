@@ -132,7 +132,7 @@ export default function InternalChatThread({
           {initLoading ? (
             <div className="ic-thread-skel" aria-busy="true">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className={`ic-thread-skel-row ${i % 2 === 0 ? "ic-thread-skel-row--out" : ""}`}>
+                <div key={i} className={`ic-thread-skel-row ${i % 2 !== 0 ? "ic-thread-skel-row--out" : ""}`}>
                   <SkeletonLine width={i % 3 === 0 ? "72%" : "48%"} />
                 </div>
               ))}

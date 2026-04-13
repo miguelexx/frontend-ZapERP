@@ -47,16 +47,46 @@ function formatLastSeen(ts) {
   return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
-function sortEmployees(list) {
-  return [...list].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
-}
-
 function sortConversations(list) {
   return [...list].sort((a, b) => {
     const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
     const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
     return tb - ta;
   });
+}
+
+/**
+ * Uma única lista: colaboradores com conversa (preview/hora) ou só equipe; ordenado por atividade recente.
+ * @param {any[]} employees
+ * @param {any[]} conversations
+ * @param {string | null} myId
+ */
+function buildInternalCollaboratorRows(employees, conversations, myId) {
+  const convByPeer = new Map();
+  for (const c of conversations) {
+    if (c?.otherUserId) convByPeer.set(String(c.otherUserId), c);
+  }
+  const empIds = new Set(employees.map((e) => String(e.id)));
+  const rows = [];
+  for (const emp of employees) {
+    if (myId && String(emp.id) === String(myId)) continue;
+    const conv = convByPeer.get(String(emp.id)) || null;
+    const sortTime = conv?.lastActivity ? new Date(conv.lastActivity).getTime() : 0;
+    rows.push({ key: `emp-${emp.id}`, employee: emp, conversation: conv, sortTime });
+  }
+  for (const c of conversations) {
+    if (!c?.otherUserId) continue;
+    if (empIds.has(String(c.otherUserId))) continue;
+    const sortTime = c.lastActivity ? new Date(c.lastActivity).getTime() : 0;
+    rows.push({ key: `conv-${c.id}`, employee: null, conversation: c, sortTime });
+  }
+  rows.sort((a, b) => {
+    if (b.sortTime !== a.sortTime) return b.sortTime - a.sortTime;
+    const na = a.employee?.name || a.conversation?.otherName || "";
+    const nb = b.employee?.name || b.conversation?.otherName || "";
+    return na.localeCompare(nb, "pt-BR", { sensitivity: "base" });
+  });
+  return rows;
 }
 
 function pickErrorMessage(err) {
@@ -89,7 +119,6 @@ export default function InternalChat() {
   const user = useAuthStore((s) => s.user);
   const myId = user?.id != null ? String(user.id) : null;
 
-  const [leftTab, setLeftTab] = useState(/** @type {"employees" | "conversations"} */ ("employees"));
   const [search, setSearch] = useState("");
   const [employees, setEmployees] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -127,7 +156,7 @@ export default function InternalChat() {
     try {
       const [emRaw, convRaw] = await Promise.all([listInternalEmployees(), listInternalConversations(user?.id)]);
       const filtered = myId ? emRaw.filter((e) => String(e.id) !== myId) : emRaw;
-      setEmployees(sortEmployees(filtered));
+      setEmployees(filtered);
       setConversations(sortConversations(convRaw));
     } catch (err) {
       setError(pickErrorMessage(err));
@@ -340,20 +369,22 @@ export default function InternalChat() {
 
   const q = search.trim().toLowerCase();
 
-  const employeesFiltered = useMemo(() => {
-    if (!q) return employees;
-    return employees.filter(
-      (e) => e.name.toLowerCase().includes(q) || (e.email && e.email.toLowerCase().includes(q))
-    );
-  }, [employees, q]);
+  const collaboratorRows = useMemo(
+    () => buildInternalCollaboratorRows(employees, conversations, myId),
+    [employees, conversations, myId]
+  );
 
-  const conversationsFiltered = useMemo(() => {
-    if (!q) return conversations;
-    return conversations.filter((c) => {
-      const blob = `${c.otherName} ${c.otherEmail || ""} ${c.lastMessage || ""}`.toLowerCase();
-      return blob.includes(q);
+  const collaboratorsFiltered = useMemo(() => {
+    if (!q) return collaboratorRows;
+    return collaboratorRows.filter((row) => {
+      const emp = row.employee;
+      const conv = row.conversation;
+      const name = (emp?.name || conv?.otherName || "").toLowerCase();
+      const email = (emp?.email || conv?.otherEmail || "").toLowerCase();
+      const preview = (conv?.lastMessage || "").toLowerCase();
+      return name.includes(q) || email.includes(q) || preview.includes(q);
     });
-  }, [conversations, q]);
+  }, [collaboratorRows, q]);
 
   const selected = useMemo(
     () => conversations.find((c) => String(c.id) === String(selectedConversationId)) || null,
@@ -365,12 +396,11 @@ export default function InternalChat() {
     return employees.find((e) => String(e.id) === String(selected.otherUserId)) ?? null;
   }, [employees, selected]);
 
-  async function handleSelectEmployee(emp) {
+  async function openConversationForEmployee(emp) {
     if (!emp?.id || actionLoading) return;
     const hit = conversations.find((c) => c.otherUserId && String(c.otherUserId) === String(emp.id));
     if (hit) {
       setSelectedConversationId(hit.id);
-      setLeftTab("conversations");
       return;
     }
     setActionLoading(true);
@@ -385,7 +415,6 @@ export default function InternalChat() {
         const found = next.find((c) => String(c.otherUserId) === String(emp.id));
         if (found) setSelectedConversationId(found.id);
       }
-      setLeftTab("conversations");
     } catch (err) {
       setError(pickErrorMessage(err));
     } finally {
@@ -393,14 +422,19 @@ export default function InternalChat() {
     }
   }
 
-  function handleSelectConversation(conv) {
-    if (!conv?.id) return;
-    setSelectedConversationId(conv.id);
+  function handleCollaboratorRowClick(row) {
+    if (row.conversation?.id) {
+      setSelectedConversationId(row.conversation.id);
+      return;
+    }
+    if (row.employee) {
+      openConversationForEmployee(row.employee);
+    }
   }
 
-  function employeeForConversationRow(c) {
-    if (!c?.otherUserId) return null;
-    return employees.find((e) => String(e.id) === String(c.otherUserId)) ?? null;
+  function isCollaboratorRowActive(row) {
+    if (!selectedConversationId || !row.conversation?.id) return false;
+    return String(row.conversation.id) === String(selectedConversationId);
   }
 
   const retryThread = useCallback(() => {
@@ -435,32 +469,13 @@ export default function InternalChat() {
             id="internal-chat-search-input"
             type="search"
             autoComplete="off"
-            placeholder={leftTab === "employees" ? "Buscar por nome ou e-mail…" : "Buscar conversa ou mensagem…"}
+            placeholder="Buscar colaborador, e-mail ou mensagem…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        <div className="internal-chat-tabs" role="tablist" aria-label="Seções">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={leftTab === "employees"}
-            className="internal-chat-tab"
-            onClick={() => setLeftTab("employees")}
-          >
-            Funcionários
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={leftTab === "conversations"}
-            className="internal-chat-tab"
-            onClick={() => setLeftTab("conversations")}
-          >
-            Conversas
-          </button>
-        </div>
+        <h2 className="internal-chat-section-title">Colaboradores internos</h2>
 
         {error ? (
           <div className="internal-chat-error" role="alert">
@@ -476,58 +491,47 @@ export default function InternalChat() {
             <div className="internal-chat-skel-pad">
               <SkeletonChatList />
             </div>
-          ) : leftTab === "employees" ? (
-            employeesFiltered.length === 0 ? (
-              <div className="internal-chat-panel" style={{ padding: "24px 16px" }}>
-                <p style={{ fontSize: "0.88rem", color: "var(--ds-text-secondary)" }}>
-                  {q ? "Nenhum funcionário encontrado para a busca." : "Nenhum outro funcionário disponível no momento."}
-                </p>
-              </div>
-            ) : (
-              employeesFiltered.map((emp) => (
-                <button
-                  key={emp.id}
-                  type="button"
-                  className="internal-chat-row"
-                  disabled={actionLoading}
-                  onClick={() => handleSelectEmployee(emp)}
-                >
-                  <InternalAvatar url={emp.avatarUrl} name={emp.name} online={emp.isOnline} />
-                  <div className="internal-chat-row-body">
-                    <div className="internal-chat-row-title">{emp.name}</div>
-                    <div className="internal-chat-row-sub">
-                      {emp.email || "—"}
-                      {!emp.isOnline && emp.lastSeen ? ` · ${formatLastSeen(emp.lastSeen)}` : ""}
-                    </div>
-                  </div>
-                </button>
-              ))
-            )
-          ) : conversationsFiltered.length === 0 ? (
+          ) : collaboratorsFiltered.length === 0 ? (
             <div className="internal-chat-panel" style={{ padding: "24px 16px" }}>
               <p style={{ fontSize: "0.88rem", color: "var(--ds-text-secondary)" }}>
-                {q ? "Nenhuma conversa encontrada." : "Nenhuma conversa interna ainda. Selecione um funcionário para começar."}
+                {q
+                  ? "Nenhum colaborador encontrado para a busca."
+                  : "Nenhum colaborador interno disponível no momento."}
               </p>
             </div>
           ) : (
-            conversationsFiltered.map((c) => {
-              const active = String(c.id) === String(selectedConversationId);
-              const rowEmp = employeeForConversationRow(c);
+            collaboratorsFiltered.map((row) => {
+              const emp = row.employee;
+              const conv = row.conversation;
+              const title = emp?.name || conv?.otherName || "Colaborador";
+              const avatarUrl = emp?.avatarUrl ?? conv?.avatarUrl;
+              const online = Boolean(emp?.isOnline);
+              const sub = conv?.lastMessage
+                ? String(conv.lastMessage)
+                : emp?.email || "Toque para abrir a conversa";
+              const time = conv?.lastActivity
+                ? formatActivityShort(conv.lastActivity)
+                : emp?.lastSeen && !emp?.isOnline
+                  ? formatLastSeen(emp.lastSeen)
+                  : "";
+              const unread = conv && Number(conv.unreadCount) > 0 ? Number(conv.unreadCount) : 0;
+              const active = isCollaboratorRowActive(row);
               return (
                 <button
-                  key={c.id}
+                  key={row.key}
                   type="button"
                   className={`internal-chat-row${active ? " internal-chat-row--active" : ""}`}
-                  onClick={() => handleSelectConversation(c)}
+                  disabled={actionLoading}
+                  onClick={() => handleCollaboratorRowClick(row)}
                 >
-                  <InternalAvatar url={c.avatarUrl} name={c.otherName} online={Boolean(rowEmp?.isOnline)} />
+                  <InternalAvatar url={avatarUrl} name={title} online={online} />
                   <div className="internal-chat-row-body">
-                    <div className="internal-chat-row-title">{c.otherName}</div>
-                    <div className="internal-chat-row-sub">{c.lastMessage || "Sem mensagens"}</div>
+                    <div className="internal-chat-row-title">{title}</div>
+                    <div className="internal-chat-row-sub">{sub}</div>
                   </div>
                   <div className="internal-chat-row-meta">
-                    <span className="internal-chat-time">{formatActivityShort(c.lastActivity)}</span>
-                    {c.unreadCount > 0 ? <span className="internal-chat-badge">{c.unreadCount > 99 ? "99+" : c.unreadCount}</span> : null}
+                    {time ? <span className="internal-chat-time">{time}</span> : null}
+                    {unread > 0 ? <span className="internal-chat-badge">{unread > 99 ? "99+" : unread}</span> : null}
                   </div>
                 </button>
               );
@@ -546,8 +550,8 @@ export default function InternalChat() {
                 <path d="M19 8h3M20.5 6.5v3" strokeLinecap="round" />
               </svg>
             </div>
-            <h2>Selecione uma conversa</h2>
-            <p>Escolha um funcionário ou uma conversa interna na coluna à esquerda para ver o histórico e enviar mensagens.</p>
+            <h2>Selecione um colaborador</h2>
+            <p>Clique em um nome em Colaboradores internos para abrir a conversa e enviar mensagens.</p>
             <span className="internal-chat-chip">Área interna · não é WhatsApp</span>
           </div>
         ) : (
