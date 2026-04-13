@@ -40,6 +40,22 @@ export function previewTextFromMessageLike(raw) {
       return content || "Localização";
     }
     case "contact": {
+      const rawContacts = Array.isArray(p.contacts) ? p.contacts : [];
+      const n = rawContacts.length;
+      if (n > 1) {
+        const first = rawContacts[0] && typeof rawContacts[0] === "object" ? String(/** @type {any} */ (rawContacts[0]).name ?? "").trim() : "";
+        if (first) return `${first} (+${n - 1})`.slice(0, 120);
+        return `Contatos compartilhados (${n})`.slice(0, 120);
+      }
+      if (n === 1 && rawContacts[0] && typeof rawContacts[0] === "object") {
+        const nm = String(/** @type {any} */ (rawContacts[0]).name ?? "").trim();
+        if (nm) return nm.slice(0, 80);
+      }
+      const phones = Array.isArray(p.phones) ? p.phones : [];
+      if (phones.length > 1) {
+        const base = String(p.name ?? o.name ?? "").trim();
+        return base ? `${base} (${phones.length} números)`.slice(0, 120) : `${phones.length} números`.slice(0, 120);
+      }
       const name = p.name ?? p.contactName ?? o.name ?? o.contact_name;
       return name ? String(name).slice(0, 80) : content || "Contato";
     }

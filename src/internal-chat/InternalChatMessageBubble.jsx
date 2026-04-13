@@ -1,4 +1,4 @@
-import { formatMessageTime, isMessageMine, documentKindLabel } from "./messageUtils";
+import { formatMessageTime, getContactRowsFromMessage, isMessageMine, documentKindLabel } from "./messageUtils";
 import { internalMediaAbsoluteUrl } from "./mediaUrl.js";
 
 function BubbleMeta({ createdAt }) {
@@ -20,9 +20,6 @@ function MessageBody({ message }) {
   const lat = payload.latitude ?? payload.lat;
   const lng = payload.longitude ?? payload.lng;
   const address = payload.address != null ? String(payload.address) : "";
-  const cName = payload.name != null ? String(payload.name) : "";
-  const cPhone = payload.phone != null ? String(payload.phone) : "";
-  const cOrg = payload.organization != null ? String(payload.organization) : "";
   const duration = payload.duration != null ? Number(payload.duration) : null;
 
   const mediaUrl = message.mediaUrl ? internalMediaAbsoluteUrl(message.mediaUrl) : null;
@@ -120,32 +117,47 @@ function MessageBody({ message }) {
   }
 
   if (type === "contact") {
-    const tel = cPhone.replace(/\s/g, "");
-    const telHref = tel ? `tel:${encodeURIComponent(tel)}` : null;
+    const rows = getContactRowsFromMessage(message);
+    if (!rows.length) {
+      return <p className="ic-thread-bubble-text ic-thread-muted">Contato indisponível</p>;
+    }
+    const multi = rows.length > 1;
     return (
-      <div className="ic-thread-bubble-card">
-        <div className="ic-thread-card-title">{cName || "Contato"}</div>
-        {cPhone ? (
-          telHref ? (
-            <a className="ic-thread-card-phone" href={telHref}>
-              {cPhone}
-            </a>
-          ) : (
-            <span className="ic-thread-card-phone">{cPhone}</span>
-          )
-        ) : null}
-        {cOrg ? <div className="ic-thread-card-org">{cOrg}</div> : null}
-        {cPhone ? (
-          <button
-            type="button"
-            className="ic-thread-card-copy"
-            onClick={() => {
-              void navigator.clipboard?.writeText(cPhone).catch(() => {});
-            }}
-          >
-            Copiar telefone
-          </button>
-        ) : null}
+      <div className={`ic-thread-bubble-contacts${multi ? " ic-thread-bubble-contacts--multi" : ""}`}>
+        {multi ? <div className="ic-thread-contacts-title">Contatos compartilhados ({rows.length})</div> : null}
+        <ul className="ic-thread-contacts-list">
+          {rows.map((row, idx) => {
+            const tel = row.phone.replace(/\s/g, "");
+            const telHref = tel ? `tel:${encodeURIComponent(tel)}` : null;
+            const key = `${row.phone}-${idx}`;
+            return (
+              <li key={key} className="ic-thread-contact-card">
+                {row.name ? <div className="ic-thread-card-title">{row.name}</div> : <div className="ic-thread-card-title">Contato</div>}
+                {row.phone ? (
+                  telHref ? (
+                    <a className="ic-thread-card-phone" href={telHref}>
+                      {row.phone}
+                    </a>
+                  ) : (
+                    <span className="ic-thread-card-phone">{row.phone}</span>
+                  )
+                ) : null}
+                {row.organization ? <div className="ic-thread-card-org">{row.organization}</div> : null}
+                {row.phone ? (
+                  <button
+                    type="button"
+                    className="ic-thread-card-copy"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(row.phone).catch(() => {});
+                    }}
+                  >
+                    Copiar telefone
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
         {content ? <p className="ic-thread-bubble-text ic-thread-bubble-caption">{content}</p> : null}
       </div>
     );

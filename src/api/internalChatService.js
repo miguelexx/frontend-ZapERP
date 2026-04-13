@@ -200,18 +200,33 @@ export async function sendInternalLocationMessage(conversationId, body, myUserId
 
 /**
  * @param {string | number} conversationId
- * @param {{ name: string, phone: string, organization?: string, caption?: string }} body
+ * @param {{
+ *   name: string;
+ *   phone?: string;
+ *   phones?: string[];
+ *   organization?: string;
+ *   caption?: string;
+ * }} body
  * @param {string | number | null | undefined} myUserId
  * @param {string | number | null | undefined} otherUserId
  */
 export async function sendInternalContactMessage(conversationId, body, myUserId, otherUserId = null) {
+  const name = String(body.name || "").trim();
+  const single = body.phone != null ? String(body.phone).trim() : "";
+  const many = Array.isArray(body.phones) ? body.phones.map((p) => String(p).trim()).filter(Boolean) : [];
+  const list = many.length > 0 ? many : single ? [single] : [];
+  /** @type {Record<string, unknown>} */
   const payload = {
     message_type: "contact",
-    name: String(body.name || "").trim(),
-    phone: String(body.phone || "").trim(),
+    name,
     organization: body.organization?.trim() || undefined,
     caption: body.caption?.trim() || undefined,
   };
+  if (list.length > 1) {
+    payload.phones = list;
+  } else if (list.length === 1) {
+    payload.phone = list[0];
+  }
   const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages`, payload);
   return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId);
 }

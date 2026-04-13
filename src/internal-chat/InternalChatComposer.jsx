@@ -1,24 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, FileAudio, Image, MapPin, Mic, Paperclip, SendHorizontal, Smile, User, Video } from "lucide-react";
+import { MapPin, Mic, Paperclip, SendHorizontal, Square, Trash2, User } from "lucide-react";
 
 /**
  * @typedef {{ kind: 'text'; content: string }} PayloadText
  * @typedef {{ kind: 'media'; file: File; fieldName?: string; messageType?: string; caption?: string }} PayloadMedia
  * @typedef {{ kind: 'location'; latitude: number; longitude: number; address?: string; caption?: string }} PayloadLoc
- * @typedef {{ kind: 'contact'; name: string; phone: string; organization?: string; caption?: string }} PayloadContact
+ * @typedef {{ kind: 'contact'; name: string; phone?: string; phones?: string[]; organization?: string; caption?: string }} PayloadContact
  * @typedef {PayloadText | PayloadMedia | PayloadLoc | PayloadContact} ComposerPayload
  */
+
+/** Formato tipo WhatsApp: 0:03 ou 1:24 */
+function formatRecSeconds(totalSec) {
+  const s = Math.max(0, Math.floor(totalSec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
+
+/** Um número por linha ou separados por vírgula / ponto e vírgula */
+function parsePhonesList(raw) {
+  return String(raw || "")
+    .split(/[\n,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 /** @param {{ onSend: (p: ComposerPayload) => Promise<void>; disabled?: boolean; sendError?: string | null; uploadProgress?: number | null }} props */
 export default function InternalChatComposer({ onSend, disabled = false, sendError = null, uploadProgress = null }) {
   const [draft, setDraft] = useState("");
   const inputRef = useRef(null);
   const fileAnyRef = useRef(null);
-  const fileImageGalleryRef = useRef(null);
-  const fileImageCameraRef = useRef(null);
-  const fileVideoRef = useRef(null);
-  const fileAudioRef = useRef(null);
-  const fileStickerRef = useRef(null);
 
   const [locOpen, setLocOpen] = useState(false);
   const [lat, setLat] = useState("");
@@ -37,14 +48,29 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
   );
   const [pendingCaption, setPendingCaption] = useState("");
 
-  const [recording, setRecording] = useState(false);
+  /** idle | recording | preview */
+  const [audioPhase, setAudioPhase] = useState(/** @type {'idle' | 'recording' | 'preview'} */ ("idle"));
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [audioPreviewFile, setAudioPreviewFile] = useState(/** @type {File | null} */ (null));
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState(/** @type {string | null} */ (null));
+
   const recRef = useRef(/** @type {MediaRecorder | null} */ (null));
   const chunksRef = useRef(/** @type {BlobPart[]} */ ([]));
   const streamRef = useRef(/** @type {MediaStream | null} */ (null));
+  const recordStartedAtRef = useRef(0);
+  const tickRef = useRef(/** @type {ReturnType<typeof setInterval> | null} */ (null));
+  const lastMimeRef = useRef("");
 
   function stopStream() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+  }
+
+  function clearAudioTick() {
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
   }
 
   useEffect(() => {
@@ -56,10 +82,17 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
 
   useEffect(
     () => () => {
+      clearAudioTick();
       stopStream();
     },
     []
   );
+
+  useEffect(() => {
+    return () => {
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+    };
+  }, [audioPreviewUrl]);
 
   const openFilePicker = (ref) => {
     ref.current?.click();
@@ -118,8 +151,19 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
     setPendingCaption("");
   }
 
-  async function startRecording() {
-    if (disabled || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return;
+  function resetAudioUi() {
+    clearAudioTick();
+    recRef.current = null;
+    chunksRef.current = [];
+    stopStream();
+    setAudioPhase("idle");
+    setElapsedSec(0);
+    setAudioPreviewFile(null);
+    setAudioPreviewUrl(null);
+  }
+
+  async function startAudioRecording() {
+    if (disabled || audioPhase !== "idle" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -130,36 +174,57 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
         if (ev.data.size) chunksRef.current.push(ev.data);
       };
       mr.start(200);
-      setRecording(true);
+      recordStartedAtRef.current = Date.now();
+      setElapsedSec(0);
+      setAudioPhase("recording");
+      clearAudioTick();
+      tickRef.current = setInterval(() => {
+        setElapsedSec(Math.floor((Date.now() - recordStartedAtRef.current) / 1000));
+      }, 250);
     } catch {
-      setRecording(false);
-      stopStream();
+      resetAudioUi();
     }
   }
 
-  async function stopRecordingAndSend() {
+  async function stopAudioRecording() {
     const mr = recRef.current;
     if (!mr || mr.state === "inactive") {
-      setRecording(false);
-      stopStream();
+      resetAudioUi();
       return;
     }
+    clearAudioTick();
     await new Promise((resolve) => {
       mr.onstop = resolve;
       mr.stop();
     });
     stopStream();
-    recRef.current = null;
-    setRecording(false);
-    const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
+    lastMimeRef.current = mr.mimeType || "audio/webm";
+    const blob = new Blob(chunksRef.current, { type: lastMimeRef.current });
     chunksRef.current = [];
-    const ext = blob.type.includes("webm") ? "webm" : "ogg";
+    recRef.current = null;
+    const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("ogg") ? "ogg" : "webm";
     const file = new File([blob], `audio.${ext}`, { type: blob.type || "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    setAudioPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+    setAudioPreviewFile(file);
+    setAudioPhase("preview");
+  }
+
+  async function sendAudioPreview() {
+    if (!audioPreviewFile || disabled) return;
     try {
-      await onSend({ kind: "media", file, fieldName: "audio", caption: undefined });
+      await onSend({ kind: "media", file: audioPreviewFile, fieldName: "audio", caption: undefined });
+      resetAudioUi();
     } catch {
-      /* */
+      /* mantém preview para tentar de novo */
     }
+  }
+
+  function discardAudioPreview() {
+    resetAudioUi();
   }
 
   async function submitLocation() {
@@ -185,15 +250,26 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
   }
 
   async function submitContact() {
-    if (!cName.trim() || !cPhone.trim()) return;
+    const phones = parsePhonesList(cPhone);
+    if (!cName.trim() || !phones.length) return;
     try {
-      await onSend({
-        kind: "contact",
-        name: cName.trim(),
-        phone: cPhone.trim(),
-        organization: cOrg.trim() || undefined,
-        caption: cCaption.trim() || undefined,
-      });
+      if (phones.length > 1) {
+        await onSend({
+          kind: "contact",
+          name: cName.trim(),
+          phones,
+          organization: cOrg.trim() || undefined,
+          caption: cCaption.trim() || undefined,
+        });
+      } else {
+        await onSend({
+          kind: "contact",
+          name: cName.trim(),
+          phone: phones[0],
+          organization: cOrg.trim() || undefined,
+          caption: cCaption.trim() || undefined,
+        });
+      }
       setContactOpen(false);
       setCName("");
       setCPhone("");
@@ -212,6 +288,8 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
   }
 
   const canRecord = typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+  const audioBusy = audioPhase === "recording" || audioPhase === "preview";
+  const blockOtherActions = disabled || audioBusy;
 
   return (
     <div className="ic-composer-root">
@@ -256,12 +334,47 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
         </div>
       ) : null}
 
+      {audioPhase === "recording" ? (
+        <div className="ic-audio-strip ic-audio-strip--recording" role="status" aria-live="polite">
+          <span className="ic-audio-dot" aria-hidden />
+          <span className="ic-audio-timer" aria-label={`Gravando ${formatRecSeconds(elapsedSec)}`}>
+            {formatRecSeconds(elapsedSec)}
+          </span>
+          <span className="ic-audio-strip-spacer" />
+          <button
+            type="button"
+            className="ic-audio-stop"
+            aria-label="Parar gravação"
+            disabled={disabled}
+            onClick={() => void stopAudioRecording()}
+          >
+            <Square size={14} fill="currentColor" strokeWidth={0} aria-hidden />
+          </button>
+        </div>
+      ) : null}
+
+      {audioPhase === "preview" && audioPreviewUrl ? (
+        <div className="ic-audio-strip ic-audio-strip--preview">
+          <audio className="ic-audio-strip-player" controls src={audioPreviewUrl} preload="metadata">
+            Pré-escuta
+          </audio>
+          <div className="ic-audio-preview-actions">
+            <button type="button" className="ic-audio-discard" aria-label="Descartar áudio" disabled={disabled} onClick={discardAudioPreview}>
+              <Trash2 size={20} strokeWidth={2} />
+            </button>
+            <button type="button" className="ic-audio-send-wa" aria-label="Enviar áudio" disabled={disabled} onClick={() => void sendAudioPreview()}>
+              <SendHorizontal size={22} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="ic-thread-toolbar" role="toolbar" aria-label="Anexos e ações">
         <button
           type="button"
           className="ic-toolbar-btn"
           aria-label="Anexar arquivo"
-          disabled={disabled}
+          disabled={blockOtherActions}
           onClick={() => openFilePicker(fileAnyRef)}
         >
           <Paperclip size={18} strokeWidth={2} />
@@ -273,89 +386,23 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
           onChange={(e) => handleFileChosen(e, { fieldName: "attachment" })}
         />
 
-        <button type="button" className="ic-toolbar-btn" aria-label="Galeria de imagens" disabled={disabled} onClick={() => openFilePicker(fileImageGalleryRef)}>
-          <Image size={18} strokeWidth={2} />
-        </button>
-        <input
-          ref={fileImageGalleryRef}
-          type="file"
-          accept="image/*"
-          className="ic-file-input-hidden"
-          onChange={(e) => handleFileChosen(e, { fieldName: "file" })}
-        />
-
-        <button type="button" className="ic-toolbar-btn" aria-label="Câmera" disabled={disabled} onClick={() => openFilePicker(fileImageCameraRef)}>
-          <Camera size={18} strokeWidth={2} />
-        </button>
-        <input
-          ref={fileImageCameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="ic-file-input-hidden"
-          onChange={(e) => handleFileChosen(e, { fieldName: "file" })}
-        />
-
-        <button type="button" className="ic-toolbar-btn" aria-label="Vídeo" disabled={disabled} onClick={() => openFilePicker(fileVideoRef)}>
-          <Video size={18} strokeWidth={2} />
-        </button>
-        <input
-          ref={fileVideoRef}
-          type="file"
-          accept="video/*"
-          className="ic-file-input-hidden"
-          onChange={(e) => handleFileChosen(e, { fieldName: "file" })}
-        />
-
-        <button type="button" className="ic-toolbar-btn" aria-label="Áudio do dispositivo" disabled={disabled} onClick={() => openFilePicker(fileAudioRef)}>
-          <FileAudio size={18} strokeWidth={2} />
-        </button>
-        <input
-          ref={fileAudioRef}
-          type="file"
-          accept="audio/*"
-          className="ic-file-input-hidden"
-          onChange={async (e) => {
-            const input = e.target;
-            const file = input.files?.[0];
-            input.value = "";
-            if (!file) return;
-            try {
-              await onSend({ kind: "media", file, fieldName: "audio" });
-            } catch {
-              /* */
-            }
-          }}
-        />
-
-        <button
-          type="button"
-          className={`ic-toolbar-btn${recording ? " ic-toolbar-btn--rec" : ""}`}
-          aria-label={recording ? "Parar gravação e enviar" : "Gravar áudio"}
-          disabled={disabled || !canRecord}
-          onClick={() => (recording ? void stopRecordingAndSend() : void startRecording())}
-        >
-          <Mic size={18} strokeWidth={2} />
-        </button>
-
-        <button type="button" className="ic-toolbar-btn" aria-label="Localização" disabled={disabled} onClick={() => setLocOpen(true)}>
+        <button type="button" className="ic-toolbar-btn" aria-label="Localização" disabled={blockOtherActions} onClick={() => setLocOpen(true)}>
           <MapPin size={18} strokeWidth={2} />
         </button>
 
-        <button type="button" className="ic-toolbar-btn" aria-label="Contato" disabled={disabled} onClick={() => setContactOpen(true)}>
+        <button type="button" className="ic-toolbar-btn" aria-label="Contato" disabled={blockOtherActions} onClick={() => setContactOpen(true)}>
           <User size={18} strokeWidth={2} />
         </button>
 
-        <button type="button" className="ic-toolbar-btn" aria-label="Figurinha" disabled={disabled} onClick={() => openFilePicker(fileStickerRef)}>
-          <Smile size={18} strokeWidth={2} />
+        <button
+          type="button"
+          className={`ic-toolbar-btn${audioPhase === "recording" ? " ic-toolbar-btn--rec" : ""}`}
+          aria-label={audioPhase === "idle" ? "Gravar mensagem de voz" : audioPhase === "recording" ? "Gravando" : "Áudio gravado — use enviar ou descartar acima"}
+          disabled={disabled || !canRecord || audioPhase === "recording" || audioPhase === "preview"}
+          onClick={() => void startAudioRecording()}
+        >
+          <Mic size={18} strokeWidth={2} />
         </button>
-        <input
-          ref={fileStickerRef}
-          type="file"
-          accept="image/*"
-          className="ic-file-input-hidden"
-          onChange={(e) => handleFileChosen(e, { fieldName: "file", messageType: "sticker" })}
-        />
       </div>
 
       <div className="ic-thread-composer">
@@ -443,8 +490,15 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
                 <input value={cName} onChange={(e) => setCName(e.target.value)} />
               </label>
               <label>
-                Telefone *
-                <input value={cPhone} onChange={(e) => setCPhone(e.target.value)} placeholder="+55…" />
+                Telefone(s) *
+                <textarea
+                  className="ic-dialog-textarea"
+                  rows={4}
+                  value={cPhone}
+                  onChange={(e) => setCPhone(e.target.value)}
+                  placeholder={"+5511999990000\n+5511888880000\n(ou na mesma linha: +5511…, +5511…)"}
+                />
+                <span className="ic-dialog-hint">Um número por linha, ou vários na mesma linha separados por vírgula.</span>
               </label>
               <label>
                 Organização (opcional)
@@ -459,7 +513,12 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
               <button type="button" className="ic-dialog-btn" onClick={() => setContactOpen(false)}>
                 Cancelar
               </button>
-              <button type="button" className="ic-dialog-btn ic-dialog-btn--primary" disabled={disabled || !cName.trim() || !cPhone.trim()} onClick={() => void submitContact()}>
+              <button
+                type="button"
+                className="ic-dialog-btn ic-dialog-btn--primary"
+                disabled={disabled || !cName.trim() || parsePhonesList(cPhone).length === 0}
+                onClick={() => void submitContact()}
+              >
                 Enviar
               </button>
             </div>

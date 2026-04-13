@@ -61,7 +61,100 @@ function buildPayload(o) {
   if (o.name != null && payload.name == null) payload.name = o.name;
   if (o.phone != null && payload.phone == null) payload.phone = o.phone;
   if (o.organization != null && payload.organization == null) payload.organization = o.organization;
+  if (Array.isArray(o.phones)) {
+    payload.phones = o.phones.map((x) => String(x).trim()).filter(Boolean);
+  }
+  finalizeContactPayload(payload, o);
   return payload;
+}
+
+/** @param {unknown} row */
+export function normalizeContactRow(row) {
+  if (!row || typeof row !== "object") return null;
+  const r = /** @type {Record<string, unknown>} */ (row);
+  const phone = String(r.phone ?? r.tel ?? "").trim();
+  if (!phone) return null;
+  return {
+    name: String(r.name ?? r.nome ?? "").trim(),
+    phone,
+    organization: r.organization != null ? String(r.organization).trim() : "",
+  };
+}
+
+/**
+ * Garante `payload.contacts[]` canónico a partir de `contacts`, legado name+phone ou `phones[]` + name.
+ * @param {Record<string, unknown>} payload
+ * @param {Record<string, unknown>} o mensagem crua API
+ */
+function finalizeContactPayload(payload, o) {
+  const nameBase =
+    payload.name != null ? String(payload.name).trim() : o.name != null ? String(o.name).trim() : "";
+  const orgBase =
+    payload.organization != null
+      ? String(payload.organization).trim()
+      : o.organization != null
+        ? String(o.organization).trim()
+        : "";
+
+  if (Array.isArray(payload.contacts) && payload.contacts.length > 0) {
+    const list = payload.contacts.map(normalizeContactRow).filter(Boolean);
+    if (list.length) {
+      payload.contacts = list;
+      return;
+    }
+    delete payload.contacts;
+  }
+
+  const phonesFromPayload = Array.isArray(payload.phones) ? payload.phones : [];
+  const phonesFromRoot = Array.isArray(o.phones) ? o.phones.map((x) => String(x).trim()).filter(Boolean) : [];
+  const phones = phonesFromPayload.length ? phonesFromPayload.map((x) => String(x).trim()).filter(Boolean) : phonesFromRoot;
+
+  if (phones.length > 0) {
+    payload.phones = phones;
+    payload.contacts = phones.map((phone) => ({
+      name: nameBase,
+      phone,
+      organization: orgBase,
+    }));
+    return;
+  }
+
+  const singlePhone =
+    payload.phone != null ? String(payload.phone).trim() : o.phone != null ? String(o.phone).trim() : "";
+  if (singlePhone) {
+    payload.contacts = [
+      {
+        name: nameBase,
+        phone: singlePhone,
+        organization: orgBase,
+      },
+    ];
+  }
+}
+
+/**
+ * Linhas de contato para UI (mensagem já normalizada).
+ * @param {unknown} message
+ * @returns {{ name: string, phone: string, organization: string }[]}
+ */
+export function getContactRowsFromMessage(message) {
+  const payload = message?.payload && typeof message.payload === "object" ? message.payload : {};
+  if (Array.isArray(payload.contacts) && payload.contacts.length) {
+    return /** @type {{ name: string; phone: string; organization: string }[]} */ (
+      payload.contacts.map(normalizeContactRow).filter(Boolean)
+    );
+  }
+  const phone = payload.phone != null ? String(payload.phone).trim() : "";
+  if (phone) {
+    return [
+      {
+        name: String(payload.name ?? "").trim(),
+        phone,
+        organization: payload.organization != null ? String(payload.organization).trim() : "",
+      },
+    ];
+  }
+  return [];
 }
 
 /**
