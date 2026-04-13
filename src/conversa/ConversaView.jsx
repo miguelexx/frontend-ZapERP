@@ -21,6 +21,7 @@ import { canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import { useChatStore } from "../chats/chatsStore";
 import { fetchChats, abrirConversaCliente, abrirConversaPorTelefone } from "../chats/chatService";
+import { forwardAtendimentoMessageToColaborador } from "../api/internalChatService";
 import { getDisplayName } from "../chats/chatList";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { getSocket } from "../socket/socket";
@@ -1895,6 +1896,8 @@ export default function ConversaView() {
   const [forwardSending, setForwardSending] = useState(false);
   const [forwardClientes, setForwardClientes] = useState([]);
   const [forwardClientesLoading, setForwardClientesLoading] = useState(false);
+  const [forwardColaboradores, setForwardColaboradores] = useState([]);
+  const [forwardColaboradoresLoading, setForwardColaboradoresLoading] = useState(false);
 
   const [msgInfoOpen, setMsgInfoOpen] = useState(false);
   const [msgInfo, setMsgInfo] = useState(null);
@@ -2132,51 +2135,87 @@ export default function ConversaView() {
       .slice(0, 80);
   }, [chats, forwardQuery, conversaId]);
 
-  // Encaminhar: garante lista de conversas + busca de clientes (contatos)
+  const forwardColaboradoresFiltered = useMemo(() => {
+    const list = Array.isArray(forwardColaboradores) ? forwardColaboradores : [];
+    const me = user?.id != null ? String(user.id) : null;
+    const semEu = me
+      ? list.filter((colab) => {
+          const uid = colab?.id ?? colab?.user_id ?? colab?.usuario_id;
+          return uid == null || String(uid) !== me;
+        })
+      : list;
+    const q = safeString(forwardQuery).toLowerCase();
+    if (!q) return semEu.slice(0, 80);
+    return semEu
+      .filter((colab) => {
+        const n = safeString(colab?.nome ?? colab?.name ?? colab?.full_name).toLowerCase();
+        const em = safeString(colab?.email).toLowerCase();
+        return n.includes(q) || em.includes(q);
+      })
+      .slice(0, 80);
+  }, [forwardColaboradores, forwardQuery, user?.id]);
+
+  // Encaminhar: GET /chats com colaboradores + busca de clientes (contatos)
   useEffect(() => {
     if (!forwardOpen) {
       setForwardClientes([]);
       setForwardClientesLoading(false);
+      setForwardColaboradores([]);
+      setForwardColaboradoresLoading(false);
       return;
     }
 
-    // 1) garante conversas carregadas para listar "Contatos"
-    if (!Array.isArray(chats) || chats.length === 0) {
-      (async () => {
-        try {
-          const list = await fetchChats({ incluir_todos_clientes: true });
-          useChatStore.getState().setChats(Array.isArray(list) ? list : []);
-        } catch (_) {
-          // ignora (segue só com busca de clientes)
+    let cancelled = false;
+    setForwardColaboradoresLoading(true);
+    (async () => {
+      try {
+        const parsed = await fetchChats({
+          incluir_todos_clientes: true,
+          incluir_colaboradores_encaminhar: true,
+        });
+        if (cancelled) return;
+        if (parsed && typeof parsed === "object" && Array.isArray(parsed.conversas)) {
+          useChatStore.getState().setChats(parsed.conversas);
+          setForwardColaboradores(Array.isArray(parsed.colaboradores_encaminhar) ? parsed.colaboradores_encaminhar : []);
+        } else if (!cancelled) {
+          setForwardColaboradores([]);
         }
-      })();
-    }
+      } catch (_) {
+        if (!cancelled) setForwardColaboradores([]);
+      } finally {
+        if (!cancelled) setForwardColaboradoresLoading(false);
+      }
+    })();
 
     // 2) busca clientes no banco por palavra (opcional)
     const q = safeString(forwardQuery).trim();
+    let clientesTimer = null;
     if (q.length < 2) {
       setForwardClientes([]);
       setForwardClientesLoading(false);
-      return;
+    } else {
+      setForwardClientesLoading(true);
+      clientesTimer = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const list = await cfg.getClientes({ palavra: q, limit: 60 });
+          if (cancelled) return;
+          const arr = Array.isArray(list) ? list : [];
+          const curClienteId = conversa?.cliente_id != null ? String(conversa.cliente_id) : null;
+          setForwardClientes(curClienteId ? arr.filter((c) => String(c.id) !== curClienteId) : arr);
+        } catch (_) {
+          if (!cancelled) setForwardClientes([]);
+        } finally {
+          if (!cancelled) setForwardClientesLoading(false);
+        }
+      }, 260);
     }
 
-    setForwardClientesLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const list = await cfg.getClientes({ palavra: q, limit: 60 });
-        const arr = Array.isArray(list) ? list : [];
-        // evita sugerir o cliente desta conversa atual
-        const curClienteId = conversa?.cliente_id != null ? String(conversa.cliente_id) : null;
-        setForwardClientes(curClienteId ? arr.filter((c) => String(c.id) !== curClienteId) : arr);
-      } catch (_) {
-        setForwardClientes([]);
-      } finally {
-        setForwardClientesLoading(false);
-      }
-    }, 260);
-
-    return () => clearTimeout(t);
-  }, [forwardOpen, forwardQuery, chats, conversaId, conversa?.cliente_id]);
+    return () => {
+      cancelled = true;
+      if (clientesTimer) clearTimeout(clientesTimer);
+    };
+  }, [forwardOpen, forwardQuery, conversa?.cliente_id]);
 
   useEffect(() => {
     // reset por conversa
@@ -3386,6 +3425,37 @@ export default function ConversaView() {
     [forwardMsg, forwardSending, showToast, closeForward, execEncaminhar]
   );
 
+  const confirmForwardToColaborador = useCallback(
+    async (colab) => {
+      const targetUserId = colab?.id ?? colab?.user_id ?? colab?.usuario_id;
+      if (!forwardMsg?.id || !conversaId || targetUserId == null || forwardSending) return;
+      setForwardSending(true);
+      try {
+        await forwardAtendimentoMessageToColaborador({
+          conversaId,
+          mensagemId: forwardMsg.id,
+          targetUserId,
+        });
+        showToast({
+          type: "success",
+          title: "Encaminhada",
+          message: "Mensagem enviada para o chat interno do colaborador.",
+        });
+        closeForward();
+      } catch (e) {
+        console.error("Erro ao encaminhar (colaborador):", e);
+        showToast({
+          type: "error",
+          title: "Falha ao encaminhar",
+          message: e?.response?.data?.error || e?.message || "Não foi possível encaminhar para o colaborador.",
+        });
+      } finally {
+        setForwardSending(false);
+      }
+    },
+    [forwardMsg, conversaId, forwardSending, showToast, closeForward]
+  );
+
   const handleConversarContact = useCallback(
     async (meta) => {
       if (!meta?.telefone) {
@@ -4321,7 +4391,7 @@ export default function ConversaView() {
               <div className="wa-modal-body wa-forwardBody">
                 <div className="wa-forwardHint">
                   <div className="wa-forwardPreview">{snippetFromMsg(forwardMsg)}</div>
-                  <div className="wa-forwardSub">Selecione um contato ou conversa para encaminhar.</div>
+                  <div className="wa-forwardSub">Conversa de cliente (WhatsApp) ou colaborador (chat interno).</div>
                 </div>
 
                 <input
@@ -4334,6 +4404,41 @@ export default function ConversaView() {
                 />
 
                 <div className="wa-forwardSection">
+                  <div className="wa-forwardSectionTitle">Colaboradores</div>
+                  {forwardColaboradoresLoading ? (
+                    <div className="wa-muted" style={{ padding: "10px 4px" }}>
+                      Carregando…
+                    </div>
+                  ) : forwardColaboradoresFiltered.length === 0 ? (
+                    <div className="wa-muted" style={{ padding: "10px 4px" }}>
+                      Nenhum colaborador disponível para encaminhar.
+                    </div>
+                  ) : (
+                    <div className="wa-forwardList">
+                      {forwardColaboradoresFiltered.map((colab) => {
+                        const uid = colab?.id ?? colab?.user_id ?? colab?.usuario_id;
+                        const nome = safeString(colab?.nome ?? colab?.name ?? colab?.full_name) || "Colaborador";
+                        const email = safeString(colab?.email);
+                        return (
+                          <button
+                            key={`colab-${uid != null ? String(uid) : nome}`}
+                            type="button"
+                            className="wa-forwardItem"
+                            onClick={() => confirmForwardToColaborador(colab)}
+                            title={`Encaminhar para ${nome} (chat interno)`}
+                            disabled={forwardSending || uid == null}
+                          >
+                            <div className="wa-forwardItem-name">{nome}</div>
+                            {email ? <div className="wa-forwardItem-sub">{email}</div> : null}
+                            <div className="wa-forwardItem-atendente">Chat interno</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="wa-forwardSection" style={{ marginTop: 14 }}>
                   <div className="wa-forwardSectionTitle">Conversas</div>
                   {forwardCandidates.length === 0 ? (
                     <div className="wa-muted" style={{ padding: "10px 4px" }}>

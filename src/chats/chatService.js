@@ -13,10 +13,33 @@ export async function fetchChats(params = {}) {
   if (params.atendente_id != null && params.atendente_id !== "" && params.atendente_id !== "todos") q.set("atendente_id", params.atendente_id);
   if (params.palavra && String(params.palavra).trim()) q.set("palavra", String(params.palavra).trim());
   if (params.incluir_todos_clientes === true || params.incluir_todos_clientes === "1") q.set("incluir_todos_clientes", "1");
+  if (params.incluir_colaboradores_encaminhar === true || params.incluir_colaboradores_encaminhar === "1") {
+    q.set("incluir_colaboradores_encaminhar", "1");
+  }
   if (params.minha_fila === true || params.minha_fila === 1 || params.minha_fila === "1") q.set("minha_fila", "1");
   const query = q.toString();
   const { data } = await api.get(`/chats${query ? `?${query}` : ""}`);
+  const wantsCollab =
+    params.incluir_colaboradores_encaminhar === true || params.incluir_colaboradores_encaminhar === "1";
+  if (wantsCollab) return splitChatsEncaminharPayload(data);
   return data || [];
+}
+
+/**
+ * Resposta de GET /chats com `incluir_colaboradores_encaminhar=1`: objeto com conversas + colaboradores.
+ * @param {unknown} data
+ * @returns {{ conversas: any[]; colaboradores_encaminhar: any[] }}
+ */
+export function splitChatsEncaminharPayload(data) {
+  if (data == null) return { conversas: [], colaboradores_encaminhar: [] };
+  if (Array.isArray(data)) return { conversas: data, colaboradores_encaminhar: [] };
+  if (typeof data !== "object") return { conversas: [], colaboradores_encaminhar: [] };
+  const o = /** @type {Record<string, unknown>} */ (data);
+  const rawConv = o.conversas ?? o.chats ?? o.items ?? o.results;
+  const conversas = Array.isArray(rawConv) ? rawConv : [];
+  const rawCol = o.colaboradores_encaminhar ?? o.colaboradoresEncaminhar ?? [];
+  const colaboradores_encaminhar = Array.isArray(rawCol) ? rawCol : [];
+  return { conversas, colaboradores_encaminhar };
 }
 
 export async function fetchChatById(id) {

@@ -301,6 +301,23 @@ export async function fetchInternalChatStatus() {
   };
 }
 
+/**
+ * Encaminha mensagem do atendimento WhatsApp para o chat interno de um colaborador.
+ * @param {{ conversaId: string | number; mensagemId: string | number; targetUserId: string | number }} p
+ */
+export async function forwardAtendimentoMessageToColaborador({ conversaId, mensagemId, targetUserId }) {
+  const { data } = await api.post(
+    "/api/internal-chat/forward-atendimento-message",
+    {
+      conversa_id: conversaId,
+      mensagem_id: mensagemId,
+      target_user_id: targetUserId,
+    },
+    { headers: { ...internalChatExtraHeaders() } }
+  );
+  return data;
+}
+
 /** @param {string | number} conversationId */
 export async function markInternalConversationRead(conversationId) {
   await api.post(`/api/internal-chat/conversations/${conversationId}/read`);
