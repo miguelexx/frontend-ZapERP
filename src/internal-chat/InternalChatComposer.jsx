@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, Mic, Paperclip, SendHorizontal, Square, Trash2, User } from "lucide-react";
+import InternalChatContactModal from "./InternalChatContactModal.jsx";
 
 /**
  * @typedef {{ kind: 'text'; content: string }} PayloadText
@@ -17,14 +18,6 @@ function formatRecSeconds(totalSec) {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-/** Um número por linha ou separados por vírgula / ponto e vírgula */
-function parsePhonesList(raw) {
-  return String(raw || "")
-    .split(/[\n,;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 /** @param {{ onSend: (p: ComposerPayload) => Promise<void>; disabled?: boolean; sendError?: string | null; uploadProgress?: number | null }} props */
 export default function InternalChatComposer({ onSend, disabled = false, sendError = null, uploadProgress = null }) {
   const [draft, setDraft] = useState("");
@@ -38,10 +31,6 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
   const [locCaption, setLocCaption] = useState("");
 
   const [contactOpen, setContactOpen] = useState(false);
-  const [cName, setCName] = useState("");
-  const [cPhone, setCPhone] = useState("");
-  const [cOrg, setCOrg] = useState("");
-  const [cCaption, setCCaption] = useState("");
 
   const [pendingMedia, setPendingMedia] = useState(
     /** @type {{ file: File; messageType?: string; fieldName: string; previewUrl?: string | null } | null} */ (null)
@@ -249,37 +238,6 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
     }
   }
 
-  async function submitContact() {
-    const phones = parsePhonesList(cPhone);
-    if (!cName.trim() || !phones.length) return;
-    try {
-      if (phones.length > 1) {
-        await onSend({
-          kind: "contact",
-          name: cName.trim(),
-          phones,
-          organization: cOrg.trim() || undefined,
-          caption: cCaption.trim() || undefined,
-        });
-      } else {
-        await onSend({
-          kind: "contact",
-          name: cName.trim(),
-          phone: phones[0],
-          organization: cOrg.trim() || undefined,
-          caption: cCaption.trim() || undefined,
-        });
-      }
-      setContactOpen(false);
-      setCName("");
-      setCPhone("");
-      setCOrg("");
-      setCCaption("");
-    } catch {
-      /* */
-    }
-  }
-
   function onKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -474,57 +432,14 @@ export default function InternalChatComposer({ onSend, disabled = false, sendErr
         </dialog>
       ) : null}
 
-      {contactOpen ? (
-        <dialog
-          className="ic-dialog"
-          open
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setContactOpen(false);
-          }}
-        >
-          <div className="ic-dialog-panel" role="document" onClick={(e) => e.stopPropagation()}>
-            <h3 className="ic-dialog-title">Compartilhar contato</h3>
-            <div className="ic-dialog-fields">
-              <label>
-                Nome *
-                <input value={cName} onChange={(e) => setCName(e.target.value)} />
-              </label>
-              <label>
-                Telefone(s) *
-                <textarea
-                  className="ic-dialog-textarea"
-                  rows={4}
-                  value={cPhone}
-                  onChange={(e) => setCPhone(e.target.value)}
-                  placeholder={"+5511999990000\n+5511888880000\n(ou na mesma linha: +5511…, +5511…)"}
-                />
-                <span className="ic-dialog-hint">Um número por linha, ou vários na mesma linha separados por vírgula.</span>
-              </label>
-              <label>
-                Organização (opcional)
-                <input value={cOrg} onChange={(e) => setCOrg(e.target.value)} />
-              </label>
-              <label>
-                Legenda (opcional)
-                <input value={cCaption} onChange={(e) => setCCaption(e.target.value)} />
-              </label>
-            </div>
-            <div className="ic-dialog-actions">
-              <button type="button" className="ic-dialog-btn" onClick={() => setContactOpen(false)}>
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="ic-dialog-btn ic-dialog-btn--primary"
-                disabled={disabled || !cName.trim() || parsePhonesList(cPhone).length === 0}
-                onClick={() => void submitContact()}
-              >
-                Enviar
-              </button>
-            </div>
-          </div>
-        </dialog>
-      ) : null}
+      <InternalChatContactModal
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        disabled={disabled}
+        onSendContact={async (payload) => {
+          await onSend({ kind: "contact", ...payload });
+        }}
+      />
     </div>
   );
 }

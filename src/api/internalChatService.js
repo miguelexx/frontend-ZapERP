@@ -231,6 +231,61 @@ export async function sendInternalContactMessage(conversationId, body, myUserId,
   return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId);
 }
 
+function internalChatExtraHeaders() {
+  try {
+    const raw = localStorage.getItem("zap_erp_auth");
+    if (!raw) return {};
+    const u = JSON.parse(raw)?.user;
+    const id = u?.company_id ?? u?.empresa_id;
+    if (id == null || id === "") return {};
+    return { "x-company-id": String(id) };
+  } catch {
+    return {};
+  }
+}
+
+/** @param {unknown} raw */
+export function normalizeInternalClientContact(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const o = /** @type {Record<string, unknown>} */ (raw);
+  const id = o.id;
+  if (id == null || String(id).trim() === "") return null;
+  const name = String(o.name ?? "").trim();
+  const pushname = o.pushname != null ? String(o.pushname).trim() : "";
+  const displayName = name || pushname || "";
+  const phonesRaw = Array.isArray(o.phones) ? o.phones.map((p) => String(p).trim()).filter(Boolean) : [];
+  const phoneField = String(o.phone ?? "").trim();
+  const phone = phoneField || phonesRaw[0] || "";
+  const phonesList = phonesRaw.length > 1 ? phonesRaw : phonesRaw.length === 1 && !phoneField ? phonesRaw : [];
+  if (!displayName && !phone) return null;
+  return {
+    id: String(id),
+    name: displayName || phone || "Contato",
+    pushname,
+    phone,
+    phonesList,
+    avatar: o.avatar != null ? String(o.avatar) : null,
+  };
+}
+
+/**
+ * @param {{ q?: string; limit?: number; offset?: number }} opts
+ * @returns {Promise<{ contacts: ReturnType<typeof normalizeInternalClientContact>[]; total: number }>}
+ */
+export async function listInternalClientContacts(opts = {}) {
+  const q = opts.q != null ? String(opts.q) : "";
+  const limit = Math.min(100, Math.max(1, Number(opts.limit) || 50));
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const { data } = await api.get("/api/internal-chat/client-contacts", {
+    params: { q, limit, offset },
+    headers: { ...internalChatExtraHeaders() },
+  });
+  const arr = unwrapArray(data, ["contacts", "data", "items", "results"]);
+  const total = Number(data?.total ?? data?.count ?? 0) || 0;
+  const contacts = arr.map(normalizeInternalClientContact).filter(Boolean);
+  return { contacts, total };
+}
+
 /** @param {string | number} conversationId */
 export async function markInternalConversationRead(conversationId) {
   await api.post(`/api/internal-chat/conversations/${conversationId}/read`);

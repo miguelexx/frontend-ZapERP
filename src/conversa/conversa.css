@@ -3657,6 +3657,21 @@
   white-space: nowrap;
 }
 
+.wa-forwardItem-atendente {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-forwardItem-atendente--empty {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
 /* =========================================================
    SEPARADOR DE DATA
 ========================================================= */

@@ -2118,8 +2118,13 @@ export default function ConversaView() {
     const q = safeString(forwardQuery).toLowerCase();
     const byName = (c) => {
       const n = safeString(c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone);
+      const at = safeString(c?.atendente_nome ?? c?.atendenteNome);
+      const atMail = safeString(c?.atendente_email ?? c?.atendenteEmail);
+      const tel = safeString(c?.telefone);
+      const telEx = safeString(c?.telefone_exibivel ?? c?.telefoneExibivel);
       if (!q) return true;
-      return n.toLowerCase().includes(q) || safeString(c?.telefone).includes(q);
+      const hay = `${n} ${at} ${atMail} ${tel} ${telEx}`.toLowerCase();
+      return hay.includes(q);
     };
     return list
       .filter((c) => c?.id != null && String(c.id) !== String(conversaId))
@@ -4338,6 +4343,10 @@ export default function ConversaView() {
                     <div className="wa-forwardList">
                       {forwardCandidates.map((c) => {
                         const n = safeString(c?.contato_nome || c?.nome || c?.cliente?.nome || c?.telefone) || "Conversa";
+                        const telLinha = safeString(c?.telefone_exibivel ?? c?.telefoneExibivel ?? c?.telefone);
+                        const atNome = safeString(c?.atendente_nome ?? c?.atendenteNome).trim();
+                        const atMail = safeString(c?.atendente_email ?? c?.atendenteEmail).trim();
+                        const atendenteTitle = [atNome ? `Atendente: ${atNome}` : "", atMail].filter(Boolean).join(" · ");
                         return (
                           <button
                             key={`conv-${c.id}`}
@@ -4348,7 +4357,14 @@ export default function ConversaView() {
                             disabled={forwardSending}
                           >
                             <div className="wa-forwardItem-name">{n}</div>
-                            {c?.telefone ? <div className="wa-forwardItem-sub">{String(c.telefone)}</div> : null}
+                            {telLinha ? <div className="wa-forwardItem-sub">{telLinha}</div> : null}
+                            {atNome ? (
+                              <div className="wa-forwardItem-atendente" title={atendenteTitle || undefined}>
+                                Atendente: {atNome}
+                              </div>
+                            ) : (
+                              <div className="wa-forwardItem-atendente wa-forwardItem-atendente--empty">Sem atendente atribuído</div>
+                            )}
                           </button>
                         );
                       })}
