@@ -1,43 +1,36 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { SkeletonLine } from "../components/feedback/Skeleton";
 import "../components/feedback/skeleton.css";
-import { formatMessageTime, isMessageMine } from "./messageUtils";
+import { isMessageMine } from "./messageUtils";
+import InternalChatHeader from "./InternalChatHeader";
+import InternalChatMessageBubble from "./InternalChatMessageBubble";
 
 function assignRefs(el, a, b) {
   a.current = el;
   if (b) b.current = el;
 }
 
-function ThreadAvatar({ url, name }) {
-  const [broken, setBroken] = useState(false);
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  const show = url && !broken;
-  useEffect(() => setBroken(false), [url]);
-  return (
-    <div className="ic-thread-avatar">
-      {show ? <img src={url} alt="" onError={() => setBroken(true)} /> : initial}
-    </div>
-  );
-}
-
-export default function InternalChatThread({
-  conversation,
-  myUserId,
-  messagesListRef,
-  peerOnline = false,
-  peerLastSeen = null,
-  formatLastSeen = () => "",
-  messages,
-  initLoading,
-  olderLoading,
-  error,
-  hasMoreOlder,
-  onLoadOlder,
-  onRetryLoad,
-  onSend,
-  sending,
-  sendError,
-}) {
+const InternalChatThread = forwardRef(function InternalChatThread(
+  {
+    conversation,
+    myUserId,
+    messagesListRef,
+    peerOnline = false,
+    peerLastSeen = null,
+    formatLastSeen = () => "",
+    messages,
+    initLoading,
+    olderLoading,
+    error,
+    hasMoreOlder,
+    onLoadOlder,
+    onRetryLoad,
+    onSend,
+    sending,
+    sendError,
+  },
+  ref
+) {
   const [draft, setDraft] = useState("");
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -48,6 +41,17 @@ export default function InternalChatThread({
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior });
   }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToBottomSmooth: () => {
+        stickBottomRef.current = true;
+        requestAnimationFrame(() => scrollToBottom("smooth"));
+      },
+    }),
+    [scrollToBottom]
+  );
 
   useEffect(() => {
     if (initLoading || olderLoading) return;
@@ -91,20 +95,14 @@ export default function InternalChatThread({
 
   if (!conversation) return null;
 
-  const subtitle = conversation.otherEmail || "Conversa interna da equipe";
-  const statusLine = peerOnline ? "Online" : peerLastSeen ? `Último acesso: ${formatLastSeen(peerLastSeen)}` : "";
-
   return (
     <div className="ic-thread">
-      <header className="ic-thread-header">
-        <ThreadAvatar url={conversation.avatarUrl} name={conversation.otherName} />
-        <div className="ic-thread-header-text">
-          <h2 className="ic-thread-title">{conversation.otherName}</h2>
-          <p className="ic-thread-sub">{subtitle}</p>
-          {statusLine ? <p className="ic-thread-status">{statusLine}</p> : null}
-        </div>
-        <span className="ic-thread-badge">Interno</span>
-      </header>
+      <InternalChatHeader
+        conversation={conversation}
+        peerOnline={peerOnline}
+        peerLastSeen={peerLastSeen}
+        formatLastSeen={formatLastSeen}
+      />
 
       <div className="ic-thread-body">
         {error && !initLoading ? (
@@ -132,7 +130,7 @@ export default function InternalChatThread({
           {initLoading ? (
             <div className="ic-thread-skel" aria-busy="true">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className={`ic-thread-skel-row ${i % 2 !== 0 ? "ic-thread-skel-row--out" : ""}`}>
+                <div key={i} className={`ic-thread-skel-row ${i % 2 === 0 ? "ic-thread-skel-row--out" : ""}`}>
                   <SkeletonLine width={i % 3 === 0 ? "72%" : "48%"} />
                 </div>
               ))}
@@ -148,29 +146,25 @@ export default function InternalChatThread({
               <p className="ic-thread-empty-text">Envie a primeira mensagem abaixo. Ela é exclusiva desta conversa interna.</p>
             </div>
           ) : (
-            <ul className="ic-thread-msg-list" aria-label="Mensagens">
-              {messages.map((m, idx) => {
-                const mine = isMessageMine(m, myUserId, conversation?.otherUserId);
-                const prev = messages[idx - 1];
-                const prevMine = prev ? isMessageMine(prev, myUserId, conversation?.otherUserId) : null;
-                const cluster = prevMine === mine;
-                return (
-                  <li
-                    key={m.id}
-                    className={`ic-thread-msg${mine ? " ic-thread-msg--mine" : ""}${cluster ? " ic-thread-msg--cluster" : ""}`}
-                  >
-                    <div className="ic-thread-bubble">
-                      <p className="ic-thread-bubble-text">{m.content || <span className="ic-thread-muted">(sem texto)</span>}</p>
-                      <div className="ic-thread-bubble-meta">
-                        <time className="ic-thread-bubble-time" dateTime={m.createdAt ? String(m.createdAt) : undefined}>
-                          {formatMessageTime(m.createdAt)}
-                        </time>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="ic-thread-live" role="log" aria-live="polite" aria-relevant="additions text">
+              <ul className="ic-thread-msg-list" aria-label="Mensagens">
+                {messages.map((m, idx) => {
+                  const mine = isMessageMine(m, myUserId, conversation?.otherUserId);
+                  const prev = messages[idx - 1];
+                  const prevMine = prev ? isMessageMine(prev, myUserId, conversation?.otherUserId) : null;
+                  const cluster = prevMine === mine;
+                  return (
+                    <InternalChatMessageBubble
+                      key={m.id}
+                      message={m}
+                      myUserId={myUserId}
+                      otherUserId={conversation?.otherUserId}
+                      cluster={cluster}
+                    />
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </div>
       </div>
@@ -200,4 +194,6 @@ export default function InternalChatThread({
       </footer>
     </div>
   );
-}
+});
+
+export default InternalChatThread;

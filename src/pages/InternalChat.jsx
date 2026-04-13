@@ -12,6 +12,7 @@ import {
   normalizeConversation,
 } from "../api/internalChatService";
 import InternalChatThread from "../internal-chat/InternalChatThread";
+import InternalChatCollaboratorListItem from "../internal-chat/InternalChatCollaboratorListItem";
 import {
   extractConversationIdFromPayload,
   extractMessageFromPayload,
@@ -28,6 +29,11 @@ import { useInternalChatSocket } from "../internal-chat/useInternalChatSocket";
 import "./internalChat.css";
 
 const PAGE_SIZE = 40;
+const INTERNAL_CHAT_NOTIF_LS = "internal_chat_desktop_notif";
+
+function sumInternalUnread(conversations) {
+  return conversations.reduce((acc, c) => acc + (Number(c.unreadCount) || 0), 0);
+}
 
 function formatActivityShort(ts) {
   if (ts == null || ts === "") return "";
@@ -98,23 +104,6 @@ function pickErrorMessage(err) {
   );
 }
 
-function InternalAvatar({ url, name, online }) {
-  const [broken, setBroken] = useState(false);
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  const showImg = url && !broken;
-
-  useEffect(() => {
-    setBroken(false);
-  }, [url]);
-
-  return (
-    <div className="internal-chat-avatar">
-      {showImg ? <img src={url} alt="" onError={() => setBroken(true)} /> : initial}
-      {online ? <span className="internal-chat-online" title="Online" /> : null}
-    </div>
-  );
-}
-
 export default function InternalChat() {
   const user = useAuthStore((s) => s.user);
   const myId = user?.id != null ? String(user.id) : null;
@@ -139,11 +128,84 @@ export default function InternalChat() {
   const [sendError, setSendError] = useState(null);
 
   const messagesListRef = useRef(null);
+  const threadRef = useRef(null);
   const conversationsRef = useRef([]);
+  const readDebounceRef = useRef(null);
+  const baseDocTitleRef = useRef("");
+
+  const [desktopNotifOptIn, setDesktopNotifOptIn] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(INTERNAL_CHAT_NOTIF_LS) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  const scheduleMarkConversationRead = useCallback((convId) => {
+    if (!convId) return;
+    if (readDebounceRef.current) clearTimeout(readDebounceRef.current);
+    readDebounceRef.current = setTimeout(() => {
+      readDebounceRef.current = null;
+      markInternalConversationRead(convId).catch(() => {});
+    }, 400);
+  }, []);
+
+  const notifyDesktopInternal = useCallback((convId, preview) => {
+    try {
+      if (localStorage.getItem(INTERNAL_CHAT_NOTIF_LS) !== "1") return;
+    } catch {
+      return;
+    }
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const c = conversationsRef.current.find((x) => String(x.id) === String(convId));
+    const name = c?.otherName || "Chat interno";
+    const body = (preview || "Nova mensagem").slice(0, 120);
+    try {
+      new Notification(`ZapERP — ${name}`, { body, icon: "/brand/zaperp-favicon.svg" });
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    baseDocTitleRef.current = document.title.replace(/^\(\d+\)\s+/, "") || document.title;
+    return () => {
+      if (baseDocTitleRef.current) document.title = baseDocTitleRef.current;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const base = baseDocTitleRef.current;
+    if (!base) return;
+    const n = sumInternalUnread(conversations);
+    document.title = n > 0 ? `(${n}) ${base}` : base;
+  }, [conversations]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (typeof document === "undefined" || document.hidden) return;
+      const cid = selectedConvIdRef.current;
+      if (!cid) return;
+      scheduleMarkConversationRead(cid);
+      setConversations((prev) =>
+        sortConversations(prev.map((c) => (String(c.id) === String(cid) ? { ...c, unreadCount: 0 } : c)))
+      );
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [scheduleMarkConversationRead]);
+
+  useEffect(
+    () => () => {
+      if (readDebounceRef.current) clearTimeout(readDebounceRef.current);
+    },
+    []
+  );
 
   const otherUserIdForSelected = useMemo(() => {
     const c = conversations.find((x) => String(x.id) === String(selectedConversationId));
@@ -197,7 +259,9 @@ export default function InternalChat() {
         setNextBeforeId(nb && nb !== "null" && nb !== "undefined" ? nb : null);
         try {
           await markInternalConversationRead(selectedConversationId);
-        } catch (_) {}
+        } catch {
+          /* ignore */
+        }
         setConversations((prev) =>
           sortConversations(
             prev.map((c) => (String(c.id) === String(selectedConversationId) ? { ...c, unreadCount: 0 } : c))
@@ -306,36 +370,44 @@ export default function InternalChat() {
       if (!msg?.id) return;
       const openId = selectedConvIdRef.current;
       const isOpen = openId != null && String(openId) === String(convId);
+      const isBackground = typeof document !== "undefined" && document.hidden;
+      const shouldBumpUnread = !isOpen || isBackground;
       const isOwn = isMessageMine(msg, user?.id, otherUid);
+
       if (isOpen) {
         setMessages((prev) => upsertMessageSorted(prev, msg));
-        if (!isOwn) {
-          markInternalConversationRead(convId).catch(() => {});
-        }
       }
+
+      if (isOpen && !isBackground && !isOwn) {
+        requestAnimationFrame(() => threadRef.current?.scrollToBottomSmooth());
+        scheduleMarkConversationRead(convId);
+      }
+
       const preview = (msg.content || "").trim().slice(0, 120);
       const lastActivity = msg.createdAt || new Date().toISOString();
       setConversations((prev) =>
         sortConversations(
           prev.map((c) => {
             if (String(c.id) !== String(convId)) return c;
-            if (isOwn || isOpen) {
-              return {
-                ...c,
-                lastMessage: preview || c.lastMessage,
-                lastActivity,
-                unreadCount: isOpen ? 0 : Number(c.unreadCount) || 0,
-              };
-            }
-            return {
+            const base = {
               ...c,
               lastMessage: preview || c.lastMessage,
               lastActivity,
-              unreadCount: (Number(c.unreadCount) || 0) + 1,
             };
+            if (isOwn) {
+              return { ...base, unreadCount: Number(c.unreadCount) || 0 };
+            }
+            if (shouldBumpUnread) {
+              return { ...base, unreadCount: (Number(c.unreadCount) || 0) + 1 };
+            }
+            return { ...base, unreadCount: 0 };
           })
         )
       );
+
+      if (shouldBumpUnread && !isOwn) {
+        notifyDesktopInternal(convId, preview);
+      }
     },
     onConversationRead: (payload) => {
       const p = extractReadPayload(payload);
@@ -453,8 +525,26 @@ export default function InternalChat() {
       .finally(() => setThreadLoading(false));
   }, [selectedConversationId, user?.id, otherUserIdForSelected]);
 
+  const notifActive =
+    desktopNotifOptIn &&
+    typeof Notification !== "undefined" &&
+    Notification.permission === "granted";
+
+  async function handleEnableDesktopNotifications() {
+    if (typeof Notification === "undefined") return;
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      try {
+        localStorage.setItem(INTERNAL_CHAT_NOTIF_LS, "1");
+      } catch {
+        /* ignore */
+      }
+      setDesktopNotifOptIn(true);
+    }
+  }
+
   return (
-    <div className="internal-chat-root">
+    <div className="internal-chat-root internal-chat-root--light-ui">
       <aside className="internal-chat-sidebar" aria-label="Lista de equipe e conversas internas">
         <header className="internal-chat-head">
           <h1>Chat interno</h1>
@@ -475,7 +565,16 @@ export default function InternalChat() {
           />
         </div>
 
-        <h2 className="internal-chat-section-title">Colaboradores internos</h2>
+        <div className="internal-chat-section-toolbar">
+          <h2 className="internal-chat-section-title">Colaboradores internos</h2>
+          <button
+            type="button"
+            className={`internal-chat-notif-btn${notifActive ? " internal-chat-notif-btn--on" : ""}`}
+            onClick={handleEnableDesktopNotifications}
+          >
+            {notifActive ? "Notificações ativas" : "Ativar notificações"}
+          </button>
+        </div>
 
         {error ? (
           <div className="internal-chat-error" role="alert">
@@ -506,34 +605,29 @@ export default function InternalChat() {
               const title = emp?.name || conv?.otherName || "Colaborador";
               const avatarUrl = emp?.avatarUrl ?? conv?.avatarUrl;
               const online = Boolean(emp?.isOnline);
-              const sub = conv?.lastMessage
+              const subtitle = conv?.lastMessage
                 ? String(conv.lastMessage)
                 : emp?.email || "Toque para abrir a conversa";
-              const time = conv?.lastActivity
+              const timeLabel = conv?.lastActivity
                 ? formatActivityShort(conv.lastActivity)
                 : emp?.lastSeen && !emp?.isOnline
                   ? formatLastSeen(emp.lastSeen)
                   : "";
-              const unread = conv && Number(conv.unreadCount) > 0 ? Number(conv.unreadCount) : 0;
+              const unreadCount = conv ? Number(conv.unreadCount) || 0 : 0;
               const active = isCollaboratorRowActive(row);
               return (
-                <button
+                <InternalChatCollaboratorListItem
                   key={row.key}
-                  type="button"
-                  className={`internal-chat-row${active ? " internal-chat-row--active" : ""}`}
+                  title={title}
+                  avatarUrl={avatarUrl}
+                  online={online}
+                  subtitle={subtitle}
+                  timeLabel={timeLabel}
+                  unreadCount={unreadCount}
+                  active={active}
                   disabled={actionLoading}
                   onClick={() => handleCollaboratorRowClick(row)}
-                >
-                  <InternalAvatar url={avatarUrl} name={title} online={online} />
-                  <div className="internal-chat-row-body">
-                    <div className="internal-chat-row-title">{title}</div>
-                    <div className="internal-chat-row-sub">{sub}</div>
-                  </div>
-                  <div className="internal-chat-row-meta">
-                    {time ? <span className="internal-chat-time">{time}</span> : null}
-                    {unread > 0 ? <span className="internal-chat-badge">{unread > 99 ? "99+" : unread}</span> : null}
-                  </div>
-                </button>
+                />
               );
             })
           )}
@@ -556,6 +650,7 @@ export default function InternalChat() {
           </div>
         ) : (
           <InternalChatThread
+            ref={threadRef}
             conversation={selected}
             myUserId={user?.id}
             messagesListRef={messagesListRef}
