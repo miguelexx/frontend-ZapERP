@@ -96,20 +96,6 @@ export default function MainLayout() {
       <main id="main-content" className="main-content main-content--crm" tabIndex={-1}>
         <Outlet />
       </main>
-
-      {/* Mobile: barra inferior oculta em chat tela cheia — acesso explícito a deslogar */}
-      <button
-        type="button"
-        className="app-mobile-logout-fallback"
-        onClick={handleLogout}
-        title="Deslogar da conta"
-        aria-label="Deslogar da conta"
-      >
-        <span className="app-mobile-logout-fallback-icon" aria-hidden>
-          <IconLogout />
-        </span>
-        <span className="app-mobile-logout-fallback-label">Deslogar</span>
-      </button>
     </div>
   );
 }
