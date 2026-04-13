@@ -504,8 +504,26 @@ body {
 
   .app-layout--crm .sidebar-footer--compact {
     flex-direction: row;
+    flex-shrink: 0;
     padding-top: 0;
     border-top: none;
+    gap: 4px;
+  }
+
+  /* Rótulo "Sair" na barra inferior (mesmo padrão dos itens de menu) */
+  .app-layout--crm .sidebar-footer--compact .sidebar-nav-label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.1;
+    color: var(--ds-text-tertiary);
+    white-space: normal;
+    text-align: center;
+    max-width: 56px;
+    word-break: break-word;
+    hyphens: auto;
   }
 
   .sidebar-spacer {
@@ -581,6 +599,56 @@ body {
     min-height: 0;
   }
 
+  /* Sair visível quando a barra inferior some (chat interno / atendimento tela cheia) */
+  .app-mobile-logout-fallback {
+    display: none;
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(16px, calc(12px + env(safe-area-inset-bottom, 0px)));
+    z-index: 300;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 56px;
+    min-height: 56px;
+    padding: 8px 10px;
+    border: 1px solid var(--ds-border);
+    border-radius: 14px;
+    background: var(--ds-surface-1);
+    color: var(--ds-text-primary);
+    box-shadow: var(--ds-shadow-lg);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .app-mobile-logout-fallback:hover {
+    background: var(--ds-hover);
+  }
+
+  .app-mobile-logout-fallback-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ds-error, #dc2626);
+  }
+
+  .app-mobile-logout-fallback-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ds-text-secondary);
+  }
+
+  .app-layout--crm:has(.atendimento-layout.conversation-open) .app-mobile-logout-fallback,
+  .app-layout--crm:has(.internal-chat-root.internal-chat-root--thread-open) .app-mobile-logout-fallback {
+    display: flex;
+  }
+}
+
+/* Desktop / tablet largo: rótulo "Sair" só na barra mobile */
+.sidebar-footer--compact .sidebar-nav-label {
+  display: none;
 }
 
 /* Login — visual premium com mesh, orbs e glassmorphism */

@@ -85,7 +85,10 @@ export default function MainLayout() {
           </button>
           {isAdmin && <span className="sidebar-badge-compact" title="Administrador">A</span>}
           <button type="button" className="sidebar-logout" onClick={handleLogout} title="Sair" aria-label="Sair">
-            <IconLogout />
+            <span className="sidebar-nav-icon" aria-hidden>
+              <IconLogout />
+            </span>
+            <span className="sidebar-nav-label">Sair</span>
           </button>
         </div>
       </aside>
@@ -93,6 +96,20 @@ export default function MainLayout() {
       <main id="main-content" className="main-content main-content--crm" tabIndex={-1}>
         <Outlet />
       </main>
+
+      {/* Mobile: barra inferior oculta em chat tela cheia — acesso explícito a deslogar */}
+      <button
+        type="button"
+        className="app-mobile-logout-fallback"
+        onClick={handleLogout}
+        title="Sair da conta"
+        aria-label="Sair da conta"
+      >
+        <span className="app-mobile-logout-fallback-icon" aria-hidden>
+          <IconLogout />
+        </span>
+        <span className="app-mobile-logout-fallback-label">Sair</span>
+      </button>
     </div>
   );
 }
