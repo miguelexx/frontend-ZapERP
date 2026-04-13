@@ -4380,7 +4380,7 @@ export default function ConversaView() {
         )}
 
         {forwardOpen && forwardMsg ? createPortal(
-          <div className="wa-modalOverlay" role="dialog" aria-label="Encaminhar mensagem" onMouseDown={closeForward}>
+          <div className="wa-modalOverlay wa-forwardOverlay" role="dialog" aria-label="Encaminhar mensagem" onMouseDown={closeForward}>
             <div className="wa-modal wa-forwardModal" onMouseDown={(e) => e.stopPropagation()}>
               <div className="wa-modal-head">
                 <div className="wa-modal-title">Encaminhar</div>
