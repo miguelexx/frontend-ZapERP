@@ -988,7 +988,7 @@ export default function ChatList() {
 
   // tabs estilo WhatsApp (chip row)
   // todas | nao_lidas | hoje | abertas | minha_fila | em_atendimento | finalizadas
-  const [tab, setTab] = useState("todas");
+  const [tab, setTab] = useState("minha_fila");
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
@@ -1204,7 +1204,7 @@ export default function ChatList() {
         setDepartamentoFilter("todos");
         setMineOnly(false);
         setOrder("recentes");
-        setTab("todas");
+        setTab("minha_fila");
         setShowNovoMenu(false);
       }
     }
