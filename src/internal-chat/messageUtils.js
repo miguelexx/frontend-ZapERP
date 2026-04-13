@@ -1,4 +1,3 @@
-import { isSafeInternalMediaPath } from "./mediaUrl.js";
 import { previewTextFromMessageLike } from "./lastMessagePreview.js";
 
 /** @param {unknown} a @param {unknown} b */
@@ -204,7 +203,11 @@ export function normalizeInternalMessage(raw, myUserId, otherUserId = null) {
   const messageType = String(o.message_type ?? o.messageType ?? "text").toLowerCase() || "text";
   let mediaUrl = o.media_url ?? o.mediaUrl ?? null;
   if (mediaUrl != null) mediaUrl = String(mediaUrl).trim();
-  if (mediaUrl && !isSafeInternalMediaPath(mediaUrl)) mediaUrl = null;
+  if (mediaUrl === "") mediaUrl = null;
+  else if (mediaUrl && !/^https?:\/\//i.test(mediaUrl)) {
+    if (!mediaUrl.startsWith("/") && /^uploads\//i.test(mediaUrl)) mediaUrl = `/${mediaUrl}`;
+    if (!mediaUrl.startsWith("/uploads/")) mediaUrl = null;
+  }
 
   const fileName = o.file_name != null ? String(o.file_name) : o.fileName != null ? String(o.fileName) : "";
   const mimeType = o.mime_type != null ? String(o.mime_type) : o.mimeType != null ? String(o.mimeType) : "";

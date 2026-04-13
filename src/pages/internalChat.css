@@ -1771,11 +1771,22 @@
   word-break: break-word;
 }
 
+.ic-thread-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .ic-thread-doc-link {
   font-weight: 650;
   font-size: 0.8rem;
   color: var(--ds-accent);
   white-space: nowrap;
+}
+
+.ic-thread-doc-link--open {
+  color: var(--ds-text-secondary);
 }
 
 .ic-thread-bubble-loc .ic-thread-loc-addr {
@@ -1853,8 +1864,15 @@
   margin-top: 4px;
 }
 
-.ic-thread-card-copy {
+.ic-thread-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 8px;
+}
+
+.ic-thread-card-copy,
+.ic-thread-card-chat {
   padding: 5px 10px;
   font-size: 0.74rem;
   border-radius: var(--ds-radius-md);
@@ -1863,6 +1881,16 @@
   color: var(--ds-text-secondary);
   cursor: pointer;
   font-weight: 600;
+}
+
+.ic-thread-card-chat {
+  border-color: var(--ds-accent);
+  color: var(--ds-accent);
+}
+
+.ic-thread-card-chat:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .internal-chat-root.internal-chat-root--light-ui .ic-toolbar-btn {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { useNotificationStore } from "../notifications/notificationStore";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
@@ -14,7 +15,10 @@ import {
   sendInternalContactMessage,
   markInternalConversationRead,
   normalizeConversation,
+  fetchInternalChatStatus,
 } from "../api/internalChatService";
+import { abrirConversaPorTelefone } from "../chats/chatService";
+import { useChatStore } from "../chats/chatsStore";
 import InternalChatThread from "../internal-chat/InternalChatThread";
 import InternalChatCollaboratorListItem from "../internal-chat/InternalChatCollaboratorListItem";
 import {
@@ -114,6 +118,7 @@ function pickErrorMessage(err) {
 }
 
 export default function InternalChat() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const myId = user?.id != null ? String(user.id) : null;
 
@@ -136,6 +141,8 @@ export default function InternalChat() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(/** @type {number | null} */ (null));
+  const [publicMediaBaseUrl, setPublicMediaBaseUrl] = useState(/** @type {string | null} */ (null));
+  const [conversarComContatoBusy, setConversarComContatoBusy] = useState(false);
 
   const messagesListRef = useRef(null);
   const threadRef = useRef(null);
@@ -254,6 +261,71 @@ export default function InternalChat() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { publicMediaBaseUrl: u } = await fetchInternalChatStatus();
+        if (!cancelled) setPublicMediaBaseUrl(u);
+      } catch {
+        if (!cancelled) setPublicMediaBaseUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleConversarComContato = useCallback(async ({ nome, telefone }) => {
+    const raw = String(telefone || "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) {
+      try {
+        useNotificationStore.getState().showToast({
+          type: "warning",
+          title: "Telefone indisponível",
+          message: "Este contato não possui número para abrir no atendimento.",
+        });
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    setConversarComContatoBusy(true);
+    try {
+      const data = await abrirConversaPorTelefone(nome || "Contato", raw);
+      const conv = data?.conversa || data || null;
+      if (!conv?.id) throw new Error("Não foi possível abrir a conversa.");
+      try {
+        useChatStore.getState().addChat(conv);
+      } catch {
+        /* ignore */
+      }
+      navigate("/atendimento", { state: { openConversaId: conv.id } });
+      try {
+        useNotificationStore.getState().showToast({
+          type: "success",
+          title: "Atendimento",
+          message: `Conversa com ${nome || "contato"} aberta no WhatsApp.`,
+        });
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      try {
+        useNotificationStore.getState().showToast({
+          type: "error",
+          title: "Falha ao abrir conversa",
+          message: e?.response?.data?.error || e?.message || "Não foi possível abrir a conversa com este contato.",
+        });
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setConversarComContatoBusy(false);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -732,6 +804,9 @@ export default function InternalChat() {
             sending={sending}
             sendError={sendError}
             uploadProgress={uploadProgress}
+            publicMediaBaseUrl={publicMediaBaseUrl}
+            onConversarComContato={handleConversarComContato}
+            conversarComContatoBusy={conversarComContatoBusy}
           />
         )}
       </main>

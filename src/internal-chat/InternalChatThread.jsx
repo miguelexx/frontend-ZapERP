@@ -30,6 +30,9 @@ const InternalChatThread = forwardRef(function InternalChatThread(
     sending,
     sendError,
     uploadProgress = null,
+    publicMediaBaseUrl = null,
+    onConversarComContato,
+    conversarComContatoBusy = false,
   },
   ref
 ) {
@@ -141,6 +144,9 @@ const InternalChatThread = forwardRef(function InternalChatThread(
                       myUserId={myUserId}
                       otherUserId={conversation?.otherUserId}
                       cluster={cluster}
+                      publicMediaBaseUrl={publicMediaBaseUrl}
+                      onConversarComContato={onConversarComContato}
+                      conversarComContatoBusy={conversarComContatoBusy}
                     />
                   );
                 })}

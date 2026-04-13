@@ -1,5 +1,5 @@
 import { formatMessageTime, getContactRowsFromMessage, isMessageMine, documentKindLabel } from "./messageUtils";
-import { internalMediaAbsoluteUrl } from "./mediaUrl.js";
+import { resolveInternalChatMediaUrl } from "./mediaUrl.js";
 
 function BubbleMeta({ createdAt }) {
   const time = formatMessageTime(createdAt);
@@ -12,8 +12,8 @@ function BubbleMeta({ createdAt }) {
   );
 }
 
-/** @param {{ message: Record<string, unknown> }} p */
-function MessageBody({ message }) {
+/** @param {{ message: Record<string, unknown>; publicMediaBaseUrl?: string | null; onConversarComContato?: (meta: { nome: string; telefone: string }) => void; conversarComContatoBusy?: boolean }} p */
+function MessageBody({ message, publicMediaBaseUrl = null, onConversarComContato, conversarComContatoBusy = false }) {
   const type = String(message.messageType || "text").toLowerCase();
   const content = String(message.content || "").trim();
   const payload = message.payload && typeof message.payload === "object" ? message.payload : {};
@@ -22,7 +22,7 @@ function MessageBody({ message }) {
   const address = payload.address != null ? String(payload.address) : "";
   const duration = payload.duration != null ? Number(payload.duration) : null;
 
-  const mediaUrl = message.mediaUrl ? internalMediaAbsoluteUrl(message.mediaUrl) : null;
+  const mediaUrl = message.mediaUrl ? resolveInternalChatMediaUrl(message.mediaUrl, publicMediaBaseUrl) : null;
   const fileName = message.fileName ? String(message.fileName) : "arquivo";
   const mime = message.mimeType ? String(message.mimeType) : "";
 
@@ -89,9 +89,14 @@ function MessageBody({ message }) {
           <span className="ic-thread-doc-name">{fileName}</span>
         </div>
         {mediaUrl ? (
-          <a className="ic-thread-doc-link" href={href} download={fileName} target="_blank" rel="noopener noreferrer">
-            Baixar
-          </a>
+          <div className="ic-thread-doc-actions">
+            <a className="ic-thread-doc-link" href={href} download={fileName}>
+              Baixar
+            </a>
+            <a className="ic-thread-doc-link ic-thread-doc-link--open" href={href} target="_blank" rel="noopener noreferrer">
+              Abrir arquivo
+            </a>
+          </div>
         ) : (
           <span className="ic-thread-muted">Indisponível</span>
         )}
@@ -144,15 +149,27 @@ function MessageBody({ message }) {
                 ) : null}
                 {row.organization ? <div className="ic-thread-card-org">{row.organization}</div> : null}
                 {row.phone ? (
-                  <button
-                    type="button"
-                    className="ic-thread-card-copy"
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(row.phone).catch(() => {});
-                    }}
-                  >
-                    Copiar telefone
-                  </button>
+                  <div className="ic-thread-card-actions">
+                    <button
+                      type="button"
+                      className="ic-thread-card-copy"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(row.phone).catch(() => {});
+                      }}
+                    >
+                      Copiar telefone
+                    </button>
+                    {onConversarComContato ? (
+                      <button
+                        type="button"
+                        className="ic-thread-card-chat"
+                        disabled={conversarComContatoBusy}
+                        onClick={() => onConversarComContato({ nome: row.name || "Contato", telefone: row.phone })}
+                      >
+                        Conversar com o contato
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
               </li>
             );
@@ -177,8 +194,17 @@ function MessageBody({ message }) {
 
 /**
  * Bolha de mensagem — alinhamento e cores controlados por CSS (.ic-thread-msg--mine).
+ * @param {{ message: Record<string, unknown>; myUserId?: string | number | null; otherUserId?: string | number | null; cluster?: boolean; publicMediaBaseUrl?: string | null; onConversarComContato?: (meta: { nome: string; telefone: string }) => void; conversarComContatoBusy?: boolean }} props
  */
-export default function InternalChatMessageBubble({ message, myUserId, otherUserId, cluster }) {
+export default function InternalChatMessageBubble({
+  message,
+  myUserId,
+  otherUserId,
+  cluster,
+  publicMediaBaseUrl = null,
+  onConversarComContato,
+  conversarComContatoBusy = false,
+}) {
   const mine = isMessageMine(message, myUserId, otherUserId);
   const deleted = Boolean(message.isDeleted);
 
@@ -196,7 +222,12 @@ export default function InternalChatMessageBubble({ message, myUserId, otherUser
           </>
         ) : (
           <>
-            <MessageBody message={message} />
+            <MessageBody
+              message={message}
+              publicMediaBaseUrl={publicMediaBaseUrl}
+              onConversarComContato={onConversarComContato}
+              conversarComContatoBusy={conversarComContatoBusy}
+            />
             <BubbleMeta createdAt={message.createdAt} />
           </>
         )}

@@ -286,6 +286,21 @@ export async function listInternalClientContacts(opts = {}) {
   return { contacts, total };
 }
 
+/**
+ * Configuração do módulo (ex.: base pública para `/uploads/...` em mídias).
+ * @returns {Promise<{ publicMediaBaseUrl: string | null }>}
+ */
+export async function fetchInternalChatStatus() {
+  const { data } = await api.get("/api/internal-chat/status", {
+    headers: { ...internalChatExtraHeaders() },
+  });
+  const raw = data?.public_media_base_url ?? data?.publicMediaBaseUrl ?? null;
+  const s = raw != null ? String(raw).trim() : "";
+  return {
+    publicMediaBaseUrl: s ? s.replace(/\/+$/, "") : null,
+  };
+}
+
 /** @param {string | number} conversationId */
 export async function markInternalConversationRead(conversationId) {
   await api.post(`/api/internal-chat/conversations/${conversationId}/read`);
