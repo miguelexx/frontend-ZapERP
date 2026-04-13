@@ -84,11 +84,11 @@ export default function MainLayout() {
             {darkMode ? <IconSun /> : <IconMoon />}
           </button>
           {isAdmin && <span className="sidebar-badge-compact" title="Administrador">A</span>}
-          <button type="button" className="sidebar-logout" onClick={handleLogout} title="Sair" aria-label="Sair">
+          <button type="button" className="sidebar-logout" onClick={handleLogout} title="Deslogar" aria-label="Deslogar da conta">
             <span className="sidebar-nav-icon" aria-hidden>
               <IconLogout />
             </span>
-            <span className="sidebar-nav-label">Sair</span>
+            <span className="sidebar-nav-label">Deslogar</span>
           </button>
         </div>
       </aside>
@@ -102,13 +102,13 @@ export default function MainLayout() {
         type="button"
         className="app-mobile-logout-fallback"
         onClick={handleLogout}
-        title="Sair da conta"
-        aria-label="Sair da conta"
+        title="Deslogar da conta"
+        aria-label="Deslogar da conta"
       >
         <span className="app-mobile-logout-fallback-icon" aria-hidden>
           <IconLogout />
         </span>
-        <span className="app-mobile-logout-fallback-label">Sair</span>
+        <span className="app-mobile-logout-fallback-label">Deslogar</span>
       </button>
     </div>
   );

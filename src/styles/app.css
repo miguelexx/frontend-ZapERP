@@ -436,37 +436,67 @@ body {
     gap: 0;
   }
 
+  /* Barra inferior: scroll horizontal para ver todos os itens + tema + Deslogar */
   .app-layout--crm .sidebar--compact {
     width: 100%;
-    height: 56px;
-    min-height: 56px;
+    height: auto;
+    min-height: 60px;
+    max-height: none;
     flex-direction: row;
-    justify-content: space-around;
-    padding: 8px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 6px 12px calc(10px + env(safe-area-inset-bottom, 0));
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
   }
 
   .app-layout--crm .sidebar-nav--compact {
+    display: flex;
     flex-direction: row;
-    flex: 1;
-    justify-content: space-around;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 8px;
     margin: 0;
+    min-width: min-content;
   }
 
-  /* Mobile: barra inferior com ícone + texto (mais usável) */
+  .app-layout--crm .sidebar-footer--compact {
+    display: flex;
+    flex-direction: row;
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  /* Mobile: ícone + texto — largura fixa mínima para encaixar no scroll */
   .app-layout--crm .sidebar-nav--compact .sidebar-nav-item,
+  .app-layout--crm .sidebar-footer--compact .sidebar-theme-toggle,
   .app-layout--crm .sidebar-footer--compact .sidebar-logout {
     width: auto;
-    height: 52px;
-    flex: 1 1 0;
-    min-width: 60px;
+    height: auto;
+    min-height: 54px;
+    flex: 0 0 auto;
+    min-width: 56px;
+    max-width: 78px;
     border-radius: 12px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 4px;
+    padding: 4px 2px;
   }
 
   .app-layout--crm .sidebar-nav--compact .sidebar-nav-label {
@@ -484,7 +514,8 @@ body {
     hyphens: auto;
   }
 
-  [data-theme="dark"] .app-layout--crm .sidebar-nav--compact .sidebar-nav-label {
+  [data-theme="dark"] .app-layout--crm .sidebar-nav--compact .sidebar-nav-label,
+  [data-theme="dark"] .app-layout--crm .sidebar-footer--compact .sidebar-nav-label {
     color: var(--ds-text-secondary);
   }
 
@@ -494,23 +525,7 @@ body {
     display: none;
   }
 
-  .app-layout--crm .sidebar-theme-toggle {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    flex-shrink: 0;
-  }
-
-  .app-layout--crm .sidebar-footer--compact {
-    flex-direction: row;
-    flex-shrink: 0;
-    padding-top: 0;
-    border-top: none;
-    gap: 4px;
-  }
-
-  /* Rótulo "Sair" na barra inferior (mesmo padrão dos itens de menu) */
+  /* Rótulo "Deslogar" / tema na barra inferior */
   .app-layout--crm .sidebar-footer--compact .sidebar-nav-label {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -556,6 +571,11 @@ body {
     height: 100%;
   }
 
+  /* Barra CRM com scroll pode ficar um pouco mais alta (ícone + 2 linhas de rótulo) */
+  .main-content.main-content--crm {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0));
+  }
+
   /* Atendimento: rolagem só dentro do layout (lista + chat), não no main */
   .main-content:has(.atendimento-layout) {
     overflow: hidden;
@@ -575,12 +595,20 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
+  .app-layout:has(.atendimento-layout.conversation-open) .main-content.main-content--crm {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
   /* Chat interno com conversa aberta: lista + busca somem; só thread + cabeçalho; barra inferior some */
   .app-layout:has(.internal-chat-root.internal-chat-root--thread-open) .sidebar {
     display: none;
   }
 
   .app-layout:has(.internal-chat-root.internal-chat-root--thread-open) .main-content {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .app-layout:has(.internal-chat-root.internal-chat-root--thread-open) .main-content.main-content--crm {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
