@@ -20,6 +20,7 @@ import Permissoes from "../pages/Permissoes";
 import Campanhas from "../pages/Campanhas";
 import Mensagens from "../pages/Mensagens";
 import Atalhos from "../pages/Atalhos";
+import InternalChat from "../pages/InternalChat";
 
 export default function AppRoutes() {
   const { token, user } = useAuthStore();
@@ -60,6 +61,7 @@ export default function AppRoutes() {
             }
           />
           <Route path="/atendimento" element={<Atendimento />} />
+          <Route path="/chat-interno" element={<InternalChat />} />
           <Route path="/atendimento/novo-contato" element={<NovoContato />} />
           <Route path="/atendimento/novo-grupo" element={<NovoGrupo />} />
           <Route path="/atendimento/nova-comunidade" element={<NovaComunidade />} />

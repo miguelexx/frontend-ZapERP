@@ -312,6 +312,18 @@ body {
   overflow-x: hidden;
 }
 
+/* Chat interno: evita rolagem dupla no main e preenche a área útil */
+.main-content:has(.internal-chat-root) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content .internal-chat-root {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
 /* ==============================
    CRM — Sidebar compacta (só ícones no canto)
 ============================== */
@@ -532,6 +544,10 @@ body {
     padding-top: 0;
   }
 
+  .main-content:has(.internal-chat-root) {
+    padding-top: 0;
+  }
+
   /* Conversa aberta no atendimento: some com a barra inferior (IA, Campanhas, etc.) para o chat usar a tela inteira */
   .app-layout:has(.atendimento-layout.conversation-open) .sidebar {
     display: none;
@@ -543,6 +559,11 @@ body {
 
   /* Atendimento ocupa toda a área disponível, tela fixa */
   .main-content .atendimento-layout {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .main-content .internal-chat-root {
     height: 100%;
     min-height: 0;
   }

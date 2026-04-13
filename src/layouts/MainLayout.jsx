@@ -65,6 +65,7 @@ export default function MainLayout() {
           {canAccessDashboard_ && <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />}
           {canAccessDashboard_ && <NavItem to="/campanhas" label="Campanhas" icon={<IconCampanhas />} />}
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
+          <NavItem to="/chat-interno" label="Chat interno" icon={<IconInternalTeam />} title="Mensagens entre funcionários (não é WhatsApp)" />
           {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
           {canAccessChatbot_ && (
             <NavItem to="/ia" label="Bot" icon={<IconIASparkle />} title="Chatbot / automação" />
@@ -121,6 +122,20 @@ function IconAtendimento() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
       <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </svg>
+  );
+}
+
+/** Ícone distinto do fone de atendimento: equipe + mensagens internas */
+function IconInternalTeam() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <path d="M12 11h4" />
+      <path d="M14 9v4" />
     </svg>
   );
 }

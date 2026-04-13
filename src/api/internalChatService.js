@@ -1,0 +1,138 @@
+import api from "./http"
+import { normalizeInternalMessage } from "../internal-chat/messageUtils.js"
+
+/**
+ * Extrai array da resposta do backend (formatos comuns).
+ * @param {unknown} payload
+ * @param {string[]} keys
+ */
+function unwrapArray(payload, keys) {
+  if (Array.isArray(payload)) return payload
+  if (payload && typeof payload === "object") {
+    for (const k of keys) {
+      const v = /** @type {Record<string, unknown>} */ (payload)[k]
+      if (Array.isArray(v)) return v
+    }
+  }
+  return []
+}
+
+/** @param {unknown} raw */
+export function normalizeEmployee(raw) {
+  if (!raw || typeof raw !== "object") return null
+  const o = /** @type {Record<string, unknown>} */ (raw)
+  const id = o.id ?? o.user_id ?? o.usuario_id
+  if (id == null || id === "") return null
+  return {
+    id: String(id),
+    name: String(o.name ?? o.nome ?? o.full_name ?? "Usuário"),
+    email: o.email != null ? String(o.email) : "",
+    avatarUrl: (o.avatar_url ?? o.foto ?? o.photo_url ?? o.avatar) ? String(o.avatar_url ?? o.foto ?? o.photo_url ?? o.avatar) : null,
+    isOnline: Boolean(o.is_online ?? o.online),
+    lastSeen: o.last_seen ?? o.lastSeen ?? null,
+  }
+}
+
+/** @param {unknown} raw @param {string | number | null | undefined} currentUserId */
+export function normalizeConversation(raw, currentUserId) {
+  if (!raw || typeof raw !== "object") return null
+  const o = /** @type {Record<string, unknown>} */ (raw)
+  const id = o.id ?? o.conversation_id
+  if (id == null || id === "") return null
+
+  const me = currentUserId != null ? String(currentUserId) : null
+  let other = o.other_user ?? o.otherUser ?? o.peer ?? o.participant
+  const participants = Array.isArray(o.participants) ? o.participants : null
+  if (!other && participants?.length && me) {
+    const row = participants.find((p) => p && typeof p === "object" && String(/** @type {any} */ (p).id ?? /** @type {any} */ (p).user_id) !== me)
+    other = row || participants[0]
+  }
+
+  const ou = other && typeof other === "object" ? /** @type {Record<string, unknown>} */ (other) : null
+  const otherId = ou ? ou.id ?? ou.user_id ?? ou.usuario_id : o.other_user_id ?? o.peer_user_id
+  const otherName = ou
+    ? String(ou.name ?? ou.nome ?? ou.full_name ?? "Colega")
+    : String(o.other_name ?? o.title ?? "Conversa interna")
+  const otherEmail = ou && ou.email != null ? String(ou.email) : o.other_email != null ? String(o.other_email) : ""
+
+  const lastMessage =
+    String(o.last_message ?? o.lastMessage ?? o.preview ?? o.ultima_mensagem ?? o.snippet ?? "").trim() || null
+  const lastActivity =
+    o.last_activity_at ?? o.lastActivityAt ?? o.updated_at ?? o.updatedAt ?? o.last_message_at ?? o.lastMessageAt ?? null
+  const unread = Number(o.unread_count ?? o.unreadCount ?? o.nao_lidas ?? 0) || 0
+
+  const avatarUrl = ou
+    ? (ou.avatar_url ?? ou.foto ?? ou.photo_url ?? ou.avatar) ? String(ou.avatar_url ?? ou.foto ?? ou.photo_url ?? ou.avatar) : null
+    : o.avatar_url ? String(o.avatar_url) : null
+
+  return {
+    id: String(id),
+    otherUserId: otherId != null ? String(otherId) : "",
+    otherName,
+    otherEmail,
+    avatarUrl,
+    lastMessage,
+    lastActivity,
+    unreadCount: unread,
+  }
+}
+
+export async function listInternalEmployees() {
+  const { data } = await api.get("/api/internal-chat/employees")
+  const arr = unwrapArray(data, ["employees", "usuarios", "users", "data", "items", "results"])
+  return arr.map(normalizeEmployee).filter(Boolean)
+}
+
+/** @param {string | number | null | undefined} currentUserId */
+export async function listInternalConversations(currentUserId) {
+  const { data } = await api.get("/api/internal-chat/conversations")
+  const arr = unwrapArray(data, ["conversations", "chats", "data", "items", "results"])
+  return arr.map((row) => normalizeConversation(row, currentUserId)).filter(Boolean)
+}
+
+/**
+ * @param {string | number} targetUserId
+ * @param {string | number | null | undefined} currentUserId
+ */
+export async function createOrOpenInternalConversation(targetUserId, currentUserId) {
+  const rawId = typeof targetUserId === "string" ? targetUserId.trim() : targetUserId
+  const numeric = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : rawId
+  const { data } = await api.post("/api/internal-chat/conversations", {
+    target_user_id: typeof numeric === "number" && !Number.isNaN(numeric) ? numeric : rawId,
+  })
+  const conv = normalizeConversation(data?.conversation ?? data?.data ?? data, currentUserId)
+  return conv
+}
+
+/**
+ * @param {string | number} conversationId
+ * @param {{ limit?: number, beforeId?: string | number }} opts
+ */
+export async function listInternalMessages(conversationId, opts = {}) {
+  const { limit = 40, beforeId } = opts
+  const params = { limit }
+  if (beforeId != null && beforeId !== "") params.before_id = beforeId
+  const { data } = await api.get(`/api/internal-chat/conversations/${conversationId}/messages`, { params })
+  const arr = unwrapArray(data, ["messages", "data", "items", "results"])
+  const nextBefore =
+    data?.next_before_id ?? data?.nextBeforeId ?? data?.next_before ?? data?.cursor ?? null
+  return { rawMessages: arr, nextBeforeId: nextBefore != null ? String(nextBefore) : null }
+}
+
+/**
+ * @param {string | number} conversationId
+ * @param {string} content
+ * @param {string | number | null | undefined} myUserId
+ */
+export async function sendInternalMessage(conversationId, content, myUserId) {
+  const trimmed = String(content || "").trim()
+  const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages`, {
+    content: trimmed,
+  })
+  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId)
+}
+
+/** @param {string | number} conversationId */
+export async function markInternalConversationRead(conversationId) {
+  await api.post(`/api/internal-chat/conversations/${conversationId}/read`)
+}
