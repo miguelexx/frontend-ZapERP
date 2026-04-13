@@ -1,4 +1,4 @@
-/* Chat interno — área dedicada (visual distinto do WhatsApp Web) */
+/* Chat interno — área dedicada; tema claro/escuro segue data-theme no <html> */
 
 .visually-hidden {
   position: absolute;
@@ -22,22 +22,22 @@
   box-sizing: border-box;
 }
 
-/* Tema claro dedicado ao módulo (independe do tema global escuro) */
+/* Tema claro do módulo (quando data-theme=light) — fundo menos branco, painéis off-white */
 .internal-chat-root.internal-chat-root--light-ui {
-  --ic-bg: #f0f2f5;
-  --ic-surface: #ffffff;
+  --ic-bg: #cdd8d2;
+  --ic-surface: #e6ebe8;
   --ic-text: #111b21;
   --ic-text-secondary: #3b4a54;
-  --ic-text-muted: #667781;
-  --ic-border: rgba(11, 20, 26, 0.08);
+  --ic-text-muted: #5c6b72;
+  --ic-border: rgba(11, 20, 26, 0.1);
   --ic-accent: #008069;
   --ic-accent-hover: #009970;
-  --ic-bubble-in: #ffffff;
+  --ic-bubble-in: #f4f8f6;
   --ic-bubble-out: #d9fdd3;
   --ic-bubble-out-text: #111b21;
   --ic-bubble-in-text: #111b21;
-  --ic-header: #f0f2f5;
-  --ic-shadow: 0 1px 2px rgba(11, 20, 26, 0.06);
+  --ic-header: #dce5df;
+  --ic-shadow: 0 1px 2px rgba(11, 20, 26, 0.07);
   background: var(--ic-bg);
   border-top-color: var(--ic-accent);
   color: var(--ic-text);
@@ -62,7 +62,7 @@
 }
 
 .internal-chat-root.internal-chat-root--light-ui .internal-chat-search input {
-  background: #f8f9fa;
+  background: #dde8e2;
   border-color: var(--ic-border);
   color: var(--ic-text);
 }
@@ -161,6 +161,107 @@
   border-color: var(--ic-border);
   color: var(--ic-text-secondary);
   background: var(--ic-surface);
+}
+
+/* Tema escuro — alinhado ao app (data-theme=dark) e visual tipo WhatsApp escuro */
+.internal-chat-root.internal-chat-root--dark-ui {
+  background: var(--ds-bg-base);
+  border-top-color: var(--ds-accent);
+  color: var(--ds-text-primary);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-main {
+  background: transparent;
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-main::before {
+  opacity: 0.08;
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-sidebar,
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-head {
+  background: var(--ds-surface-1);
+  border-color: var(--ds-border);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-search input {
+  background: var(--ds-input-bg);
+  border-color: var(--ds-border-strong);
+  color: var(--ds-text-primary);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-row:hover {
+  background: var(--ds-hover);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-row--active {
+  background: var(--ds-accent-muted);
+  border-left-color: var(--ds-accent);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-avatar {
+  background: linear-gradient(135deg, var(--ds-accent-soft), var(--ds-surface-3));
+  color: var(--ds-accent);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-online {
+  border-color: var(--ds-surface-1);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-notif-btn {
+  background: var(--ds-surface-2);
+  border-color: var(--ds-border);
+  color: var(--ds-text-secondary);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-notif-btn:hover {
+  background: var(--ds-hover-strong);
+  color: var(--ds-text-primary);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .internal-chat-notif-btn--on {
+  color: var(--ds-accent);
+  border-color: rgba(0, 168, 132, 0.4);
+  background: var(--ds-accent-soft);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread {
+  background: var(--ds-surface-1);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-header,
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-footer {
+  background: var(--ds-chat-header);
+  border-color: var(--ds-border);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-messages-wrap {
+  background: var(--ds-chat-bg);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-composer {
+  background: var(--ds-input-bg);
+  border-color: var(--ds-border-strong);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-input {
+  color: var(--ds-text-primary);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-send {
+  background: var(--ds-accent);
+  color: #fff;
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-send:hover:not(:disabled) {
+  background: var(--ds-accent-hover);
+}
+
+.internal-chat-root.internal-chat-root--dark-ui .ic-thread-badge {
+  color: var(--ds-accent);
+  background: var(--ds-accent-soft);
+  border-color: rgba(0, 168, 132, 0.28);
 }
 
 .internal-chat-row--unread .internal-chat-row-title,

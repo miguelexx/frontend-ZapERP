@@ -31,6 +31,11 @@ import "./internalChat.css";
 const PAGE_SIZE = 40;
 const INTERNAL_CHAT_NOTIF_LS = "internal_chat_desktop_notif";
 
+function readDocumentTheme() {
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
 function sumInternalUnread(conversations) {
   return conversations.reduce((acc, c) => acc + (Number(c.unreadCount) || 0), 0);
 }
@@ -141,6 +146,20 @@ export default function InternalChat() {
       return false;
     }
   });
+
+  const [uiTheme, setUiTheme] = useState(readDocumentTheme);
+
+  useEffect(() => {
+    const sync = () => setUiTheme(readDocumentTheme());
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    window.addEventListener("theme-change", sync);
+    return () => {
+      mo.disconnect();
+      window.removeEventListener("theme-change", sync);
+    };
+  }, []);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -543,8 +562,10 @@ export default function InternalChat() {
     }
   }
 
+  const rootThemeClass = uiTheme === "dark" ? "internal-chat-root--dark-ui" : "internal-chat-root--light-ui";
+
   return (
-    <div className="internal-chat-root internal-chat-root--light-ui">
+    <div className={`internal-chat-root ${rootThemeClass}`}>
       <aside className="internal-chat-sidebar" aria-label="Lista de equipe e conversas internas">
         <header className="internal-chat-head">
           <h1>Chat interno</h1>
