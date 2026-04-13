@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SkeletonLine } from "../components/feedback/Skeleton";
 import "../components/feedback/skeleton.css";
-import { formatMessageTime } from "./messageUtils";
+import { formatMessageTime, isMessageMine } from "./messageUtils";
 
 function assignRefs(el, a, b) {
   a.current = el;
@@ -22,6 +22,7 @@ function ThreadAvatar({ url, name }) {
 
 export default function InternalChatThread({
   conversation,
+  myUserId,
   messagesListRef,
   peerOnline = false,
   peerLastSeen = null,
@@ -148,16 +149,27 @@ export default function InternalChatThread({
             </div>
           ) : (
             <ul className="ic-thread-msg-list" aria-label="Mensagens">
-              {messages.map((m) => (
-                <li key={m.id} className={`ic-thread-msg${m.mine ? " ic-thread-msg--mine" : ""}`}>
-                  <div className="ic-thread-bubble">
-                    <p className="ic-thread-bubble-text">{m.content || <span className="ic-thread-muted">(sem texto)</span>}</p>
-                    <time className="ic-thread-bubble-time" dateTime={m.createdAt ? String(m.createdAt) : undefined}>
-                      {formatMessageTime(m.createdAt)}
-                    </time>
-                  </div>
-                </li>
-              ))}
+              {messages.map((m, idx) => {
+                const mine = isMessageMine(m, myUserId, conversation?.otherUserId);
+                const prev = messages[idx - 1];
+                const prevMine = prev ? isMessageMine(prev, myUserId, conversation?.otherUserId) : null;
+                const cluster = prevMine === mine;
+                return (
+                  <li
+                    key={m.id}
+                    className={`ic-thread-msg${mine ? " ic-thread-msg--mine" : ""}${cluster ? " ic-thread-msg--cluster" : ""}`}
+                  >
+                    <div className="ic-thread-bubble">
+                      <p className="ic-thread-bubble-text">{m.content || <span className="ic-thread-muted">(sem texto)</span>}</p>
+                      <div className="ic-thread-bubble-meta">
+                        <time className="ic-thread-bubble-time" dateTime={m.createdAt ? String(m.createdAt) : undefined}>
+                          {formatMessageTime(m.createdAt)}
+                        </time>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

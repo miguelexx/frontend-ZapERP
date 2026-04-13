@@ -123,13 +123,14 @@ export async function listInternalMessages(conversationId, opts = {}) {
  * @param {string | number} conversationId
  * @param {string} content
  * @param {string | number | null | undefined} myUserId
+ * @param {string | number | null | undefined} otherUserId
  */
-export async function sendInternalMessage(conversationId, content, myUserId) {
+export async function sendInternalMessage(conversationId, content, myUserId, otherUserId = null) {
   const trimmed = String(content || "").trim()
   const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages`, {
     content: trimmed,
   })
-  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId)
+  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId)
 }
 
 /** @param {string | number} conversationId */

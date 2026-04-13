@@ -18,7 +18,12 @@ import {
   extractReadPayload,
   unwrapPayload,
 } from "../internal-chat/payloadUtils";
-import { normalizeInternalMessage, sortMessagesAsc, upsertMessageSorted } from "../internal-chat/messageUtils";
+import {
+  normalizeInternalMessage,
+  sortMessagesAsc,
+  upsertMessageSorted,
+  isMessageMine,
+} from "../internal-chat/messageUtils";
 import { useInternalChatSocket } from "../internal-chat/useInternalChatSocket";
 import "./internalChat.css";
 
@@ -105,6 +110,16 @@ export default function InternalChat() {
   const [sendError, setSendError] = useState(null);
 
   const messagesListRef = useRef(null);
+  const conversationsRef = useRef([]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const otherUserIdForSelected = useMemo(() => {
+    const c = conversations.find((x) => String(x.id) === String(selectedConversationId));
+    return c?.otherUserId ?? null;
+  }, [conversations, selectedConversationId]);
 
   const loadData = useCallback(async () => {
     setError(null);
@@ -144,8 +159,10 @@ export default function InternalChat() {
           limit: PAGE_SIZE,
         });
         if (cancelled) return;
+        const otherUid =
+          conversationsRef.current.find((x) => String(x.id) === String(selectedConversationId))?.otherUserId ?? null;
         const normalized = rawMessages
-          .map((r) => normalizeInternalMessage(r, user?.id))
+          .map((r) => normalizeInternalMessage(r, user?.id, otherUid))
           .filter(Boolean);
         setMessages(sortMessagesAsc(normalized));
         setNextBeforeId(nb && nb !== "null" && nb !== "undefined" ? nb : null);
@@ -181,7 +198,7 @@ export default function InternalChat() {
         beforeId: nextBeforeId,
       });
       const normalized = rawMessages
-        .map((r) => normalizeInternalMessage(r, user?.id))
+        .map((r) => normalizeInternalMessage(r, user?.id, otherUserIdForSelected))
         .filter(Boolean);
       setMessages((prev) => {
         const merged = [...normalized, ...prev];
@@ -207,7 +224,9 @@ export default function InternalChat() {
       setSendError(null);
       setSending(true);
       try {
-        const msg = await sendInternalMessage(tid, text, user?.id);
+        const peerUid =
+          conversationsRef.current.find((c) => String(c.id) === String(tid))?.otherUserId ?? null;
+        const msg = await sendInternalMessage(tid, text, user?.id, peerUid);
         if (msg) setMessages((prev) => upsertMessageSorted(prev, msg));
         const trimmed = String(text).trim();
         setConversations((prev) =>
@@ -252,13 +271,16 @@ export default function InternalChat() {
       const convId = extractConversationIdFromPayload(payload);
       if (!convId) return;
       const raw = extractMessageFromPayload(payload);
-      const msg = normalizeInternalMessage(raw, user?.id);
+      const otherUid =
+        conversationsRef.current.find((c) => String(c.id) === String(convId))?.otherUserId ?? null;
+      const msg = normalizeInternalMessage(raw, user?.id, otherUid);
       if (!msg?.id) return;
       const openId = selectedConvIdRef.current;
       const isOpen = openId != null && String(openId) === String(convId);
+      const isOwn = isMessageMine(msg, user?.id, otherUid);
       if (isOpen) {
         setMessages((prev) => upsertMessageSorted(prev, msg));
-        if (!msg.mine) {
+        if (!isOwn) {
           markInternalConversationRead(convId).catch(() => {});
         }
       }
@@ -268,7 +290,7 @@ export default function InternalChat() {
         sortConversations(
           prev.map((c) => {
             if (String(c.id) !== String(convId)) return c;
-            if (msg.mine || isOpen) {
+            if (isOwn || isOpen) {
               return {
                 ...c,
                 lastMessage: preview || c.lastMessage,
@@ -388,14 +410,14 @@ export default function InternalChat() {
     listInternalMessages(selectedConversationId, { limit: PAGE_SIZE })
       .then(({ rawMessages, nextBeforeId: nb }) => {
         const normalized = rawMessages
-          .map((r) => normalizeInternalMessage(r, user?.id))
+          .map((r) => normalizeInternalMessage(r, user?.id, otherUserIdForSelected))
           .filter(Boolean);
         setMessages(sortMessagesAsc(normalized));
         setNextBeforeId(nb && nb !== "null" && nb !== "undefined" ? nb : null);
       })
       .catch((err) => setThreadError(pickErrorMessage(err)))
       .finally(() => setThreadLoading(false));
-  }, [selectedConversationId, user?.id]);
+  }, [selectedConversationId, user?.id, otherUserIdForSelected]);
 
   return (
     <div className="internal-chat-root">
@@ -531,6 +553,7 @@ export default function InternalChat() {
         ) : (
           <InternalChatThread
             conversation={selected}
+            myUserId={user?.id}
             messagesListRef={messagesListRef}
             peerOnline={Boolean(peerEmployee?.isOnline)}
             peerLastSeen={peerEmployee?.lastSeen ?? null}
