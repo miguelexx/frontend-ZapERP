@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthStore } from "../auth/authStore";
+import { useNotificationStore } from "../notifications/notificationStore";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
 import "../components/feedback/skeleton.css";
 import {
@@ -7,7 +8,10 @@ import {
   listInternalConversations,
   listInternalEmployees,
   listInternalMessages,
-  sendInternalMessage,
+  sendInternalTextMessage,
+  sendInternalMediaMultipart,
+  sendInternalLocationMessage,
+  sendInternalContactMessage,
   markInternalConversationRead,
   normalizeConversation,
 } from "../api/internalChatService";
@@ -131,6 +135,7 @@ export default function InternalChat() {
   const [nextBeforeId, setNextBeforeId] = useState(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(/** @type {number | null} */ (null));
 
   const messagesListRef = useRef(null);
   const threadRef = useRef(null);
@@ -329,36 +334,74 @@ export default function InternalChat() {
     }
   }, [selectedConversationId, nextBeforeId, olderLoading, threadLoading, user?.id]);
 
-  const handleSend = useCallback(
-    async (text) => {
+  const handleComposerSend = useCallback(
+    async (payload) => {
       const tid = selectedConversationId;
-      if (!tid || !String(text || "").trim()) return;
+      if (!tid) return;
+      if (payload.kind === "text" && !String(payload.content || "").trim()) return;
       setSendError(null);
       setSending(true);
+      setUploadProgress(null);
+      const peerUid = conversationsRef.current.find((c) => String(c.id) === String(tid))?.otherUserId ?? null;
       try {
-        const peerUid =
-          conversationsRef.current.find((c) => String(c.id) === String(tid))?.otherUserId ?? null;
-        const msg = await sendInternalMessage(tid, text, user?.id, peerUid);
-        if (msg) setMessages((prev) => upsertMessageSorted(prev, msg));
-        const trimmed = String(text).trim();
-        setConversations((prev) =>
-          sortConversations(
-            prev.map((c) =>
-              String(c.id) === String(tid)
-                ? {
-                    ...c,
-                    lastMessage: trimmed.slice(0, 200),
-                    lastActivity: msg?.createdAt ?? new Date().toISOString(),
-                  }
-                : c
+        let msg = null;
+        if (payload.kind === "text") {
+          const t = String(payload.content || "").trim();
+          msg = await sendInternalTextMessage(tid, t, user?.id, peerUid);
+        } else if (payload.kind === "media") {
+          setUploadProgress(0);
+          msg = await sendInternalMediaMultipart(
+            tid,
+            {
+              file: payload.file,
+              fieldName: payload.fieldName || "file",
+              caption: payload.caption,
+              messageType: payload.messageType,
+            },
+            user?.id,
+            peerUid,
+            (p) => setUploadProgress(p)
+          );
+        } else if (payload.kind === "location") {
+          msg = await sendInternalLocationMessage(tid, payload, user?.id, peerUid);
+        } else if (payload.kind === "contact") {
+          msg = await sendInternalContactMessage(tid, payload, user?.id, peerUid);
+        }
+        if (msg) {
+          setMessages((prev) => upsertMessageSorted(prev, msg));
+          const preview = (msg.listPreview || String(msg.content || "").trim()).slice(0, 200);
+          setConversations((prev) =>
+            sortConversations(
+              prev.map((c) =>
+                String(c.id) === String(tid)
+                  ? {
+                      ...c,
+                      lastMessage: preview || c.lastMessage,
+                      lastActivity: msg?.createdAt ?? new Date().toISOString(),
+                    }
+                  : c
+              )
             )
-          )
-        );
+          );
+        }
       } catch (err) {
-        setSendError(pickErrorMessage(err));
+        const m = pickErrorMessage(err);
+        setSendError(m);
+        if (err?.response?.status === 400) {
+          try {
+            useNotificationStore.getState().showToast({
+              type: "error",
+              title: "Envio recusado",
+              message: m,
+            });
+          } catch {
+            /* ignore */
+          }
+        }
         throw err;
       } finally {
         setSending(false);
+        setUploadProgress(null);
       }
     },
     [selectedConversationId, user?.id]
@@ -402,7 +445,7 @@ export default function InternalChat() {
         scheduleMarkConversationRead(convId);
       }
 
-      const preview = (msg.content || "").trim().slice(0, 120);
+      const preview = (msg.listPreview || String(msg.content || "").trim()).slice(0, 120);
       const lastActivity = msg.createdAt || new Date().toISOString();
       setConversations((prev) =>
         sortConversations(
@@ -685,9 +728,10 @@ export default function InternalChat() {
             hasMoreOlder={Boolean(nextBeforeId)}
             onLoadOlder={loadOlder}
             onRetryLoad={retryThread}
-            onSend={handleSend}
+            onComposerSend={handleComposerSend}
             sending={sending}
             sendError={sendError}
+            uploadProgress={uploadProgress}
           />
         )}
       </main>

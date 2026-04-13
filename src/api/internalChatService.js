@@ -1,5 +1,6 @@
-import api from "./http"
-import { normalizeInternalMessage } from "../internal-chat/messageUtils.js"
+import api from "./http";
+import { normalizeInternalMessage } from "../internal-chat/messageUtils.js";
+import { previewTextFromMessageLike } from "../internal-chat/lastMessagePreview.js";
 
 /**
  * Extrai array da resposta do backend (formatos comuns).
@@ -7,22 +8,22 @@ import { normalizeInternalMessage } from "../internal-chat/messageUtils.js"
  * @param {string[]} keys
  */
 function unwrapArray(payload, keys) {
-  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload)) return payload;
   if (payload && typeof payload === "object") {
     for (const k of keys) {
-      const v = /** @type {Record<string, unknown>} */ (payload)[k]
-      if (Array.isArray(v)) return v
+      const v = /** @type {Record<string, unknown>} */ (payload)[k];
+      if (Array.isArray(v)) return v;
     }
   }
-  return []
+  return [];
 }
 
 /** @param {unknown} raw */
 export function normalizeEmployee(raw) {
-  if (!raw || typeof raw !== "object") return null
-  const o = /** @type {Record<string, unknown>} */ (raw)
-  const id = o.id ?? o.user_id ?? o.usuario_id
-  if (id == null || id === "") return null
+  if (!raw || typeof raw !== "object") return null;
+  const o = /** @type {Record<string, unknown>} */ (raw);
+  const id = o.id ?? o.user_id ?? o.usuario_id;
+  if (id == null || id === "") return null;
   return {
     id: String(id),
     name: String(o.name ?? o.nome ?? o.full_name ?? "Usuário"),
@@ -30,40 +31,49 @@ export function normalizeEmployee(raw) {
     avatarUrl: (o.avatar_url ?? o.foto ?? o.photo_url ?? o.avatar) ? String(o.avatar_url ?? o.foto ?? o.photo_url ?? o.avatar) : null,
     isOnline: Boolean(o.is_online ?? o.online),
     lastSeen: o.last_seen ?? o.lastSeen ?? null,
-  }
+  };
 }
 
 /** @param {unknown} raw @param {string | number | null | undefined} currentUserId */
 export function normalizeConversation(raw, currentUserId) {
-  if (!raw || typeof raw !== "object") return null
-  const o = /** @type {Record<string, unknown>} */ (raw)
-  const id = o.id ?? o.conversation_id
-  if (id == null || id === "") return null
+  if (!raw || typeof raw !== "object") return null;
+  const o = /** @type {Record<string, unknown>} */ (raw);
+  const id = o.id ?? o.conversation_id;
+  if (id == null || id === "") return null;
 
-  const me = currentUserId != null ? String(currentUserId) : null
-  let other = o.other_user ?? o.otherUser ?? o.peer ?? o.participant
-  const participants = Array.isArray(o.participants) ? o.participants : null
+  const me = currentUserId != null ? String(currentUserId) : null;
+  let other = o.other_user ?? o.otherUser ?? o.peer ?? o.participant;
+  const participants = Array.isArray(o.participants) ? o.participants : null;
   if (!other && participants?.length && me) {
-    const row = participants.find((p) => p && typeof p === "object" && String(/** @type {any} */ (p).id ?? /** @type {any} */ (p).user_id) !== me)
-    other = row || participants[0]
+    const row = participants.find((p) => p && typeof p === "object" && String(/** @type {any} */ (p).id ?? /** @type {any} */ (p).user_id) !== me);
+    other = row || participants[0];
   }
 
-  const ou = other && typeof other === "object" ? /** @type {Record<string, unknown>} */ (other) : null
-  const otherId = ou ? ou.id ?? ou.user_id ?? ou.usuario_id : o.other_user_id ?? o.peer_user_id
+  const ou = other && typeof other === "object" ? /** @type {Record<string, unknown>} */ (other) : null;
+  const otherId = ou ? ou.id ?? ou.user_id ?? ou.usuario_id : o.other_user_id ?? o.peer_user_id;
   const otherName = ou
     ? String(ou.name ?? ou.nome ?? ou.full_name ?? "Colega")
-    : String(o.other_name ?? o.title ?? "Conversa interna")
-  const otherEmail = ou && ou.email != null ? String(ou.email) : o.other_email != null ? String(o.other_email) : ""
+    : String(o.other_name ?? o.title ?? "Conversa interna");
+  const otherEmail = ou && ou.email != null ? String(ou.email) : o.other_email != null ? String(o.other_email) : "";
 
-  const lastMessage =
-    String(o.last_message ?? o.lastMessage ?? o.preview ?? o.ultima_mensagem ?? o.snippet ?? "").trim() || null
+  const lm = o.last_message ?? o.lastMessage;
+  let lastMessage = null;
+  if (lm && typeof lm === "object") {
+    lastMessage = previewTextFromMessageLike(lm).trim().slice(0, 200) || null;
+  } else {
+    lastMessage =
+      String(o.last_message ?? o.lastMessage ?? o.preview ?? o.ultima_mensagem ?? o.snippet ?? "")
+        .trim()
+        .slice(0, 200) || null;
+  }
+
   const lastActivity =
-    o.last_activity_at ?? o.lastActivityAt ?? o.updated_at ?? o.updatedAt ?? o.last_message_at ?? o.lastMessageAt ?? null
-  const unread = Number(o.unread_count ?? o.unreadCount ?? o.nao_lidas ?? 0) || 0
+    o.last_activity_at ?? o.lastActivityAt ?? o.updated_at ?? o.updatedAt ?? o.last_message_at ?? o.lastMessageAt ?? null;
+  const unread = Number(o.unread_count ?? o.unreadCount ?? o.nao_lidas ?? 0) || 0;
 
   const avatarUrl = ou
     ? (ou.avatar_url ?? ou.foto ?? ou.photo_url ?? ou.avatar) ? String(ou.avatar_url ?? ou.foto ?? ou.photo_url ?? ou.avatar) : null
-    : o.avatar_url ? String(o.avatar_url) : null
+    : o.avatar_url ? String(o.avatar_url) : null;
 
   return {
     id: String(id),
@@ -74,20 +84,20 @@ export function normalizeConversation(raw, currentUserId) {
     lastMessage,
     lastActivity,
     unreadCount: unread,
-  }
+  };
 }
 
 export async function listInternalEmployees() {
-  const { data } = await api.get("/api/internal-chat/employees")
-  const arr = unwrapArray(data, ["employees", "usuarios", "users", "data", "items", "results"])
-  return arr.map(normalizeEmployee).filter(Boolean)
+  const { data } = await api.get("/api/internal-chat/employees");
+  const arr = unwrapArray(data, ["employees", "usuarios", "users", "data", "items", "results"]);
+  return arr.map(normalizeEmployee).filter(Boolean);
 }
 
 /** @param {string | number | null | undefined} currentUserId */
 export async function listInternalConversations(currentUserId) {
-  const { data } = await api.get("/api/internal-chat/conversations")
-  const arr = unwrapArray(data, ["conversations", "chats", "data", "items", "results"])
-  return arr.map((row) => normalizeConversation(row, currentUserId)).filter(Boolean)
+  const { data } = await api.get("/api/internal-chat/conversations");
+  const arr = unwrapArray(data, ["conversations", "chats", "data", "items", "results"]);
+  return arr.map((row) => normalizeConversation(row, currentUserId)).filter(Boolean);
 }
 
 /**
@@ -95,13 +105,13 @@ export async function listInternalConversations(currentUserId) {
  * @param {string | number | null | undefined} currentUserId
  */
 export async function createOrOpenInternalConversation(targetUserId, currentUserId) {
-  const rawId = typeof targetUserId === "string" ? targetUserId.trim() : targetUserId
-  const numeric = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : rawId
+  const rawId = typeof targetUserId === "string" ? targetUserId.trim() : targetUserId;
+  const numeric = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : rawId;
   const { data } = await api.post("/api/internal-chat/conversations", {
     target_user_id: typeof numeric === "number" && !Number.isNaN(numeric) ? numeric : rawId,
-  })
-  const conv = normalizeConversation(data?.conversation ?? data?.data ?? data, currentUserId)
-  return conv
+  });
+  const conv = normalizeConversation(data?.conversation ?? data?.data ?? data, currentUserId);
+  return conv;
 }
 
 /**
@@ -109,31 +119,104 @@ export async function createOrOpenInternalConversation(targetUserId, currentUser
  * @param {{ limit?: number, beforeId?: string | number }} opts
  */
 export async function listInternalMessages(conversationId, opts = {}) {
-  const { limit = 40, beforeId } = opts
-  const params = { limit }
-  if (beforeId != null && beforeId !== "") params.before_id = beforeId
-  const { data } = await api.get(`/api/internal-chat/conversations/${conversationId}/messages`, { params })
-  const arr = unwrapArray(data, ["messages", "data", "items", "results"])
+  const { limit = 40, beforeId } = opts;
+  const params = { limit };
+  if (beforeId != null && beforeId !== "") params.before_id = beforeId;
+  const { data } = await api.get(`/api/internal-chat/conversations/${conversationId}/messages`, { params });
+  const arr = unwrapArray(data, ["messages", "data", "items", "results"]);
   const nextBefore =
-    data?.next_before_id ?? data?.nextBeforeId ?? data?.next_before ?? data?.cursor ?? null
-  return { rawMessages: arr, nextBeforeId: nextBefore != null ? String(nextBefore) : null }
+    data?.next_before_id ?? data?.nextBeforeId ?? data?.next_before ?? data?.cursor ?? null;
+  return { rawMessages: arr, nextBeforeId: nextBefore != null ? String(nextBefore) : null };
 }
 
 /**
+ * Texto (emoji UTF-8 no content).
  * @param {string | number} conversationId
  * @param {string} content
  * @param {string | number | null | undefined} myUserId
  * @param {string | number | null | undefined} otherUserId
  */
-export async function sendInternalMessage(conversationId, content, myUserId, otherUserId = null) {
-  const trimmed = String(content || "").trim()
+export async function sendInternalTextMessage(conversationId, content, myUserId, otherUserId = null) {
+  const trimmed = String(content || "").trim();
   const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages`, {
+    message_type: "text",
     content: trimmed,
-  })
-  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId)
+  });
+  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId);
+}
+
+/**
+ * @deprecated use sendInternalTextMessage
+ */
+export async function sendInternalMessage(conversationId, content, myUserId, otherUserId = null) {
+  return sendInternalTextMessage(conversationId, content, myUserId, otherUserId);
+}
+
+/**
+ * @param {string | number} conversationId
+ * @param {{ file: File, fieldName?: string, caption?: string, messageType?: string }} opts
+ * @param {string | number | null | undefined} myUserId
+ * @param {string | number | null | undefined} otherUserId
+ * @param {(progress01: number) => void} [onUploadProgress]
+ */
+export async function sendInternalMediaMultipart(conversationId, opts, myUserId, otherUserId = null, onUploadProgress) {
+  const { file, fieldName = "file", caption, messageType } = opts;
+  const fd = new FormData();
+  fd.append(fieldName, file);
+  if (caption != null && String(caption).trim()) fd.append("caption", String(caption).trim());
+  if (messageType) fd.append("message_type", messageType);
+
+  const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages/media`, fd, {
+    transformRequest: [(body, headers) => {
+      if (body instanceof FormData) delete headers["Content-Type"];
+      return body;
+    }],
+    onUploadProgress:
+      onUploadProgress &&
+      ((pe) => {
+        const total = pe.total ?? 0;
+        if (total > 0) onUploadProgress(Math.min(1, pe.loaded / total));
+      }),
+  });
+  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId);
+}
+
+/**
+ * @param {string | number} conversationId
+ * @param {{ latitude: number, longitude: number, address?: string, caption?: string }} body
+ * @param {string | number | null | undefined} myUserId
+ * @param {string | number | null | undefined} otherUserId
+ */
+export async function sendInternalLocationMessage(conversationId, body, myUserId, otherUserId = null) {
+  const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages`, {
+    message_type: "location",
+    latitude: body.latitude,
+    longitude: body.longitude,
+    address: body.address?.trim() || undefined,
+    caption: body.caption?.trim() || undefined,
+  });
+  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId);
+}
+
+/**
+ * @param {string | number} conversationId
+ * @param {{ name: string, phone: string, organization?: string, caption?: string }} body
+ * @param {string | number | null | undefined} myUserId
+ * @param {string | number | null | undefined} otherUserId
+ */
+export async function sendInternalContactMessage(conversationId, body, myUserId, otherUserId = null) {
+  const payload = {
+    message_type: "contact",
+    name: String(body.name || "").trim(),
+    phone: String(body.phone || "").trim(),
+    organization: body.organization?.trim() || undefined,
+    caption: body.caption?.trim() || undefined,
+  };
+  const { data } = await api.post(`/api/internal-chat/conversations/${conversationId}/messages`, payload);
+  return normalizeInternalMessage(data?.message ?? data?.data ?? data, myUserId, otherUserId);
 }
 
 /** @param {string | number} conversationId */
 export async function markInternalConversationRead(conversationId) {
-  await api.post(`/api/internal-chat/conversations/${conversationId}/read`)
+  await api.post(`/api/internal-chat/conversations/${conversationId}/read`);
 }

@@ -1,9 +1,10 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { SkeletonLine } from "../components/feedback/Skeleton";
 import "../components/feedback/skeleton.css";
 import { isMessageMine } from "./messageUtils";
 import InternalChatHeader from "./InternalChatHeader";
 import InternalChatMessageBubble from "./InternalChatMessageBubble";
+import InternalChatComposer from "./InternalChatComposer";
 
 function assignRefs(el, a, b) {
   a.current = el;
@@ -25,15 +26,14 @@ const InternalChatThread = forwardRef(function InternalChatThread(
     hasMoreOlder,
     onLoadOlder,
     onRetryLoad,
-    onSend,
+    onComposerSend,
     sending,
     sendError,
+    uploadProgress = null,
   },
   ref
 ) {
-  const [draft, setDraft] = useState("");
   const listRef = useRef(null);
-  const inputRef = useRef(null);
   const stickBottomRef = useRef(true);
 
   const scrollToBottom = useCallback((behavior = "smooth") => {
@@ -72,25 +72,6 @@ const InternalChatThread = forwardRef(function InternalChatThread(
     if (!el) return;
     const threshold = 80;
     stickBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-  }
-
-  async function handleSend() {
-    const text = draft.trim();
-    if (!text || sending) return;
-    try {
-      await onSend(text);
-      setDraft("");
-      requestAnimationFrame(() => inputRef.current?.focus());
-    } catch {
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }
-
-  function onKeyDown(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
   }
 
   if (!conversation) return null;
@@ -170,27 +151,12 @@ const InternalChatThread = forwardRef(function InternalChatThread(
       </div>
 
       <footer className="ic-thread-footer">
-        {sendError ? (
-          <div className="ic-thread-send-err" role="status">
-            {sendError}
-          </div>
-        ) : null}
-        <div className="ic-thread-composer">
-          <textarea
-            ref={inputRef}
-            className="ic-thread-input"
-            rows={2}
-            placeholder="Escreva uma mensagem… (Shift+Enter para nova linha)"
-            value={draft}
-            disabled={sending}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onKeyDown}
-            aria-label="Mensagem"
-          />
-          <button type="button" className="ic-thread-send" disabled={sending || !draft.trim()} onClick={handleSend}>
-            {sending ? "Enviando…" : "Enviar"}
-          </button>
-        </div>
+        <InternalChatComposer
+          onSend={onComposerSend}
+          disabled={sending}
+          sendError={sendError}
+          uploadProgress={uploadProgress}
+        />
       </footer>
     </div>
   );
