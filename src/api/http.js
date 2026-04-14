@@ -3,8 +3,13 @@ import { getApiBaseUrl } from "./baseUrl"
 
 const baseURL = getApiBaseUrl()
 
+const withCredentials =
+  String(import.meta.env.VITE_WITH_CREDENTIALS || "").trim() === "1" ||
+  String(import.meta.env.VITE_WITH_CREDENTIALS || "").toLowerCase() === "true"
+
 const api = axios.create({
   baseURL,
+  ...(withCredentials ? { withCredentials: true } : {}),
   headers: { "Content-Type": "application/json" },
 })
 
