@@ -4374,7 +4374,11 @@ export default function ConversaView() {
           aria-label="Mensagens"
         >
           {selectMode ? (
-            <div className="wa-selectBar" role="region" aria-label="Modo seleção">
+            <div
+              className={`wa-selectBar${forwardSelectIntent ? " wa-selectBar--forwardIntent" : ""}`}
+              role="region"
+              aria-label="Modo seleção"
+            >
               <div className="wa-selectBar-left">
                 <button type="button" className="wa-btn wa-btn-ghost" onClick={exitSelectMode}>
                   Cancelar

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/http";
+import IaMarkdownContent from "../ia/IaMarkdownContent.jsx";
+import IaAnaliticaPanel from "../ia/IaAnaliticaPanel.jsx";
 import "./DashboardIA.css";
 
 const SUGGESTIONS = [
@@ -13,13 +15,17 @@ const SUGGESTIONS = [
   "Explique como posso melhorar o atendimento da minha equipe",
 ];
 
-function createMessage(role, content) {
-  return {
+function createMessage(role, content, meta) {
+  const base = {
     id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role,
     content: String(content || "").trim(),
     createdAt: new Date().toISOString(),
   };
+  if (meta && typeof meta === "object") {
+    return { ...base, meta };
+  }
+  return base;
 }
 
 export default function DashboardIA() {
@@ -32,6 +38,7 @@ export default function DashboardIA() {
   ]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [periodDaysValue, setPeriodDaysValue] = useState("");
 
   const bottomRef = useRef(null);
 
@@ -59,15 +66,23 @@ export default function DashboardIA() {
       setLoading(true);
 
       try {
-        const resp = await api.post("/api/ai/ask", { question: text });
-        const data = resp?.data ?? {};
+        const body = { question: text };
+        if (periodDaysValue) {
+          const n = Number(periodDaysValue);
+          if (Number.isFinite(n) && n > 0) body.period_days = Math.round(n);
+        }
+        const resp = await api.post("/api/ai/ask", body);
+        const payload = resp?.data ?? {};
         const answer =
-          data.answer ||
-          data.response ||
-          data.message ||
-          (typeof data === "string" ? data : "Não recebi uma resposta da IA. Tente novamente em instantes.");
+          payload.answer ||
+          payload.response ||
+          payload.message ||
+          (typeof payload === "string" ? payload : "Não recebi uma resposta da IA. Tente novamente em instantes.");
 
-        const assistantMsg = createMessage("assistant", answer);
+        const assistantMsg = createMessage("assistant", answer, {
+          intent: payload.intent ?? null,
+          apiData: payload.data,
+        });
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (e) {
         console.error("Erro ao consultar IA:", e);
@@ -86,8 +101,17 @@ export default function DashboardIA() {
         setLoading(false);
       }
     },
-    [input]
+    [input, periodDaysValue]
   );
+
+  const handleCandidatoPick = useCallback((suggestion) => {
+    const s = String(suggestion || "").trim();
+    if (!s) return;
+    setInput((prev) => {
+      const p = prev.trim();
+      return p ? `${p} ${s}` : s;
+    });
+  }, []);
 
   const handleSubmit = useCallback(
     (e) => {
@@ -151,7 +175,7 @@ export default function DashboardIA() {
             {messages.map((m) => (
               <article
                 key={m.id}
-                className={`ia-chat-message ia-chat-message--${m.role}`}
+                className={`ia-chat-message ia-chat-message--${m.role}${m.role === "assistant" ? " ia-chat-message--assistantRich" : ""}`}
                 aria-label={m.role === "assistant" ? "Mensagem da assistente" : "Sua mensagem"}
               >
                 <div className="ia-chat-message-avatar">
@@ -164,10 +188,24 @@ export default function DashboardIA() {
                 <div className="ia-chat-message-body">
                   <div className="ia-chat-message-bubble">
                     <div className="ia-chat-message-content">
-                      {m.content.split("\n").map((line, idx) => (
-                        <p key={idx}>{line}</p>
-                      ))}
+                      {m.role === "assistant" ? (
+                        <IaMarkdownContent markdown={m.content} />
+                      ) : (
+                        m.content.split("\n").map((line, idx) => (
+                          <p key={idx}>{line}</p>
+                        ))
+                      )}
                     </div>
+                    {m.role === "assistant" && m.meta && m.meta.apiData != null ? (
+                      <div className="ia-chat-message-analitica">
+                        <IaAnaliticaPanel
+                          data={m.meta.apiData}
+                          intentFromRoot={m.meta.intent}
+                          onCandidatoPick={handleCandidatoPick}
+                          pickDisabled={loading}
+                        />
+                      </div>
+                    ) : null}
                     <div className="ia-chat-message-actions" aria-hidden="true">
                       <button
                         type="button"
@@ -204,6 +242,22 @@ export default function DashboardIA() {
 
       <footer className="ia-chat-footer" aria-label="Enviar pergunta para a IA">
         <form className="ia-chat-form" onSubmit={handleSubmit}>
+          <label className="ia-chat-period">
+            <span className="ia-sr-only">Janela de dados (opcional)</span>
+            <select
+              className="ia-chat-period-select"
+              value={periodDaysValue}
+              onChange={(e) => setPeriodDaysValue(e.target.value)}
+              disabled={loading}
+              aria-label="Período em dias para a consulta (opcional)"
+            >
+              <option value="">Período: automático</option>
+              <option value="7">Últimos 7 dias</option>
+              <option value="14">Últimos 14 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+            </select>
+          </label>
           <input
             className="ia-chat-input"
             type="text"

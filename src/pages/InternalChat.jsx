@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { useNotificationStore } from "../notifications/notificationStore";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
@@ -119,6 +119,7 @@ function pickErrorMessage(err) {
 
 export default function InternalChat() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const myId = user?.id != null ? String(user.id) : null;
 
@@ -261,6 +262,13 @@ export default function InternalChat() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const openInternalConversationId = location.state?.openInternalConversationId;
+  useEffect(() => {
+    if (openInternalConversationId == null || openInternalConversationId === "") return;
+    setSelectedConversationId(String(openInternalConversationId));
+    navigate("/chat-interno", { replace: true, state: {} });
+  }, [openInternalConversationId, navigate]);
 
   useEffect(() => {
     let cancelled = false;
