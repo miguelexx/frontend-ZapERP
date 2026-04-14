@@ -4198,6 +4198,19 @@ export default function ConversaView() {
                                     <span className="wa-atendToolbar-sheetLabel">Tags do cliente</span>
                                   </button>
                                 ) : null}
+                                <button
+                                  type="button"
+                                  className="wa-atendToolbar-sheetBtn"
+                                  onClick={() => {
+                                    setShowClienteSide(true);
+                                    close();
+                                  }}
+                                >
+                                  <span className="wa-atendToolbar-sheetIcon" aria-hidden="true">
+                                    <IconContact />
+                                  </span>
+                                  <span className="wa-atendToolbar-sheetLabel">Dados do contato</span>
+                                </button>
                               </>
                             )
                           : undefined
@@ -4207,15 +4220,17 @@ export default function ConversaView() {
                 </div>
               ) : null}
 
-              <button
-                title="Mais opções"
-                className="wa-header-btn wa-header-moreBtn"
-                type="button"
-                onClick={() => setShowClienteSide(true)}
-                aria-label="Dados do contato e mais opções"
-              >
-                <IconMore />
-              </button>
+              {headerCompact && !isGroup ? null : (
+                <button
+                  title="Mais opções"
+                  className="wa-header-btn wa-header-moreBtn"
+                  type="button"
+                  onClick={() => setShowClienteSide(true)}
+                  aria-label="Dados do contato e mais opções"
+                >
+                  <IconMore />
+                </button>
+              )}
             </div>
           </div>
         </div>

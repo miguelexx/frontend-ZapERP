@@ -11,8 +11,6 @@ import {
 } from "../auth/permissions";
 import api from "../api/http";
 
-const PRIMARY_ORDER = ["assumir", "transferir", "encerrar", "reabrir"];
-
 function getApiErrorMessage(e) {
   return e?.response?.data?.error || e?.message || "Erro na operação.";
 }
@@ -49,7 +47,7 @@ function IconDotsHorizontal() {
 
 /**
  * @param {object} props
- * @param {boolean} [props.compactToolbar] — mobile: só ação principal + menu com o restante
+ * @param {boolean} [props.compactToolbar] — mobile: ações de atendimento em fileira; menu "…" só para extras (overflowTop)
  * @param {(close: () => void) => import("react").ReactNode} [props.overflowTop] — itens extras no topo do menu (tags, histórico…)
  * @param {import("react").ReactNode} [props.prepend] — ex.: ícone de histórico à esquerda (só mobile / ConversaView)
  */
@@ -311,21 +309,9 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
     });
   }
 
-  let primary = null;
-  for (const id of PRIMARY_ORDER) {
-    const a = actions.find((x) => x.id === id);
-    if (a) {
-      primary = a;
-      break;
-    }
-  }
-  if (!primary && actions.length > 0) primary = actions[0];
-
-  const secondary = actions.filter((a) => a.id !== primary?.id);
-
   const overflowExtra = typeof overflowTop === "function" ? overflowTop(closeMenu) : null;
-  const hasOverflowContent =
-    Boolean(overflowExtra) || secondary.length > 0;
+  /** No compacto: todas as ações de atendimento ficam visíveis; o menu "…" é só para extras (tags, contato…). */
+  const showCompactOverflowMenu = compactToolbar && Boolean(overflowExtra);
 
   const transferModal =
     transferOpen
@@ -430,29 +416,11 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
     );
   }
 
-  function renderMenuRow(a) {
-    return (
-      <button
-        key={a.id}
-        type="button"
-        className={`${a.className} wa-atendToolbar-menuAction`}
-        onClick={() => {
-          a.onClick();
-          closeMenu();
-        }}
-        disabled={busy}
-        role="menuitem"
-      >
-        {a.labelLong}
-      </button>
-    );
-  }
-
   if (!compactToolbar && actions.length === 0) {
     return transferModal;
   }
 
-  if (compactToolbar && actions.length === 0 && !overflowExtra) {
+  if (compactToolbar && actions.length === 0 && typeof overflowTop !== "function") {
     return transferModal;
   }
 
@@ -470,15 +438,17 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
       <div className="wa-atendToolbar wa-atendToolbar--compact" ref={menuWrapRef}>
         {prepend ? <div className="wa-atendToolbar-prepend">{prepend}</div> : null}
 
-        {hasOverflowContent ? (
+        {actions.map((a) => renderToolbarButton(a))}
+
+        {showCompactOverflowMenu ? (
           <div className="wa-atendToolbar-overflowWrap">
             <button
               type="button"
               className="wa-header-btn wa-header-btn--micro wa-atendToolbar-overflowTrigger"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
-              aria-label="Mais ações do atendimento"
-              title="Mais ações"
+              aria-label="Tags, dados do contato e mais"
+              title="Mais opções"
               onClick={() => setMenuOpen((v) => !v)}
             >
               <IconDotsHorizontal />
@@ -491,21 +461,13 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
                   aria-hidden="true"
                   onClick={closeMenu}
                 />
-                <div className="wa-atendToolbar-dropdown" role="menu" aria-label="Ações do atendimento">
-                  {overflowExtra ? (
-                    <div className="wa-atendToolbar-menuExtras">{overflowExtra}</div>
-                  ) : null}
-                  {overflowExtra && secondary.length > 0 ? (
-                    <div className="wa-atendToolbar-menuDivider" role="separator" />
-                  ) : null}
-                  {secondary.map((a) => renderMenuRow(a))}
+                <div className="wa-atendToolbar-dropdown" role="menu" aria-label="Mais opções">
+                  <div className="wa-atendToolbar-menuExtras">{overflowExtra}</div>
                 </div>
               </>
             ) : null}
           </div>
         ) : null}
-
-        {primary ? renderToolbarButton(primary) : null}
       </div>
       {transferModal}
     </>
