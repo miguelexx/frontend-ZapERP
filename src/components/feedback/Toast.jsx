@@ -4,7 +4,16 @@
  */
 export default function Toast({ title, message, type = "info", onClose, className = "", ...props }) {
   const v = String(type || "").toLowerCase();
-  const variant = v === "error" ? "error" : v === "warning" ? "warning" : (v === "success" || v === "ok") ? "success" : "info";
+  const variant =
+    v === "error"
+      ? "error"
+      : v === "warning"
+        ? "warning"
+        : v === "handoff"
+          ? "handoff"
+          : v === "success" || v === "ok"
+            ? "success"
+            : "info";
 
   const icons = {
     error: (
@@ -32,6 +41,14 @@ export default function Toast({ title, message, type = "info", onClose, classNam
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="16" x2="12" y2="12" />
         <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+    ),
+    handoff: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
   };

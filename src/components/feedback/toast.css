@@ -84,6 +84,14 @@
   color: var(--ds-info);
 }
 
+.ds-toast--handoff {
+  border-left-color: var(--ds-accent, #0d9488);
+}
+
+.ds-toast--handoff .ds-toast__icon {
+  color: var(--ds-accent, #0d9488);
+}
+
 .ds-toast__content {
   flex: 1;
   min-width: 0;

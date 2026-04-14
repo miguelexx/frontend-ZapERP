@@ -4,9 +4,37 @@ import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
+import { SOCKET_EVENTS } from "./events"
 
 const TYPING_EXPIRY_MS = 5000
 let typingExpiryTimer = null
+
+/** Evita som duplo: após transferência, o destinatário ouve o som de handoff e suprime o beep de nova_mensagem uma vez. */
+const suppressDefaultMessageSoundUntil = new Map()
+const SUPPRESS_SOUND_TTL_MS = 20_000
+
+/** @param {string|number|null|undefined} conversaId */
+function markSuppressNovaMensagemSound(conversaId) {
+  if (conversaId == null || conversaId === "") return
+  suppressDefaultMessageSoundUntil.set(String(conversaId), Date.now() + SUPPRESS_SOUND_TTL_MS)
+}
+
+/**
+ * Se ainda válido, remove a marca e retorna true (consumir som padrão de nova_mensagem).
+ * @param {string|number|null|undefined} conversaId
+ */
+function consumeSuppressNovaMensagemSound(conversaId) {
+  if (conversaId == null || conversaId === "") return false
+  const key = String(conversaId)
+  const exp = suppressDefaultMessageSoundUntil.get(key)
+  if (exp == null) return false
+  if (Date.now() > exp) {
+    suppressDefaultMessageSoundUntil.delete(key)
+    return false
+  }
+  suppressDefaultMessageSoundUntil.delete(key)
+  return true
+}
 
 function applyDocumentTitle(unreadTotal) {
   if (typeof document === "undefined") return
@@ -28,6 +56,30 @@ function playNotificationSound() {
     audio.play().catch(() => playFallbackBeep())
   } catch (_) {
     playFallbackBeep()
+  }
+}
+
+/** Mapeamento soundId (payload ui.soundId) → URL em /public */
+const NOTIFICATION_SOUND_URL_BY_ID = {
+  "atendimento-transferido": "/sounds/atendimento-transferido.mp3",
+}
+
+/**
+ * @param {string} [soundId]
+ */
+function playNotificationSoundById(soundId) {
+  const id = String(soundId || "").trim()
+  const url = id ? NOTIFICATION_SOUND_URL_BY_ID[id] : null
+  if (!url) {
+    playNotificationSound()
+    return
+  }
+  try {
+    const audio = new Audio(url)
+    audio.volume = 0.65
+    audio.play().catch(() => playNotificationSound())
+  } catch (_) {
+    playNotificationSound()
   }
 }
 
@@ -74,6 +126,20 @@ function getCurrentCompanyId() {
   }
 }
 
+/** ID do usuário logado (string) para comparar com payloads do socket */
+function getCurrentUserId() {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const u = parsed?.user
+    const id = u?.id ?? u?.usuario_id
+    return id != null && id !== "" ? String(id) : null
+  } catch {
+    return null
+  }
+}
+
 /** Ignora evento se payload.company_id não bater com o do usuário (multi-tenant) */
 function shouldIgnoreByCompany(payload) {
   const payloadCompany = payload?.company_id ?? payload?.empresa_id
@@ -83,12 +149,21 @@ function shouldIgnoreByCompany(payload) {
   return String(payloadCompany) !== String(myCompany)
 }
 
-function showDesktopNotification(title, body) {
+/**
+ * @param {string} title
+ * @param {string} body
+ * @param {{ tag?: string }} [opts]
+ */
+function showDesktopNotification(title, body, opts = {}) {
   if (typeof window === "undefined" || !("Notification" in window)) return
   if (Notification.permission === "granted") {
     try {
       const icon = "/brand/zaperp-favicon.svg"
-      const n = new Notification(title, { body, icon })
+      const n = new Notification(title, {
+        body,
+        icon,
+        tag: opts.tag || undefined,
+      })
       n.onclick = () => window.focus()
       setTimeout(() => n.close(), 5000)
     } catch (_) {}
@@ -96,7 +171,7 @@ function showDesktopNotification(title, body) {
   }
   if (Notification.permission === "default") {
     Notification.requestPermission().then((p) => {
-      if (p === "granted") showDesktopNotification(title, body)
+      if (p === "granted") showDesktopNotification(title, body, opts)
     })
   }
 }
@@ -168,7 +243,7 @@ export function initSocket(token) {
   off("tag_adicionada")
   off("tag_removida")
   off("nova_conversa")
-  off("nova_mensagem")
+  off(SOCKET_EVENTS.NOVA_MENSAGEM)
   off("mensagem_excluida")
   off("mensagem_editada")
   off("mensagem_oculta")
@@ -177,9 +252,9 @@ export function initSocket(token) {
   off("zapi_sync_contatos")
   off("conversa_atualizada")
   off("conversa_encerrada")
-  off("conversa_transferida")
+  off(SOCKET_EVENTS.CONVERSA_TRANSFERIDA)
   off("conversa_reaberta")
-  off("conversa_atribuida")
+  off(SOCKET_EVENTS.CONVERSA_ATRIBUIDA)
   off("atualizar_conversa")
   off("contato_atualizado")
 
@@ -255,7 +330,7 @@ export function initSocket(token) {
   /* ===========================
      🔥 NOVA MENSAGEM (COM SOM + BADGE) — de-dup por whatsapp_id
   =========================== */
-  socket.on("nova_mensagem", (msg) => {
+  socket.on(SOCKET_EVENTS.NOVA_MENSAGEM, (msg) => {
     const conversaId = msg?.conversa_id
     if (!conversaId) return
     if (shouldIgnoreByCompany(msg)) return
@@ -362,7 +437,10 @@ export function initSocket(token) {
                     : tipo === "arquivo"
                       ? "📎 Arquivo"
                       : "Nova mensagem"
-        playNotificationSound()
+        const suppressPing = consumeSuppressNovaMensagemSound(conversaId)
+        if (!suppressPing) {
+          playNotificationSound()
+        }
         showDesktopNotification(contato, texto)
         useNotificationStore.getState().showToast({
           type: "info",
@@ -593,23 +671,25 @@ export function initSocket(token) {
   }
 
   async function patchEverywhere(payload) {
-    if (!payload?.id) return
-    logSocketConversaDebug("patch_everywhere", payload)
+    const rawId = payload?.id ?? payload?.conversa_id
+    if (rawId == null || rawId === "") return
+    const p = { ...payload, id: rawId }
+    logSocketConversaDebug("patch_everywhere", p)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
-    const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
+    const idx = chats.findIndex((c) => String(c.id) === String(p.id))
     if (idx >= 0) {
-      chatStore.updateChat(payload)
+      chatStore.updateChat(p)
     } else {
       try {
-        const data = await fetchChatById(payload.id)
+        const data = await fetchChatById(p.id)
         const chat = data?.conversa ?? data
         if (chat?.id) chatStore.addChat(chat)
       } catch (_) {}
     }
     const convStore = useConversaStore.getState()
-    if (String(convStore.selectedId) === String(payload.id)) {
-      convStore.patchConversa(payload)
+    if (String(convStore.selectedId) === String(p.id)) {
+      convStore.patchConversa(p)
     }
   }
 
@@ -618,14 +698,75 @@ export function initSocket(token) {
     logSocketConversaDebug("conversa_encerrada", payload)
     patchEverywhere(payload)
   })
-  socket.on("conversa_transferida", patchEverywhere)
+  socket.on(SOCKET_EVENTS.CONVERSA_TRANSFERIDA, (payload) => {
+    const myId = getCurrentUserId()
+    const suppressFor = payload?.suprimir_som_nova_mensagem_para_usuario_id
+    if (myId != null && suppressFor != null && String(suppressFor) === String(myId)) {
+      const cid = payload?.id ?? payload?.conversa_id
+      markSuppressNovaMensagemSound(cid)
+    }
+    patchEverywhere(payload)
+  })
   socket.on("conversa_reaberta", (payload) => {
     logSocketConversaDebug("conversa_reaberta", payload)
     patchEverywhere(payload)
   })
-  socket.on("conversa_atribuida", (payload) => {
-    if (payload?.id) patchEverywhere(payload)
+  socket.on(SOCKET_EVENTS.CONVERSA_ATRIBUIDA, (payload) => {
+    if (shouldIgnoreByCompany(payload)) return
+    const convId = payload?.id ?? payload?.conversa_id
+    if (convId != null && convId !== "") {
+      patchEverywhere({ ...payload, id: convId })
+    }
     updateDocumentTitleFromChats()
+
+    const motivo = String(payload?.motivo || "")
+    const ui = payload?.ui && typeof payload.ui === "object" ? payload.ui : {}
+    const isHandoff =
+      motivo === "transferencia_recebida" ||
+      ui.variant === "handoff"
+    if (!isHandoff) return
+
+    const soundId = ui.soundId || "atendimento-transferido"
+    playNotificationSoundById(soundId)
+
+    if (
+      Array.isArray(ui.vibratePatternMs) &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.vibrate === "function"
+    ) {
+      try {
+        navigator.vibrate(ui.vibratePatternMs)
+      } catch (_) {}
+    }
+
+    let title = ui.titulo
+    let body = ui.corpo
+    if (body == null || String(body).trim() === "") {
+      const prev = payload.cliente_preview
+      if (prev && typeof prev === "object") {
+        const parts = [prev.nome, prev.telefone].filter(Boolean)
+        body = parts.length ? parts.join(" · ") : "Nova conversa atribuída a você."
+      } else {
+        body = "Nova conversa atribuída a você."
+      }
+    }
+    if (title == null || String(title).trim() === "") {
+      const prev = payload.cliente_preview
+      title = prev?.nome ? `Atendimento: ${prev.nome}` : "Conversa atribuída a você"
+    }
+
+    const toastType = ui.variant === "handoff" ? "handoff" : "info"
+    useNotificationStore.getState().showToast({
+      type: toastType,
+      title,
+      message: body,
+    })
+
+    const tabHidden = typeof document !== "undefined" && document.visibilityState === "hidden"
+    if (tabHidden) {
+      const tag = ui.tag != null && ui.tag !== "" ? String(ui.tag) : `conversa_atribuida_${convId}`
+      showDesktopNotification(title, body, { tag })
+    }
   })
 
   /* Sinal do webhook Z-API: conversa teve atividade (status, transferência, etc.)
@@ -707,3 +848,4 @@ export function disconnectSocket() {
 }
 
 export { updateDocumentTitleFromChats, applyDocumentTitle }
+export { SOCKET_EVENTS } from "./events"
