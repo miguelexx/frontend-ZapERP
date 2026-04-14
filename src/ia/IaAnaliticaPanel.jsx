@@ -5,6 +5,8 @@ import IaEvidenciasChips from "./IaEvidenciasChips.jsx";
 import { isPlainObject, getAnaliticaUiFromData, analiticaUiHasBarContent } from "./aiAskTypes.js";
 import { resolveAlertasParaUi } from "./collectAnaliticaAlertas.js";
 import { extractEvidenciasFromData } from "./extractEvidencias.js";
+import { getPeriodoCabecalhoText } from "./recorteTemporal.js";
+import { getMensagensAnaliticasLista } from "./extractMensagensAnaliticas.js";
 
 function analiticaPanelHasContent(data, intentFromRoot) {
   if (data == null) return false;
@@ -13,6 +15,9 @@ function analiticaPanelHasContent(data, intentFromRoot) {
   if (resolveAlertasParaUi(data).length > 0) return true;
   const ui = getAnaliticaUiFromData(data);
   if (analiticaUiHasBarContent(ui)) return true;
+  if (getPeriodoCabecalhoText(data)) return true;
+  if (getMensagensAnaliticasLista(data).length > 0) return true;
+  if (Array.isArray(data.conversas_envolvidas) && data.conversas_envolvidas.length > 0) return true;
   if (extractEvidenciasFromData(data).length > 0) return true;
   if (intentFromRoot != null && String(intentFromRoot).trim()) return true;
   return false;

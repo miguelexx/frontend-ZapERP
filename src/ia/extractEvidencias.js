@@ -1,6 +1,6 @@
 import { isPlainObject } from "./aiAskTypes.js";
 
-const LIST_KEYS = ["evidencias", "mensagens", "trechos", "amostra", "items"];
+const LIST_KEYS = ["evidencias", "mensagens", "mensagens_compactas", "trechos", "amostra", "items"];
 
 /**
  * @typedef {object} EvidenciaNormalizada

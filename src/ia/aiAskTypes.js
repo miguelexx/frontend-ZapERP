@@ -44,6 +44,9 @@
  * @property {boolean} [periodo_padrao_usado]
  * @property {FonteDadosAnalitica} [fonte_dados]
  * @property {AlertaAnaliticaUi[]} [alertas]
+ * @property {string} [texto_cabecalho_periodo]
+ * @property {number} [evidencias_colapso_inicial]
+ * @property {object} [recorte_mensagens]
  */
 
 /**
@@ -77,5 +80,6 @@ export function analiticaUiHasBarContent(ui) {
   const fonte = ui.fonte_dados;
   const showFonte = fonte === "mensagens_whatsapp" || fonte === "internal_messages";
   const showIntent = Boolean(String(ui.intent || "").trim());
-  return showPeriodo || showFonte || showIntent;
+  const showCabecalho = Boolean(String(ui.texto_cabecalho_periodo || "").trim());
+  return showPeriodo || showFonte || showIntent || showCabecalho;
 }

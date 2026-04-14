@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/http";
 import IaMarkdownContent from "../ia/IaMarkdownContent.jsx";
-import IaAnaliticaPanel from "../ia/IaAnaliticaPanel.jsx";
+import IaAnaliticaRespostaCard from "../ia/IaAnaliticaRespostaCard.jsx";
 import "./DashboardIA.css";
 
 const SUGGESTIONS = [
@@ -175,7 +175,7 @@ export default function DashboardIA() {
             {messages.map((m) => (
               <article
                 key={m.id}
-                className={`ia-chat-message ia-chat-message--${m.role}${m.role === "assistant" ? " ia-chat-message--assistantRich" : ""}`}
+                className={`ia-chat-message ia-chat-message--${m.role}${m.role === "assistant" && m.meta?.apiData != null ? " ia-chat-message--assistantAnalitica" : ""}${m.role === "assistant" && m.meta?.apiData == null ? " ia-chat-message--assistantRich" : ""}`}
                 aria-label={m.role === "assistant" ? "Mensagem da assistente" : "Sua mensagem"}
               >
                 <div className="ia-chat-message-avatar">
@@ -188,7 +188,15 @@ export default function DashboardIA() {
                 <div className="ia-chat-message-body">
                   <div className="ia-chat-message-bubble">
                     <div className="ia-chat-message-content">
-                      {m.role === "assistant" ? (
+                      {m.role === "assistant" && m.meta?.apiData != null ? (
+                        <IaAnaliticaRespostaCard
+                          markdown={m.content}
+                          data={m.meta.apiData}
+                          intentFromRoot={m.meta.intent}
+                          onCandidatoPick={handleCandidatoPick}
+                          pickDisabled={loading}
+                        />
+                      ) : m.role === "assistant" ? (
                         <IaMarkdownContent markdown={m.content} />
                       ) : (
                         m.content.split("\n").map((line, idx) => (
@@ -196,16 +204,6 @@ export default function DashboardIA() {
                         ))
                       )}
                     </div>
-                    {m.role === "assistant" && m.meta && m.meta.apiData != null ? (
-                      <div className="ia-chat-message-analitica">
-                        <IaAnaliticaPanel
-                          data={m.meta.apiData}
-                          intentFromRoot={m.meta.intent}
-                          onCandidatoPick={handleCandidatoPick}
-                          pickDisabled={loading}
-                        />
-                      </div>
-                    ) : null}
                     <div className="ia-chat-message-actions" aria-hidden="true">
                       <button
                         type="button"
