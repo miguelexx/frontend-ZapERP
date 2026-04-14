@@ -92,8 +92,8 @@
   /* ---- Chat background premium (LIGHT) — visual refinado, tons quentes sofisticados ---- */
   --ds-chat-bg: linear-gradient(165deg, #faf9f7 0%, #f5f2ee 18%, #efece6 38%, #ebe7e0 55%, #f2efe9 75%, #f8f6f2 100%);
   --ds-bg-base: #ebe8e4;
-  --wa-pattern-opacity: 0.08;
-  --wa-pattern-size: 320px 320px;
+  --wa-pattern-opacity: 0.09;
+  --wa-pattern-size: 300px 300px;
   --wa-glow-opacity: 0.2;
   --wa-glow-1: radial-gradient(ellipse 120% 80% at 10% 15%, rgba(0, 168, 132, 0.06), transparent 60%);
   --wa-glow-2: radial-gradient(ellipse 90% 60% at 92% 85%, rgba(184, 159, 132, 0.08), transparent 55%);
@@ -170,8 +170,8 @@
   /* ---- Chat específico (DARK) — premium, profundidade, acentos sutis ---- */
   --ds-chat-bg: linear-gradient(165deg, #0a1218 0%, #0d1820 25%, #0f1c24 50%, #0b161d 75%, #090f14 100%);
   --ds-chat-header: #202c33;
-  --wa-pattern-opacity: 0.06;
-  --wa-pattern-size: 320px 320px;
+  --wa-pattern-opacity: 0.075;
+  --wa-pattern-size: 300px 300px;
   --wa-glow-opacity: 0.25;
   --wa-glow-1: radial-gradient(ellipse 100% 70% at 15% 20%, rgba(0, 168, 132, 0.08), transparent 55%);
   --wa-glow-2: radial-gradient(ellipse 80% 50% at 88% 80%, rgba(59, 130, 246, 0.05), transparent 50%);

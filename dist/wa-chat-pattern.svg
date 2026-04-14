@@ -1,56 +1,76 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280" viewBox="0 0 280 280">
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
   <defs>
-    <pattern id="wa-doodles" x="0" y="0" width="280" height="280" patternUnits="userSpaceOnUse">
-      <!-- Padrão sutil estilo WhatsApp — doodles em linhas finas, opacidade via CSS -->
-      <!-- Globo -->
-      <circle cx="35" cy="25" r="10" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="35" cy="25" rx="5" ry="10" fill="none" stroke="#000" stroke-width="0.9"/>
-      <line x1="25" y1="25" x2="45" y2="25" stroke="#000" stroke-width="0.9"/>
-      <!-- Avião -->
-      <path d="M140 40 L165 55 L140 52 L115 55 Z" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Bússola -->
-      <circle cx="220" cy="45" r="12" fill="none" stroke="#000" stroke-width="0.9"/>
-      <path d="M220 33 L223 45 L220 57 L217 45 Z" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Baleia -->
-      <ellipse cx="50" cy="95" rx="18" ry="8" fill="none" stroke="#000" stroke-width="0.9"/>
-      <path d="M68 95 L78 92 L78 98 Z" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Flor -->
-      <circle cx="180" cy="100" r="4" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="180" cy="92" rx="3" ry="6" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="187" cy="100" rx="6" ry="3" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="180" cy="108" rx="3" ry="6" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="173" cy="100" rx="6" ry="3" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Sol -->
-      <circle cx="240" cy="120" r="6" fill="none" stroke="#000" stroke-width="0.9"/>
-      <line x1="240" y1="110" x2="240" y2="130" stroke="#000" stroke-width="0.9"/>
-      <line x1="230" y1="120" x2="250" y2="120" stroke="#000" stroke-width="0.9"/>
-      <line x1="234" y1="114" x2="246" y2="126" stroke="#000" stroke-width="0.9"/>
-      <line x1="234" y1="126" x2="246" y2="114" stroke="#000" stroke-width="0.9"/>
-      <!-- Cacto -->
-      <rect x="65" y="155" width="8" height="25" rx="2" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="69" cy="150" rx="10" ry="6" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="62" cy="165" rx="5" ry="4" fill="none" stroke="#000" stroke-width="0.9"/>
-      <ellipse cx="76" cy="168" rx="5" ry="4" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Folha -->
-      <path d="M160 165 Q175 155 180 165 Q175 175 160 175 Q165 165 160 165" fill="none" stroke="#000" stroke-width="0.9"/>
+    <pattern id="wa-doodles" x="0" y="0" width="300" height="300" patternUnits="userSpaceOnUse">
+      <!-- Padrão tipo doodle WhatsApp — traços finos; contraste final via opacity + mix-blend no CSS -->
+      <!-- Telefone -->
+      <rect x="18" y="22" width="14" height="24" rx="3" fill="none" stroke="#000" stroke-width="0.85"/>
+      <circle cx="25" cy="40" r="1.6" fill="#000"/>
+      <line x1="22" y1="28" x2="28" y2="28" stroke="#000" stroke-width="0.85"/>
+      <!-- Balão + cauda -->
+      <path d="M48 18h22a4 4 0 014 4v12a4 4 0 01-4 4H58l-4 8v-8H48a4 4 0 01-4-4V22a4 4 0 014-4z" fill="none" stroke="#000" stroke-width="0.85"/>
       <!-- Relógio -->
-      <circle cx="35" cy="210" r="11" fill="none" stroke="#000" stroke-width="0.9"/>
-      <line x1="35" y1="210" x2="35" y2="202" stroke="#000" stroke-width="0.9"/>
-      <line x1="35" y1="210" x2="41" y2="214" stroke="#000" stroke-width="0.9"/>
-      <!-- Coração em balão -->
-      <path d="M110 225 L115 220 Q120 215 122 220 Q125 215 130 220 L135 225 Q120 240 110 225" fill="none" stroke="#000" stroke-width="0.9"/>
+      <circle cx="110" cy="32" r="12" fill="none" stroke="#000" stroke-width="0.85"/>
+      <line x1="110" y1="32" x2="110" y2="24" stroke="#000" stroke-width="0.85"/>
+      <line x1="110" y1="32" x2="117" y2="36" stroke="#000" stroke-width="0.85"/>
       <!-- Câmera -->
-      <rect x="195" y="200" width="22" height="16" rx="2" fill="none" stroke="#000" stroke-width="0.9"/>
-      <circle cx="206" cy="208" r="4" fill="none" stroke="#000" stroke-width="0.9"/>
-      <rect x="200" y="196" width="6" height="4" rx="1" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Casa -->
-      <path d="M255 255 L255 235 L265 225 L275 235 L275 255 L255 255" fill="none" stroke="#000" stroke-width="0.9"/>
-      <path d="M262 225 L262 245" fill="none" stroke="#000" stroke-width="0.9"/>
+      <rect x="152" y="22" width="26" height="18" rx="3" fill="none" stroke="#000" stroke-width="0.85"/>
+      <circle cx="165" cy="31" r="5" fill="none" stroke="#000" stroke-width="0.85"/>
+      <rect x="158" y="18" width="8" height="5" rx="1" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Três pontos -->
+      <circle cx="212" cy="31" r="2.2" fill="#000"/>
+      <circle cx="222" cy="31" r="2.2" fill="#000"/>
+      <circle cx="232" cy="31" r="2.2" fill="#000"/>
+      <!-- Microfone -->
+      <rect x="258" y="24" width="8" height="14" rx="4" fill="none" stroke="#000" stroke-width="0.85"/>
+      <path d="M262 38v4M258 42h12" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Avião / enviar -->
+      <path d="M32 78 L58 88 L32 96 L38 88 Z" fill="none" stroke="#000" stroke-width="0.85" stroke-linejoin="round"/>
+      <line x1="38" y1="88" x2="50" y2="84" stroke="#000" stroke-width="0.85"/>
+      <!-- Coração -->
+      <path d="M88 88c4-8 14-8 18 0 4-8 14-8 18 0 0 12-18 22-18 22s-18-10-18-22z" fill="none" stroke="#000" stroke-width="0.85"/>
       <!-- Estrela -->
-      <path d="M70 250 L73 258 L82 259 L75 265 L77 274 L70 269 L63 274 L65 265 L58 259 Z" fill="none" stroke="#000" stroke-width="0.9"/>
-      <!-- Chat/balão -->
-      <path d="M185 260 Q185 252 193 252 L205 252 Q213 252 213 260 L213 268 Q213 276 205 276 L197 276 L193 282 L195 276 Q185 276 185 268 Z" fill="none" stroke="#000" stroke-width="0.9"/>
+      <path d="M168 72l4 10 10 1-8 7 2 10-9-5-9 5 2-10-8-7 10-1z" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Globo -->
+      <circle cx="230" cy="82" r="14" fill="none" stroke="#000" stroke-width="0.85"/>
+      <ellipse cx="230" cy="82" rx="7" ry="14" fill="none" stroke="#000" stroke-width="0.85"/>
+      <line x1="216" y1="82" x2="244" y2="82" stroke="#000" stroke-width="0.85"/>
+      <!-- Sol -->
+      <circle cx="278" cy="128" r="7" fill="none" stroke="#000" stroke-width="0.85"/>
+      <line x1="278" y1="116" x2="278" y2="140" stroke="#000" stroke-width="0.85"/>
+      <line x1="266" y1="128" x2="290" y2="128" stroke="#000" stroke-width="0.85"/>
+      <line x1="270" y1="120" x2="286" y2="136" stroke="#000" stroke-width="0.85"/>
+      <line x1="270" y1="136" x2="286" y2="120" stroke="#000" stroke-width="0.85"/>
+      <!-- Baleia -->
+      <ellipse cx="52" cy="138" rx="22" ry="9" fill="none" stroke="#000" stroke-width="0.85"/>
+      <path d="M74 138l10-3v6z" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Flor -->
+      <circle cx="118" cy="140" r="4" fill="none" stroke="#000" stroke-width="0.85"/>
+      <ellipse cx="118" cy="132" rx="3" ry="7" fill="none" stroke="#000" stroke-width="0.85"/>
+      <ellipse cx="126" cy="140" rx="7" ry="3" fill="none" stroke="#000" stroke-width="0.85"/>
+      <ellipse cx="118" cy="148" rx="3" ry="7" fill="none" stroke="#000" stroke-width="0.85"/>
+      <ellipse cx="110" cy="140" rx="7" ry="3" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Bússola -->
+      <circle cx="188" cy="138" r="13" fill="none" stroke="#000" stroke-width="0.85"/>
+      <path d="M188 125l4 13-4 13-4-13z" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Casa -->
+      <path d="M238 148l14-12 14 12v22h-28z" fill="none" stroke="#000" stroke-width="0.85"/>
+      <path d="M252 136v26" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Folha -->
+      <path d="M22 188q18-14 28 0t-28 14q6-8 0-14z" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Cacto -->
+      <rect x="72" y="200" width="9" height="28" rx="2" fill="none" stroke="#000" stroke-width="0.85"/>
+      <ellipse cx="76.5" cy="196" rx="11" ry="7" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Clip / anexo -->
+      <path d="M118 214c0-6 5-11 11-11s11 5 11 11v18c0 4-3 7-7 7s-7-3-7-7v-20" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Wi‑Fi arcos -->
+      <path d="M168 236 Q180 224 192 236" fill="none" stroke="#000" stroke-width="0.85"/>
+      <path d="M172 240 Q180 232 188 240" fill="none" stroke="#000" stroke-width="0.85"/>
+      <circle cx="180" cy="244" r="2" fill="#000"/>
+      <!-- Check duplo estilizado -->
+      <path d="M228 232l6 6 12-14M236 232l6 6 12-14" fill="none" stroke="#000" stroke-width="0.85"/>
+      <!-- Balão secundário -->
+      <path d="M268 200h18a3 3 0 013 3v10a3 3 0 01-3 3h-6l-4 6v-6h-8a3 3 0 01-3-3v-10a3 3 0 013-3z" fill="none" stroke="#000" stroke-width="0.85"/>
     </pattern>
   </defs>
-  <rect width="280" height="280" fill="url(#wa-doodles)"/>
+  <rect width="300" height="300" fill="url(#wa-doodles)"/>
 </svg>
