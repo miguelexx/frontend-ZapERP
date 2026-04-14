@@ -302,19 +302,46 @@ export async function fetchInternalChatStatus() {
 }
 
 /**
- * Encaminha mensagem do atendimento WhatsApp para o chat interno de um colaborador.
- * @param {{ conversaId: string | number; mensagemId: string | number; targetUserId: string | number }} p
+ * Encaminha mensagem(ns) do atendimento WhatsApp para o chat interno de um colaborador.
+ * @param {{
+ *   conversaOrigemId?: string | number;
+ *   conversaId?: string | number;
+ *   mensagemId?: string | number;
+ *   mensagemIds?: Array<string | number>;
+ *   targetUserId: string | number;
+ * }} p
  */
-export async function forwardAtendimentoMessageToColaborador({ conversaId, mensagemId, targetUserId }) {
-  const { data } = await api.post(
-    "/api/internal-chat/forward-atendimento-message",
-    {
-      conversa_id: conversaId,
-      mensagem_id: mensagemId,
-      target_user_id: targetUserId,
-    },
-    { headers: { ...internalChatExtraHeaders() } }
-  );
+export async function forwardAtendimentoMessageToColaborador(p) {
+  const { conversaOrigemId, conversaId, mensagemId, mensagemIds, targetUserId } = p || {};
+  const origem = conversaOrigemId ?? conversaId;
+  const rawIds = Array.isArray(mensagemIds) && mensagemIds.length
+    ? mensagemIds
+    : mensagemId != null
+      ? [mensagemId]
+      : [];
+  const dedup = [];
+  const seen = new Set();
+  for (const x of rawIds) {
+    const n = Number(x);
+    if (!Number.isFinite(n) || seen.has(n)) continue;
+    seen.add(n);
+    dedup.push(n);
+  }
+  if (dedup.length === 0) {
+    throw new Error("Nenhuma mensagem para encaminhar ao chat interno.");
+  }
+  const body = {
+    conversa_origem_id: origem,
+    target_user_id: targetUserId,
+  };
+  if (dedup.length === 1) {
+    body.mensagem_id = dedup[0];
+  } else if (dedup.length > 1) {
+    body.mensagem_ids = dedup;
+  }
+  const { data } = await api.post("/api/internal-chat/forward-atendimento-message", body, {
+    headers: { ...internalChatExtraHeaders() },
+  });
   return data;
 }
 

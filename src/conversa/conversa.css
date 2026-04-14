@@ -3377,6 +3377,15 @@
   white-space: nowrap;
 }
 
+.wa-selectBar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
 .wa-pinBar {
   display: flex;
   align-items: center;

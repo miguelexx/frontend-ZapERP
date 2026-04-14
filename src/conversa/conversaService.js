@@ -90,15 +90,54 @@ export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
   return data;
 }
 
+const ENC_TIPO = "auto";
+const ENC_MAX_IDS = 30;
+
+function normalizeEncaminharIds(mensagemIdOrIds) {
+  const raw = Array.isArray(mensagemIdOrIds) ? mensagemIdOrIds : [mensagemIdOrIds];
+  const out = [];
+  const seen = new Set();
+  for (const x of raw) {
+    const n = Number(x);
+    if (!Number.isFinite(n) || seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+  }
+  if (out.length === 0) throw new Error("Nenhuma mensagem para encaminhar.");
+  if (out.length > ENC_MAX_IDS) throw new Error(`No máximo ${ENC_MAX_IDS} mensagens por encaminhamento.`);
+  return out;
+}
+
 /**
- * Encaminha qualquer mensagem via API backend — preserva tipo, url e metadados originais.
- * É o método preferido pois não faz re-upload desnecessário.
+ * Encaminha mensagem(ns) via API backend — preserva tipo, url e metadados originais.
+ * Uma mensagem: body com `mensagem_id`. Várias: `mensagem_ids` na ordem informada (sem duplicar).
+ * @returns {Promise<
+ *   | { kind: "single"; mensagem: any; raw: any }
+ *   | { kind: "batch"; raw: any; total?: number; encaminhamentos: any[] }
+ * >}
  */
-export async function encaminharMensagemViaAPI(conversaId, mensagemId) {
-  const { data } = await api.post(`/chats/${conversaId}/encaminhar`, { mensagem_id: mensagemId });
-  // Retorna mensagem com encaminhado: true para exibição visual correta
-  const mensagem = data?.mensagem || data;
-  return mensagem ? { ...mensagem, encaminhado: true } : mensagem;
+export async function encaminharMensagemViaAPI(conversaId, mensagemIdOrIds) {
+  const ids = normalizeEncaminharIds(mensagemIdOrIds);
+  const body =
+    ids.length === 1
+      ? { mensagem_id: ids[0], tipo_encaminhamento: ENC_TIPO }
+      : { mensagem_ids: ids, tipo_encaminhamento: ENC_TIPO };
+  const { data } = await api.post(`/chats/${conversaId}/encaminhar`, body);
+
+  if (ids.length === 1) {
+    const mensagem = data?.mensagem ?? data;
+    return {
+      kind: "single",
+      mensagem: mensagem ? { ...mensagem, encaminhado: true } : mensagem,
+      raw: data,
+    };
+  }
+  return {
+    kind: "batch",
+    raw: data,
+    total: data?.total,
+    encaminhamentos: Array.isArray(data?.encaminhamentos) ? data.encaminhamentos : [],
+  };
 }
 
 /**

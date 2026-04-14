@@ -45,6 +45,9 @@ import "../components/feedback/toast.css";
 /** Altura máxima do campo de mensagem (estilo WhatsApp Web). */
 const WA_INPUT_MAX_HEIGHT_PX = 160;
 
+/** Limite do backend para encaminhamento em lote. */
+const FORWARD_SELECT_MAX = 30;
+
 /* =========================================================
    Utils
 ========================================================= */
@@ -1887,11 +1890,17 @@ export default function ConversaView() {
   const [replyTo, setReplyTo] = useState(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState({});
+  /** Ordem em que as mensagens foram marcadas (ids como string), para respeitar na API. */
+  const [selectionOrder, setSelectionOrder] = useState([]);
+  const selectionOrderRef = useRef([]);
+  /** True quando o modo seleção foi aberto por "Encaminhar" (mostra fluxo até o destino). */
+  const [forwardSelectIntent, setForwardSelectIntent] = useState(false);
   const [pinnedIds, setPinnedIds] = useState([]);
   const [starredIds, setStarredIds] = useState([]);
 
   const [forwardOpen, setForwardOpen] = useState(false);
-  const [forwardMsg, setForwardMsg] = useState(null);
+  /** Lista ordenada de mensagens a encaminhar ao confirmar destino; null = modal fechado. */
+  const [forwardMsgs, setForwardMsgs] = useState(null);
   const [forwardQuery, setForwardQuery] = useState("");
   const [forwardSending, setForwardSending] = useState(false);
   const [forwardClientes, setForwardClientes] = useState([]);
@@ -2222,8 +2231,11 @@ export default function ConversaView() {
     setReplyTo(null);
     setSelectMode(false);
     setSelectedMsgIds({});
+    selectionOrderRef.current = [];
+    setSelectionOrder([]);
+    setForwardSelectIntent(false);
     setForwardOpen(false);
-    setForwardMsg(null);
+    setForwardMsgs(null);
     setForwardQuery("");
 
     if (!conversaId) {
@@ -3113,7 +3125,7 @@ export default function ConversaView() {
     if (showTransferirSetor) setShowTransferirSetor(false);
     if (forwardOpen) {
       setForwardOpen(false);
-      setForwardMsg(null);
+      setForwardMsgs(null);
       setForwardQuery("");
     }
     if (msgInfoOpen) {
@@ -3123,6 +3135,9 @@ export default function ConversaView() {
     if (selectMode) {
       setSelectMode(false);
       setSelectedMsgIds({});
+      selectionOrderRef.current = [];
+      setSelectionOrder([]);
+      setForwardSelectIntent(false);
     }
     if (replyTo) setReplyTo(null);
   }, [
@@ -3200,23 +3215,50 @@ export default function ConversaView() {
 
   const startSelect = useCallback((msg) => {
     if (!msg?.id) return;
+    setForwardSelectIntent(false);
     setSelectMode(true);
-    setSelectedMsgIds((cur) => ({ ...(cur || {}), [String(msg.id)]: true }));
-  }, []);
-
-  const toggleSelected = useCallback((msg) => {
-    if (!msg?.id) return;
+    const key = String(msg.id);
     setSelectedMsgIds((cur) => {
-      const key = String(msg.id);
-      const next = { ...(cur || {}) };
-      next[key] = !next[key];
+      const next = { ...(cur || {}), [key]: true };
+      let ord = selectionOrderRef.current;
+      ord = ord.includes(key) ? ord : [...ord, key];
+      selectionOrderRef.current = ord;
+      setSelectionOrder(ord);
       return next;
     });
   }, []);
 
+  const toggleSelected = useCallback(
+    (msg) => {
+      if (!msg?.id) return;
+      setSelectedMsgIds((cur) => {
+        const key = String(msg.id);
+        const wasOn = !!cur[key];
+        const nextOn = !wasOn;
+        let ord = selectionOrderRef.current;
+        if (nextOn && forwardSelectIntent && ord.length >= FORWARD_SELECT_MAX && !ord.includes(key)) {
+          showToast({
+            type: "warning",
+            title: "Limite",
+            message: `No máximo ${FORWARD_SELECT_MAX} mensagens por encaminhamento.`,
+          });
+          return cur;
+        }
+        ord = nextOn ? (ord.includes(key) ? ord : [...ord, key]) : ord.filter((k) => k !== key);
+        selectionOrderRef.current = ord;
+        setSelectionOrder(ord);
+        return { ...cur, [key]: nextOn };
+      });
+    },
+    [forwardSelectIntent, showToast]
+  );
+
   const exitSelectMode = useCallback(() => {
-    setSelectMode(false);
+    selectionOrderRef.current = [];
+    setSelectionOrder([]);
     setSelectedMsgIds({});
+    setSelectMode(false);
+    setForwardSelectIntent(false);
   }, []);
 
   const handleReplyAction = useCallback((msg) => {
@@ -3249,10 +3291,52 @@ export default function ConversaView() {
   }
 
   const handleForwardAction = useCallback((msg) => {
-    setForwardMsg(msg || null);
+    if (!msg?.id) return;
+    setForwardSelectIntent(true);
+    setSelectMode(true);
+    const key = String(msg.id);
+    const ord = [key];
+    selectionOrderRef.current = ord;
+    setSelectionOrder(ord);
+    setSelectedMsgIds({ [key]: true });
+  }, []);
+
+  const orderedSelectedIds = useMemo(
+    () => (selectionOrder || []).filter((id) => selectedMsgIds?.[id]),
+    [selectionOrder, selectedMsgIds]
+  );
+
+  const handleForwardAdvance = useCallback(() => {
+    if (!orderedSelectedIds.length) return;
+    const byId = new Map((mensagens || []).filter((m) => m?.id).map((m) => [String(m.id), m]));
+    const orderedMsgs = orderedSelectedIds.map((id) => byId.get(String(id))).filter(Boolean);
+    if (!orderedMsgs.length) {
+      showToast({
+        type: "warning",
+        title: "Mensagens indisponíveis",
+        message: "Não foi possível resolver as mensagens selecionadas nesta conversa.",
+      });
+      return;
+    }
+    const capped = orderedMsgs.slice(0, FORWARD_SELECT_MAX);
+    if (orderedMsgs.length > capped.length) {
+      showToast({
+        type: "info",
+        title: "Limite",
+        message: `Encaminhando as primeiras ${FORWARD_SELECT_MAX} mensagens selecionadas.`,
+      });
+    }
+    setForwardMsgs(capped);
     setForwardQuery("");
     setForwardOpen(true);
-  }, []);
+  }, [orderedSelectedIds, mensagens, showToast]);
+
+  const forwardPreviewLabel = useMemo(() => {
+    if (!forwardMsgs?.length) return "";
+    if (forwardMsgs.length === 1) return snippetFromMsg(forwardMsgs[0]);
+    const first = snippetFromMsg(forwardMsgs[0]);
+    return `${first} · e mais ${forwardMsgs.length - 1} mensagem(ns)`;
+  }, [forwardMsgs]);
 
   const handleDeleteForMe = useCallback(
     async (msg) => {
@@ -3340,58 +3424,110 @@ export default function ConversaView() {
 
   const closeForward = useCallback(() => {
     setForwardOpen(false);
-    setForwardMsg(null);
+    setForwardMsgs(null);
     setForwardQuery("");
     setForwardSending(false);
   }, []);
 
   const execEncaminhar = useCallback(
     async (destConversaId) => {
-      const tipo = String(forwardMsg?.tipo || "").toLowerCase();
-      const hasMediaUrl = !!(forwardMsg?.url || forwardMsg?.url_absoluta);
+      const msgs = Array.isArray(forwardMsgs) ? forwardMsgs : [];
+      if (!msgs.length) return;
 
-      // Tenta sempre via API backend que preserva tipo e metadados originais
-      if (forwardMsg?.id) {
+      const orderedIds = msgs.map((m) => m.id).filter((id) => id != null);
+      if (!orderedIds.length) {
+        for (const m of msgs) {
+          // eslint-disable-next-line no-await-in-loop
+          await enviarMensagem(destConversaId, buildForwardText(m));
+        }
+        return null;
+      }
+
+      if (orderedIds.length === 1) {
+        const forwardMsg = msgs[0];
+        const tipo = String(forwardMsg?.tipo || "").toLowerCase();
+        const hasMediaUrl = !!(forwardMsg?.url || forwardMsg?.url_absoluta);
         try {
-          const mensagemEncaminhada = await encaminharMensagemViaAPI(destConversaId, forwardMsg.id);
-          if (mensagemEncaminhada?.id) {
-            if (Number(mensagemEncaminhada?.conversa_id) === Number(conversaId)) {
-              anexarMensagem(mensagemEncaminhada);
-            }
+          const res = await encaminharMensagemViaAPI(destConversaId, forwardMsg.id);
+          const mensagemEncaminhada = res?.kind === "single" ? res.mensagem : res;
+          if (mensagemEncaminhada?.id && Number(mensagemEncaminhada?.conversa_id) === Number(conversaId)) {
+            anexarMensagem(mensagemEncaminhada);
           }
-          return;
+          return null;
         } catch (e) {
           console.warn("Encaminhar via API falhou, tentando fallback:", e?.response?.data?.error || e?.message);
-          // Fallback para re-upload de arquivo se a API falhou
           if (hasMediaUrl && (tipo === "arquivo" || tipo === "imagem" || tipo === "video" || tipo === "vídeo")) {
             try {
               const data = await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
               if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
                 anexarMensagem({ ...data, encaminhado: true });
               }
-              return;
+              return null;
             } catch (e2) {
               console.warn("Fallback arquivo também falhou:", e2);
             }
           }
-          // Último fallback: texto
           await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
         }
-      } else {
-        await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+        return null;
       }
+
+      const res = await encaminharMensagemViaAPI(destConversaId, orderedIds);
+      if (!res || res.kind !== "batch") {
+        throw new Error("Resposta de encaminhamento em lote inválida.");
+      }
+      const items = res.encaminhamentos || [];
+      if (!items.length) {
+        throw new Error("Resposta de encaminhamento em lote sem itens.");
+      }
+      let okCount = 0;
+      let failCount = 0;
+      for (const item of items) {
+        if (item?.ok) {
+          okCount++;
+          if (item.mensagem && Number(item.mensagem?.conversa_id) === Number(conversaId)) {
+            anexarMensagem({ ...item.mensagem, encaminhado: true });
+          }
+        } else if (item && item.ok === false) {
+          failCount++;
+          const hint = item.mensagem_id != null ? ` (#${item.mensagem_id})` : "";
+          showToast({
+            type: "error",
+            title: "Falha ao encaminhar",
+            message: String(item.error || item.status || `Item${hint}`),
+          });
+        }
+      }
+      if (okCount === 0 && items.length) {
+        throw new Error("Nenhuma mensagem foi encaminhada.");
+      }
+      return { successes: okCount, failures: failCount, total: items.length };
     },
-    [forwardMsg, anexarMensagem, conversaId]
+    [forwardMsgs, anexarMensagem, conversaId, showToast]
   );
 
   const confirmForwardTo = useCallback(
     async (destConversaId) => {
-      if (!destConversaId || !forwardMsg || forwardSending) return;
+      if (!destConversaId || !forwardMsgs?.length || forwardSending) return;
       setForwardSending(true);
       try {
-        await execEncaminhar(destConversaId);
-        showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
+        const n = forwardMsgs.length;
+        const stats = await execEncaminhar(destConversaId);
+        if (stats && stats.failures > 0) {
+          showToast({
+            type: "info",
+            title: "Encaminhamento parcial",
+            message: `${stats.successes} de ${stats.total} encaminhada(s) com sucesso; ${stats.failures} falha(s).`,
+          });
+        } else {
+          showToast({
+            type: "success",
+            title: n > 1 ? "Encaminhadas" : "Encaminhada",
+            message: n > 1 ? `${n} mensagens encaminhadas com sucesso.` : "Mensagem encaminhada com sucesso.",
+          });
+        }
         closeForward();
+        exitSelectMode();
       } catch (e) {
         console.error("Erro ao encaminhar:", e);
         showToast({ type: "error", title: "Falha ao encaminhar", message: "Não foi possível encaminhar a mensagem." });
@@ -3399,22 +3535,36 @@ export default function ConversaView() {
         setForwardSending(false);
       }
     },
-    [forwardMsg, forwardSending, showToast, closeForward, execEncaminhar]
+    [forwardMsgs, forwardSending, showToast, closeForward, execEncaminhar, exitSelectMode]
   );
 
   const confirmForwardToCliente = useCallback(
     async (cliente) => {
-      if (!cliente?.id || !forwardMsg || forwardSending) return;
+      if (!cliente?.id || !forwardMsgs?.length || forwardSending) return;
       setForwardSending(true);
       try {
+        const n = forwardMsgs.length;
         const data = await abrirConversaCliente(cliente.id);
         const conv = data?.conversa || data || null;
         const destId = conv?.id || null;
         if (!destId) throw new Error("Não foi possível abrir a conversa do cliente.");
         try { useChatStore.getState().addChat(conv); } catch {}
-        await execEncaminhar(destId);
-        showToast({ type: "success", title: "Encaminhada", message: "Mensagem encaminhada com sucesso." });
+        const stats = await execEncaminhar(destId);
+        if (stats && stats.failures > 0) {
+          showToast({
+            type: "info",
+            title: "Encaminhamento parcial",
+            message: `${stats.successes} de ${stats.total} encaminhada(s) com sucesso; ${stats.failures} falha(s).`,
+          });
+        } else {
+          showToast({
+            type: "success",
+            title: n > 1 ? "Encaminhadas" : "Encaminhada",
+            message: n > 1 ? `${n} mensagens encaminhadas com sucesso.` : "Mensagem encaminhada com sucesso.",
+          });
+        }
         closeForward();
+        exitSelectMode();
       } catch (e) {
         console.error("Erro ao encaminhar (cliente):", e);
         showToast({ type: "error", title: "Falha ao encaminhar", message: e.response?.data?.error || e.message || "Não foi possível encaminhar." });
@@ -3422,26 +3572,34 @@ export default function ConversaView() {
         setForwardSending(false);
       }
     },
-    [forwardMsg, forwardSending, showToast, closeForward, execEncaminhar]
+    [forwardMsgs, forwardSending, showToast, closeForward, execEncaminhar, exitSelectMode]
   );
 
   const confirmForwardToColaborador = useCallback(
     async (colab) => {
       const targetUserId = colab?.id ?? colab?.user_id ?? colab?.usuario_id;
-      if (!forwardMsg?.id || !conversaId || targetUserId == null || forwardSending) return;
+      const ids = (forwardMsgs || []).map((m) => m.id).filter((id) => id != null);
+      if (!ids.length || !conversaId || targetUserId == null || forwardSending) return;
       setForwardSending(true);
       try {
-        await forwardAtendimentoMessageToColaborador({
-          conversaId,
-          mensagemId: forwardMsg.id,
+        const data = await forwardAtendimentoMessageToColaborador({
+          conversaOrigemId: conversaId,
+          mensagemIds: ids,
           targetUserId,
         });
+        const many = Array.isArray(data?.messages) ? data.messages : null;
+        const one = data?.message;
+        const n = many?.length || (one ? 1 : 0);
         showToast({
           type: "success",
-          title: "Encaminhada",
-          message: "Mensagem enviada para o chat interno do colaborador.",
+          title: n > 1 ? "Encaminhadas" : "Encaminhada",
+          message:
+            n > 1
+              ? `${n} mensagens enviadas para o chat interno do colaborador.`
+              : "Mensagem enviada para o chat interno do colaborador.",
         });
         closeForward();
+        exitSelectMode();
       } catch (e) {
         console.error("Erro ao encaminhar (colaborador):", e);
         showToast({
@@ -3453,7 +3611,7 @@ export default function ConversaView() {
         setForwardSending(false);
       }
     },
-    [forwardMsg, conversaId, forwardSending, showToast, closeForward]
+    [forwardMsgs, conversaId, forwardSending, showToast, closeForward, exitSelectMode]
   );
 
   const handleConversarContact = useCallback(
@@ -4223,14 +4381,26 @@ export default function ConversaView() {
                 </button>
                 <span className="wa-selectBar-count">{selectedSet.size} selecionada(s)</span>
               </div>
-              <button
-                type="button"
-                className="wa-btn wa-btn-danger"
-                onClick={handleDeleteSelected}
-                disabled={selectedSet.size === 0}
-              >
-                Apagar
-              </button>
+              <div className="wa-selectBar-actions">
+                {forwardSelectIntent ? (
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-primary"
+                    onClick={handleForwardAdvance}
+                    disabled={selectedSet.size === 0 || forwardSending}
+                  >
+                    Encaminhar…
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-danger"
+                  onClick={handleDeleteSelected}
+                  disabled={selectedSet.size === 0}
+                >
+                  Apagar
+                </button>
+              </div>
             </div>
           ) : pinnedTop ? (
             <div className="wa-pinBar" role="button" tabIndex={0} onClick={() => scrollToMsg(pinnedTop.id)}>
@@ -4379,19 +4549,19 @@ export default function ConversaView() {
           </div>
         )}
 
-        {forwardOpen && forwardMsg ? createPortal(
-          <div className="wa-modalOverlay wa-forwardOverlay" role="dialog" aria-label="Encaminhar mensagem" onMouseDown={closeForward}>
+        {forwardOpen && forwardMsgs?.length ? createPortal(
+          <div className="wa-modalOverlay wa-forwardOverlay" role="dialog" aria-label="Encaminhar mensagens" onMouseDown={closeForward}>
             <div className="wa-modal wa-forwardModal" onMouseDown={(e) => e.stopPropagation()}>
               <div className="wa-modal-head">
-                <div className="wa-modal-title">Encaminhar</div>
+                <div className="wa-modal-title">{forwardMsgs.length > 1 ? `Encaminhar (${forwardMsgs.length})` : "Encaminhar"}</div>
                 <button type="button" className="wa-iconBtn" onClick={closeForward} title="Fechar">
                   <IconClose />
                 </button>
               </div>
               <div className="wa-modal-body wa-forwardBody">
                 <div className="wa-forwardHint">
-                  <div className="wa-forwardPreview">{snippetFromMsg(forwardMsg)}</div>
-                  <div className="wa-forwardSub">Conversa de cliente (WhatsApp) ou colaborador (chat interno).</div>
+                  <div className="wa-forwardPreview">{forwardPreviewLabel}</div>
+                  <div className="wa-forwardSub">Conversa de cliente (WhatsApp) ou colaborador (chat interno). Ordem: como na seleção.</div>
                 </div>
 
                 <input
