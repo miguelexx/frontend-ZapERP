@@ -1157,6 +1157,12 @@ export default function ChatList() {
   const loadRef = useRef(load);
   loadRef.current = load;
 
+  const chatListResyncNonce = useChatStore((s) => s.chatListResyncNonce);
+  useEffect(() => {
+    if (!chatListResyncNonce) return;
+    loadRef.current?.();
+  }, [chatListResyncNonce]);
+
   useEffect(() => {
     function onSyncContatos() {
       loadRef.current?.();

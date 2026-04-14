@@ -9,6 +9,9 @@ function canonicalKey(c) {
   return s.toLowerCase().startsWith("lid:") ? `lid:${lid}` : s || `id-${c?.id ?? ""}`
 }
 
+/** Debounce para vários eventos socket seguidos — um GET /chats alinha lista + Minha fila */
+let chatListResyncDebounceTimer = null
+
 /** Ordena conversas por ultima_atividade DESC (mais recente no topo) */
 function sortConversasByRecent(arr) {
   if (!Array.isArray(arr) || arr.length <= 1) return arr
@@ -61,9 +64,22 @@ export const useChatStore = create((set, get) => ({
   loading: false,
   /** Incrementado após assumir/encerrar — ChatList rola ao topo (últimas conversas). */
   chatListScrollToTopNonce: 0,
+  /**
+   * Incrementado após eventos em tempo real que alteram fila / setor / atendente.
+   * ChatList escuta e chama `load()` (que também atualiza Minha fila via refreshMinhaFila).
+   */
+  chatListResyncNonce: 0,
 
   requestChatListScrollToTop: () =>
     set((s) => ({ chatListScrollToTopNonce: (s.chatListScrollToTopNonce || 0) + 1 })),
+
+  requestChatListResync: () => {
+    if (chatListResyncDebounceTimer) clearTimeout(chatListResyncDebounceTimer)
+    chatListResyncDebounceTimer = setTimeout(() => {
+      chatListResyncDebounceTimer = null
+      set((s) => ({ chatListResyncNonce: (s.chatListResyncNonce || 0) + 1 }))
+    }, 200)
+  },
 
   /* =========================================
      BASE
@@ -398,6 +414,7 @@ export const useChatStore = create((set, get) => ({
   limpar: () =>
     set({
       chats: [],
-      loading: false
+      loading: false,
+      chatListResyncNonce: 0,
     })
 }))

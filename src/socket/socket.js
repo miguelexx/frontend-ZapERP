@@ -150,6 +150,38 @@ function shouldIgnoreByCompany(payload) {
 }
 
 /**
+ * Encerrada/reaberta podem vir como `{ conversa: {...}, lista_realtime }`.
+ * @param {unknown} payload
+ */
+function unwrapSocketChatPayload(payload) {
+  if (!payload || typeof payload !== "object") return payload
+  const conv = /** @type {any} */ (payload).conversa
+  if (conv && typeof conv === "object" && (conv.id != null || conv.conversa_id != null)) {
+    const cid = conv.id ?? conv.conversa_id
+    return {
+      ...conv,
+      id: cid,
+      lista_realtime: /** @type {any} */ (payload).lista_realtime ?? conv.lista_realtime,
+    }
+  }
+  return payload
+}
+
+/**
+ * Mudanças que exigem alinhar lista lateral + aba Minha fila com GET /chats.
+ * @param {unknown} payload
+ */
+function payloadImpactaListaLateral(payload) {
+  if (!payload || typeof payload !== "object") return false
+  const lr = /** @type {any} */ (payload).lista_realtime
+  if (lr && lr.minha_fila === true) return true
+  if (Object.prototype.hasOwnProperty.call(payload, "status_atendimento")) return true
+  if (Object.prototype.hasOwnProperty.call(payload, "atendente_id")) return true
+  if (Object.prototype.hasOwnProperty.call(payload, "departamento_id")) return true
+  return false
+}
+
+/**
  * @param {string} title
  * @param {string} body
  * @param {{ tag?: string }} [opts]
@@ -629,13 +661,15 @@ export function initSocket(token) {
     }
   }
 
-  function handleConversaAtualizada(payload) {
-    if (!payload?.id) return
+  function handleConversaAtualizada(rawPayload) {
+    const payload = unwrapSocketChatPayload(rawPayload)
+    const id = payload?.id ?? payload?.conversa_id
+    if (!id) return
     if (shouldIgnoreByCompany(payload)) return
     logSocketConversaDebug("conversa_atualizada", payload)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
-    const idx = chats.findIndex((c) => String(c.id) === String(payload.id))
+    const idx = chats.findIndex((c) => String(c.id) === String(id))
     if (idx >= 0) {
       const next = { ...chats[idx] }
       if (payload.ultima_atividade != null) next.ultima_atividade = payload.ultima_atividade
@@ -662,15 +696,19 @@ export function initSocket(token) {
         next.tem_novas_mensagens = true
         next.lida = false
       }
-      chatStore.updateChat({ id: payload.id, ...next })
+      chatStore.updateChat({ id, ...next })
     }
     const convStore = useConversaStore.getState()
-    if (String(convStore.selectedId) === String(payload.id)) {
-      convStore.patchConversa(payload)
+    if (String(convStore.selectedId) === String(id)) {
+      convStore.patchConversa({ ...payload, id })
+    }
+    if (payloadImpactaListaLateral(payload)) {
+      chatStore.requestChatListResync()
     }
   }
 
-  async function patchEverywhere(payload) {
+  async function patchEverywhere(rawPayload) {
+    const payload = unwrapSocketChatPayload(rawPayload)
     const rawId = payload?.id ?? payload?.conversa_id
     if (rawId == null || rawId === "") return
     const p = { ...payload, id: rawId }
@@ -690,6 +728,9 @@ export function initSocket(token) {
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(p.id)) {
       convStore.patchConversa(p)
+    }
+    if (payloadImpactaListaLateral(p)) {
+      chatStore.requestChatListResync()
     }
   }
 
@@ -712,15 +753,18 @@ export function initSocket(token) {
     patchEverywhere(payload)
   })
   socket.on(SOCKET_EVENTS.CONVERSA_ATRIBUIDA, (payload) => {
-    if (shouldIgnoreByCompany(payload)) return
-    const convId = payload?.id ?? payload?.conversa_id
+    const p0 = unwrapSocketChatPayload(payload)
+    if (shouldIgnoreByCompany(p0)) return
+    const convId = p0?.id ?? p0?.conversa_id
     if (convId != null && convId !== "") {
-      patchEverywhere({ ...payload, id: convId })
+      patchEverywhere({ ...p0, id: convId })
+      /* Garante Minha fila mesmo se o merge não trouxer atendente_id/status no mesmo pacote */
+      useChatStore.getState().requestChatListResync()
     }
     updateDocumentTitleFromChats()
 
-    const motivo = String(payload?.motivo || "")
-    const ui = payload?.ui && typeof payload.ui === "object" ? payload.ui : {}
+    const motivo = String(p0?.motivo || "")
+    const ui = p0?.ui && typeof p0.ui === "object" ? p0.ui : {}
     const isHandoff =
       motivo === "transferencia_recebida" ||
       ui.variant === "handoff"
@@ -742,7 +786,7 @@ export function initSocket(token) {
     let title = ui.titulo
     let body = ui.corpo
     if (body == null || String(body).trim() === "") {
-      const prev = payload.cliente_preview
+      const prev = p0.cliente_preview
       if (prev && typeof prev === "object") {
         const parts = [prev.nome, prev.telefone].filter(Boolean)
         body = parts.length ? parts.join(" · ") : "Nova conversa atribuída a você."
@@ -751,7 +795,7 @@ export function initSocket(token) {
       }
     }
     if (title == null || String(title).trim() === "") {
-      const prev = payload.cliente_preview
+      const prev = p0.cliente_preview
       title = prev?.nome ? `Atendimento: ${prev.nome}` : "Conversa atribuída a você"
     }
 
@@ -794,7 +838,11 @@ export function initSocket(token) {
         if ("status_atendimento" in chat) meta.status_atendimento = chat.status_atendimento
         if ("exibir_badge_aberta" in chat) meta.exibir_badge_aberta = chat.exibir_badge_aberta
         useConversaStore.getState().patchConversa(meta)
-      } catch (_) {}
+      } catch (_) {
+        /* refetch da lista mesmo em erro — alinha Minha fila / filtros */
+      } finally {
+        useChatStore.getState().requestChatListResync()
+      }
     }, 400)
   })
 
