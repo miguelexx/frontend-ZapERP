@@ -1,44 +1,40 @@
-const UNAVAILABLE_REASON = "Disponível em breve"
+import api from "../api/http"
 
 const capabilities = Object.freeze({
-  mute: false,
-  pin: false,
-  favorite: false,
-  clear: false,
-  delete: false,
+  mute: true,
+  pin: true,
+  favorite: true,
+  clear: true,
+  delete: true,
 })
-
-function unavailable() {
-  const err = new Error(UNAVAILABLE_REASON)
-  err.code = "NOT_AVAILABLE"
-  throw err
-}
 
 export function getConversationActionCapabilities() {
   return capabilities
 }
 
-export function getUnavailableReason() {
-  return UNAVAILABLE_REASON
+async function patchConversationPrefs(conversaId, partialPrefs) {
+  const { data } = await api.patch(`/chats/${conversaId}/prefs`, partialPrefs)
+  return data || {}
 }
 
-export async function toggleMuteConversation() {
-  return unavailable()
+export async function toggleMuteConversation(conversaId, silenciada) {
+  return patchConversationPrefs(conversaId, { silenciada: !!silenciada })
 }
 
-export async function togglePinConversation() {
-  return unavailable()
+export async function togglePinConversation(conversaId, fixada) {
+  return patchConversationPrefs(conversaId, { fixada: !!fixada })
 }
 
-export async function toggleFavoriteConversation() {
-  return unavailable()
+export async function toggleFavoriteConversation(conversaId, favorita) {
+  return patchConversationPrefs(conversaId, { favorita: !!favorita })
 }
 
-export async function clearConversation() {
-  return unavailable()
+export async function clearConversation(conversaId) {
+  const { data } = await api.post(`/chats/${conversaId}/limpar-mensagens`)
+  return data || {}
 }
 
-export async function deleteConversation() {
-  return unavailable()
+export async function deleteConversation(conversaId) {
+  const { data } = await api.delete(`/chats/${conversaId}`)
+  return data || {}
 }
-

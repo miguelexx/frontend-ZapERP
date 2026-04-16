@@ -22,8 +22,12 @@ import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import ConversationActionMenu from "./ConversationActionMenu";
 import { useConversationActionMenu } from "./useConversationActionMenu";
 import {
+  clearConversation,
+  deleteConversation,
   getConversationActionCapabilities,
-  getUnavailableReason,
+  toggleFavoriteConversation,
+  toggleMuteConversation,
+  togglePinConversation,
 } from "./conversationActionsService";
 
 /* =====================================================
@@ -1055,7 +1059,6 @@ export default function ChatList() {
 
   const showToast = useNotificationStore((s) => s.showToast);
   const capabilities = useMemo(() => getConversationActionCapabilities(), []);
-  const unavailableReason = useMemo(() => getUnavailableReason(), []);
 
   useEffect(() => {
     if (location.state?.openNovoContatoModal) {
@@ -1501,6 +1504,7 @@ export default function ChatList() {
   const menuActions = useMemo(() => {
     const chat = openMenuChat;
     if (!chat) return [];
+    const isGroup = isGroupConversation(chat);
     return [
       {
         id: "mute",
@@ -1508,7 +1512,6 @@ export default function ChatList() {
         icon: "🔕",
         visible: true,
         disabled: !capabilities.mute,
-        tooltip: !capabilities.mute ? unavailableReason : undefined,
       },
       {
         id: "pin",
@@ -1516,7 +1519,6 @@ export default function ChatList() {
         icon: "📌",
         visible: true,
         disabled: !capabilities.pin,
-        tooltip: !capabilities.pin ? unavailableReason : undefined,
       },
       {
         id: "favorite",
@@ -1524,7 +1526,6 @@ export default function ChatList() {
         icon: "★",
         visible: true,
         disabled: !capabilities.favorite,
-        tooltip: !capabilities.favorite ? unavailableReason : undefined,
       },
       {
         id: "clear",
@@ -1532,7 +1533,6 @@ export default function ChatList() {
         icon: "🧹",
         visible: true,
         disabled: !capabilities.clear,
-        tooltip: !capabilities.clear ? unavailableReason : undefined,
       },
       {
         id: "delete",
@@ -1540,16 +1540,104 @@ export default function ChatList() {
         icon: "🗑",
         danger: true,
         visible: true,
-        disabled: !capabilities.delete,
-        tooltip: !capabilities.delete ? unavailableReason : undefined,
+        disabled: !capabilities.delete || isGroup,
+        tooltip: isGroup ? "Grupos não podem ser apagados por esta ação." : undefined,
       },
     ];
-  }, [openMenuChat, capabilities, unavailableReason]);
+  }, [openMenuChat, capabilities]);
 
-  const handleMenuAction = useCallback((action) => {
-    if (!action || action.disabled) return;
+  const handleMenuAction = useCallback(async (action) => {
+    if (!action || action.disabled || !openMenuChat?.id) return;
+    const chatId = openMenuChat.id;
+    const currentSelectedId = useConversaStore.getState().selectedId;
+    const isOpenConversation = String(currentSelectedId || "") === String(chatId);
     closeMenu();
-  }, [closeMenu]);
+
+    try {
+      if (action.id === "mute") {
+        const nextMuted = !openMenuChat?.silenciado;
+        useChatStore.getState().updateChat({ id: chatId, silenciado: nextMuted });
+        await toggleMuteConversation(chatId, nextMuted);
+        showToast({
+          type: "success",
+          title: nextMuted ? "Notificações silenciadas" : "Silêncio removido",
+          message: nextMuted ? "Esta conversa foi silenciada." : "Esta conversa voltou a notificar.",
+        });
+        return;
+      }
+      if (action.id === "pin") {
+        const nextPinned = !openMenuChat?.fixada;
+        useChatStore.getState().updateChat({ id: chatId, fixada: nextPinned, fixada_em: nextPinned ? new Date().toISOString() : null });
+        await togglePinConversation(chatId, nextPinned);
+        showToast({
+          type: "success",
+          title: nextPinned ? "Conversa fixada" : "Conversa desafixada",
+          message: nextPinned ? "A conversa subiu para o topo da lista." : "A conversa voltou à ordenação padrão.",
+        });
+        return;
+      }
+      if (action.id === "favorite") {
+        const nextFavorite = !openMenuChat?.favorita;
+        useChatStore.getState().updateChat({ id: chatId, favorita: nextFavorite });
+        await toggleFavoriteConversation(chatId, nextFavorite);
+        showToast({
+          type: "success",
+          title: nextFavorite ? "Favorito adicionado" : "Favorito removido",
+          message: nextFavorite ? "Conversa marcada como favorita." : "Conversa removida dos favoritos.",
+        });
+        return;
+      }
+      if (action.id === "clear") {
+        const ok = window.confirm("Limpar todas as mensagens desta conversa? A conversa permanecerá na lista.");
+        if (!ok) return;
+        await clearConversation(chatId);
+        useChatStore.getState().updateChat({
+          id: chatId,
+          ultima_mensagem: null,
+          ultima_mensagem_preview: null,
+          unread_count: 0,
+          tem_novas_mensagens: false,
+          tem_novas_mensagens_em_atendimento: false,
+        });
+        if (isOpenConversation) {
+          useConversaStore.setState({ mensagens: [] });
+        }
+        showToast({
+          type: "success",
+          title: "Conversa limpa",
+          message: "As mensagens foram removidas com sucesso.",
+        });
+        return;
+      }
+      if (action.id === "delete") {
+        const ok = window.confirm("Apagar esta conversa permanentemente? Essa ação não pode ser desfeita.");
+        if (!ok) return;
+        await deleteConversation(chatId);
+        useChatStore.getState().removeChat(chatId);
+        if (isOpenConversation) {
+          useConversaStore.setState({
+            selectedId: null,
+            conversa: null,
+            mensagens: [],
+            tags: [],
+          });
+        }
+        showToast({
+          type: "success",
+          title: "Conversa apagada",
+          message: "A conversa foi removida da lista.",
+        });
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível concluir esta ação."
+      showToast({
+        type: "error",
+        title: "Falha ao executar ação",
+        message: msg,
+      });
+      loadRef.current?.();
+    }
+  }, [openMenuChat, closeMenu, showToast]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;

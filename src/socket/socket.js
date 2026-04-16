@@ -284,6 +284,8 @@ export function initSocket(token) {
   off("mensagens_lidas")
   off("zapi_sync_contatos")
   off("conversa_atualizada")
+  off("conversa_prefs_atualizada")
+  off("conversa_apagada")
   off("conversa_encerrada")
   off(SOCKET_EVENTS.CONVERSA_TRANSFERIDA)
   off("conversa_reaberta")
@@ -742,6 +744,32 @@ export function initSocket(token) {
   }
 
   socket.on("conversa_atualizada", handleConversaAtualizada)
+  socket.on("conversa_prefs_atualizada", (payload) => {
+    const id = payload?.conversa_id ?? payload?.id
+    if (!id) return
+    if (shouldIgnoreByCompany(payload)) return
+    useChatStore.getState().updateChat({
+      id,
+      ...(payload?.silenciada !== undefined ? { silenciado: !!payload.silenciada } : {}),
+      ...(payload?.fixada !== undefined ? { fixada: !!payload.fixada } : {}),
+      ...(payload?.favorita !== undefined ? { favorita: !!payload.favorita } : {}),
+      ...(payload?.fixada_em !== undefined ? { fixada_em: payload.fixada_em } : {}),
+    })
+  })
+  socket.on("conversa_apagada", ({ id, conversa_id } = {}) => {
+    const cid = id ?? conversa_id
+    if (!cid) return
+    useChatStore.getState().removeChat(cid)
+    const convStore = useConversaStore.getState()
+    if (String(convStore.selectedId || "") === String(cid)) {
+      convStore.setSelectedId(null)
+      useConversaStore.setState({
+        conversa: null,
+        mensagens: [],
+        tags: [],
+      })
+    }
+  })
   socket.on("conversa_encerrada", (payload) => {
     logSocketConversaDebug("conversa_encerrada", payload)
     patchEverywhere(payload)
@@ -825,8 +853,17 @@ export function initSocket(token) {
      NUNCA refetchar mensagens do chat aberto — isso causa "aparecer e sumir".
      Apenas atualizar item na lista quando for outra conversa. */
   const atualizarDebounce = {}
-  socket.on("atualizar_conversa", ({ id } = {}) => {
+  socket.on("atualizar_conversa", ({ id, removida } = {}) => {
     if (!id) return
+    if (removida === true) {
+      useChatStore.getState().removeChat(id)
+      const convStore = useConversaStore.getState()
+      if (String(convStore.selectedId || "") === String(id)) {
+        convStore.setSelectedId(null)
+        useConversaStore.setState({ conversa: null, mensagens: [], tags: [] })
+      }
+      return
+    }
     logSocketConversaDebug("atualizar_conversa", { id })
     const key = String(id)
     if (atualizarDebounce[key]) clearTimeout(atualizarDebounce[key])

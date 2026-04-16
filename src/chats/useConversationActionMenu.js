@@ -5,6 +5,7 @@ export function useConversationActionMenu({ selectedConversationId, visibleConve
   const [anchorRect, setAnchorRect] = useState(null);
   const [restoreFocusEl, setRestoreFocusEl] = useState(null);
   const restoreFocusRef = useRef(null);
+  const prevSelectedRef = useRef(selectedConversationId);
 
   const closeMenu = useCallback(() => {
     setOpenConversationId(null);
@@ -47,8 +48,11 @@ export function useConversationActionMenu({ selectedConversationId, visibleConve
 
   useEffect(() => {
     if (!openConversationId) return;
-    if (!selectedConversationId) return;
-    if (String(selectedConversationId) !== String(openConversationId)) closeMenu();
+    const prevSelected = prevSelectedRef.current;
+    prevSelectedRef.current = selectedConversationId;
+    if (prevSelected == null || selectedConversationId == null) return;
+    if (String(prevSelected) === String(selectedConversationId)) return;
+    closeMenu();
   }, [selectedConversationId, openConversationId, closeMenu]);
 
   useEffect(() => {
