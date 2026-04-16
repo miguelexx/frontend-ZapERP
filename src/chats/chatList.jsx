@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil, sincronizarContatos } from "./chatService";
 import { useChatStore } from "./chatsStore";
@@ -18,6 +18,13 @@ import "../components/feedback/skeleton.css";
 import "../components/ui/button.css";
 import "./chatList.css";
 import NovoContatoModal from "./NovoContatoModal";
+import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
+import ConversationActionMenu from "./ConversationActionMenu";
+import { useConversationActionMenu } from "./useConversationActionMenu";
+import {
+  getConversationActionCapabilities,
+  getUnavailableReason,
+} from "./conversationActionsService";
 
 /* =====================================================
    COMPONENTES (mantidos + refinados visualmente)
@@ -33,6 +40,18 @@ function UnreadBadge({ n }) {
   const v = Number(n || 0);
   if (!v) return null;
   return <span className="chat-list-unread">{v > 99 ? "99+" : v}</span>;
+}
+
+function AtendimentoUnreadDot({ show }) {
+  if (!show) return null;
+  return (
+    <span
+      className="chat-list-atendimento-dot"
+      title="Nova mensagem no atendimento"
+      aria-label="Nova mensagem no atendimento"
+      role="status"
+    />
+  );
 }
 
 function useDebounce(value, delay = 250) {
@@ -772,6 +791,8 @@ function ChatRow({
   setSelectedId,
   carregarConversa,
   setUnread,
+  isMenuOpen,
+  onToggleMenu,
 }) {
   const id = chat?.id;
   const clienteId = chat?.cliente_id;
@@ -824,6 +845,12 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
+  const isEmAtendimento = String(chat?.status_atendimento || "").toLowerCase() === "em_atendimento";
+  const hasAtendimentoUnread = chat?.tem_novas_mensagens_em_atendimento === true;
+  const showAtendimentoDot = !isGroup && !active && isEmAtendimento && hasAtendimentoUnread;
+  const showMutedIndicator = !isGroup && chat?.silenciado === true;
+  const showPinnedIndicator = !isGroup && chat?.fixada === true;
+  const showFavoriteIndicator = !isGroup && chat?.favorita === true;
   const avatarSeed = displayName || phone || id || clienteId;
   const color = getAvatarColor(avatarSeed);
   const [imgError, setImgError] = useState(false);
@@ -886,6 +913,9 @@ function ChatRow({
               <div className="chat-list-title" title={displayName}>
                 {displayName}
               </div>
+              {showMutedIndicator ? <span className="chat-list-inline-indicator" title="Notificações silenciadas" aria-label="Notificações silenciadas">🔕</span> : null}
+              {showPinnedIndicator ? <span className="chat-list-inline-indicator" title="Conversa fixada" aria-label="Conversa fixada">📌</span> : null}
+              {showFavoriteIndicator ? <span className="chat-list-inline-indicator" title="Conversa favorita" aria-label="Conversa favorita">★</span> : null}
               {isGroup ? (
                 <span className="chat-list-badge-grupo" title="Conversa de grupo">Grupo</span>
               ) : chat?.tags?.[0] ? (
@@ -918,12 +948,34 @@ function ChatRow({
               {previewNode}
             </div>
           </div>
+          <AtendimentoUnreadDot show={showAtendimentoDot} />
           <UnreadBadge n={unread} />
         </div>
       </div>
+      <ConversationActionMenuTrigger
+        conversationId={id}
+        isOpen={isMenuOpen}
+        onToggle={onToggleMenu}
+      />
     </button>
   );
 }
+
+const MemoChatRow = memo(ChatRow, (prev, next) => {
+  const a = prev.chat || {};
+  const b = next.chat || {};
+  return (
+    String(a.id) === String(b.id) &&
+    prev.active === next.active &&
+    prev.isMenuOpen === next.isMenuOpen &&
+    Number(a.unread_count ?? a.unread ?? 0) === Number(b.unread_count ?? b.unread ?? 0) &&
+    String(a.status_atendimento ?? "") === String(b.status_atendimento ?? "") &&
+    Boolean(a.tem_novas_mensagens_em_atendimento) === Boolean(b.tem_novas_mensagens_em_atendimento) &&
+    String(a.ultima_atividade ?? "") === String(b.ultima_atividade ?? "") &&
+    String(a?.ultima_mensagem?.id ?? a?.ultima_mensagem?.whatsapp_id ?? "") ===
+      String(b?.ultima_mensagem?.id ?? b?.ultima_mensagem?.whatsapp_id ?? "")
+  );
+});
 
 /* =====================================================
    COMPONENTE PRINCIPAL (lógica mantida)
@@ -1002,6 +1054,8 @@ export default function ChatList() {
   const [syncLoading, setSyncLoading] = useState(false);
 
   const showToast = useNotificationStore((s) => s.showToast);
+  const capabilities = useMemo(() => getConversationActionCapabilities(), []);
+  const unavailableReason = useMemo(() => getUnavailableReason(), []);
 
   useEffect(() => {
     if (location.state?.openNovoContatoModal) {
@@ -1402,6 +1456,9 @@ export default function ChatList() {
 
     // ordenação: apenas por data (mais recente no topo) — badge de não lidas continua visível mas não altera a ordem
     list.sort((a, b) => {
+      const aPinned = a?.fixada === true ? 1 : 0;
+      const bPinned = b?.fixada === true ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
       if (a?.sem_conversa && !b?.sem_conversa) return 1;
       if (!a?.sem_conversa && b?.sem_conversa) return -1;
       if (a?.sem_conversa && b?.sem_conversa) {
@@ -1420,6 +1477,79 @@ export default function ChatList() {
 
     return list;
   }, [chats, minhaFilaList, debouncedSearch, statusFilter, tagFilter, departamentoFilter, atendenteFilter, mineOnly, order, tab, user?.id, user?.role]);
+
+  const visibleConversationIds = useMemo(
+    () => chatsFiltrados.map((c) => String(c?.id)).filter(Boolean),
+    [chatsFiltrados]
+  );
+
+  const {
+    openConversationId,
+    anchorRect,
+    openMenu,
+    closeMenu,
+  } = useConversationActionMenu({
+    selectedConversationId: selectedId,
+    visibleConversationIds,
+  });
+
+  const openMenuChat = useMemo(
+    () => chatsFiltrados.find((c) => String(c?.id) === String(openConversationId)) || null,
+    [chatsFiltrados, openConversationId]
+  );
+
+  const menuActions = useMemo(() => {
+    const chat = openMenuChat;
+    if (!chat) return [];
+    return [
+      {
+        id: "mute",
+        label: chat?.silenciado ? "Remover silêncio" : "Silenciar notificações",
+        icon: "🔕",
+        visible: true,
+        disabled: !capabilities.mute,
+        tooltip: !capabilities.mute ? unavailableReason : undefined,
+      },
+      {
+        id: "pin",
+        label: chat?.fixada ? "Desafixar conversa" : "Fixar conversa",
+        icon: "📌",
+        visible: true,
+        disabled: !capabilities.pin,
+        tooltip: !capabilities.pin ? unavailableReason : undefined,
+      },
+      {
+        id: "favorite",
+        label: chat?.favorita ? "Remover dos favoritos" : "Adicionar aos Favoritos",
+        icon: "★",
+        visible: true,
+        disabled: !capabilities.favorite,
+        tooltip: !capabilities.favorite ? unavailableReason : undefined,
+      },
+      {
+        id: "clear",
+        label: "Limpar conversa",
+        icon: "🧹",
+        visible: true,
+        disabled: !capabilities.clear,
+        tooltip: !capabilities.clear ? unavailableReason : undefined,
+      },
+      {
+        id: "delete",
+        label: "Apagar conversa",
+        icon: "🗑",
+        danger: true,
+        visible: true,
+        disabled: !capabilities.delete,
+        tooltip: !capabilities.delete ? unavailableReason : undefined,
+      },
+    ];
+  }, [openMenuChat, capabilities, unavailableReason]);
+
+  const handleMenuAction = useCallback((action) => {
+    if (!action || action.disabled) return;
+    closeMenu();
+  }, [closeMenu]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -1783,7 +1913,7 @@ export default function ChatList() {
             const active = id != null && String(selectedId) === String(id);
 
             return (
-              <ChatRow
+              <MemoChatRow
                 key={rowKey}
                 chat={c}
                 active={active}
@@ -1793,11 +1923,21 @@ export default function ChatList() {
                 setSelectedId={setSelectedId}
                 carregarConversa={carregarConversa}
                 setUnread={setUnread}
+                isMenuOpen={String(openConversationId) === String(c?.id)}
+                onToggleMenu={openMenu}
               />
             );
           })
         )}
       </div>
+
+      <ConversationActionMenu
+        isOpen={!!openConversationId}
+        anchorRect={anchorRect}
+        actions={menuActions}
+        onRequestClose={closeMenu}
+        onAction={handleMenuAction}
+      />
 
       <NovoContatoModal
         open={novoContatoModalOpen}

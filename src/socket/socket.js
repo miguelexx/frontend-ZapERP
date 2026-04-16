@@ -700,6 +700,9 @@ export function initSocket(token) {
         next.tem_novas_mensagens = true
         next.lida = false
       }
+      if (payload.tem_novas_mensagens_em_atendimento !== undefined) {
+        next.tem_novas_mensagens_em_atendimento = !!payload.tem_novas_mensagens_em_atendimento
+      }
       chatStore.updateChat({ id, ...next })
     }
     const convStore = useConversaStore.getState()

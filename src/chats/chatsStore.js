@@ -362,7 +362,11 @@ export const useChatStore = create((set, get) => ({
     set((state) => ({
       chats: state.chats.map(c =>
         String(c.id) === String(conversa_id)
-          ? { ...c, unread_count: Number(count) || 0 }
+          ? {
+              ...c,
+              unread_count: Number(count) || 0,
+              ...(Number(count) === 0 ? { tem_novas_mensagens_em_atendimento: false } : {}),
+            }
           : c
       )
     })),
