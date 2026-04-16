@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,33 @@ function findContainer(itemId: string | number, board: Record<string, string[]>)
   return Object.keys(board).find((key) => board[key].includes(id)) ?? null;
 }
 
+function pickAccent(cor?: string | null): string {
+  if (!cor || typeof cor !== "string") return "var(--ds-accent)";
+  const c = cor.trim();
+  if (c.startsWith("#") || c.startsWith("rgb")) return c;
+  return "var(--ds-accent)";
+}
+
+function fmtDt(iso?: string | null): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return null;
+  }
+}
+
+function priorClass(p?: string | null): string {
+  const x = String(p || "").toLowerCase();
+  if (x === "urgente") return "crm-kanban-card--p-urgente";
+  if (x === "alta") return "crm-kanban-card--p-alta";
+  if (x === "normal") return "crm-kanban-card--p-normal";
+  if (x === "baixa") return "crm-kanban-card--p-baixa";
+  return "";
+}
+
 function buildBoardState(data: CrmKanbanResponse) {
   const items: Record<string, string[]> = {};
   const cards: Record<number, CrmKanbanCard> = {};
@@ -53,18 +80,31 @@ function buildBoardState(data: CrmKanbanResponse) {
 }
 
 function KanbanCardBody({ card }: { card: CrmKanbanCard }) {
+  const prox = fmtDt(card.data_proximo_contato ?? null);
+  const ult = fmtDt(card.ultima_interacao_em ?? null);
+  const valor =
+    card.valor_estimado != null && card.valor_estimado !== ""
+      ? Number(card.valor_estimado).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
+      : null;
+
   return (
     <>
       <div className="crm-kanban-card-name">{card.nome}</div>
-      {card.empresa ? <div className="crm-muted">{card.empresa}</div> : null}
-      <div className="crm-muted" style={{ marginTop: 6, fontSize: "0.75rem" }}>
-        {card.responsavel?.nome ? `Resp.: ${card.responsavel.nome}` : "Sem responsável"}
-        {card.valor_estimado != null && card.valor_estimado !== ""
-          ? ` · R$ ${Number(card.valor_estimado).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`
-          : ""}
+      {card.empresa ? <div className="crm-muted" style={{ paddingLeft: 6, fontSize: "0.8rem" }}>{card.empresa}</div> : null}
+      <div className="crm-kanban-card-meta">
+        {prox ? (
+          <div>
+            <strong>Próximo contato</strong> · {prox}
+          </div>
+        ) : null}
+        {ult ? (
+          <div>
+            <strong>Última interação</strong> · {ult}
+          </div>
+        ) : null}
       </div>
       {Array.isArray(card.tags) && card.tags.length > 0 ? (
-        <div className="crm-tag-row">
+        <div className="crm-tag-row" style={{ paddingLeft: 6 }}>
           {card.tags.slice(0, 4).map((t) => (
             <span
               key={t.id}
@@ -76,6 +116,12 @@ function KanbanCardBody({ card }: { card: CrmKanbanCard }) {
           ))}
         </div>
       ) : null}
+      <div className="crm-kanban-card-footer">
+        <span className="crm-kanban-avatar" title={card.responsavel?.nome ?? ""}>
+          {card.responsavel?.nome ?? "Sem responsável"}
+        </span>
+        {valor ? <span className="crm-kanban-val">{valor}</span> : <span className="crm-muted" style={{ fontSize: "0.72rem" }}>—</span>}
+      </div>
     </>
   );
 }
@@ -103,7 +149,7 @@ function SortableLeadCard({ card }: { card: CrmKanbanCard }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`crm-kanban-card ${isDragging ? "crm-kanban-card--drag" : ""}`}
+      className={`crm-kanban-card ${priorClass(card.prioridade)} ${isDragging ? "crm-kanban-card--drag" : ""}`}
       {...attributes}
       {...listeners}
     >
@@ -267,9 +313,11 @@ export default function CrmKanban() {
 
   if (loading && !kanban) {
     return (
-      <div className="crm-empty">
-        <CrmPipelinePicker />
-        <p style={{ marginTop: 16 }}>Carregando quadro…</p>
+      <div>
+        <div className="crm-toolbar crm-toolbar--premium">
+          <CrmPipelinePicker />
+        </div>
+        <div className="crm-empty-soft">Carregando quadro Kanban…</div>
       </div>
     );
   }
@@ -287,57 +335,79 @@ export default function CrmKanban() {
     );
   }
 
+  const pipelineNome = kanban?.pipeline?.nome ?? "Pipeline";
+  const totalLeads = columns.reduce((acc, c) => acc + (items[cKey(c.stage.id)]?.length ?? 0), 0);
+
   return (
     <div>
-      <div className="crm-toolbar" style={{ marginBottom: 16 }}>
+      <div className="crm-page-head">
+        <div>
+          <h2>Quadro Kanban</h2>
+          <p>Arraste cards entre colunas para mover leads; na mesma coluna, reordene. Alterações são salvas na API.</p>
+        </div>
+      </div>
+
+      <div className="crm-toolbar crm-toolbar--premium">
         <CrmPipelinePicker />
-        <button type="button" className="crm-btn crm-btn--outline" onClick={load} disabled={loading}>
-          {loading ? "Atualizando…" : "Atualizar"}
+        <button type="button" className="crm-btn crm-btn--primary" onClick={load} disabled={loading}>
+          {loading ? "Atualizando…" : "Atualizar quadro"}
         </button>
       </div>
 
-      {err ? <div className="crm-error" style={{ marginBottom: 12 }}>{err}</div> : null}
+      {err ? <div className="crm-error" style={{ marginBottom: 16 }}>{err}</div> : null}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-      >
-        <div className="crm-kanban-board">
-          {columns.map((col) => {
-            const cid = cKey(col.stage.id);
-            const list = items[cid] ?? [];
-            return (
-              <div key={col.stage.id} className="crm-kanban-col">
-                <div className="crm-kanban-col-hd">
-                  <span className="crm-kanban-col-title">{col.stage.nome}</span>
-                  <span className="crm-kanban-col-count">{list.length}</span>
-                </div>
-                <ColumnBody stageId={col.stage.id}>
-                  <SortableContext items={list} strategy={verticalListSortingStrategy}>
-                    {list.map((lid) => {
-                      const id = parseL(lid);
-                      const card = cards[id];
-                      if (!card) return null;
-                      return <SortableLeadCard key={id} card={card} />;
-                    })}
-                  </SortableContext>
-                  {list.length === 0 ? <div className="crm-muted">Arraste um card aqui</div> : null}
-                </ColumnBody>
-              </div>
-            );
-          })}
-        </div>
-        <DragOverlay>
-          {activeDrag ? (
-            <div className="crm-kanban-card crm-kanban-card--drag">
-              <KanbanCardBody card={activeDrag} />
+      <div className="crm-kanban-frame">
+        <div className="crm-kanban-topbar">
+          <div>
+            <div className="crm-kanban-topbar__title">{pipelineNome}</div>
+            <div className="crm-kanban-topbar__sub">
+              {columns.length} colunas · {totalLeads} leads visíveis
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          </div>
+        </div>
+
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+        >
+          <div className="crm-kanban-board">
+            {columns.map((col) => {
+              const cid = cKey(col.stage.id);
+              const list = items[cid] ?? [];
+              const colStyle = { "--col-accent": pickAccent(col.stage.cor) } as CSSProperties;
+              return (
+                <div key={col.stage.id} className="crm-kanban-col" style={colStyle}>
+                  <div className="crm-kanban-col-hd">
+                    <span className="crm-kanban-col-title">{col.stage.nome}</span>
+                    <span className="crm-kanban-col-count">{list.length}</span>
+                  </div>
+                  <ColumnBody stageId={col.stage.id}>
+                    <SortableContext items={list} strategy={verticalListSortingStrategy}>
+                      {list.map((lid) => {
+                        const id = parseL(lid);
+                        const card = cards[id];
+                        if (!card) return null;
+                        return <SortableLeadCard key={id} card={card} />;
+                      })}
+                    </SortableContext>
+                    {list.length === 0 ? <div className="crm-kanban-drop-hint">Solte um lead aqui</div> : null}
+                  </ColumnBody>
+                </div>
+              );
+            })}
+          </div>
+          <DragOverlay>
+            {activeDrag ? (
+              <div className={`crm-kanban-card crm-kanban-card--drag ${priorClass(activeDrag.prioridade)}`}>
+                <KanbanCardBody card={activeDrag} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 }

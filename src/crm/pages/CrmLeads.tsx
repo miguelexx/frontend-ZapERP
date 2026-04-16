@@ -101,7 +101,14 @@ export default function CrmLeads() {
 
   return (
     <div>
-      <div className="crm-toolbar" style={{ marginBottom: 16, alignItems: "flex-end" }}>
+      <div className="crm-page-head">
+        <div>
+          <h2>Leads</h2>
+          <p>Lista enriquecida com filtros do pipeline, exportação CSV e acesso ao detalhe.</p>
+        </div>
+      </div>
+
+      <div className="crm-toolbar crm-toolbar--premium" style={{ alignItems: "flex-end" }}>
         <CrmPipelinePicker />
         <div className="crm-field">
           <span className="crm-field-label">Busca</span>
@@ -152,7 +159,7 @@ export default function CrmLeads() {
             <option value="asc">Asc</option>
           </select>
         </div>
-        <button type="button" className="crm-btn crm-btn--outline" onClick={load} disabled={loading}>
+        <button type="button" className="crm-btn crm-btn--primary" onClick={load} disabled={loading}>
           Filtrar
         </button>
         <button type="button" className="crm-btn crm-btn--outline" onClick={onExport}>
@@ -166,11 +173,12 @@ export default function CrmLeads() {
       {err ? <div className="crm-error" style={{ marginBottom: 12 }}>{err}</div> : null}
 
       {loading && !data ? (
-        <div className="crm-empty">Carregando leads…</div>
+        <div className="crm-empty-soft">Carregando leads…</div>
       ) : items.length === 0 ? (
-        <div className="crm-empty">Nenhum lead encontrado.</div>
+        <div className="crm-empty-soft">Nenhum lead encontrado.</div>
       ) : (
-        <div className="crm-table-wrap">
+        <div className="crm-panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="crm-table-wrap" style={{ border: "none", borderRadius: 0 }}>
           <table className="crm-table">
             <thead>
               <tr>
@@ -201,6 +209,7 @@ export default function CrmLeads() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

@@ -79,6 +79,13 @@ export default function CrmStages() {
 
   return (
     <div>
+      <div className="crm-page-head">
+        <div>
+          <h2>Estágios</h2>
+          <p>Configure colunas do funil: inicial, ganho, perda e regras de motivo.</p>
+        </div>
+      </div>
+
       <div className="crm-field" style={{ marginBottom: 16, maxWidth: 400 }}>
         <span className="crm-field-label">Pipeline</span>
         <select
@@ -97,7 +104,7 @@ export default function CrmStages() {
       </div>
 
       {pipelineId !== "" ? (
-        <div className="crm-card" style={{ marginBottom: 16 }}>
+        <div className="crm-form-card" style={{ marginBottom: 16 }}>
           <h3 style={{ marginTop: 0 }}>Novo estágio</h3>
           <form onSubmit={criar}>
             <div className="crm-form-row">
@@ -141,11 +148,12 @@ export default function CrmStages() {
       {err ? <div className="crm-error" style={{ marginBottom: 12 }}>{err}</div> : null}
 
       {pipelineId === "" ? (
-        <div className="crm-empty">Escolha um pipeline para listar estágios.</div>
+        <div className="crm-empty-soft">Escolha um pipeline para listar estágios.</div>
       ) : loading ? (
-        <div className="crm-empty">Carregando estágios…</div>
+        <div className="crm-empty-soft">Carregando estágios…</div>
       ) : (
-        <div className="crm-table-wrap">
+        <div className="crm-panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="crm-table-wrap" style={{ border: "none", borderRadius: 0 }}>
           <table className="crm-table">
             <thead>
               <tr>
@@ -170,6 +178,7 @@ export default function CrmStages() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>

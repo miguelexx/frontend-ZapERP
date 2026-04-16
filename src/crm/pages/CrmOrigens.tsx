@@ -43,7 +43,14 @@ export default function CrmOrigens() {
 
   return (
     <div>
-      <div className="crm-card" style={{ marginBottom: 16 }}>
+      <div className="crm-page-head">
+        <div>
+          <h2>Origens</h2>
+          <p>Catálogo usado ao classificar leads (campo origem).</p>
+        </div>
+      </div>
+
+      <div className="crm-form-card">
         <h3 style={{ marginTop: 0 }}>Nova origem</h3>
         <form onSubmit={criar} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div className="crm-field" style={{ flex: "1 1 220px" }}>
@@ -59,11 +66,12 @@ export default function CrmOrigens() {
       {err ? <div className="crm-error" style={{ marginBottom: 12 }}>{err}</div> : null}
 
       {loading ? (
-        <div className="crm-empty">Carregando…</div>
+        <div className="crm-empty-soft">Carregando…</div>
       ) : items.length === 0 ? (
-        <div className="crm-empty">Nenhuma origem.</div>
+        <div className="crm-empty-soft">Nenhuma origem.</div>
       ) : (
-        <div className="crm-table-wrap">
+        <div className="crm-panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="crm-table-wrap" style={{ border: "none", borderRadius: 0 }}>
           <table className="crm-table">
             <thead>
               <tr>
@@ -84,6 +92,7 @@ export default function CrmOrigens() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>
