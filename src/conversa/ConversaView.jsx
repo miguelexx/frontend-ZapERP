@@ -260,6 +260,84 @@ function getAudioFilename(file) {
   return `audio-${Date.now()}.webm`;
 }
 
+const STICKER_RECENTS_LIMIT = 36;
+
+function buildStickerStorageKey(user) {
+  const companyId = user?.company_id ?? user?.empresa_id ?? user?.companyId ?? user?.empresaId ?? "default";
+  const userId = user?.id ?? user?.user_id ?? user?.userId ?? "anon";
+  return `wa_stickers_recent_${companyId}_${userId}`;
+}
+
+function readRecentStickers(user) {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(buildStickerStorageKey(user));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentStickers(user, list) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(buildStickerStorageKey(user), JSON.stringify(list.slice(0, STICKER_RECENTS_LIMIT)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function toDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Falha ao ler arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function convertImageToWebp(file, quality = 0.9) {
+  return new Promise((resolve, reject) => {
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const maxSize = 512;
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas indisponível.");
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(src);
+            if (!blob) {
+              reject(new Error("Falha ao gerar WebP."));
+              return;
+            }
+            resolve(new File([blob], `sticker-${Date.now()}.webp`, { type: "image/webp" }));
+          },
+          "image/webp",
+          quality
+        );
+      } catch (e) {
+        URL.revokeObjectURL(src);
+        reject(e instanceof Error ? e : new Error("Falha ao converter imagem."));
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(src);
+      reject(new Error("Falha ao carregar imagem."));
+    };
+    img.src = src;
+  });
+}
+
 /* =========================================================
    Icons — finos (stroke ~1.5px), minimalistas
 ========================================================= */
@@ -390,6 +468,18 @@ function IconPlus(props) {
     <svg viewBox="0 0 24 24" width="24" height="24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function IconSticker(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.7" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="4" />
+      <path d="M15 4v4a1.5 1.5 0 0 0 1.5 1.5H20" />
+      <path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5" />
+      <path d="M9 10h.01" />
+      <path d="M15 10h.01" />
     </svg>
   );
 }
@@ -1822,6 +1912,12 @@ export default function ConversaView() {
   const [emojiQuery, setEmojiQuery] = useState("");
   const emojiPanelRef = useRef(null);
   const emojiSearchRef = useRef(null);
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const [stickerQuery, setStickerQuery] = useState("");
+  const [recentStickers, setRecentStickers] = useState([]);
+  const stickerPanelRef = useRef(null);
+  const stickerSearchRef = useRef(null);
+  const stickerBtnRef = useRef(null);
 
   const [toast, setToast] = useState(null);
   const toastT = useStableTimeout();
@@ -1916,6 +2012,7 @@ export default function ConversaView() {
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const stickerInputRef = useRef(null);
   const inputRef = useRef(null);
   const waShellRef = useRef(null);
   const waHeaderRef = useRef(null);
@@ -1951,6 +2048,10 @@ export default function ConversaView() {
   }, [texto, syncTextareaHeight]);
 
   const conversaId = conversa?.id || null;
+
+  useEffect(() => {
+    setRecentStickers(readRecentStickers(user));
+  }, [user?.id, user?.company_id, user?.empresa_id]);
 
   /* Mobile: cabeçalho fixo (viewport) + padding no shell; teclado via visualViewport e foco no input */
   useLayoutEffect(() => {
@@ -2498,6 +2599,80 @@ export default function ConversaView() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [attachMenuOpen]);
 
+  useEffect(() => {
+    if (!stickerOpen) return;
+    const onDoc = (e) => {
+      const panel = stickerPanelRef.current;
+      const btn = stickerBtnRef.current;
+      if ((panel && panel.contains(e.target)) || (btn && btn.contains(e.target))) return;
+      setStickerOpen(false);
+      setStickerQuery("");
+    };
+    document.addEventListener("mousedown", onDoc);
+    requestAnimationFrame(() => stickerSearchRef.current?.focus?.());
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [stickerOpen]);
+
+  const persistRecentSticker = useCallback(
+    async (file) => {
+      try {
+        const dataUrl = await toDataUrl(file);
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const item = {
+          id,
+          name: file.name || "figurinha",
+          mimeType: file.type || "image/webp",
+          dataUrl,
+          ts: Date.now(),
+        };
+        const next = [item, ...recentStickers.filter((x) => x?.dataUrl !== dataUrl)].slice(0, STICKER_RECENTS_LIMIT);
+        setRecentStickers(next);
+        writeRecentStickers(user, next);
+      } catch {
+        /* ignore */
+      }
+    },
+    [recentStickers, user]
+  );
+
+  const sendStickerFile = useCallback(
+    async (inputFile) => {
+      if (!inputFile || !conversaId) return;
+      try {
+        let fileToSend = inputFile;
+        const type = String(inputFile.type || "").toLowerCase();
+        const shouldConvert = type.startsWith("image/") && type !== "image/webp" && !type.includes("gif");
+        if (shouldConvert) {
+          try {
+            fileToSend = await convertImageToWebp(inputFile);
+          } catch {
+            fileToSend = inputFile;
+          }
+        }
+        const mime = String(fileToSend.type || "").toLowerCase();
+        const ext = String(fileToSend.name || "").toLowerCase();
+        const isWebp = mime === "image/webp" || ext.endsWith(".webp");
+        await handleEnviarArquivo(fileToSend, { forceStickerType: !isWebp, waitSocketOnly: true });
+        await persistRecentSticker(fileToSend);
+        setStickerOpen(false);
+        setStickerQuery("");
+      } catch {
+        /* toast já tratado no envio */
+      }
+    },
+    [conversaId, handleEnviarArquivo, persistRecentSticker]
+  );
+
+  const handleStickerInputChange = useCallback(
+    async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      await sendStickerFile(file);
+    },
+    [sendStickerFile]
+  );
+
   const loadMoreScrollRef = useRef({ top: 0, height: 0 });
 
   const handleMessagesScroll = useCallback(() => {
@@ -2664,7 +2839,7 @@ export default function ConversaView() {
   );
 
   const handleEnviarArquivo = useCallback(
-    async (file) => {
+    async (file, opts = {}) => {
       if (!file || !conversaId) return;
       if (!podeEnviar) {
         showToast({
@@ -2680,6 +2855,9 @@ export default function ConversaView() {
       // Inclui nome quando disponível (File tem .name; Blob precisa do 3º parâmetro)
       const nomeArquivo = isAudioFile(file) ? getAudioFilename(file) : (file?.name || "arquivo");
       formData.append("file", file, nomeArquivo);
+      if (opts.forceStickerType) {
+        formData.append("tipo", "sticker");
+      }
 
       setSending(true);
       try {
@@ -2689,10 +2867,14 @@ export default function ConversaView() {
         });
 
         clearPending();
-        if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
-          anexarMensagem(data);
+        if (opts.waitSocketOnly) {
+          // Sucesso de upload sem montar mensagem local: aguarda nova_mensagem via socket.
         } else {
-          await refresh({ silent: true });
+          if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
+            anexarMensagem(data);
+          } else {
+            await refresh({ silent: true });
+          }
         }
       } catch (err) {
         console.error("Erro ao enviar arquivo:", err);
@@ -3115,6 +3297,10 @@ export default function ConversaView() {
     if (isRecording) handleCancelRecording();
     if (showTimeline) setShowTimeline(false);
     if (tagsOpen) setTagsOpen(false);
+    if (stickerOpen) {
+      setStickerOpen(false);
+      setStickerQuery("");
+    }
     if (emojiOpen) {
       setEmojiOpen(false);
       setEmojiQuery("");
@@ -3145,6 +3331,7 @@ export default function ConversaView() {
     handleCancelRecording,
     showTimeline,
     tagsOpen,
+    stickerOpen,
     emojiOpen,
     pendingFile,
     clearPending,
@@ -4001,6 +4188,11 @@ export default function ConversaView() {
       </div>
     );
   }
+
+  const filteredRecentStickers = recentStickers.filter((item) => {
+    if (!safeString(stickerQuery)) return true;
+    return safeString(item?.name).toLowerCase().includes(safeString(stickerQuery).toLowerCase());
+  });
 
   return (
     <div ref={waShellRef} className="wa-shell" onDragEnter={onDragEnter}>
@@ -5267,7 +5459,7 @@ export default function ConversaView() {
                 <button
                   type="button"
                   className={`wa-iconBtn wa-attachPlus ${attachMenuOpen ? "isOpen" : ""}`}
-                  onClick={() => { setAttachMenuOpen((v) => !v); setEmojiOpen(false); }}
+                  onClick={() => { setAttachMenuOpen((v) => !v); setEmojiOpen(false); setStickerOpen(false); }}
                   title="Anexos e mais"
                   aria-label="Anexos e mais"
                   aria-expanded={attachMenuOpen}
@@ -5304,6 +5496,24 @@ export default function ConversaView() {
                   </div>
                 ) : null}
               </div>
+              <div className="wa-stickerWrap">
+                <button
+                  ref={stickerBtnRef}
+                  type="button"
+                  className={`wa-iconBtn wa-stickerBtn ${stickerOpen ? "isActive" : ""}`}
+                  onClick={() => {
+                    setStickerOpen((v) => !v);
+                    setAttachMenuOpen(false);
+                    setEmojiOpen(false);
+                  }}
+                  title="Figurinhas"
+                  aria-label="Figurinhas"
+                  aria-expanded={stickerOpen}
+                  disabled={sending || !conversaId || !podeEnviar}
+                >
+                  <IconSticker />
+                </button>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -5333,6 +5543,13 @@ export default function ConversaView() {
                 accept="audio/*,.mp3,.m4a,.ogg,.wav,.aac,.opus,.webm"
                 onChange={handleFileInputChange}
               />
+              <input
+                ref={stickerInputRef}
+                type="file"
+                style={{ display: "none" }}
+                accept="image/*"
+                onChange={handleStickerInputChange}
+              />
 
               <textarea
                 ref={inputRef}
@@ -5352,7 +5569,7 @@ export default function ConversaView() {
               <button
                 type="button"
                 className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
-                onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); }}
+                onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); setStickerOpen(false); }}
                 title="Emojis"
                 aria-label="Emojis"
                 disabled={sending || !conversaId || !podeEnviar}
@@ -5389,6 +5606,66 @@ export default function ConversaView() {
             </>
           )}
         </div>
+
+        {!isRecording && stickerOpen ? createPortal(
+          <div
+            ref={stickerPanelRef}
+            className="wa-stickerPanel"
+            role="dialog"
+            aria-label="Figurinhas"
+          >
+            <div className="wa-stickerTabs" role="tablist" aria-label="Categorias de figurinhas">
+              <button type="button" className="wa-stickerTab isActive" role="tab" aria-selected="true">Recentes</button>
+            </div>
+            <div className="wa-stickerHead">
+              <input
+                ref={stickerSearchRef}
+                className="wa-stickerSearch"
+                value={stickerQuery}
+                onChange={(e) => setStickerQuery(e.target.value)}
+                placeholder="Buscar figurinha..."
+                aria-label="Buscar figurinha"
+              />
+            </div>
+            <div className="wa-stickerGrid" role="list">
+              <button
+                type="button"
+                className="wa-stickerCreate"
+                onClick={() => stickerInputRef.current?.click()}
+                aria-label="Criar figurinha"
+              >
+                <span className="wa-stickerCreatePlus" aria-hidden="true">+</span>
+                <span>Criar</span>
+              </button>
+              {filteredRecentStickers.map((item) => (
+                <button
+                  key={String(item.id)}
+                  type="button"
+                  className="wa-stickerItem"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(item.dataUrl);
+                      const blob = await res.blob();
+                      const ext = String(item?.mimeType || "").includes("webp") ? "webp" : "png";
+                      const file = new File([blob], item?.name || `sticker-${Date.now()}.${ext}`, {
+                        type: item?.mimeType || blob.type || "image/webp",
+                      });
+                      await sendStickerFile(file);
+                    } catch {
+                      showToast({ type: "error", title: "Figurinha", message: "Não foi possível enviar esta figurinha." });
+                    }
+                  }}
+                  role="listitem"
+                  aria-label={`Enviar figurinha ${item?.name || ""}`.trim()}
+                  title={item?.name || "Figurinha"}
+                >
+                  <img src={item.dataUrl} alt="" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body
+        ) : null}
 
         {/* Emoji picker — simples e leve (sem libs) */}
         {!isRecording && emojiOpen ? createPortal(
