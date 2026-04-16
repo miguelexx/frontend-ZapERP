@@ -2,7 +2,16 @@
  * Toast — feedback visual padronizado
  * Design System ZapERP — usa tokens (--ds-*) e suporta dark mode
  */
-export default function Toast({ title, message, type = "info", onClose, className = "", ...props }) {
+export default function Toast({
+  title,
+  message,
+  type = "info",
+  onClose,
+  className = "",
+  actionLabel,
+  onAction,
+  ...props
+}) {
   const v = String(type || "").toLowerCase();
   const variant =
     v === "error"
@@ -65,6 +74,13 @@ export default function Toast({ title, message, type = "info", onClose, classNam
       <div className="ds-toast__content">
         <div className="ds-toast__title">{title}</div>
         {message ? <div className="ds-toast__message">{message}</div> : null}
+        {actionLabel && typeof onAction === "function" ? (
+          <div className="ds-toast__actions">
+            <button type="button" className="ds-toast__action" onClick={onAction}>
+              {actionLabel}
+            </button>
+          </div>
+        ) : null}
       </div>
       {onClose && (
         <button

@@ -19,6 +19,7 @@ import api from "../api/http";
 import { useAuthStore } from "../auth/authStore";
 import { canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
+import SendToCrmChatButton, { IconFunnelSend } from "./SendToCrmChatButton";
 import { useChatStore } from "../chats/chatsStore";
 import { fetchChats, abrirConversaCliente, abrirConversaPorTelefone } from "../chats/chatService";
 import { forwardAtendimentoMessageToColaborador } from "../api/internalChatService";
@@ -2017,6 +2018,7 @@ export default function ConversaView() {
   const waShellRef = useRef(null);
   const waHeaderRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const sendCrmRef = useRef(null);
 
   const focusMessageInput = useCallback(() => {
     requestAnimationFrame(() => {
@@ -4351,6 +4353,15 @@ export default function ConversaView() {
                     <IconClock />
                   </button>
                 ) : null}
+
+                {!isGroup && conversaId ? (
+                  <SendToCrmChatButton
+                    ref={sendCrmRef}
+                    conversaId={conversaId}
+                    hideToolbarButton={headerCompact}
+                    isGroup={isGroup}
+                  />
+                ) : null}
               </div>
 
               {!isGroup ? (
@@ -4389,6 +4400,23 @@ export default function ConversaView() {
                                       <IconTag />
                                     </span>
                                     <span className="wa-atendToolbar-sheetLabel">Tags do cliente</span>
+                                  </button>
+                                ) : null}
+                                {!isGroup && conversaId ? (
+                                  <button
+                                    type="button"
+                                    className="wa-atendToolbar-sheetBtn"
+                                    onClick={() => {
+                                      try {
+                                        sendCrmRef.current?.open?.();
+                                      } catch (_) {}
+                                      close();
+                                    }}
+                                  >
+                                    <span className="wa-atendToolbar-sheetIcon" aria-hidden="true">
+                                      <IconFunnelSend />
+                                    </span>
+                                    <span className="wa-atendToolbar-sheetLabel">Enviar ao CRM</span>
                                   </button>
                                 ) : null}
                                 <button

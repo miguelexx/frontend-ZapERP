@@ -21,7 +21,8 @@ export default function GlobalNotifications() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(clearToast, 4500);
+    const ms = toast.actionLabel && typeof toast.onAction === "function" ? 12000 : 4500;
+    const t = setTimeout(clearToast, ms);
     return () => clearTimeout(t);
   }, [toast, clearToast]);
 
@@ -33,6 +34,18 @@ export default function GlobalNotifications() {
       message={toast.message}
       type={toast.type || "info"}
       onClose={clearToast}
+      actionLabel={toast.actionLabel}
+      onAction={
+        typeof toast.onAction === "function"
+          ? () => {
+              try {
+                toast.onAction();
+              } finally {
+                clearToast();
+              }
+            }
+          : undefined
+      }
     />
   );
 }

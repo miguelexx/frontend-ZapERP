@@ -6126,3 +6126,110 @@
     min-height: 38px;
   }
 }
+
+/* ----- Enviar conversa ao CRM (header) ----- */
+.wa-crmSendBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 8px !important;
+  min-width: auto !important;
+  width: auto !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  border: 1px solid color-mix(in srgb, var(--wa-accent, #00a884) 35%, transparent) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wa-accent, #00a884) 14%, transparent),
+    color-mix(in srgb, var(--wa-accent, #00a884) 6%, transparent)
+  ) !important;
+  color: var(--wa-accent, #00a884) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.wa-crmSendBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-accent, #00a884) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--wa-accent, #00a884) 55%, transparent) !important;
+}
+
+.wa-crmSendBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wa-crmSendBtn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wa-crmSendBtn-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .wa-crmSendBtn-label {
+    display: none;
+  }
+  .wa-crmSendBtn {
+    padding: 0 8px !important;
+  }
+}
+
+.wa-crmSendModal {
+  max-width: 420px;
+  width: calc(100vw - 32px);
+}
+
+.wa-crmSend-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--wa-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.wa-crmSend-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--wa-text-secondary, rgba(255, 255, 255, 0.75));
+}
+
+.wa-crmSend-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--wa-border, rgba(255, 255, 255, 0.12));
+  background: var(--wa-input-bg, rgba(0, 0, 0, 0.25));
+  color: inherit;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.wa-crmSend-textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--wa-accent, #00a884) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.wa-crmSend-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  color: var(--wa-text-secondary, rgba(255, 255, 255, 0.8));
+}
+
+.wa-crmSend-check input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}

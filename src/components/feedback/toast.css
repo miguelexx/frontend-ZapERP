@@ -111,6 +111,29 @@
   line-height: 1.4;
 }
 
+.ds-toast__actions {
+  margin-top: 10px;
+}
+
+.ds-toast__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: var(--ds-radius, 8px);
+  border: 1px solid var(--ds-accent, #00a884);
+  background: var(--ds-accent-soft, rgba(0, 168, 132, 0.12));
+  color: var(--ds-accent, #00a884);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ds-toast__action:hover {
+  background: color-mix(in srgb, var(--ds-accent, #00a884) 18%, transparent);
+}
+
 .ds-toast__close {
   border: none;
   background: transparent;

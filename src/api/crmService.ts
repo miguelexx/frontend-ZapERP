@@ -131,9 +131,35 @@ export async function exportLeadsCsv(params?: LeadsQueryParams) {
   return data;
 }
 
+/** Resposta POST /leads/from-conversa (201/200/409). */
+export interface FromConversaLeadResponse {
+  lead?: { id?: number; [key: string]: unknown };
+  from_conversa?: Record<string, unknown>;
+  error?: string;
+}
+
+/**
+ * Cria ou sincroniza lead a partir da conversa.
+ * 409 devolvido como status (não lança) quando há duplicata e `sincronizar_duplicata: false` no body.
+ */
+export async function postLeadFromConversa(conversaId: number, body?: Record<string, unknown>) {
+  const res = await api.post<FromConversaLeadResponse>(`${CRM}/leads/from-conversa/${conversaId}`, body ?? {}, {
+    validateStatus: (s) => s === 200 || s === 201 || s === 409,
+  });
+  return { status: res.status, data: res.data };
+}
+
+/** @deprecated Preferir `postLeadFromConversa` para tratar 409. */
 export async function createLeadFromConversa(conversaId: number, body?: Record<string, unknown>) {
-  const { data } = await api.post<CrmLeadListItem>(`${CRM}/leads/from-conversa/${conversaId}`, body ?? {});
-  return data;
+  const { status, data } = await postLeadFromConversa(conversaId, body);
+  if (status === 409) {
+    const err = new Error((data as FromConversaLeadResponse)?.error || "Conflito ao criar lead.") as Error & {
+      response?: { status: number; data: FromConversaLeadResponse };
+    };
+    err.response = { status: 409, data };
+    throw err;
+  }
+  return data as unknown as CrmLeadListItem;
 }
 
 export async function createLeadFromCliente(clienteId: number, body?: Record<string, unknown>) {
