@@ -5867,6 +5867,8 @@
     padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0));
     padding-left: calc(14px + env(safe-area-inset-left, 0));
     padding-right: calc(14px + env(safe-area-inset-right, 0));
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   /* Barra inferior CRM: main já reserva 56px + safe-area — não empilhar safe-area no composer */
@@ -5875,13 +5877,32 @@
   }
 
   .wa-footer .wa-iconBtn {
-    min-width: 44px;
-    min-height: 44px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .wa-footer .wa-attachPlus svg,
+  .wa-footer .wa-cameraQuickBtn svg,
+  .wa-footer .wa-micBtn svg {
+    width: 21px;
+    height: 21px;
   }
 
   .wa-sendBtn {
-    min-width: 44px;
-    min-height: 44px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .wa-input {
+    flex: 1 1 0%;
+    min-width: 0;
+    border-radius: 24px;
+    padding-left: 14px;
+    padding-right: 14px;
   }
 
   /* Menu de anexos vira bottom-sheet no mobile */
@@ -6029,10 +6050,10 @@
   }
 
   .wa-footer .wa-iconBtn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
   }
 
   .wa-footer-right { gap: 4px; }
@@ -6048,10 +6069,10 @@
 
   .wa-sendBtn,
   .wa-micBtn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
   }
 }
 
@@ -6082,10 +6103,10 @@
   }
 
   .wa-footer .wa-iconBtn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
   }
 
   .wa-input {
@@ -6099,9 +6120,9 @@
 
   .wa-sendBtn,
   .wa-micBtn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
   }
 }

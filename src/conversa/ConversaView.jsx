@@ -4193,6 +4193,7 @@ export default function ConversaView() {
     if (!safeString(stickerQuery)) return true;
     return safeString(item?.name).toLowerCase().includes(safeString(stickerQuery).toLowerCase());
   });
+  const hasDraft = Boolean(safeString(texto));
 
   return (
     <div ref={waShellRef} className="wa-shell" onDragEnter={onDragEnter}>
@@ -5481,6 +5482,10 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-camera" aria-hidden="true">📷</span>
                       <span>Câmera</span>
                     </button>
+                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { stickerInputRef.current?.click(); setAttachMenuOpen(false); }}>
+                      <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">🖼️</span>
+                      <span>Figurinha</span>
+                    </button>
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openAudioPicker(); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-audio" aria-hidden="true">🎵</span>
                       <span>Áudio</span>
@@ -5496,24 +5501,26 @@ export default function ConversaView() {
                   </div>
                 ) : null}
               </div>
-              <div className="wa-stickerWrap">
-                <button
-                  ref={stickerBtnRef}
-                  type="button"
-                  className={`wa-iconBtn wa-stickerBtn ${stickerOpen ? "isActive" : ""}`}
-                  onClick={() => {
-                    setStickerOpen((v) => !v);
-                    setAttachMenuOpen(false);
-                    setEmojiOpen(false);
-                  }}
-                  title="Figurinhas"
-                  aria-label="Figurinhas"
-                  aria-expanded={stickerOpen}
-                  disabled={sending || !conversaId || !podeEnviar}
-                >
-                  <IconSticker />
-                </button>
-              </div>
+              {!headerCompact ? (
+                <div className="wa-stickerWrap">
+                  <button
+                    ref={stickerBtnRef}
+                    type="button"
+                    className={`wa-iconBtn wa-stickerBtn ${stickerOpen ? "isActive" : ""}`}
+                    onClick={() => {
+                      setStickerOpen((v) => !v);
+                      setAttachMenuOpen(false);
+                      setEmojiOpen(false);
+                    }}
+                    title="Figurinhas"
+                    aria-label="Figurinhas"
+                    aria-expanded={stickerOpen}
+                    disabled={sending || !conversaId || !podeEnviar}
+                  >
+                    <IconSticker />
+                  </button>
+                </div>
+              ) : null}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -5566,42 +5573,89 @@ export default function ConversaView() {
                 enterKeyHint="send"
               />
 
-              <button
-                type="button"
-                className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
-                onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); setStickerOpen(false); }}
-                title="Emojis"
-                aria-label="Emojis"
-                disabled={sending || !conversaId || !podeEnviar}
-              >
-                <IconEmoji />
-              </button>
+              {!headerCompact ? (
+                <button
+                  type="button"
+                  className={`wa-iconBtn ${emojiOpen ? "isActive" : ""}`}
+                  onClick={() => { setEmojiOpen((v) => !v); setAttachMenuOpen(false); setStickerOpen(false); }}
+                  title="Emojis"
+                  aria-label="Emojis"
+                  disabled={sending || !conversaId || !podeEnviar}
+                >
+                  <IconEmoji />
+                </button>
+              ) : null}
+
+              {headerCompact && !hasDraft ? (
+                <button
+                  onClick={openCameraPicker}
+                  disabled={sending || !conversaId || !podeEnviar}
+                  className="wa-iconBtn wa-cameraQuickBtn"
+                  title="Câmera"
+                  type="button"
+                  aria-label="Abrir câmera"
+                >
+                  <IconCamera />
+                </button>
+              ) : null}
 
               <div className="wa-footer-right">
-                <button
-                  onClick={handleStartRecording}
-                  disabled={sending || !conversaId || !podeEnviar}
-                  className="wa-micBtn"
-                  title="Gravar áudio"
-                  type="button"
-                  aria-label="Gravar áudio"
-                >
-                  <IconMic />
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    if (e.button !== 0) return;
-                    e.preventDefault();
-                  }}
-                  onClick={handleEnviar}
-                  disabled={sending || !safeString(texto) || !conversaId || !podeEnviar}
-                  className="wa-sendBtn"
-                  title="Enviar"
-                  aria-label="Enviar mensagem"
-                >
-                  {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
-                </button>
+                {headerCompact ? (
+                  hasDraft ? (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                      }}
+                      onClick={handleEnviar}
+                      disabled={sending || !hasDraft || !conversaId || !podeEnviar}
+                      className="wa-sendBtn"
+                      title="Enviar"
+                      aria-label="Enviar mensagem"
+                    >
+                      {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStartRecording}
+                      disabled={sending || !conversaId || !podeEnviar}
+                      className="wa-micBtn"
+                      title="Gravar áudio"
+                      type="button"
+                      aria-label="Gravar áudio"
+                    >
+                      <IconMic />
+                    </button>
+                  )
+                ) : (
+                  <>
+                    <button
+                      onClick={handleStartRecording}
+                      disabled={sending || !conversaId || !podeEnviar}
+                      className="wa-micBtn"
+                      title="Gravar áudio"
+                      type="button"
+                      aria-label="Gravar áudio"
+                    >
+                      <IconMic />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                      }}
+                      onClick={handleEnviar}
+                      disabled={sending || !hasDraft || !conversaId || !podeEnviar}
+                      className="wa-sendBtn"
+                      title="Enviar"
+                      aria-label="Enviar mensagem"
+                    >
+                      {sending ? <span className="wa-spinner" aria-hidden="true" /> : <IconSend />}
+                    </button>
+                  </>
+                )}
               </div>
             </>
           )}
