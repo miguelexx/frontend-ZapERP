@@ -2,6 +2,7 @@ import { io } from "socket.io-client"
 import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
+import { shouldNotifyIncomingMessage } from "../notifications/chatNotificationService"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
 import { SOCKET_EVENTS } from "./events"
@@ -451,7 +452,11 @@ export function initSocket(token) {
       }
       updateDocumentTitleFromChats()
 
-      if (!msg.fromMe && msg.direcao === "in") {
+      const notificationDecision = shouldNotifyIncomingMessage({
+        msg,
+        selectedConversationId: convStore.selectedId,
+      })
+      if (notificationDecision.notify) {
         const contato = getChatDisplayName(conversaId)
         const tipo = (msg.tipo || "").toLowerCase()
         const textoBruto = (msg.texto || "").trim()
@@ -473,7 +478,6 @@ export function initSocket(token) {
         if (!suppressPing) {
           playNotificationSound()
         }
-        showDesktopNotification(contato, texto)
         useNotificationStore.getState().showToast({
           type: "info",
           title: contato,
@@ -886,6 +890,10 @@ export function disconnectSocket() {
       clearTimeout(typingExpiryTimer)
       typingExpiryTimer = null
     }
+  } catch (_) {}
+
+  try {
+    socket?.removeAllListeners?.()
   } catch (_) {}
 
   currentConversationId = null
