@@ -229,6 +229,9 @@ export const useChatStore = create((set, get) => ({
       merged.lida = false
     }
     if (partial.exibir_badge_aberta !== undefined) merged.exibir_badge_aberta = !!partial.exibir_badge_aberta
+    if ("tem_novas_mensagens_em_atendimento" in partial) {
+      merged.tem_novas_mensagens_em_atendimento = partial.tem_novas_mensagens_em_atendimento
+    }
 
     // Setor / responsável: merge explícito — null limpa (não usar ?? com valor antigo)
     if ("departamento_id" in partial) merged.departamento_id = partial.departamento_id
@@ -365,7 +368,6 @@ export const useChatStore = create((set, get) => ({
           ? {
               ...c,
               unread_count: Number(count) || 0,
-              ...(Number(count) === 0 ? { tem_novas_mensagens_em_atendimento: false } : {}),
             }
           : c
       )

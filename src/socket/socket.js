@@ -619,6 +619,13 @@ export function initSocket(token) {
   socket.on("mensagens_lidas", ({ conversa_id }) => {
     if (!conversa_id) return
     useChatStore.getState().setUnread(conversa_id, 0)
+     // Limpa badges e flags de novas mensagens após o backend marcar como lida
+    useChatStore.getState().updateChat({
+      id: conversa_id,
+      tem_novas_mensagens: false,
+      tem_novas_mensagens_em_atendimento: false,
+      lida: true,
+    })
     updateDocumentTitleFromChats()
   })
 

@@ -850,8 +850,14 @@ function ChatRow({
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
   const isEmAtendimento = String(chat?.status_atendimento || "").toLowerCase() === "em_atendimento";
+  const currentUserId = useAuthStore.getState()?.user?.id;
+  const isResponsavel =
+    !isGroup &&
+    currentUserId != null &&
+    chat?.atendente_id != null &&
+    String(chat.atendente_id) === String(currentUserId);
   const hasAtendimentoUnread = chat?.tem_novas_mensagens_em_atendimento === true;
-  const showAtendimentoDot = !isGroup && !active && isEmAtendimento && hasAtendimentoUnread;
+  const showAtendimentoDot = isEmAtendimento && isResponsavel && hasAtendimentoUnread;
   const showMutedIndicator = !isGroup && chat?.silenciado === true;
   const showPinnedIndicator = !isGroup && chat?.fixada === true;
   const showFavoriteIndicator = !isGroup && chat?.favorita === true;
