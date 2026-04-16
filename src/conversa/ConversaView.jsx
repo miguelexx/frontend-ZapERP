@@ -2613,66 +2613,6 @@ export default function ConversaView() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [stickerOpen]);
 
-  const persistRecentSticker = useCallback(
-    async (file) => {
-      try {
-        const dataUrl = await toDataUrl(file);
-        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const item = {
-          id,
-          name: file.name || "figurinha",
-          mimeType: file.type || "image/webp",
-          dataUrl,
-          ts: Date.now(),
-        };
-        const next = [item, ...recentStickers.filter((x) => x?.dataUrl !== dataUrl)].slice(0, STICKER_RECENTS_LIMIT);
-        setRecentStickers(next);
-        writeRecentStickers(user, next);
-      } catch {
-        /* ignore */
-      }
-    },
-    [recentStickers, user]
-  );
-
-  const sendStickerFile = useCallback(
-    async (inputFile) => {
-      if (!inputFile || !conversaId) return;
-      try {
-        let fileToSend = inputFile;
-        const type = String(inputFile.type || "").toLowerCase();
-        const shouldConvert = type.startsWith("image/") && type !== "image/webp" && !type.includes("gif");
-        if (shouldConvert) {
-          try {
-            fileToSend = await convertImageToWebp(inputFile);
-          } catch {
-            fileToSend = inputFile;
-          }
-        }
-        const mime = String(fileToSend.type || "").toLowerCase();
-        const ext = String(fileToSend.name || "").toLowerCase();
-        const isWebp = mime === "image/webp" || ext.endsWith(".webp");
-        await handleEnviarArquivo(fileToSend, { forceStickerType: !isWebp, waitSocketOnly: true });
-        await persistRecentSticker(fileToSend);
-        setStickerOpen(false);
-        setStickerQuery("");
-      } catch {
-        /* toast já tratado no envio */
-      }
-    },
-    [conversaId, handleEnviarArquivo, persistRecentSticker]
-  );
-
-  const handleStickerInputChange = useCallback(
-    async (e) => {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (!file) return;
-      await sendStickerFile(file);
-    },
-    [sendStickerFile]
-  );
-
   const loadMoreScrollRef = useRef({ top: 0, height: 0 });
 
   const handleMessagesScroll = useCallback(() => {
@@ -2923,6 +2863,66 @@ export default function ConversaView() {
     if (!pendingFile) return;
     await handleEnviarArquivo(pendingFile);
   }, [pendingFile, handleEnviarArquivo]);
+
+  const persistRecentSticker = useCallback(
+    async (file) => {
+      try {
+        const dataUrl = await toDataUrl(file);
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const item = {
+          id,
+          name: file.name || "figurinha",
+          mimeType: file.type || "image/webp",
+          dataUrl,
+          ts: Date.now(),
+        };
+        const next = [item, ...recentStickers.filter((x) => x?.dataUrl !== dataUrl)].slice(0, STICKER_RECENTS_LIMIT);
+        setRecentStickers(next);
+        writeRecentStickers(user, next);
+      } catch {
+        /* ignore */
+      }
+    },
+    [recentStickers, user]
+  );
+
+  const sendStickerFile = useCallback(
+    async (inputFile) => {
+      if (!inputFile || !conversaId) return;
+      try {
+        let fileToSend = inputFile;
+        const type = String(inputFile.type || "").toLowerCase();
+        const shouldConvert = type.startsWith("image/") && type !== "image/webp" && !type.includes("gif");
+        if (shouldConvert) {
+          try {
+            fileToSend = await convertImageToWebp(inputFile);
+          } catch {
+            fileToSend = inputFile;
+          }
+        }
+        const mime = String(fileToSend.type || "").toLowerCase();
+        const ext = String(fileToSend.name || "").toLowerCase();
+        const isWebp = mime === "image/webp" || ext.endsWith(".webp");
+        await handleEnviarArquivo(fileToSend, { forceStickerType: !isWebp, waitSocketOnly: true });
+        await persistRecentSticker(fileToSend);
+        setStickerOpen(false);
+        setStickerQuery("");
+      } catch {
+        /* toast já tratado no envio */
+      }
+    },
+    [conversaId, handleEnviarArquivo, persistRecentSticker]
+  );
+
+  const handleStickerInputChange = useCallback(
+    async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      await sendStickerFile(file);
+    },
+    [sendStickerFile]
+  );
 
   const handleStartRecording = useCallback(async () => {
     if (!conversaId || sending || isRecording) return;
