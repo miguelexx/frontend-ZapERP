@@ -63,8 +63,8 @@ export default function MainLayout() {
         <nav className="sidebar-nav sidebar-nav--compact">
           {canAccessDashboard_ && <NavItem to="/dashboard" label="Dashboard" icon={<IconDashboard />} />}
           {canAccessDashboard_ && <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />}
-          {canAccessDashboard_ && <NavItem to="/campanhas" label="Campanhas" icon={<IconCampanhas />} />}
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
+          <NavItem to="/crm" label="CRM" icon={<IconCrm />} title="Funil de vendas e leads" />
           <NavItem to="/chat-interno" label="Chat interno" icon={<IconInternalTeam />} title="Mensagens entre funcionários (não é WhatsApp)" />
           {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
           {canAccessChatbot_ && (
@@ -116,6 +116,14 @@ function IconDashboard() {
       <path d="M18 17V9" />
       <path d="M13 17V5" />
       <path d="M8 17v-3" />
+    </svg>
+  );
+}
+
+function IconCrm() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 5h16l-6 7v7l-4 2v-9L4 5z" />
     </svg>
   );
 }
@@ -189,15 +197,6 @@ function IconLogout() {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-  );
-}
-
-function IconCampanhas() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-      <polyline points="22,6 12,13 2,6" />
     </svg>
   );
 }

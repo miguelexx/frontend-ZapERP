@@ -17,10 +17,19 @@ import NovoGrupo from "../pages/NovoGrupo";
 import NovaComunidade from "../pages/NovaComunidade";
 import ConnectWhatsApp from "../pages/ConnectWhatsApp";
 import Permissoes from "../pages/Permissoes";
-import Campanhas from "../pages/Campanhas";
 import Mensagens from "../pages/Mensagens";
 import Atalhos from "../pages/Atalhos";
 import InternalChat from "../pages/InternalChat";
+
+import CrmLayout from "../crm/CrmLayout";
+import CrmDashboard from "../crm/pages/CrmDashboard";
+import CrmKanban from "../crm/pages/CrmKanban";
+import CrmAgenda from "../crm/pages/CrmAgenda";
+import CrmLeads from "../crm/pages/CrmLeads";
+import CrmLeadDetail from "../crm/pages/CrmLeadDetail";
+import CrmPipelines from "../crm/pages/CrmPipelines";
+import CrmStages from "../crm/pages/CrmStages";
+import CrmOrigens from "../crm/pages/CrmOrigens";
 
 export default function AppRoutes() {
   const { token, user } = useAuthStore();
@@ -129,18 +138,22 @@ export default function AppRoutes() {
               )
             }
           />
-          <Route
-            path="/campanhas"
-            element={
-              canAccessDashboard_ ? (
-                <Campanhas />
-              ) : (
-                <Navigate to="/atendimento" replace />
-              )
-            }
-          />
+          <Route path="/campanhas" element={<Navigate to="/atendimento" replace />} />
           <Route path="/mensagens" element={<Mensagens />} />
           <Route path="/atalhos" element={<Atalhos />} />
+
+          <Route path="/crm" element={<CrmLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<CrmDashboard />} />
+            <Route path="kanban" element={<CrmKanban />} />
+            <Route path="agenda" element={<CrmAgenda />} />
+            <Route path="leads" element={<CrmLeads />} />
+            <Route path="leads/:id" element={<CrmLeadDetail />} />
+            <Route path="pipelines" element={<CrmPipelines />} />
+            <Route path="stages" element={<CrmStages />} />
+            <Route path="origens" element={<CrmOrigens />} />
+          </Route>
+
           <Route path="*" element={<NotFound />} />
         </Route>
 
