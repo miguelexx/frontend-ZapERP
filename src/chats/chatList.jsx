@@ -2036,19 +2036,28 @@ export default function ChatList() {
       <NovoContatoModal
         open={novoContatoModalOpen}
         onClose={() => setNovoContatoModalOpen(false)}
-        onSuccess={(conversa) => {
+        onSuccess={(conversa, extra) => {
           if (conversa?.id) {
             addChat(conversa);
             load();
             setSelectedId(conversa.id);
             carregarConversa(conversa.id);
             setUnread(conversa.id, 0);
+            showToast({
+              type: "success",
+              title: "Contato pronto",
+              message: "Conversa iniciada. Você já pode enviar mensagens.",
+            });
+            return;
           }
-          showToast({
-            type: "success",
-            title: "Contato pronto",
-            message: "Conversa iniciada. Você já pode enviar mensagens.",
-          });
+          if (extra?.cliente?.id != null) {
+            load();
+            showToast({
+              type: "success",
+              title: "Cliente cadastrado",
+              message: "O contato foi salvo. Abra a conversa depois pelo telefone ou pela lista de clientes.",
+            });
+          }
         }}
       />
     </div>

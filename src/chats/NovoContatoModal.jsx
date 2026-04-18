@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Phone, User } from "lucide-react";
-import { criarContato, conversaFromContatoResponse } from "./chatService";
+import { criarCliente } from "../api/configService";
+import { parsePostClientesResponse } from "../api/parseCriarClienteResponse";
+import { useNotificationStore } from "../notifications/notificationStore";
 import {
   AJUDA_TELEFONE_PADRAO,
   EXEMPLO_TELEFONE_PADRAO,
@@ -15,11 +17,14 @@ import "./novoContatoModal.css";
  * @param {object} props
  * @param {boolean} props.open
  * @param {() => void} props.onClose
- * @param {(conversa: object) => void} [props.onSuccess]
+ * @param {(conversa: object | null, extra?: { cliente?: import('../api/clientes.types').ClienteBasico | null }) => void} [props.onSuccess]
  */
 export default function NovoContatoModal({ open, onClose, onSuccess }) {
+  const showToast = useNotificationStore((s) => s.showToast);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [abrirConversa, setAbrirConversa] = useState(true);
+  const [assumir, setAssumir] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [clientError, setClientError] = useState("");
   const [apiError, setApiError] = useState(null);
@@ -30,6 +35,8 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
   const helpId = `${idBase}-help`;
   const nomeId = `${idBase}-nome`;
   const telId = `${idBase}-tel`;
+  const chkAbrirId = `${idBase}-abrir`;
+  const chkAssumirId = `${idBase}-assumir`;
 
   const resetApiHints = useCallback(() => {
     setApiError(null);
@@ -39,6 +46,8 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
     if (!open) return;
     setNome("");
     setTelefone("");
+    setAbrirConversa(true);
+    setAssumir(false);
     setSubmitting(false);
     setClientError("");
     setApiError(null);
@@ -90,38 +99,69 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
     resetApiHints();
 
     try {
-      const data = await criarContato(trimmedNome || undefined, telefone);
-      const conversa = conversaFromContatoResponse(data);
-      if (conversa?.id) {
-        onSuccess?.(conversa);
-        onClose();
-      } else {
-        setApiError({
-          detalhe: "A conversa foi criada, mas a resposta veio em um formato inesperado. Atualize a lista.",
-          exemplos: [],
+      /** @type {import('../api/clientes.types').CriarClientePayload} */
+      const payload = {
+        telefone: String(telefone || "").trim(),
+      };
+      if (trimmedNome) payload.nome = trimmedNome;
+      if (assumir) {
+        payload.assumir = true;
+      } else if (abrirConversa) {
+        payload.abrir_conversa = true;
+      }
+
+      const data = await criarCliente(payload);
+      const parsed = parsePostClientesResponse(data);
+
+      if (parsed.conversa_aviso) {
+        showToast({
+          type: "warning",
+          title: "Conversa",
+          message: parsed.conversa_aviso,
         });
       }
-    } catch (err) {
-      if (err?.isApiValidation) {
-        const ex = Array.isArray(err.exemplos) ? err.exemplos : [];
-        setApiError({
-          codigo: err.codigo,
-          detalhe: err.detalhe || err.message,
-          formato_esperado: err.formato_esperado,
-          exemplos: ex,
+      if (parsed.assumir_erro) {
+        showToast({
+          type: "warning",
+          title: "Assumir atendimento",
+          message:
+            parsed.assumir_status != null
+              ? `${parsed.assumir_erro} (${parsed.assumir_status})`
+              : parsed.assumir_erro,
         });
+      }
+
+      if (parsed.conversa?.id != null) {
+        onSuccess?.(parsed.conversa, { cliente: parsed.cliente });
+        onClose();
         return;
       }
+
+      if (parsed.cliente?.id != null) {
+        onSuccess?.(null, { cliente: parsed.cliente });
+        onClose();
+        return;
+      }
+
+      setApiError({
+        detalhe: "O servidor respondeu sem dados do cliente. Atualize a lista e tente novamente.",
+        exemplos: [],
+      });
+    } catch (err) {
       const status = err?.response?.status;
       const fallback =
+        err?.response?.data?.erro ||
         err?.response?.data?.error ||
         err?.response?.data?.detalhe ||
-        (status ? `Erro ${status}` : err?.message || "Não foi possível criar o contato.");
+        (status ? `Erro ${status}` : err?.message || "Não foi possível salvar o contato.");
       setApiError({ detalhe: fallback, exemplos: [] });
     } finally {
       setSubmitting(false);
     }
   }
+
+  const submitLabel = assumir ? "Salvar e atender" : abrirConversa ? "Iniciar conversa" : "Salvar contato";
+  const submittingLabel = assumir ? "Assumindo…" : abrirConversa ? "Abrindo…" : "Salvando…";
 
   const helpLinhaExtra = apiError?.formato_esperado ? String(apiError.formato_esperado) : null;
   const exemploApi = Array.isArray(apiError?.exemplos) && apiError.exemplos.length > 0 ? apiError.exemplos[0] : null;
@@ -210,6 +250,42 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
             </p>
           </div>
 
+          <div className="ncm-field ncm-field--checks" role="group" aria-label="Opções ao salvar">
+            <label className="ncm-check" htmlFor={chkAbrirId}>
+              <input
+                id={chkAbrirId}
+                type="checkbox"
+                checked={assumir || abrirConversa}
+                disabled={submitting || assumir}
+                aria-describedby={assumir ? `${chkAbrirId}-hint` : undefined}
+                onChange={(e) => {
+                  setAbrirConversa(e.target.checked);
+                  resetApiHints();
+                }}
+              />
+              <span>Abrir conversa ao salvar</span>
+            </label>
+            {assumir ? (
+              <p className="ncm-help ncm-help--indent" id={`${chkAbrirId}-hint`}>
+                Incluído ao assumir o atendimento.
+              </p>
+            ) : null}
+            <label className="ncm-check" htmlFor={chkAssumirId}>
+              <input
+                id={chkAssumirId}
+                type="checkbox"
+                checked={assumir}
+                disabled={submitting}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setAssumir(on);
+                  resetApiHints();
+                }}
+              />
+              <span>Assumir e atender agora</span>
+            </label>
+          </div>
+
           {apiError?.detalhe ? (
             <div className="ncm-alert" role="alert">
               <strong>{apiError.detalhe}</strong>
@@ -232,10 +308,10 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
               {submitting ? (
                 <>
                   <span className="ncm-spin" aria-hidden />
-                  Abrindo…
+                  {submittingLabel}
                 </>
               ) : (
-                "Iniciar conversa"
+                submitLabel
               )}
             </button>
           </div>

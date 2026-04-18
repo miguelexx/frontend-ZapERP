@@ -153,6 +153,11 @@ export async function getCliente(id) {
   return data
 }
 
+/**
+ * POST /clientes — cadastro de cliente; aceita flags opcionais `abrir_conversa` e `assumir`.
+ * @param {import('./clientes.types').CriarClientePayload} payload
+ * @returns {Promise<import('./clientes.types').CriarClienteResponse>}
+ */
 export async function criarCliente(payload) {
   const { data } = await api.post('/clientes', payload)
   return data
