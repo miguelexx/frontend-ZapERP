@@ -22,6 +22,8 @@ import NovoContatoModal from "./NovoContatoModal";
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import ConversationActionMenu from "./ConversationActionMenu";
 import { useConversationActionMenu } from "./useConversationActionMenu";
+import AdminAtendenteFilter from "./AdminAtendenteFilter";
+import { useAdminAtendenteFilter } from "./useAdminAtendenteFilter";
 import {
   clearConversation,
   deleteConversation,
@@ -47,6 +49,12 @@ function conversaContaComoAbertaNoChip(c) {
   if (c?.exibir_badge_aberta === false) return false;
   if (s === "aberta") return true;
   return c?.exibir_badge_aberta === true;
+}
+
+/** Admin UI (filtro lateral por funcionário): aceita `role` ou `perfil`. */
+function isAppAdmin(user) {
+  const p = String(user?.perfil ?? user?.role ?? "").toLowerCase();
+  return p === "admin";
 }
 
 /* =====================================================
@@ -1035,6 +1043,14 @@ export default function ChatList() {
 
   const user = useAuthStore((s) => s.user);
 
+  const {
+    selectedUserId: adminAtendenteFilterId,
+    setSelectedUserId: setAdminAtendenteFilterId,
+    panelOpen: adminAtendentePanelOpen,
+    setPanelOpen: setAdminAtendentePanelOpen,
+    clearSelection: clearAdminAtendenteFilter,
+  } = useAdminAtendenteFilter();
+
   const searchRef = useRef(null);
 
   const scrollRef = useRef(null);
@@ -1099,6 +1115,14 @@ export default function ChatList() {
     }
   }, [location.state, location.pathname, navigate]);
 
+  useEffect(() => {
+    setAdminAtendentePanelOpen(false);
+  }, [location.pathname, setAdminAtendentePanelOpen]);
+
+  useEffect(() => {
+    if (!isAppAdmin(user)) clearAdminAtendenteFilter();
+  }, [user?.perfil, user?.role, clearAdminAtendenteFilter]);
+
   // Na montagem: conexão Z-API + sync contatos (nomes corretos) + fotos — em background
   useEffect(() => {
     let cancelled = false;
@@ -1159,18 +1183,37 @@ export default function ChatList() {
   async function load() {
     setLoading(true);
     try {
-      const params = {
-        tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-        departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-        status_atendimento: statusFilter !== "todos" ? statusFilter : undefined,
-        atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
-        data_inicio: dataInicio || undefined,
-        data_fim: dataFim || undefined,
-        incluir_todos_clientes: "1",
-      };
+      /** Modo admin por funcionário: prioridade sobre status/minha_fila/atendente dos filtros avançados — ver chatsFiltrados. */
+      const adminPorFuncionario =
+        adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
+
+      let params;
+      if (adminPorFuncionario) {
+        params = {
+          atendente_id: adminAtendenteFilterId,
+          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
+          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
+          data_inicio: dataInicio || undefined,
+          data_fim: dataFim || undefined,
+          incluir_todos_clientes: "1",
+        };
+      } else {
+        params = {
+          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
+          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
+          status_atendimento: statusFilter !== "todos" ? statusFilter : undefined,
+          atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
+          data_inicio: dataInicio || undefined,
+          data_fim: dataFim || undefined,
+          incluir_todos_clientes: "1",
+        };
+      }
+
       const data = await fetchChats(params);
       let list = Array.isArray(data) ? data : [];
-      if (mineOnly && user?.id) list = list.filter((c) => String(c.atendente_id) === String(user.id));
+      if (!adminPorFuncionario && mineOnly && user?.id) {
+        list = list.filter((c) => String(c.atendente_id) === String(user.id));
+      }
       // Desduplicar por id (conversas) ou por cliente_id (clientes sem conversa) — NÃO descartar itens com id null
       const byKey = new Map();
       list.forEach((c) => {
@@ -1240,7 +1283,18 @@ export default function ChatList() {
 
   useEffect(() => {
     load();
-  }, [tagFilter, departamentoFilter, statusFilter, atendenteFilter, dataInicio, dataFim, debouncedSearch, mineOnly, order]);
+  }, [
+    tagFilter,
+    departamentoFilter,
+    statusFilter,
+    atendenteFilter,
+    dataInicio,
+    dataFim,
+    debouncedSearch,
+    mineOnly,
+    order,
+    adminAtendenteFilterId,
+  ]);
 
   // loadRef para sync/interval — deve estar definido antes dos effects que o usam
   const loadRef = useRef(load);
@@ -1291,7 +1345,12 @@ export default function ChatList() {
           setNovoContatoModalOpen(false);
           return;
         }
+        if (adminAtendentePanelOpen) {
+          setAdminAtendentePanelOpen(false);
+          return;
+        }
         // ESC: fecha filtros e limpa busca
+        clearAdminAtendenteFilter();
         setShowFilters(false);
         setSearch("");
         setStatusFilter("todos");
@@ -1306,7 +1365,12 @@ export default function ChatList() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [novoContatoModalOpen]);
+  }, [
+    novoContatoModalOpen,
+    adminAtendentePanelOpen,
+    setAdminAtendentePanelOpen,
+    clearAdminAtendenteFilter,
+  ]);
 
   // posiciona menu abaixo do botão Novo
   useEffect(() => {
@@ -1418,28 +1482,37 @@ export default function ChatList() {
   }
 
   const chatsFiltrados = useMemo(() => {
-    let list =
-      tab === "minha_fila"
+    /**
+     * Filtro admin por funcionário (GET só com atendente_id): ignora chips de aba e minha_fila — prioridade única no fetch e aqui.
+     */
+    const adminPorFuncionario =
+      adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
+
+    let list = adminPorFuncionario
+      ? [...(Array.isArray(chats) ? chats : [])]
+      : tab === "minha_fila"
         ? [...(Array.isArray(minhaFilaList) ? minhaFilaList : [])]
         : Array.isArray(chats)
           ? [...chats]
           : [];
 
-    // tabs rápidas (minha_fila vem filtrada do backend com minha_fila=1)
-    if (tab === "nao_lidas") {
-      list = list.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0);
-    } else if (tab === "hoje") {
-      list = list.filter((c) => {
-        const last = getLastMessage(c);
-        const ts = last?.criado_em || c?.criado_em;
-        return isToday(ts);
-      });
-    } else if (tab === "abertas") {
-      list = list.filter((c) => conversaContaComoAbertaNoChip(c));
-    } else if (tab === "em_atendimento") {
-      list = list.filter((c) => String(c.status_atendimento) === "em_atendimento");
-    } else if (tab === "finalizadas") {
-      list = list.filter((c) => String(c.status_atendimento) === "fechada");
+    // tabs rápidas (minha_fila vem filtrada do backend com minha_fila=1); desativadas no modo adminPorFuncionario
+    if (!adminPorFuncionario) {
+      if (tab === "nao_lidas") {
+        list = list.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0);
+      } else if (tab === "hoje") {
+        list = list.filter((c) => {
+          const last = getLastMessage(c);
+          const ts = last?.criado_em || c?.criado_em;
+          return isToday(ts);
+        });
+      } else if (tab === "abertas") {
+        list = list.filter((c) => conversaContaComoAbertaNoChip(c));
+      } else if (tab === "em_atendimento") {
+        list = list.filter((c) => String(c.status_atendimento) === "em_atendimento");
+      } else if (tab === "finalizadas") {
+        list = list.filter((c) => String(c.status_atendimento) === "fechada");
+      }
     }
 
     // filtros avançados
@@ -1453,15 +1526,15 @@ export default function ChatList() {
       );
     }
 
-    if (mineOnly && user?.id) {
+    if (mineOnly && user?.id && !adminPorFuncionario) {
       list = list.filter((c) => String(c.atendente_id) === String(user.id));
     }
 
     // Filtros por setor/atendente: alinhar lista ao estado local após Socket (ex.: departamento_id vira null)
-    if (String(user?.role || "").toLowerCase() === "admin" && departamentoFilter !== "todos") {
+    if (isAppAdmin(user) && departamentoFilter !== "todos") {
       list = list.filter((c) => String(c?.departamento_id ?? "") === String(departamentoFilter));
     }
-    if (atendenteFilter !== "todos") {
+    if (!adminPorFuncionario && atendenteFilter !== "todos") {
       list = list.filter((c) => String(c?.atendente_id ?? "") === String(atendenteFilter));
     }
 
@@ -1511,7 +1584,22 @@ export default function ChatList() {
     });
 
     return list;
-  }, [chats, minhaFilaList, debouncedSearch, statusFilter, tagFilter, departamentoFilter, atendenteFilter, mineOnly, order, tab, user?.id, user?.role]);
+  }, [
+    chats,
+    minhaFilaList,
+    debouncedSearch,
+    statusFilter,
+    tagFilter,
+    departamentoFilter,
+    atendenteFilter,
+    mineOnly,
+    order,
+    tab,
+    user?.id,
+    user?.role,
+    user?.perfil,
+    adminAtendenteFilterId,
+  ]);
 
   const visibleConversationIds = useMemo(
     () => chatsFiltrados.map((c) => String(c?.id)).filter(Boolean),
@@ -1526,7 +1614,7 @@ export default function ChatList() {
   } = useConversationActionMenu({
     selectedConversationId: selectedId,
     visibleConversationIds,
-    resetKey: tab,
+    resetKey: `${tab}-${adminAtendenteFilterId ?? ""}`,
   });
 
   const openMenuChat = useMemo(
@@ -1737,6 +1825,9 @@ export default function ChatList() {
   const countEmAtendimento = chats.filter((c) => String(c.status_atendimento) === "em_atendimento").length;
   const countFinalizadas = chats.filter((c) => String(c.status_atendimento) === "fechada").length;
 
+  const adminPorFuncionarioAtivo =
+    adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
+
   return (
     <div className="chat-list-root">
       {zapiStatusLoaded && zapiConnected === false && (
@@ -1910,9 +2001,13 @@ export default function ChatList() {
         </div>
         <div className="chat-list-search-hint">
           <span>
-            {loading ? "Carregando…" : tab === "minha_fila"
-              ? `${chatsFiltrados.length} de ${minhaFilaCount}`
-              : `${chatsFiltrados.length} de ${total}`}
+            {loading
+              ? "Carregando…"
+              : adminPorFuncionarioAtivo
+                ? `${chatsFiltrados.length} conversas`
+                : tab === "minha_fila"
+                  ? `${chatsFiltrados.length} de ${minhaFilaCount}`
+                  : `${chatsFiltrados.length} de ${total}`}
           </span>
         </div>
       </div>
@@ -1946,6 +2041,25 @@ export default function ChatList() {
           <span>Finalizadas</span>
           <span className="chat-list-chip-count">{countFinalizadas}</span>
         </Chip>
+
+        {isAppAdmin(user) && (
+          <AdminAtendenteFilter
+            usuarios={atendentes}
+            selectedUserId={adminAtendenteFilterId}
+            open={adminAtendentePanelOpen}
+            onOpenChange={setAdminAtendentePanelOpen}
+            onBeforeOpen={() => {
+              setShowNovoMenu(false);
+              setShowFilters(false);
+              closeMenu();
+            }}
+            onSelectUser={(u) => {
+              if (u?.id == null) return;
+              setAdminAtendenteFilterId(String(u.id));
+            }}
+            onClear={clearAdminAtendenteFilter}
+          />
+        )}
       </div>
 
       {showFilters && (
@@ -1977,7 +2091,7 @@ export default function ChatList() {
                 ))}
               </select>
             </label>
-            {String(user?.role || "").toLowerCase() === "admin" && (
+            {isAppAdmin(user) && (
               <label className="chat-list-field">
                 <span>Setor</span>
                 <select
@@ -2049,7 +2163,7 @@ export default function ChatList() {
       <div ref={scrollRef} className="chat-list-list chat-list-scroll">
         {loading && (!chats || chats.length === 0) ? (
           <SkeletonChatList />
-        ) : tab === "minha_fila" && minhaFilaList === null ? (
+        ) : !adminPorFuncionarioAtivo && tab === "minha_fila" && minhaFilaList === null ? (
           <SkeletonChatList />
         ) : chatsFiltrados.length === 0 ? (
           <div className="chat-list-empty-wrap">

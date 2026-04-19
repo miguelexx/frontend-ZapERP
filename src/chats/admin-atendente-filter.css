@@ -1,0 +1,190 @@
+/* Filtro admin por funcionário — pill + painel flutuante (tema escuro premium) */
+
+.admin-atendente-filter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.admin-atendente-filter__trigger {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px 0 10px;
+  border-radius: 16px;
+  font-size: var(--cl-font-size-sm);
+  font-weight: 500;
+  background: #202c33;
+  color: var(--cl-text, #e9edef);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(220px, 42vw);
+  cursor: pointer;
+  transition:
+    background 0.15s ease-out,
+    box-shadow 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+.admin-atendente-filter__trigger:hover {
+  background: #26353d;
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.admin-atendente-filter__trigger:focus-visible {
+  outline: 2px solid var(--ds-accent, #00a884);
+  outline-offset: 2px;
+}
+
+.admin-atendente-filter__trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  letter-spacing: var(--cl-letter-tight, -0.02em);
+}
+
+.admin-atendente-filter__clear {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(233, 237, 239, 0.65);
+  transition: background 0.12s ease-out, color 0.12s ease-out;
+}
+
+.admin-atendente-filter__clear:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cl-text, #e9edef);
+}
+
+.admin-atendente-filter__chev-wrap {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.admin-atendente-filter__chev {
+  transition: transform 0.18s ease-out;
+}
+
+.admin-atendente-filter__chev.is-open {
+  transform: rotate(180deg);
+}
+
+.admin-atendente-filter__panel-wrap {
+  position: fixed;
+  z-index: 9500;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease-out,
+    transform 0.16s ease-out;
+}
+
+.admin-atendente-filter__panel-wrap.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.admin-atendente-filter__panel {
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 24px));
+  max-height: min(48vh, 420px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--cl-surface-elevated, var(--ds-surface-2, #202c33));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.38),
+    0 4px 10px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+.admin-atendente-filter__panel-head {
+  padding: 8px 12px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted, rgba(233, 237, 239, 0.55));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-atendente-filter__list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: min(44vh, 380px);
+  padding: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.admin-atendente-filter__list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-atendente-filter__list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+}
+
+.admin-atendente-filter__option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--cl-text, #e9edef);
+  font-size: var(--cl-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease-out;
+}
+
+.admin-atendente-filter__option:hover,
+.admin-atendente-filter__option:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.admin-atendente-filter__option.is-selected {
+  background: rgba(0, 168, 132, 0.2);
+}
+
+.admin-atendente-filter__option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .admin-atendente-filter__trigger {
+  background: var(--cl-surface-elevated, #fff);
+  color: var(--cl-text);
+  border: 1px solid var(--cl-border);
+  box-shadow: var(--cl-shadow-subtle, 0 1px 2px rgba(0, 0, 0, 0.06));
+}
+
+[data-theme="light"] .admin-atendente-filter__panel {
+  background: var(--cl-surface, #fff);
+  border: 1px solid var(--cl-border);
+}
