@@ -57,6 +57,16 @@ function isAppAdmin(user) {
   return p === "admin";
 }
 
+/**
+ * Modo admin por funcionário (payload pode ter vários status_atendimento).
+ * Inclui só conversas assumidas por esse utilizador; grupos e itens sem atendente_id ficam de fora.
+ */
+function conversaMatchesAdminAtendenteFilter(c, selectedUserId) {
+  if (isGroupConversation(c)) return false;
+  if (c?.atendente_id == null) return false;
+  return String(c.atendente_id) === String(selectedUserId);
+}
+
 /* =====================================================
    COMPONENTES (mantidos + refinados visualmente)
 ===================================================== */
@@ -1189,8 +1199,12 @@ export default function ChatList() {
 
       let params;
       if (adminPorFuncionario) {
+        /** Contrato API: `atendente_id` numérico (usuarios.id); omitir status_atendimento / minha_fila. */
+        const aid = Number(adminAtendenteFilterId);
+        const atendenteIdQuery =
+          Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
         params = {
-          atendente_id: adminAtendenteFilterId,
+          atendente_id: atendenteIdQuery,
           tag_id: tagFilter !== "todas" ? tagFilter : undefined,
           departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
           data_inicio: dataInicio || undefined,
@@ -1515,8 +1529,10 @@ export default function ChatList() {
       }
     }
 
-    // filtros avançados
-    if (statusFilter !== "todos") {
+    // filtros avançados — status (no modo admin: omitir status na API; aqui não reaplicar o select para não esconder estados)
+    if (adminPorFuncionario) {
+      list = list.filter((c) => conversaMatchesAdminAtendenteFilter(c, adminAtendenteFilterId));
+    } else if (statusFilter !== "todos") {
       list = list.filter((c) => String(c.status_atendimento) === statusFilter);
     }
 
