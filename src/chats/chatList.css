@@ -813,6 +813,13 @@ a { color: inherit; text-decoration: none; }
   outline-offset: 1px;
 }
 
+.chat-row-action-trigger-chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
 @media (hover: none), (pointer: coarse) {
   .chat-row-action-trigger {
     opacity: 1;
@@ -1461,6 +1468,21 @@ a { color: inherit; text-decoration: none; }
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.conversation-action-menu.is-top {
+  animation: conversation-menu-in-top 0.14s ease-out;
+}
+
+@keyframes conversation-menu-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;

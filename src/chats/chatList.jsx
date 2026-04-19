@@ -12,6 +12,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useNotificationStore } from "../notifications/notificationStore";
 import EmptyState from "../components/feedback/EmptyState";
+import ConfirmDialog from "../components/feedback/ConfirmDialog";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
 import "../components/feedback/empty-state.css";
 import "../components/feedback/skeleton.css";
@@ -24,11 +25,29 @@ import { useConversationActionMenu } from "./useConversationActionMenu";
 import {
   clearConversation,
   deleteConversation,
-  getConversationActionCapabilities,
+  mergePrefsFromPatchResponse,
   toggleFavoriteConversation,
   toggleMuteConversation,
   togglePinConversation,
 } from "./conversationActionsService";
+
+/** Preferências por item (API pode enviar `silenciada` ou `silenciado`). */
+function rowPrefs(c) {
+  return {
+    silenciado: !!(c?.silenciado ?? c?.silenciada),
+    fixada: !!c?.fixada,
+    favorita: !!c?.favorita,
+  };
+}
+
+/** Contagem do chip “Abertas”: exclui `ociosa` e quando o backend manda `exibir_badge_aberta: false`. */
+function conversaContaComoAbertaNoChip(c) {
+  const s = String(c?.status_atendimento || "").toLowerCase();
+  if (s === "ociosa") return false;
+  if (c?.exibir_badge_aberta === false) return false;
+  if (s === "aberta") return true;
+  return c?.exibir_badge_aberta === true;
+}
 
 /* =====================================================
    COMPONENTES (mantidos + refinados visualmente)
@@ -858,9 +877,10 @@ function ChatRow({
     String(chat.atendente_id) === String(currentUserId);
   const hasAtendimentoUnread = chat?.tem_novas_mensagens_em_atendimento === true;
   const showAtendimentoDot = isEmAtendimento && isResponsavel && hasAtendimentoUnread;
-  const showMutedIndicator = !isGroup && chat?.silenciado === true;
-  const showPinnedIndicator = !isGroup && chat?.fixada === true;
-  const showFavoriteIndicator = !isGroup && chat?.favorita === true;
+  const rp = rowPrefs(chat);
+  const showMutedIndicator = !isGroup && rp.silenciado;
+  const showPinnedIndicator = !isGroup && rp.fixada;
+  const showFavoriteIndicator = !isGroup && rp.favorita;
   const avatarSeed = displayName || phone || id || clienteId;
   const color = getAvatarColor(avatarSeed);
   const [imgError, setImgError] = useState(false);
@@ -974,12 +994,18 @@ function ChatRow({
 const MemoChatRow = memo(ChatRow, (prev, next) => {
   const a = prev.chat || {};
   const b = next.chat || {};
+  const pa = rowPrefs(a);
+  const pb = rowPrefs(b);
   return (
     String(a.id) === String(b.id) &&
     prev.active === next.active &&
     prev.isMenuOpen === next.isMenuOpen &&
     Number(a.unread_count ?? a.unread ?? 0) === Number(b.unread_count ?? b.unread ?? 0) &&
     String(a.status_atendimento ?? "") === String(b.status_atendimento ?? "") &&
+    Boolean(a.exibir_badge_aberta) === Boolean(b.exibir_badge_aberta) &&
+    pa.silenciado === pb.silenciado &&
+    pa.fixada === pb.fixada &&
+    pa.favorita === pb.favorita &&
     Boolean(a.tem_novas_mensagens_em_atendimento) === Boolean(b.tem_novas_mensagens_em_atendimento) &&
     String(a.ultima_atividade ?? "") === String(b.ultima_atividade ?? "") &&
     String(a?.ultima_mensagem?.id ?? a?.ultima_mensagem?.whatsapp_id ?? "") ===
@@ -1041,6 +1067,8 @@ export default function ChatList() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [novoContatoModalOpen, setNovoContatoModalOpen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   // menu "Novo" (botão +)
   const [showNovoMenu, setShowNovoMenu] = useState(false);
@@ -1064,8 +1092,6 @@ export default function ChatList() {
   const [syncLoading, setSyncLoading] = useState(false);
 
   const showToast = useNotificationStore((s) => s.showToast);
-  const capabilities = useMemo(() => getConversationActionCapabilities(), []);
-
   useEffect(() => {
     if (location.state?.openNovoContatoModal) {
       setNovoContatoModalOpen(true);
@@ -1409,7 +1435,7 @@ export default function ChatList() {
         return isToday(ts);
       });
     } else if (tab === "abertas") {
-      list = list.filter((c) => String(c.status_atendimento) === "aberta");
+      list = list.filter((c) => conversaContaComoAbertaNoChip(c));
     } else if (tab === "em_atendimento") {
       list = list.filter((c) => String(c.status_atendimento) === "em_atendimento");
     } else if (tab === "finalizadas") {
@@ -1500,6 +1526,7 @@ export default function ChatList() {
   } = useConversationActionMenu({
     selectedConversationId: selectedId,
     visibleConversationIds,
+    resetKey: tab,
   });
 
   const openMenuChat = useMemo(
@@ -1511,34 +1538,35 @@ export default function ChatList() {
     const chat = openMenuChat;
     if (!chat) return [];
     const isGroup = isGroupConversation(chat);
+    const p = rowPrefs(chat);
     return [
       {
         id: "mute",
-        label: chat?.silenciado ? "Remover silêncio" : "Silenciar notificações",
+        label: p.silenciado ? "Remover silêncio" : "Silenciar notificações",
         icon: "🔕",
         visible: true,
-        disabled: !capabilities.mute,
+        disabled: false,
       },
       {
         id: "pin",
-        label: chat?.fixada ? "Desafixar conversa" : "Fixar conversa",
+        label: p.fixada ? "Desafixar conversa" : "Fixar conversa",
         icon: "📌",
         visible: true,
-        disabled: !capabilities.pin,
+        disabled: false,
       },
       {
         id: "favorite",
-        label: chat?.favorita ? "Remover dos favoritos" : "Adicionar aos Favoritos",
+        label: p.favorita ? "Remover dos favoritos" : "Adicionar aos Favoritos",
         icon: "★",
         visible: true,
-        disabled: !capabilities.favorite,
+        disabled: false,
       },
       {
         id: "clear",
         label: "Limpar conversa",
         icon: "🧹",
         visible: true,
-        disabled: !capabilities.clear,
+        disabled: false,
       },
       {
         id: "delete",
@@ -1546,24 +1574,38 @@ export default function ChatList() {
         icon: "🗑",
         danger: true,
         visible: true,
-        disabled: !capabilities.delete || isGroup,
+        disabled: isGroup,
         tooltip: isGroup ? "Grupos não podem ser apagados por esta ação." : undefined,
       },
     ];
-  }, [openMenuChat, capabilities]);
+  }, [openMenuChat]);
 
   const handleMenuAction = useCallback(async (action) => {
     if (!action || action.disabled || !openMenuChat?.id) return;
     const chatId = openMenuChat.id;
+    const prefs = rowPrefs(openMenuChat);
     const currentSelectedId = useConversaStore.getState().selectedId;
     const isOpenConversation = String(currentSelectedId || "") === String(chatId);
+
+    if (action.id === "clear") {
+      setConfirmClear({ chatId, isOpenConversation });
+      closeMenu();
+      return;
+    }
+    if (action.id === "delete") {
+      setConfirmDelete({ chatId, isOpenConversation });
+      closeMenu();
+      return;
+    }
+
     closeMenu();
 
     try {
       if (action.id === "mute") {
-        const nextMuted = !openMenuChat?.silenciado;
+        const nextMuted = !prefs.silenciado;
         useChatStore.getState().updateChat({ id: chatId, silenciado: nextMuted });
-        await toggleMuteConversation(chatId, nextMuted);
+        const data = await toggleMuteConversation(chatId, nextMuted);
+        useChatStore.getState().updateChat({ id: chatId, ...mergePrefsFromPatchResponse(data) });
         showToast({
           type: "success",
           title: nextMuted ? "Notificações silenciadas" : "Silêncio removido",
@@ -1572,9 +1614,10 @@ export default function ChatList() {
         return;
       }
       if (action.id === "pin") {
-        const nextPinned = !openMenuChat?.fixada;
+        const nextPinned = !prefs.fixada;
         useChatStore.getState().updateChat({ id: chatId, fixada: nextPinned, fixada_em: nextPinned ? new Date().toISOString() : null });
-        await togglePinConversation(chatId, nextPinned);
+        const data = await togglePinConversation(chatId, nextPinned);
+        useChatStore.getState().updateChat({ id: chatId, ...mergePrefsFromPatchResponse(data) });
         showToast({
           type: "success",
           title: nextPinned ? "Conversa fixada" : "Conversa desafixada",
@@ -1583,59 +1626,18 @@ export default function ChatList() {
         return;
       }
       if (action.id === "favorite") {
-        const nextFavorite = !openMenuChat?.favorita;
+        const nextFavorite = !prefs.favorita;
         useChatStore.getState().updateChat({ id: chatId, favorita: nextFavorite });
-        await toggleFavoriteConversation(chatId, nextFavorite);
+        const data = await toggleFavoriteConversation(chatId, nextFavorite);
+        useChatStore.getState().updateChat({ id: chatId, ...mergePrefsFromPatchResponse(data) });
         showToast({
           type: "success",
           title: nextFavorite ? "Favorito adicionado" : "Favorito removido",
           message: nextFavorite ? "Conversa marcada como favorita." : "Conversa removida dos favoritos.",
         });
-        return;
-      }
-      if (action.id === "clear") {
-        const ok = window.confirm("Limpar todas as mensagens desta conversa? A conversa permanecerá na lista.");
-        if (!ok) return;
-        await clearConversation(chatId);
-        useChatStore.getState().updateChat({
-          id: chatId,
-          ultima_mensagem: null,
-          ultima_mensagem_preview: null,
-          unread_count: 0,
-          tem_novas_mensagens: false,
-          tem_novas_mensagens_em_atendimento: false,
-        });
-        if (isOpenConversation) {
-          useConversaStore.setState({ mensagens: [] });
-        }
-        showToast({
-          type: "success",
-          title: "Conversa limpa",
-          message: "As mensagens foram removidas com sucesso.",
-        });
-        return;
-      }
-      if (action.id === "delete") {
-        const ok = window.confirm("Apagar esta conversa permanentemente? Essa ação não pode ser desfeita.");
-        if (!ok) return;
-        await deleteConversation(chatId);
-        useChatStore.getState().removeChat(chatId);
-        if (isOpenConversation) {
-          useConversaStore.setState({
-            selectedId: null,
-            conversa: null,
-            mensagens: [],
-            tags: [],
-          });
-        }
-        showToast({
-          type: "success",
-          title: "Conversa apagada",
-          message: "A conversa foi removida da lista.",
-        });
       }
     } catch (e) {
-      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível concluir esta ação."
+      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível concluir esta ação.";
       showToast({
         type: "error",
         title: "Falha ao executar ação",
@@ -1644,6 +1646,64 @@ export default function ChatList() {
       loadRef.current?.();
     }
   }, [openMenuChat, closeMenu, showToast]);
+
+  const runConfirmedClear = useCallback(async () => {
+    if (!confirmClear?.chatId) return;
+    const { chatId, isOpenConversation } = confirmClear;
+    setConfirmClear(null);
+    try {
+      await clearConversation(chatId);
+      useChatStore.getState().updateChat({
+        id: chatId,
+        ultima_mensagem: null,
+        ultima_mensagem_preview: null,
+        unread_count: 0,
+        tem_novas_mensagens: false,
+        tem_novas_mensagens_em_atendimento: false,
+      });
+      if (isOpenConversation) {
+        useConversaStore.setState({ mensagens: [] });
+      }
+      showToast({
+        type: "success",
+        title: "Conversa limpa",
+        message: "As mensagens foram removidas com sucesso.",
+      });
+      loadRef.current?.();
+    } catch (e) {
+      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível limpar a conversa.";
+      showToast({ type: "error", title: "Falha ao limpar", message: msg });
+      loadRef.current?.();
+    }
+  }, [confirmClear, showToast]);
+
+  const runConfirmedDelete = useCallback(async () => {
+    if (!confirmDelete?.chatId) return;
+    const { chatId, isOpenConversation } = confirmDelete;
+    setConfirmDelete(null);
+    try {
+      await deleteConversation(chatId);
+      useChatStore.getState().removeChat(chatId);
+      if (isOpenConversation) {
+        useConversaStore.setState({
+          selectedId: null,
+          conversa: null,
+          mensagens: [],
+          tags: [],
+        });
+      }
+      showToast({
+        type: "success",
+        title: "Conversa apagada",
+        message: "A conversa foi removida da lista.",
+      });
+      loadRef.current?.();
+    } catch (e) {
+      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível apagar a conversa.";
+      showToast({ type: "error", title: "Falha ao apagar", message: msg });
+      loadRef.current?.();
+    }
+  }, [confirmDelete, showToast]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -1673,7 +1733,7 @@ export default function ChatList() {
     const ts = last?.criado_em || c?.criado_em;
     return isToday(ts);
   }).length;
-  const countAbertas = chats.filter((c) => String(c.status_atendimento) === "aberta").length;
+  const countAbertas = chats.filter((c) => conversaContaComoAbertaNoChip(c)).length;
   const countEmAtendimento = chats.filter((c) => String(c.status_atendimento) === "em_atendimento").length;
   const countFinalizadas = chats.filter((c) => String(c.status_atendimento) === "fechada").length;
 
@@ -2032,6 +2092,37 @@ export default function ChatList() {
         onRequestClose={closeMenu}
         onAction={handleMenuAction}
       />
+
+      <ConfirmDialog
+        open={confirmClear != null}
+        title="Limpar esta conversa?"
+        confirmLabel="Limpar mensagens"
+        cancelLabel="Cancelar"
+        onCancel={() => setConfirmClear(null)}
+        onConfirm={() => {
+          void runConfirmedClear();
+        }}
+      >
+        <p style={{ margin: 0 }}>
+          Todas as mensagens serão removidas. A conversa permanece na lista.
+        </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmDelete != null}
+        title="Apagar conversa permanentemente?"
+        confirmLabel="Apagar"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          void runConfirmedDelete();
+        }}
+      >
+        <p style={{ margin: 0 }}>
+          Esta ação não pode ser desfeita. O histórico e dados vinculados podem ser removidos conforme as regras do sistema.
+        </p>
+      </ConfirmDialog>
 
       <NovoContatoModal
         open={novoContatoModalOpen}

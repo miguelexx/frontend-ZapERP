@@ -1,0 +1,103 @@
+.ds-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-space-4);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  animation: ds-confirm-fade 0.15s ease;
+}
+
+@keyframes ds-confirm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ds-confirm-dialog {
+  width: 100%;
+  max-width: 400px;
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-bg-overlay, var(--ds-surface-elevated, #fff));
+  color: var(--ds-text-primary);
+  border: 1px solid var(--ds-border);
+  box-shadow: var(--ds-shadow-lg);
+  padding: var(--ds-space-5);
+  animation: ds-confirm-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ds-confirm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.ds-confirm-title {
+  margin: 0 0 var(--ds-space-3);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.ds-confirm-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ds-text-secondary);
+  margin-bottom: var(--ds-space-5);
+}
+
+.ds-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+
+.ds-confirm-btn {
+  min-height: 40px;
+  padding: 0 var(--ds-space-4);
+  border-radius: var(--ds-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+
+.ds-confirm-btn--ghost {
+  background: transparent;
+  color: var(--ds-text-secondary);
+}
+
+.ds-confirm-btn--ghost:hover {
+  background: var(--ds-hover);
+  color: var(--ds-text-primary);
+}
+
+.ds-confirm-btn--primary {
+  background: var(--ds-accent);
+  color: #fff;
+}
+
+.ds-confirm-btn--primary:hover {
+  background: var(--ds-accent-hover);
+}
+
+.ds-confirm-btn--danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.ds-confirm-btn--danger:hover {
+  background: #b91c1c;
+}

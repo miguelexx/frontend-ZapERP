@@ -17,7 +17,7 @@ import { isGroupConversation } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
 import { useAuthStore } from "../auth/authStore";
-import { canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth/permissions";
+import { canAssumir, canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import SendToCrmChatButton, { IconFunnelSend } from "./SendToCrmChatButton";
 import { useChatStore } from "../chats/chatsStore";
@@ -1886,6 +1886,7 @@ export default function ConversaView() {
     selectedId,
     typing,
     clearTyping,
+    assumirConversa,
   } = useConversaStore();
 
   const user = useAuthStore((s) => s.user);
@@ -3969,6 +3970,54 @@ export default function ConversaView() {
     return out;
   }, [mensagens, isGroup]);
 
+  const showAssumeEmptyCta = useMemo(() => {
+    if (!conversa?.id || conversa?.mensagens_bloqueadas) return false;
+    if (conversa?.exibir_cta_assumir_sem_mensagens !== true) return false;
+    if (!canAssumir(user)) return false;
+    const status = String(conversa?.status_atendimento || "").toLowerCase();
+    if (status === "fechada" || status === "encerrada") return false;
+    const atendenteId = conversa?.atendente_id ?? null;
+    const hasAtendente = atendenteId !== null && atendenteId !== "";
+    if (hasAtendente) return false;
+    const userRole = String(user?.role || user?.perfil || "").toLowerCase();
+    const isPrivileged = userRole === "admin" || userRole === "supervisor";
+    const convDepId = conversa?.departamento_id ?? null;
+    const userDepIds = Array.isArray(user?.departamento_ids)
+      ? user.departamento_ids.map((id) => Number(id))
+      : user?.departamento_id != null
+        ? [Number(user.departamento_id)]
+        : [];
+    const mesmaSetorOuSemRestricao =
+      isPrivileged ||
+      convDepId == null ||
+      (userDepIds.length > 0 && userDepIds.includes(Number(convDepId)));
+    return mesmaSetorOuSemRestricao;
+  }, [conversa, user]);
+
+  const [assumeEmptyBusy, setAssumeEmptyBusy] = useState(false);
+
+  const handleAssumeEmpty = useCallback(async () => {
+    if (!conversaId || assumeEmptyBusy) return;
+    setAssumeEmptyBusy(true);
+    try {
+      await assumirConversa(conversaId);
+      await refresh({ silent: true });
+      showToast({
+        type: "success",
+        title: "Conversa assumida",
+        message: "Você já pode enviar mensagens.",
+      });
+    } catch (e) {
+      showToast({
+        type: "error",
+        title: "Erro ao assumir",
+        message: e?.response?.data?.error || e?.message || "Tente novamente.",
+      });
+    } finally {
+      setAssumeEmptyBusy(false);
+    }
+  }, [conversaId, assumeEmptyBusy, assumirConversa, refresh, showToast]);
+
   const headerSubtitle = useMemo(() => {
     const tel = normalizeTelefone(telefone);
     if (tel.length >= 10) return `+${tel}`;
@@ -4659,7 +4708,19 @@ export default function ConversaView() {
             </div>
           ) : mensagensComSeparadores.length === 0 ? (
             <div className="wa-messages-empty">
-              <div className="wa-messages-emptyCard">Sem mensagens ainda.</div>
+              <div className="wa-messages-emptyCard">
+                <p className="wa-messages-emptyText">Sem mensagens ainda.</p>
+                {showAssumeEmptyCta ? (
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-primary wa-btn-assumir-destaque"
+                    onClick={handleAssumeEmpty}
+                    disabled={assumeEmptyBusy}
+                  >
+                    {assumeEmptyBusy ? "Assumindo…" : "Assumir"}
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : (
             <>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-export function useConversationActionMenu({ selectedConversationId, visibleConversationIds }) {
+export function useConversationActionMenu({ selectedConversationId, visibleConversationIds, resetKey }) {
   const [openConversationId, setOpenConversationId] = useState(null);
   const [anchorRect, setAnchorRect] = useState(null);
   const [restoreFocusEl, setRestoreFocusEl] = useState(null);
@@ -62,6 +62,10 @@ export function useConversationActionMenu({ selectedConversationId, visibleConve
     if (!exists) closeMenu();
   }, [visibleConversationIds, openConversationId, closeMenu]);
 
+  useEffect(() => {
+    closeMenu();
+  }, [resetKey, closeMenu]);
+
   return useMemo(() => ({
     openConversationId,
     anchorRect,
@@ -70,4 +74,5 @@ export function useConversationActionMenu({ selectedConversationId, visibleConve
     closeMenu,
   }), [openConversationId, anchorRect, restoreFocusEl, openMenu, closeMenu]);
 }
+
 

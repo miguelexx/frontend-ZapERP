@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { ChevronDown } from "lucide-react";
 
 function ConversationActionMenuTriggerBase({
   conversationId,
@@ -19,7 +20,9 @@ function ConversationActionMenuTriggerBase({
       }}
       title="Ações da conversa"
     >
-      <span aria-hidden>▾</span>
+      <span className="chat-row-action-trigger-chev" aria-hidden>
+        <ChevronDown size={15} strokeWidth={2} />
+      </span>
     </button>
   );
 }
