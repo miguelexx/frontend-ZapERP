@@ -17,6 +17,12 @@ export async function fetchChats(params = {}) {
     q.set("incluir_colaboradores_encaminhar", "1");
   }
   if (params.minha_fila === true || params.minha_fila === 1 || params.minha_fila === "1") q.set("minha_fila", "1");
+  if (params.finalizacao_motivo != null && String(params.finalizacao_motivo).trim()) {
+    q.set("finalizacao_motivo", String(params.finalizacao_motivo).trim());
+  }
+  if (params.aguardando_cliente === true || params.aguardando_cliente === 1 || params.aguardando_cliente === "1") {
+    q.set("aguardando_cliente", "1");
+  }
   const query = q.toString();
   const { data } = await api.get(`/chats${query ? `?${query}` : ""}`);
   const wantsCollab =

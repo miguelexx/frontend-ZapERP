@@ -162,14 +162,21 @@ function formatHoraCurta(ts) {
   }
 }
 
-function timelineEventLabel(a) {
+function timelineEventLabel(a, conversaCtx) {
   const acao = safeString(a?.acao).toLowerCase();
   const quem = a?.usuario_nome || "Sistema";
   const paraQuem = a?.para_usuario_nome;
   if (acao === "assumiu") return `${quem} assumiu`;
   if (acao === "transferiu") return paraQuem ? `${quem} transferiu para ${paraQuem}` : `${quem} transferiu`;
   if (acao === "transferiu_setor") return a?.observacao ? `${quem} transferiu setor: ${a.observacao}` : `${quem} transferiu setor`;
-  if (acao === "encerrou") return "Atendimento finalizado";
+  if (acao === "encerrou") {
+    const motivoLinha = safeString(a?.finalizacao_motivo).toLowerCase();
+    const motivoConv = safeString(conversaCtx?.finalizacao_motivo).toLowerCase();
+    if (motivoLinha === "ausencia_cliente" || motivoConv === "ausencia_cliente" || a?.finalizada_automaticamente === true) {
+      return "Encerrada automaticamente por ausência";
+    }
+    return "Atendimento finalizado";
+  }
   if (acao === "reabriu") return "Conversa reaberta";
   return quem;
 }
@@ -189,8 +196,9 @@ function normalizeTelefone(v) {
 }
 
 /** Badge do header: em_atendimento, fechada ou Aberta (só se exibir_badge_aberta). */
-function statusBadge(status, exibirBadgeAberta) {
+function statusBadge(status, exibirBadgeAberta, finalizacaoMotivo) {
   const s = safeString(status).toLowerCase();
+  const ausencia = safeString(finalizacaoMotivo).toLowerCase() === "ausencia_cliente";
   if (s === "em_atendimento") {
     return {
       text: "Em atendimento",
@@ -202,7 +210,7 @@ function statusBadge(status, exibirBadgeAberta) {
   }
   if (s === "fechada") {
     return {
-      text: "Finalizada",
+      text: ausencia ? "Finalizada (ausência)" : "Finalizada",
       bg: "rgba(245,158,11,0.12)",
       color: "var(--wa-status-orange)",
       border: "rgba(245,158,11,0.18)",
@@ -2192,9 +2200,18 @@ export default function ConversaView() {
   const showAvatarImg = Boolean(avatarUrl && !avatarImgError);
 
   const badge = useMemo(
-    () => statusBadge(conversa?.status_atendimento, conversa?.exibir_badge_aberta),
-    [conversa?.status_atendimento, conversa?.exibir_badge_aberta]
+    () => statusBadge(conversa?.status_atendimento, conversa?.exibir_badge_aberta, conversa?.finalizacao_motivo),
+    [conversa?.status_atendimento, conversa?.exibir_badge_aberta, conversa?.finalizacao_motivo]
   );
+
+  const encerramentoAusenciaHint = useMemo(() => {
+    const s = safeString(conversa?.status_atendimento).toLowerCase();
+    if (s !== "fechada") return null;
+    if (safeString(conversa?.finalizacao_motivo).toLowerCase() !== "ausencia_cliente" && conversa?.finalizada_automaticamente !== true) {
+      return null;
+    }
+    return "Encerrada automaticamente por ausência do cliente.";
+  }, [conversa?.status_atendimento, conversa?.finalizacao_motivo, conversa?.finalizada_automaticamente]);
 
   useEffect(() => {
     setAvatarImgError(false);
@@ -4311,7 +4328,7 @@ export default function ConversaView() {
                         borderColor: badge.border,
                         color: badge.color,
                       }}
-                      title={badge.text}
+                      title={encerramentoAusenciaHint || badge.text}
                     >
                       {badge.text}
                     </span>
@@ -4634,7 +4651,7 @@ export default function ConversaView() {
                     <div key={a.id || `${a.acao}-${a.criado_em}`} className="wa-timeline-card">
                       <div className="wa-timeline-row">
                         <span className="wa-timeline-time">{formatHoraCurta(a.criado_em)}</span>
-                        <span className="wa-timeline-label">{timelineEventLabel(a)}</span>
+                        <span className="wa-timeline-label">{timelineEventLabel(a, conversa)}</span>
                       </div>
                       {a.observacao ? (
                         <div className="wa-timeline-nota">Nota interna: {a.observacao}</div>

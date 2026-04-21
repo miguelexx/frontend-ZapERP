@@ -52,6 +52,12 @@ const DEFAULT_CONFIG = {
     tipo_distribuicao: "fila",
     reopenMenuCommand: "0",
     options: [],
+    finalizar_por_ausencia_ativo: false,
+    finalizar_por_ausencia_prazo: 24,
+    finalizar_por_ausencia_unidade: "horas_corridas",
+    finalizar_por_ausencia_mensagem: "",
+    finalizar_por_ausencia_reabrir_automaticamente: true,
+    finalizar_por_ausencia_reabrir_sem_chatbot: true,
   },
 };
 
@@ -703,6 +709,13 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
         departamento_id: o.departamento_id ? Number(o.departamento_id) : null,
         active: !!o.active,
       })),
+      finalizar_por_ausencia_ativo: !!vals.finalizar_por_ausencia_ativo,
+      finalizar_por_ausencia_prazo: Math.max(1, Math.min(720, Number(vals.finalizar_por_ausencia_prazo) || 24)),
+      finalizar_por_ausencia_unidade:
+        vals.finalizar_por_ausencia_unidade === "horas_uteis" ? "horas_uteis" : "horas_corridas",
+      finalizar_por_ausencia_mensagem: vals.finalizar_por_ausencia_mensagem != null ? String(vals.finalizar_por_ausencia_mensagem) : "",
+      finalizar_por_ausencia_reabrir_automaticamente: vals.finalizar_por_ausencia_reabrir_automaticamente !== false,
+      finalizar_por_ausencia_reabrir_sem_chatbot: vals.finalizar_por_ausencia_reabrir_sem_chatbot !== false,
     };
   };
 
@@ -1078,9 +1091,102 @@ function SecaoChatbotTriagem({ config, departamentos, logs, onSave, onRefreshLog
             </div>
           </div>
 
-          {/* SEÇÃO 5 — Configurações avançadas */}
+          {/* Finalização automática por ausência do cliente (config em chatbot_triage) */}
           <div className="chatbot-card">
-            <h3 className="chatbot-card-title">5. Configurações avançadas</h3>
+            <h3 className="chatbot-card-title">5. Finalização por ausência do cliente</h3>
+            <p className="chatbot-card-subtitle">
+              Encerra automaticamente conversas em atendimento humano quando o cliente não responde após a última mensagem da equipe, dentro do prazo configurado. Desligado por padrão.
+            </p>
+            <div className="ds-switch-row" style={{ marginBottom: 16 }}>
+              <Switch
+                checked={v.finalizar_por_ausencia_ativo === true}
+                onChange={(x) => setV((c) => ({ ...c, finalizar_por_ausencia_ativo: x }))}
+              />
+              <span>Ativar finalização automática por ausência</span>
+            </div>
+            <div
+              className="chatbot-fora-horario-fields"
+              style={{
+                opacity: v.finalizar_por_ausencia_ativo ? 1 : 0.55,
+                pointerEvents: v.finalizar_por_ausencia_ativo ? "auto" : "none",
+              }}
+            >
+              <div className="chatbot-time-row" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+                <div className="ia-field" style={{ minWidth: 120 }}>
+                  <label>Prazo (horas)</label>
+                  <input
+                    type="number"
+                    className="ia-input chatbot-input-cmd"
+                    min={1}
+                    max={720}
+                    value={v.finalizar_por_ausencia_prazo ?? 24}
+                    onChange={(e) =>
+                      setV((c) => ({
+                        ...c,
+                        finalizar_por_ausencia_prazo: Math.max(1, Math.min(720, Number(e.target.value) || 24)),
+                      }))
+                    }
+                  />
+                  <p className="chatbot-hint" style={{ marginTop: 4 }}>Entre 1 e 720 horas (o servidor valida o limite).</p>
+                </div>
+                <div className="ia-field" style={{ minWidth: 200 }}>
+                  <label>Contagem do prazo</label>
+                  <select
+                    className="ia-select"
+                    value={v.finalizar_por_ausencia_unidade === "horas_uteis" ? "horas_uteis" : "horas_corridas"}
+                    onChange={(e) =>
+                      setV((c) => ({ ...c, finalizar_por_ausencia_unidade: e.target.value }))
+                    }
+                  >
+                    <option value="horas_corridas">Horas corridas</option>
+                    <option value="horas_uteis">Horas úteis</option>
+                  </select>
+                </div>
+              </div>
+              {v.finalizar_por_ausencia_unidade === "horas_uteis" ? (
+                <p className="chatbot-hint" style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(251, 191, 36, 0.12)", border: "1px solid rgba(251, 191, 36, 0.35)" }}>
+                  <strong>Atenção:</strong> no backend atual, &quot;horas úteis&quot; ainda são tratadas como horas corridas até haver suporte completo a calendário comercial. Ajuste o prazo considerando essa limitação.
+                </p>
+              ) : null}
+              <div className="ia-field" style={{ marginTop: 12 }}>
+                <label>Mensagem enviada ao cliente antes de encerrar (opcional)</label>
+                <textarea
+                  className="ia-textarea"
+                  rows={4}
+                  value={v.finalizar_por_ausencia_mensagem ?? ""}
+                  onChange={(e) => setV((c) => ({ ...c, finalizar_por_ausencia_mensagem: e.target.value }))}
+                  placeholder="Vazio = o sistema usa o texto padrão definido no servidor."
+                />
+                <p className="chatbot-hint" style={{ marginTop: 6 }}>
+                  Personalize o aviso de encerramento por falta de resposta. Se deixar em branco, o backend aplica a mensagem padrão.
+                </p>
+              </div>
+              <div className="ds-switch-row" style={{ marginTop: 16 }}>
+                <Switch
+                  checked={v.finalizar_por_ausencia_reabrir_automaticamente !== false}
+                  onChange={(x) => setV((c) => ({ ...c, finalizar_por_ausencia_reabrir_automaticamente: x }))}
+                />
+                <span>Reabrir automaticamente se o cliente voltar a falar</span>
+              </div>
+              <p className="chatbot-hint" style={{ marginTop: 4, marginBottom: 12 }}>
+                Quando desligado, a conversa permanece fechada até um atendente reabrir manualmente (salvo outras regras da empresa).
+              </p>
+              <div className="ds-switch-row">
+                <Switch
+                  checked={v.finalizar_por_ausencia_reabrir_sem_chatbot !== false}
+                  onChange={(x) => setV((c) => ({ ...c, finalizar_por_ausencia_reabrir_sem_chatbot: x }))}
+                />
+                <span>Na reabertura automática, ir direto ao atendente (sem passar pelo menu do chatbot)</span>
+              </div>
+              <p className="chatbot-hint" style={{ marginTop: 4 }}>
+                Útil para o cliente continuar o diálogo com a equipe sem receber de novo o menu de triagem.
+              </p>
+            </div>
+          </div>
+
+          {/* SEÇÃO 6 — Configurações avançadas */}
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">6. Configurações avançadas</h3>
             <div className="ia-field">
               <label title="Define o que acontece quando o cliente responde com o número do setor (ex: 1 para Vendas).">
                 Como a conversa chega ao setor

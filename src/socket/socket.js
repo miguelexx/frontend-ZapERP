@@ -712,6 +712,16 @@ export function initSocket(token) {
       if (payload.tem_novas_mensagens_em_atendimento !== undefined) {
         next.tem_novas_mensagens_em_atendimento = !!payload.tem_novas_mensagens_em_atendimento
       }
+      const ausenciaKeys = [
+        "finalizacao_motivo",
+        "finalizada_automaticamente",
+        "finalizada_automaticamente_em",
+        "aguardando_cliente_desde",
+        "ausencia_mensagem_enviada_em",
+      ]
+      for (const k of ausenciaKeys) {
+        if (k in payload) next[k] = payload[k]
+      }
       chatStore.updateChat({ id, ...next })
     }
     const convStore = useConversaStore.getState()

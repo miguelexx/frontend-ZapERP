@@ -1288,6 +1288,33 @@ a { color: inherit; text-decoration: none; }
   color: var(--cl-text-muted);
 }
 
+.chat-list-statusRow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.chat-list-badge-await {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--cl-radius-sm);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: rgba(139, 92, 246, 0.14);
+  color: #7c3aed;
+}
+
+[data-theme="dark"] .chat-list-badge-await {
+  background: rgba(167, 139, 250, 0.18);
+  color: #c4b5fd;
+}
+
 /* -----------------------------------------------------------------------
    15) SKELETON
 ----------------------------------------------------------------------- */

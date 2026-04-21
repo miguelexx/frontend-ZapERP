@@ -797,7 +797,7 @@ function Chip({ active, onClick, children }) {
   );
 }
 
-function StatusPill({ status, exibirBadgeAberta }) {
+function StatusPill({ status, exibirBadgeAberta, chat }) {
   const s = String(status || "").toLowerCase().trim().replace(/\s+/g, "_");
   // status_atendimento tem prioridade: em_atendimento e fechada sincronizam com o header do chat
   const map = {
@@ -805,10 +805,36 @@ function StatusPill({ status, exibirBadgeAberta }) {
     fechada: { label: "Finalizada", cls: "chat-list-status closed" },
   };
   const it = map[s];
+  const ausenciaFechada =
+    s === "fechada" &&
+    (String(chat?.finalizacao_motivo) === "ausencia_cliente" || chat?.finalizada_automaticamente === true);
+  const aguardandoCliente =
+    s === "em_atendimento" &&
+    chat?.atendente_id != null &&
+    chat?.aguardando_cliente_desde != null;
   if (it) {
     return (
-      <span className={it.cls} title={it.label}>
-        {it.label}
+      <span className="chat-list-statusRow">
+        <span
+          className={it.cls}
+          title={
+            ausenciaFechada
+              ? `${it.label} — encerrada automaticamente por ausência do cliente`
+              : it.label
+          }
+        >
+          {it.label}
+        </span>
+        {ausenciaFechada ? (
+          <span className="chat-list-badge-await" title="Encerrada automaticamente por ausência do cliente">
+            Ausência
+          </span>
+        ) : null}
+        {aguardandoCliente ? (
+          <span className="chat-list-badge-await" title="Última mensagem foi da equipe; aguardando resposta do cliente">
+            Aguardando
+          </span>
+        ) : null}
       </span>
     );
   }
@@ -986,7 +1012,7 @@ function ChatRow({
             {semConversa ? (
               <span className="chat-list-badge-sem-conversa" title="Clique para iniciar conversa">Sem conversa</span>
             ) : (
-              <StatusPill status={chat?.status_atendimento} exibirBadgeAberta={chat?.exibir_badge_aberta} />
+              <StatusPill status={chat?.status_atendimento} exibirBadgeAberta={chat?.exibir_badge_aberta} chat={chat} />
             )}
           </div>
         </div>
@@ -1020,6 +1046,9 @@ const MemoChatRow = memo(ChatRow, (prev, next) => {
     prev.isMenuOpen === next.isMenuOpen &&
     Number(a.unread_count ?? a.unread ?? 0) === Number(b.unread_count ?? b.unread ?? 0) &&
     String(a.status_atendimento ?? "") === String(b.status_atendimento ?? "") &&
+    String(a.finalizacao_motivo ?? "") === String(b.finalizacao_motivo ?? "") &&
+    Boolean(a.finalizada_automaticamente) === Boolean(b.finalizada_automaticamente) &&
+    String(a.aguardando_cliente_desde ?? "") === String(b.aguardando_cliente_desde ?? "") &&
     Boolean(a.exibir_badge_aberta) === Boolean(b.exibir_badge_aberta) &&
     pa.silenciado === pb.silenciado &&
     pa.fixada === pb.fixada &&
@@ -1091,6 +1120,10 @@ export default function ChatList() {
   const [mineOnly, setMineOnly] = useState(false);
   const [order, setOrder] = useState("recentes");
   const [showFilters, setShowFilters] = useState(false);
+  /** Filtro avançado: conversas fechadas com finalização por ausência (reforça query GET /chats). */
+  const [onlyFinalizadasAusencia, setOnlyFinalizadasAusencia] = useState(false);
+  /** Filtro avançado: conversas em atendimento com humano aguardando resposta do cliente. */
+  const [aguardandoClienteOnly, setAguardandoClienteOnly] = useState(false);
 
   const [novoContatoModalOpen, setNovoContatoModalOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(null);
@@ -1103,7 +1136,7 @@ export default function ChatList() {
   const novoMenuRef = useRef(null);
 
   // tabs estilo WhatsApp (chip row)
-  // todas | nao_lidas | hoje | abertas | minha_fila | em_atendimento | finalizadas
+  // todas | nao_lidas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente
   const [tab, setTab] = useState("minha_fila");
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -1161,6 +1194,9 @@ export default function ChatList() {
 
   const refreshMinhaFila = useCallback(async () => {
     try {
+      const t = tabRef.current;
+      const finalAutoQuery = t === "finalizadas_auto" || onlyFinalizadasAusencia;
+      const aguardandoQuery = t === "aguardando_cliente" || aguardandoClienteOnly;
       const params = {
         minha_fila: true,
         tag_id: tagFilter !== "todas" ? tagFilter : undefined,
@@ -1170,6 +1206,11 @@ export default function ChatList() {
         data_fim: dataFim || undefined,
         incluir_todos_clientes: "1",
       };
+      if (finalAutoQuery) {
+        params.status_atendimento = "fechada";
+        params.finalizacao_motivo = "ausencia_cliente";
+      }
+      if (aguardandoQuery) params.aguardando_cliente = "1";
       const data = await fetchChats(params);
       const list = Array.isArray(data) ? data : [];
       setMinhaFilaCount(list.length);
@@ -1183,7 +1224,7 @@ export default function ChatList() {
         setMinhaFilaList([]);
       }
     }
-  }, [tagFilter, departamentoFilter, atendenteFilter, dataInicio, dataFim]);
+  }, [tagFilter, departamentoFilter, atendenteFilter, dataInicio, dataFim, onlyFinalizadasAusencia, aguardandoClienteOnly]);
 
   useEffect(() => {
     void refreshMinhaFila();
@@ -1196,6 +1237,9 @@ export default function ChatList() {
       /** Modo admin por funcionário: prioridade sobre status/minha_fila/atendente dos filtros avançados — ver chatsFiltrados. */
       const adminPorFuncionario =
         adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
+
+      const finalAutoQuery = tab === "finalizadas_auto" || onlyFinalizadasAusencia;
+      const aguardandoQuery = tab === "aguardando_cliente" || aguardandoClienteOnly;
 
       let params;
       if (adminPorFuncionario) {
@@ -1211,6 +1255,10 @@ export default function ChatList() {
           data_fim: dataFim || undefined,
           incluir_todos_clientes: "1",
         };
+        if (finalAutoQuery) {
+          params.finalizacao_motivo = "ausencia_cliente";
+        }
+        if (aguardandoQuery) params.aguardando_cliente = "1";
       } else {
         params = {
           tag_id: tagFilter !== "todas" ? tagFilter : undefined,
@@ -1221,6 +1269,11 @@ export default function ChatList() {
           data_fim: dataFim || undefined,
           incluir_todos_clientes: "1",
         };
+        if (finalAutoQuery) {
+          params.status_atendimento = "fechada";
+          params.finalizacao_motivo = "ausencia_cliente";
+        }
+        if (aguardandoQuery) params.aguardando_cliente = "1";
       }
 
       const data = await fetchChats(params);
@@ -1298,6 +1351,7 @@ export default function ChatList() {
   useEffect(() => {
     load();
   }, [
+    tab,
     tagFilter,
     departamentoFilter,
     statusFilter,
@@ -1308,6 +1362,8 @@ export default function ChatList() {
     mineOnly,
     order,
     adminAtendenteFilterId,
+    onlyFinalizadasAusencia,
+    aguardandoClienteOnly,
   ]);
 
   // loadRef para sync/interval — deve estar definido antes dos effects que o usam
@@ -1526,14 +1582,67 @@ export default function ChatList() {
         list = list.filter((c) => String(c.status_atendimento) === "em_atendimento");
       } else if (tab === "finalizadas") {
         list = list.filter((c) => String(c.status_atendimento) === "fechada");
+      } else if (tab === "finalizadas_auto") {
+        list = list.filter(
+          (c) =>
+            String(c.status_atendimento) === "fechada" &&
+            (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
+        );
+      } else if (tab === "aguardando_cliente") {
+        list = list.filter(
+          (c) =>
+            c?.aguardando_cliente_desde != null &&
+            String(c.status_atendimento) === "em_atendimento" &&
+            c?.atendente_id != null
+        );
       }
     }
+
+    if (adminPorFuncionario) {
+      if (tab === "finalizadas_auto" || onlyFinalizadasAusencia) {
+        list = list.filter(
+          (c) =>
+            String(c.status_atendimento) === "fechada" &&
+            (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
+        );
+      }
+      if (tab === "aguardando_cliente" || aguardandoClienteOnly) {
+        list = list.filter(
+          (c) =>
+            c?.aguardando_cliente_desde != null &&
+            String(c.status_atendimento) === "em_atendimento" &&
+            c?.atendente_id != null
+        );
+      }
+    }
+
+    const skipStatusFilterRow =
+      tab === "finalizadas_auto" ||
+      onlyFinalizadasAusencia ||
+      tab === "aguardando_cliente" ||
+      aguardandoClienteOnly;
 
     // filtros avançados — status (no modo admin: omitir status na API; aqui não reaplicar o select para não esconder estados)
     if (adminPorFuncionario) {
       list = list.filter((c) => conversaMatchesAdminAtendenteFilter(c, adminAtendenteFilterId));
-    } else if (statusFilter !== "todos") {
+    } else if (statusFilter !== "todos" && !skipStatusFilterRow) {
       list = list.filter((c) => String(c.status_atendimento) === statusFilter);
+    }
+
+    if (!adminPorFuncionario && onlyFinalizadasAusencia && tab !== "finalizadas_auto") {
+      list = list.filter(
+        (c) =>
+          String(c.status_atendimento) === "fechada" &&
+          (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
+      );
+    }
+    if (!adminPorFuncionario && aguardandoClienteOnly && tab !== "aguardando_cliente") {
+      list = list.filter(
+        (c) =>
+          c?.aguardando_cliente_desde != null &&
+          String(c.status_atendimento) === "em_atendimento" &&
+          c?.atendente_id != null
+      );
     }
 
     if (tagFilter !== "todas") {
@@ -1615,6 +1724,8 @@ export default function ChatList() {
     user?.role,
     user?.perfil,
     adminAtendenteFilterId,
+    onlyFinalizadasAusencia,
+    aguardandoClienteOnly,
   ]);
 
   const visibleConversationIds = useMemo(
@@ -1840,6 +1951,17 @@ export default function ChatList() {
   const countAbertas = chats.filter((c) => conversaContaComoAbertaNoChip(c)).length;
   const countEmAtendimento = chats.filter((c) => String(c.status_atendimento) === "em_atendimento").length;
   const countFinalizadas = chats.filter((c) => String(c.status_atendimento) === "fechada").length;
+  const countFinalizadasAuto = chats.filter(
+    (c) =>
+      String(c.status_atendimento) === "fechada" &&
+      (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
+  ).length;
+  const countAguardandoCliente = chats.filter(
+    (c) =>
+      c?.aguardando_cliente_desde != null &&
+      String(c.status_atendimento) === "em_atendimento" &&
+      c?.atendente_id != null
+  ).length;
 
   const adminPorFuncionarioAtivo =
     adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
@@ -2057,6 +2179,14 @@ export default function ChatList() {
           <span>Finalizadas</span>
           <span className="chat-list-chip-count">{countFinalizadas}</span>
         </Chip>
+        <Chip active={tab === "finalizadas_auto"} onClick={() => setTab("finalizadas_auto")}>
+          <span>Por ausência</span>
+          <span className="chat-list-chip-count">{countFinalizadasAuto}</span>
+        </Chip>
+        <Chip active={tab === "aguardando_cliente"} onClick={() => setTab("aguardando_cliente")}>
+          <span>Aguardando cliente</span>
+          <span className="chat-list-chip-count">{countAguardandoCliente}</span>
+        </Chip>
 
         {isAppAdmin(user) && (
           <AdminAtendenteFilter
@@ -2160,6 +2290,30 @@ export default function ChatList() {
                 onChange={(e) => setMineOnly(e.target.checked)}
               />
               <span>Minhas conversas</span>
+            </label>
+            <label className="chat-list-check">
+              <input
+                type="checkbox"
+                checked={onlyFinalizadasAusencia}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setOnlyFinalizadasAusencia(on);
+                  if (on) setStatusFilter("fechada");
+                }}
+              />
+              <span title="Restringe às conversas encerradas automaticamente por falta de resposta do cliente">
+                Só finalizadas por ausência
+              </span>
+            </label>
+            <label className="chat-list-check">
+              <input
+                type="checkbox"
+                checked={aguardandoClienteOnly}
+                onChange={(e) => setAguardandoClienteOnly(e.target.checked)}
+              />
+              <span title="Conversas em atendimento com atendente, aguardando retorno do cliente após mensagem da equipe">
+                Aguardando resposta do cliente
+              </span>
             </label>
             <label className="chat-list-field">
               <span>Ordem</span>
