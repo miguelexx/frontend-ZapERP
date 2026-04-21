@@ -1,7 +1,12 @@
 import api from './http'
 
 export async function getConfig() {
-  const { data } = await api.get('/ia/config')
+  const { data } = await api.get('/ia/config', {
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  })
   return data
 }
 

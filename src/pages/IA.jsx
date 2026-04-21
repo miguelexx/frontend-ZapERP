@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
+import { usePermissoesStore } from "../auth/permissoesStore";
 import { canAcessarConfiguracoes } from "../auth/permissions";
 import { useNotificationStore } from "../notifications/notificationStore";
 import api from "../api/http";
@@ -61,6 +62,22 @@ const DEFAULT_CONFIG = {
   },
 };
 
+/** Une resposta GET /ia/config com defaults para não perder chaves (ex.: chatbot_triage.finalizar_por_ausencia_*). */
+function mergeIaConfigFromApi(server) {
+  if (!server || typeof server !== "object") return { ...DEFAULT_CONFIG };
+  const ctRaw = server.chatbot_triage;
+  const ct = ctRaw && typeof ctRaw === "object" ? ctRaw : {};
+  return {
+    ia: { ...DEFAULT_CONFIG.ia, ...(server.ia || {}) },
+    automacoes: { ...DEFAULT_CONFIG.automacoes, ...(server.automacoes || {}) },
+    chatbot_triage: {
+      ...DEFAULT_CONFIG.chatbot_triage,
+      ...ct,
+      options: Array.isArray(ct.options) ? ct.options : DEFAULT_CONFIG.chatbot_triage.options,
+    },
+  };
+}
+
 const TABS = [
   { id: "chatbot", label: "Chatbot de Triagem" },
   { id: "respostas", label: "Respostas automáticas" },
@@ -73,6 +90,15 @@ export default function IA() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  /** Re-render quando permissões carregam (login) — can() passa a refletir a API. */
+  const permissoes = usePermissoesStore((s) => s.permissoes);
+  const companyKey =
+    user?.empresa_id ??
+    user?.company_id ??
+    user?.empresaId ??
+    user?.companyId ??
+    "";
   const isAdmin = canAcessarConfiguracoes(user);
 
   const tabFromUrl = searchParams.get("tab");
@@ -97,18 +123,6 @@ export default function IA() {
     if (!isAdmin) navigate("/atendimento", { replace: true });
   }, [isAdmin, navigate]);
 
-  const loadConfig = useCallback(async () => {
-    try {
-      const c = await iaApi.getConfig();
-      setConfig(c && typeof c === "object" ? c : DEFAULT_CONFIG);
-    } catch (e) {
-      console.error("Erro ao carregar config IA:", e);
-      setConfig(DEFAULT_CONFIG);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const loadRegras = useCallback(async () => {
     try {
       const r = await iaApi.getRegras();
@@ -127,24 +141,36 @@ export default function IA() {
     }
   }, []);
 
-  const loadDepTags = useCallback(async () => {
-    try {
-      const [dep, tag] = await Promise.all([
-        api.get("/dashboard/departamentos").then((r) => r.data || []),
-        api.get("/tags").then((r) => r.data || []),
-      ]);
-      setDepartamentos(dep);
-      setTags(tag);
-    } catch (e) {
-      console.error("Erro ao carregar dep/tags:", e);
-    }
-  }, []);
-
+  /** GET /ia/config + departamentos/tags sempre no mount e quando sessão/tenant/permissões mudam (não depender só de “Atualizar”). */
   useEffect(() => {
-    if (!isAdmin) return;
-    loadConfig();
-    loadDepTags();
-  }, [isAdmin, loadConfig, loadDepTags]);
+    if (!isAdmin || !token) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const [c, dep, tag] = await Promise.all([
+          iaApi.getConfig(),
+          api.get("/dashboard/departamentos").then((r) => r.data || []),
+          api.get("/tags").then((r) => r.data || []),
+        ]);
+        if (cancelled) return;
+        setConfig(mergeIaConfigFromApi(c));
+        setDepartamentos(dep);
+        setTags(tag);
+      } catch (e) {
+        console.error("Erro ao carregar config IA:", e);
+        if (!cancelled) setConfig({ ...DEFAULT_CONFIG });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, token, companyKey, permissoes]);
 
   useEffect(() => {
     if (tab === "respostas") loadRegras();
@@ -160,7 +186,7 @@ export default function IA() {
     setErrorMsg(null);
     try {
       const c = await iaApi.putConfig({ [section]: values });
-      setConfig(c);
+      setConfig(mergeIaConfigFromApi(c));
       showToast({ type: "success", title: "Salvo", message: "Configuração salva com sucesso." });
     } catch (e) {
       console.error("Erro ao salvar config:", e);
