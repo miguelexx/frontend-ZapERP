@@ -42,13 +42,12 @@ function rowPrefs(c) {
   };
 }
 
-/** Contagem do chip “Abertas”: exclui `ociosa` e quando o backend manda `exibir_badge_aberta: false`. */
+/** Chip “Abertas”: apenas conversas com `status_atendimento === aberta` (fila / não assumidas). */
 function conversaContaComoAbertaNoChip(c) {
-  const s = String(c?.status_atendimento || "").toLowerCase();
-  if (s === "ociosa") return false;
+  const s = String(c?.status_atendimento || "").toLowerCase().trim();
+  if (s !== "aberta") return false;
   if (c?.exibir_badge_aberta === false) return false;
-  if (s === "aberta") return true;
-  return c?.exibir_badge_aberta === true;
+  return true;
 }
 
 /** Admin UI (filtro lateral por funcionário): aceita `role` ou `perfil`. */
@@ -1136,10 +1135,14 @@ export default function ChatList() {
   const novoMenuRef = useRef(null);
 
   // tabs estilo WhatsApp (chip row)
-  // todas | nao_lidas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente
+  // todas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente
   const [tab, setTab] = useState("minha_fila");
   const tabRef = useRef(tab);
   tabRef.current = tab;
+
+  useEffect(() => {
+    if (tab === "nao_lidas") setTab("todas");
+  }, [tab]);
 
   /** GET /chats?minha_fila=1 — fila do atendente (abertas + em atendimento comigo); sem status_atendimento na query. */
   const [minhaFilaList, setMinhaFilaList] = useState(null);
@@ -1209,8 +1212,10 @@ export default function ChatList() {
       if (finalAutoQuery) {
         params.status_atendimento = "fechada";
         params.finalizacao_motivo = "ausencia_cliente";
+      } else if (aguardandoQuery) {
+        params.aguardando_cliente = "1";
+        params.status_atendimento = "em_atendimento";
       }
-      if (aguardandoQuery) params.aguardando_cliente = "1";
       const data = await fetchChats(params);
       const list = Array.isArray(data) ? data : [];
       setMinhaFilaCount(list.length);
@@ -1258,7 +1263,10 @@ export default function ChatList() {
         if (finalAutoQuery) {
           params.finalizacao_motivo = "ausencia_cliente";
         }
-        if (aguardandoQuery) params.aguardando_cliente = "1";
+        if (aguardandoQuery) {
+          params.aguardando_cliente = "1";
+          params.status_atendimento = "em_atendimento";
+        }
       } else {
         params = {
           tag_id: tagFilter !== "todas" ? tagFilter : undefined,
@@ -1269,11 +1277,15 @@ export default function ChatList() {
           data_fim: dataFim || undefined,
           incluir_todos_clientes: "1",
         };
-        if (finalAutoQuery) {
+        if (aguardandoQuery) {
+          params.aguardando_cliente = "1";
+          params.status_atendimento = "em_atendimento";
+        } else if (finalAutoQuery) {
           params.status_atendimento = "fechada";
           params.finalizacao_motivo = "ausencia_cliente";
+        } else if (tab === "abertas") {
+          params.status_atendimento = "aberta";
         }
-        if (aguardandoQuery) params.aguardando_cliente = "1";
       }
 
       const data = await fetchChats(params);
@@ -1568,9 +1580,7 @@ export default function ChatList() {
 
     // tabs rápidas (minha_fila vem filtrada do backend com minha_fila=1); desativadas no modo adminPorFuncionario
     if (!adminPorFuncionario) {
-      if (tab === "nao_lidas") {
-        list = list.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0);
-      } else if (tab === "hoje") {
+      if (tab === "hoje") {
         list = list.filter((c) => {
           const last = getLastMessage(c);
           const ts = last?.criado_em || c?.criado_em;
@@ -1599,6 +1609,9 @@ export default function ChatList() {
     }
 
     if (adminPorFuncionario) {
+      if (tab === "abertas") {
+        list = list.filter((c) => conversaContaComoAbertaNoChip(c));
+      }
       if (tab === "finalizadas_auto" || onlyFinalizadasAusencia) {
         list = list.filter(
           (c) =>
@@ -1617,6 +1630,7 @@ export default function ChatList() {
     }
 
     const skipStatusFilterRow =
+      tab === "abertas" ||
       tab === "finalizadas_auto" ||
       onlyFinalizadasAusencia ||
       tab === "aguardando_cliente" ||
@@ -1687,7 +1701,7 @@ export default function ChatList() {
       });
     }
 
-    // ordenação: apenas por data (mais recente no topo) — badge de não lidas continua visível mas não altera a ordem
+    // ordenação: apenas por data (mais recente no topo) — contador de não lidas no item não altera a ordem
     list.sort((a, b) => {
       const aPinned = a?.fixada === true ? 1 : 0;
       const bPinned = b?.fixada === true ? 1 : 0;
@@ -1942,7 +1956,6 @@ export default function ChatList() {
 
   // KPIs
   const total = chats.length;
-  const countNaoLidas = chats.filter((c) => Number(c?.unread_count ?? c?.unread ?? 0) > 0).length;
   const countHoje = chats.filter((c) => {
     const last = getLastMessage(c);
     const ts = last?.criado_em || c?.criado_em;
@@ -1956,12 +1969,16 @@ export default function ChatList() {
       String(c.status_atendimento) === "fechada" &&
       (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
   ).length;
-  const countAguardandoCliente = chats.filter(
-    (c) =>
-      c?.aguardando_cliente_desde != null &&
-      String(c.status_atendimento) === "em_atendimento" &&
-      c?.atendente_id != null
-  ).length;
+  /** Com aba/checkbox “Aguardando cliente”, GET /chats já vem filtrado — contador = tamanho da lista; senão, estimativa no cliente. */
+  const countAguardandoCliente =
+    tab === "aguardando_cliente" || aguardandoClienteOnly
+      ? chats.length
+      : chats.filter(
+          (c) =>
+            c?.aguardando_cliente_desde != null &&
+            String(c.status_atendimento) === "em_atendimento" &&
+            c?.atendente_id != null
+        ).length;
 
   const adminPorFuncionarioAtivo =
     adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
@@ -2154,10 +2171,6 @@ export default function ChatList() {
         <Chip active={tab === "todas"} onClick={() => setTab("todas")}>
           <span>Todas</span>
           <span className="chat-list-chip-count">{total}</span>
-        </Chip>
-        <Chip active={tab === "nao_lidas"} onClick={() => setTab("nao_lidas")}>
-          <span>Não lidas</span>
-          <span className="chat-list-chip-count">{countNaoLidas}</span>
         </Chip>
         <Chip active={tab === "hoje"} onClick={() => setTab("hoje")}>
           <span>Hoje</span>
