@@ -75,6 +75,21 @@ function countDistinctConversas(list) {
   return byKey.size;
 }
 
+function isConversaAguardandoCliente(c) {
+  if (!c || c?.atendente_id == null) return false;
+  if (isAguardandoClienteManual(c)) return true;
+  return (
+    getStatusAtendimentoEffective(c) === "em_atendimento" &&
+    c?.aguardando_cliente_desde != null
+  );
+}
+
+function isConversaEmAtendimentoBadge(c) {
+  if (!c || c?.atendente_id == null) return false;
+  const s = getStatusAtendimentoEffective(c);
+  return s === "em_atendimento" || s === "aguardando_cliente";
+}
+
 /**
  * Modo admin por funcionário (payload pode ter vários status_atendimento).
  * Inclui só conversas assumidas por esse utilizador; grupos e itens sem atendente_id ficam de fora.
@@ -1181,6 +1196,8 @@ export default function ChatList() {
   /** GET /chats?minha_fila=1 — fila do atendente (abertas + em atendimento comigo); sem status_atendimento na query. */
   const [minhaFilaList, setMinhaFilaList] = useState(null);
   const [minhaFilaCount, setMinhaFilaCount] = useState(0);
+  /** Contador do chip “Em atendimento”: sempre GET /chats?status_atendimento=em_atendimento (escopo backend). */
+  const [emAtendimentoBadgeCount, setEmAtendimentoBadgeCount] = useState(0);
   /** Contador do chip “Aguardando cliente”: sempre GET /chats?aguardando_cliente=1 (escopo do backend), nunca length de “Todas”. */
   const [aguardandoClienteBadgeCount, setAguardandoClienteBadgeCount] = useState(0);
 
@@ -1251,7 +1268,7 @@ export default function ChatList() {
       }
       const data = await fetchChats(params);
       const list = Array.isArray(data) ? data : [];
-      setMinhaFilaCount(list.length);
+      setMinhaFilaCount(countDistinctConversas(list));
       if (tabRef.current === "minha_fila") {
         setMinhaFilaList(list);
       }
@@ -1263,6 +1280,50 @@ export default function ChatList() {
       }
     }
   }, [tagFilter, departamentoFilter, atendenteFilter, dataInicio, dataFim, onlyFinalizadasAusencia]);
+
+  const refreshEmAtendimentoBadge = useCallback(async () => {
+    try {
+      const adminPorFuncionario =
+        adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
+      let params;
+      if (adminPorFuncionario) {
+        const aid = Number(adminAtendenteFilterId);
+        const atendenteIdQuery =
+          Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
+        params = {
+          status_atendimento: "em_atendimento",
+          atendente_id: atendenteIdQuery,
+          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
+          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
+          data_inicio: dataInicio || undefined,
+          data_fim: dataFim || undefined,
+          incluir_todos_clientes: "1",
+        };
+      } else {
+        params = {
+          status_atendimento: "em_atendimento",
+          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
+          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
+          data_inicio: dataInicio || undefined,
+          data_fim: dataFim || undefined,
+          incluir_todos_clientes: "1",
+        };
+      }
+      const data = await fetchChats(params);
+      const list = Array.isArray(data) ? data : [];
+      const apenasEmAtendimento = list.filter((c) => isConversaEmAtendimentoBadge(c));
+      setEmAtendimentoBadgeCount(countDistinctConversas(apenasEmAtendimento));
+    } catch (e) {
+      console.error("Erro ao carregar contagem Em atendimento:", e);
+      setEmAtendimentoBadgeCount(0);
+    }
+  }, [
+    adminAtendenteFilterId,
+    tagFilter,
+    departamentoFilter,
+    dataInicio,
+    dataFim,
+  ]);
 
   const refreshAguardandoClienteBadge = useCallback(async () => {
     try {
@@ -1295,7 +1356,8 @@ export default function ChatList() {
       }
       const data = await fetchChats(params);
       const list = Array.isArray(data) ? data : [];
-      setAguardandoClienteBadgeCount(countDistinctConversas(list));
+      const apenasAguardando = list.filter((c) => isConversaAguardandoCliente(c));
+      setAguardandoClienteBadgeCount(countDistinctConversas(apenasAguardando));
     } catch (e) {
       console.error("Erro ao carregar contagem Aguardando cliente:", e);
       setAguardandoClienteBadgeCount(0);
@@ -1428,6 +1490,7 @@ export default function ChatList() {
         return combined;
       });
       void refreshMinhaFila();
+      void refreshEmAtendimentoBadge();
       void refreshAguardandoClienteBadge();
     } catch (e) {
       console.error("Erro ao carregar conversas:", e);
@@ -2034,7 +2097,7 @@ export default function ChatList() {
     return isToday(ts);
   }).length;
   const countAbertas = chats.filter((c) => conversaContaComoAbertaNoChip(c)).length;
-  const countEmAtendimento = chats.filter((c) => getStatusAtendimentoEffective(c) === "em_atendimento").length;
+  const countEmAtendimento = emAtendimentoBadgeCount;
   const countFinalizadas = chats.filter((c) => getStatusAtendimentoEffective(c) === "fechada").length;
   const countFinalizadasAuto = chats.filter(
     (c) =>
