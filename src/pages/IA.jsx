@@ -78,6 +78,27 @@ function mergeIaConfigFromApi(server) {
   };
 }
 
+function iaConfigCacheKey(companyKey) {
+  return `ia_config_cache_${String(companyKey || "default")}`;
+}
+
+function readIaConfigCache(companyKey) {
+  try {
+    const raw = localStorage.getItem(iaConfigCacheKey(companyKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return mergeIaConfigFromApi(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function writeIaConfigCache(companyKey, config) {
+  try {
+    localStorage.setItem(iaConfigCacheKey(companyKey), JSON.stringify(config || {}));
+  } catch {}
+}
+
 const TABS = [
   { id: "chatbot", label: "Chatbot de Triagem" },
   { id: "respostas", label: "Respostas automáticas" },
@@ -157,12 +178,19 @@ export default function IA() {
           api.get("/tags").then((r) => r.data || []),
         ]);
         if (cancelled) return;
-        setConfig(mergeIaConfigFromApi(c));
+        const merged = mergeIaConfigFromApi(c);
+        setConfig(merged);
+        writeIaConfigCache(companyKey, merged);
         setDepartamentos(dep);
         setTags(tag);
+        setErrorMsg(null);
       } catch (e) {
         console.error("Erro ao carregar config IA:", e);
-        if (!cancelled) setConfig({ ...DEFAULT_CONFIG });
+        if (!cancelled) {
+          const cached = readIaConfigCache(companyKey);
+          setConfig(cached || { ...DEFAULT_CONFIG });
+          setErrorMsg("Não foi possível carregar configurações. Tente novamente.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -186,7 +214,9 @@ export default function IA() {
     setErrorMsg(null);
     try {
       const c = await iaApi.putConfig({ [section]: values });
-      setConfig(mergeIaConfigFromApi(c));
+      const merged = mergeIaConfigFromApi(c);
+      setConfig(merged);
+      writeIaConfigCache(companyKey, merged);
       showToast({ type: "success", title: "Salvo", message: "Configuração salva com sucesso." });
     } catch (e) {
       console.error("Erro ao salvar config:", e);

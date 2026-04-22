@@ -10,7 +10,6 @@ const withCredentials =
 const api = axios.create({
   baseURL,
   ...(withCredentials ? { withCredentials: true } : {}),
-  headers: { "Content-Type": "application/json" },
 })
 
 // 🔐 injeta token sempre do localStorage
