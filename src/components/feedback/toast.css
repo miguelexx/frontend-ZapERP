@@ -1,7 +1,7 @@
 /* Toast — Design System ZapERP */
 .ds-toast {
   position: fixed;
-  top: calc(12px + env(safe-area-inset-top, 0px));
+  top: calc(18px + env(safe-area-inset-top, 0px));
   left: 50%;
   right: auto;
   bottom: auto;
@@ -14,11 +14,17 @@
   border: 1px solid var(--ds-border);
   border-left-width: 4px;
   box-shadow: var(--ds-shadow-toast, 0 8px 24px rgba(0, 0, 0, 0.12));
+  backdrop-filter: blur(6px);
   z-index: 9999;
   display: flex;
   align-items: flex-start;
   gap: var(--ds-space-3, 12px);
   animation: ds-toast-in 0.2s ease-out;
+}
+
+/* Empilhamento quando houver múltiplos toasts simultâneos */
+.ds-toast + .ds-toast {
+  margin-top: 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -30,22 +36,22 @@
 @keyframes ds-toast-in-mobile {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translate(-50%, -8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, 0);
   }
 }
 
 @keyframes ds-toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translate(-50%, -8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, 0);
   }
 }
 
@@ -166,7 +172,7 @@
     max-width: none;
     min-width: 0;
     width: min(92vw, 560px);
-    top: calc(10px + env(safe-area-inset-top, 0px));
+    top: calc(16px + env(safe-area-inset-top, 0px));
     bottom: auto;
     box-sizing: border-box;
     animation: ds-toast-in-mobile 0.2s ease-out;
