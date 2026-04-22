@@ -973,7 +973,7 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
-  const currentUserId = useAuthStore.getState()?.user?.id;
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const isResponsavel =
     !isGroup &&
     currentUserId != null &&
@@ -984,7 +984,8 @@ function ChatRow({
     stAt === "em_atendimento" || stAt === "aguardando_cliente";
   const lastDir = getLastDirection(chat);
   const hintNovaMsg =
-    Boolean(chat?.tem_novas_mensagens_em_atendimento) && !lastDir;
+    !lastDir &&
+    (Boolean(chat?.tem_novas_mensagens_em_atendimento) || unread > 0);
   const showAtendimentoDot =
     isResponsavel &&
     isHumanAtendimentoRow &&
