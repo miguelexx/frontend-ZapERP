@@ -121,8 +121,8 @@ function AtendimentoUnreadDot({ show }) {
   return (
     <span
       className="chat-list-atendimento-dot"
-      title="Aguardando cliente"
-      aria-label="Aguardando cliente"
+      title="Cliente aguardando sua resposta"
+      aria-label="Cliente aguardando sua resposta"
       role="status"
     />
   );
@@ -979,8 +979,16 @@ function ChatRow({
     currentUserId != null &&
     chat?.atendente_id != null &&
     String(chat.atendente_id) === String(currentUserId);
-  // Indicador complementar discreto: só quando conversa está em "aguardando cliente".
-  const showAtendimentoDot = isConversaAguardandoCliente(chat) && isResponsavel;
+  const stAt = getStatusAtendimentoEffective(chat);
+  const isHumanAtendimentoRow =
+    stAt === "em_atendimento" || stAt === "aguardando_cliente";
+  const lastDir = getLastDirection(chat);
+  const hintNovaMsg =
+    Boolean(chat?.tem_novas_mensagens_em_atendimento) && !lastDir;
+  const showAtendimentoDot =
+    isResponsavel &&
+    isHumanAtendimentoRow &&
+    (lastDir === "in" || hintNovaMsg);
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
@@ -1082,11 +1090,13 @@ function ChatRow({
         </div>
         <div className="chat-list-row-mid">
           <div className="chat-list-midLeft">
-            <div className="chat-list-preview" title={previewTitle}>
-              {previewNode}
+            <div className="chat-list-preview-line">
+              <div className="chat-list-preview" title={previewTitle}>
+                {previewNode}
+              </div>
+              <AtendimentoUnreadDot show={showAtendimentoDot} />
             </div>
           </div>
-          <AtendimentoUnreadDot show={showAtendimentoDot} />
           <UnreadBadge n={unread} />
         </div>
       </div>
@@ -1119,6 +1129,8 @@ const MemoChatRow = memo(ChatRow, (prev, next) => {
     pa.fixada === pb.fixada &&
     pa.favorita === pb.favorita &&
     Boolean(a.tem_novas_mensagens_em_atendimento) === Boolean(b.tem_novas_mensagens_em_atendimento) &&
+    String(a.atendente_id ?? "") === String(b.atendente_id ?? "") &&
+    getLastDirection(a) === getLastDirection(b) &&
     String(a.ultima_atividade ?? "") === String(b.ultima_atividade ?? "") &&
     String(a?.ultima_mensagem?.id ?? a?.ultima_mensagem?.whatsapp_id ?? "") ===
       String(b?.ultima_mensagem?.id ?? b?.ultima_mensagem?.whatsapp_id ?? "")

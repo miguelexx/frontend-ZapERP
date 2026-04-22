@@ -1109,6 +1109,15 @@ a { color: inherit; text-decoration: none; }
   flex:1;
 }
 
+/* Prévia + indicador (bolinha) na mesma linha, bolinha à direita do texto */
+.chat-list-preview-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
 .chat-list-preview {
   font-size: var(--cl-font-size-sm);
   color: var(--cl-text-muted);
@@ -1118,6 +1127,7 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  flex: 1;
 }
 
 .chat-list-thumb{
@@ -1182,22 +1192,23 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-atendimento-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
+  display: block;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #34d399, #10b981);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  margin-left: 8px;
-  margin-right: 4px;
+  background: #22c55e;
+  border: 1px solid rgba(255, 255, 255, 0.75);
   flex-shrink: 0;
+  align-self: center;
   pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.16);
+  opacity: 0.92;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 [data-theme="dark"] .chat-list-atendimento-dot {
-  border-color: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22);
+  border-color: rgba(255, 255, 255, 0.45);
+  background: #4ade80;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* Ponto de notificação (nova mensagem não lida) */
