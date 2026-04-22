@@ -199,6 +199,15 @@ function normalizeTelefone(v) {
 function statusBadge(status, exibirBadgeAberta, finalizacaoMotivo) {
   const s = safeString(status).toLowerCase();
   const ausencia = safeString(finalizacaoMotivo).toLowerCase() === "ausencia_cliente";
+  if (s === "aguardando_cliente") {
+    return {
+      text: "Aguardando cliente",
+      bg: "rgba(139,92,246,0.12)",
+      color: "#7c3aed",
+      border: "rgba(139,92,246,0.22)",
+      dot: "#7c3aed",
+    };
+  }
   if (s === "em_atendimento") {
     return {
       text: "Em atendimento",

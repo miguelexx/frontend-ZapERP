@@ -15,6 +15,21 @@ function getApiErrorMessage(e) {
   return e?.response?.data?.error || e?.message || "Erro na operação.";
 }
 
+function getAguardandoClienteErrorMessage(e) {
+  const st = e?.response?.status;
+  const body = e?.response?.data;
+  const raw = body?.error || body?.message || "";
+  const t = String(raw || "").toLowerCase();
+  if (st === 409) {
+    if (t.includes("em_atendimento") || t.includes("em atendimento"))
+      return "Só é possível a partir de uma conversa em atendimento, com você como responsável.";
+    if (t.includes("aguardando") || t.includes("retomar"))
+      return raw || "O estado da conversa mudou. Atualize e tente de novo.";
+    return raw || "Esta ação não se aplica ao estado atual da conversa.";
+  }
+  return getApiErrorMessage(e);
+}
+
 function getMessagesScrollMetrics() {
   if (typeof document === "undefined") return null;
   const container = document.querySelector(".wa-messages");
@@ -61,6 +76,8 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
   const transferirConversa = useConversaStore((s) => s?.transferirConversa);
   const encerrarConversa = useConversaStore((s) => s?.encerrarConversa);
   const reabrirConversa = useConversaStore((s) => s?.reabrirConversa);
+  const marcarAguardandoClienteConversa = useConversaStore((s) => s?.marcarAguardandoClienteConversa);
+  const retomarAtendimentoConversa = useConversaStore((s) => s?.retomarAtendimentoConversa);
   const showToast = useNotificationStore((s) => s?.showToast);
 
   const [transferOpen, setTransferOpen] = useState(false);
@@ -140,8 +157,11 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
   const isFechada = status === "fechada" || status === "encerrada";
   const isFila =
     status === "fila" || status === "aberta" || status === "pendente";
+  const isAguardandoClienteManual = status === "aguardando_cliente";
   const isEmAtendimento =
     status === "em_atendimento" || status === "em atendimento";
+  const isEmAtendimentoOuAguardandoManual =
+    isEmAtendimento || isAguardandoClienteManual;
 
   const convDepId = conversa?.departamento_id ?? null;
   const userDepIds = Array.isArray(user?.departamento_ids)
@@ -166,13 +186,34 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
     typeof canTransferir === "function" &&
     canTransferir(user) &&
     !isFechada &&
-    (isPrivileged ? (isFila || isEmAtendimento || hasAtendente) : (hasAtendente && isMinha));
+    (isPrivileged
+      ? isFila || isEmAtendimentoOuAguardandoManual || hasAtendente
+      : hasAtendente && isMinha);
 
   const podeEncerrar =
     typeof canEncerrar === "function" &&
     canEncerrar(user) &&
     !isFechada &&
-    (isEmAtendimento || hasAtendente) &&
+    (isEmAtendimentoOuAguardandoManual || hasAtendente) &&
+    (isPrivileged ? true : isMinha);
+
+  const podeMarcarAguardandoCliente =
+    typeof canEncerrar === "function" &&
+    canEncerrar(user) &&
+    typeof marcarAguardandoClienteConversa === "function" &&
+    !isFechada &&
+    isEmAtendimento &&
+    !isAguardandoClienteManual &&
+    hasAtendente &&
+    (isPrivileged ? true : isMinha);
+
+  const podeRetomarAtendimento =
+    typeof canEncerrar === "function" &&
+    canEncerrar(user) &&
+    typeof retomarAtendimentoConversa === "function" &&
+    !isFechada &&
+    isAguardandoClienteManual &&
+    hasAtendente &&
     (isPrivileged ? true : isMinha);
 
   const podeReabrir =
@@ -232,6 +273,54 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
     }
   }
 
+  async function handleMarcarAguardandoCliente() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (typeof marcarAguardandoClienteConversa === "function") {
+        await marcarAguardandoClienteConversa(conversa.id);
+        if (showToast)
+          showToast({
+            title: "Aguardando cliente",
+            message: "A conversa foi marcada como aguardando resposta do cliente.",
+          });
+      }
+    } catch (e) {
+      console.error("Erro ao marcar aguardando cliente:", e);
+      if (showToast)
+        showToast({
+          title: "Não foi possível atualizar",
+          message: getAguardandoClienteErrorMessage(e),
+        });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRetomarAtendimento() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (typeof retomarAtendimentoConversa === "function") {
+        await retomarAtendimentoConversa(conversa.id);
+        if (showToast)
+          showToast({
+            title: "Atendimento retomado",
+            message: "A conversa voltou para em atendimento.",
+          });
+      }
+    } catch (e) {
+      console.error("Erro ao retomar atendimento:", e);
+      if (showToast)
+        showToast({
+          title: "Não foi possível retomar",
+          message: getAguardandoClienteErrorMessage(e),
+        });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleTransferir(id) {
     if (busy) return;
     setBusy(true);
@@ -275,6 +364,17 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
       ariaLabel: "Assumir atendimento",
     });
   }
+  if (podeRetomarAtendimento) {
+    actions.push({
+      id: "retomar_atendimento",
+      className: "wa-btn-primary",
+      labelLong: "Retomar atendimento",
+      labelShort: "Retomar",
+      onClick: handleRetomarAtendimento,
+      title: "Voltar para em atendimento",
+      ariaLabel: "Retomar atendimento",
+    });
+  }
   if (podeTransferir) {
     actions.push({
       id: "transferir",
@@ -284,6 +384,17 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
       onClick: openTransfer,
       title: "Transferir atendimento",
       ariaLabel: "Transferir atendimento",
+    });
+  }
+  if (podeMarcarAguardandoCliente) {
+    actions.push({
+      id: "aguardar_cliente",
+      className: "wa-btn-secondary",
+      labelLong: "Aguardar cliente",
+      labelShort: "Aguard.",
+      onClick: handleMarcarAguardandoCliente,
+      title: "Marcar como aguardando resposta do cliente",
+      ariaLabel: "Marcar como aguardando cliente",
     });
   }
   if (podeEncerrar) {

@@ -202,6 +202,18 @@ export async function transferirChat(conversaId, novo_atendente_id, observacao) 
   return data;
 }
 
+/** Marca atendimento humano como aguardando resposta do cliente (estado manual; distinto do job de ausência). */
+export async function marcarAguardandoClienteChat(conversaId) {
+  const { data } = await api.post(`/chats/${conversaId}/aguardando-cliente`);
+  return data;
+}
+
+/** Volta de aguardando_cliente (manual) para em_atendimento. */
+export async function retomarAtendimentoChat(conversaId) {
+  const { data } = await api.post(`/chats/${conversaId}/retomar-atendimento`);
+  return data;
+}
+
 export async function listarAtendimentos(conversaId) {
   const { data } = await api.get(`/chats/${conversaId}/atendimentos`);
   return data || [];

@@ -176,9 +176,27 @@ function payloadImpactaListaLateral(payload) {
   if (!payload || typeof payload !== "object") return false
   const lr = /** @type {any} */ (payload).lista_realtime
   if (lr && lr.minha_fila === true) return true
+  if (lr && typeof lr === "object") {
+    const m = lr.motivo ?? lr.motivo_lista ?? lr.motivos
+    if (
+      m === "manual_aguardando_cliente" ||
+      m === "manual_retomar_em_atendimento"
+    )
+      return true
+    if (
+      Array.isArray(m) &&
+      m.some(
+        (x) =>
+          x === "manual_aguardando_cliente" ||
+          x === "manual_retomar_em_atendimento"
+      )
+    )
+      return true
+  }
   if (Object.prototype.hasOwnProperty.call(payload, "status_atendimento")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "atendente_id")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "departamento_id")) return true
+  if (Object.prototype.hasOwnProperty.call(payload, "aguardando_cliente_desde")) return true
   return false
 }
 

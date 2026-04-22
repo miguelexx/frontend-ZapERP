@@ -267,6 +267,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   const statusLabel = useMemo(() => {
     const s = String(conversa?.status_atendimento || "").toLowerCase();
     if (s === "em_atendimento") return "Em atendimento";
+    if (s === "aguardando_cliente") return "Aguardando cliente";
     if (s === "fechada") return "Finalizada";
     if (!s) return "Aberta";
     return s;
@@ -276,6 +277,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     const s = String(conversa?.status_atendimento || "").toLowerCase();
     if (s === "fechada") return "closed";
     if (s === "em_atendimento") return "active";
+    if (s === "aguardando_cliente") return "awaiting";
     return "open";
   }, [conversa?.status_atendimento]);
 

@@ -24,6 +24,8 @@ const chatService = {
   encerrarChat: conversaService.encerrarChat,
   reabrirChat: conversaService.reabrirChat,
   transferirChat: conversaService.transferirChat,
+  marcarAguardandoClienteChat: conversaService.marcarAguardandoClienteChat,
+  retomarAtendimentoChat: conversaService.retomarAtendimentoChat,
   listarAtendimentos: conversaService.listarAtendimentos,
   adicionarTagConversa: conversaService.adicionarTagConversa,
   removerTagConversa: conversaService.removerTagConversa,

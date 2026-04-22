@@ -412,6 +412,7 @@ function DashboardRelatorios() {
               <option value="">Status</option>
               <option value="aberta">Aberta</option>
               <option value="em_atendimento">Em atendimento</option>
+              <option value="aguardando_cliente">Aguardando cliente</option>
               <option value="fechada">Fechada</option>
             </select>
             <select

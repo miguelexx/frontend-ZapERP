@@ -801,6 +801,7 @@ function StatusPill({ status, exibirBadgeAberta, chat }) {
   // status_atendimento tem prioridade: em_atendimento e fechada sincronizam com o header do chat
   const map = {
     em_atendimento: { label: "Em atendimento", cls: "chat-list-status in" },
+    aguardando_cliente: { label: "Aguardando cliente", cls: "chat-list-status awaiting-client" },
     fechada: { label: "Finalizada", cls: "chat-list-status closed" },
   };
   const it = map[s];
@@ -911,7 +912,9 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
-  const isEmAtendimento = String(chat?.status_atendimento || "").toLowerCase() === "em_atendimento";
+  const stAt = String(chat?.status_atendimento || "").toLowerCase();
+  const isEmAtendimento = stAt === "em_atendimento";
+  const isAguardandoClienteManual = stAt === "aguardando_cliente";
   const currentUserId = useAuthStore.getState()?.user?.id;
   const isResponsavel =
     !isGroup &&
@@ -919,7 +922,8 @@ function ChatRow({
     chat?.atendente_id != null &&
     String(chat.atendente_id) === String(currentUserId);
   const hasAtendimentoUnread = chat?.tem_novas_mensagens_em_atendimento === true;
-  const showAtendimentoDot = isEmAtendimento && isResponsavel && hasAtendimentoUnread;
+  const showAtendimentoDot =
+    (isEmAtendimento || isAguardandoClienteManual) && isResponsavel && hasAtendimentoUnread;
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
@@ -1213,8 +1217,8 @@ export default function ChatList() {
         params.status_atendimento = "fechada";
         params.finalizacao_motivo = "ausencia_cliente";
       } else if (aguardandoQuery) {
+        /** Backend: aguardando_cliente=1 inclui ausência automática (em_atendimento + timestamp) e manual (status aguardando_cliente). */
         params.aguardando_cliente = "1";
-        params.status_atendimento = "em_atendimento";
       }
       const data = await fetchChats(params);
       const list = Array.isArray(data) ? data : [];
@@ -1265,7 +1269,6 @@ export default function ChatList() {
         }
         if (aguardandoQuery) {
           params.aguardando_cliente = "1";
-          params.status_atendimento = "em_atendimento";
         }
       } else {
         params = {
@@ -1279,7 +1282,7 @@ export default function ChatList() {
         };
         if (aguardandoQuery) {
           params.aguardando_cliente = "1";
-          params.status_atendimento = "em_atendimento";
+          delete params.status_atendimento;
         } else if (finalAutoQuery) {
           params.status_atendimento = "fechada";
           params.finalizacao_motivo = "ausencia_cliente";
@@ -1599,12 +1602,15 @@ export default function ChatList() {
             (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
         );
       } else if (tab === "aguardando_cliente") {
-        list = list.filter(
-          (c) =>
+        list = list.filter((c) => {
+          if (String(c.status_atendimento) === "aguardando_cliente" && c?.atendente_id != null)
+            return true;
+          return (
             c?.aguardando_cliente_desde != null &&
             String(c.status_atendimento) === "em_atendimento" &&
             c?.atendente_id != null
-        );
+          );
+        });
       }
     }
 
@@ -1620,12 +1626,15 @@ export default function ChatList() {
         );
       }
       if (tab === "aguardando_cliente" || aguardandoClienteOnly) {
-        list = list.filter(
-          (c) =>
+        list = list.filter((c) => {
+          if (String(c.status_atendimento) === "aguardando_cliente" && c?.atendente_id != null)
+            return true;
+          return (
             c?.aguardando_cliente_desde != null &&
             String(c.status_atendimento) === "em_atendimento" &&
             c?.atendente_id != null
-        );
+          );
+        });
       }
     }
 
@@ -1973,12 +1982,15 @@ export default function ChatList() {
   const countAguardandoCliente =
     tab === "aguardando_cliente" || aguardandoClienteOnly
       ? chats.length
-      : chats.filter(
-          (c) =>
+      : chats.filter((c) => {
+          if (String(c.status_atendimento) === "aguardando_cliente" && c?.atendente_id != null)
+            return true;
+          return (
             c?.aguardando_cliente_desde != null &&
             String(c.status_atendimento) === "em_atendimento" &&
             c?.atendente_id != null
-        ).length;
+          );
+        }).length;
 
   const adminPorFuncionarioAtivo =
     adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
@@ -2234,6 +2246,7 @@ export default function ChatList() {
                 <option value="todos">Todos</option>
                 <option value="aberta">Aberta</option>
                 <option value="em_atendimento">Em atendimento</option>
+                <option value="aguardando_cliente">Aguardando cliente</option>
                 <option value="fechada">Fechada</option>
               </select>
             </label>

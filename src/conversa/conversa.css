@@ -5076,6 +5076,11 @@
   background: rgba(100,116,139,.10);
   color: rgba(71,85,105,.95);
 }
+.wa-sideCliente-pill--awaiting{
+  border-color: rgba(139,92,246,.28);
+  background: rgba(139,92,246,.10);
+  color: rgba(91,33,182,.95);
+}
 
 .wa-sideCliente-section {
   padding: 12px 12px;
@@ -5432,6 +5437,12 @@
   border-color: var(--ds-border);
   background: rgba(255, 255, 255, 0.05);
   color: var(--ds-text-tertiary) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-pill--awaiting {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(139, 92, 246, 0.18);
+  color: #ddd6fe !important;
 }
 
 [data-theme="dark"] .wa-sideCliente-hint {

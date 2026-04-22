@@ -6,6 +6,8 @@ import {
   encerrarChat,
   reabrirChat,
   listarAtendimentos,
+  marcarAguardandoClienteChat,
+  retomarAtendimentoChat,
 } from "./conversaService"
 import { getSocket, leaveConversa, joinConversaIfNeeded } from "../socket/socket"
 import { useChatStore } from "../chats/chatsStore"
@@ -669,6 +671,26 @@ export const useConversaStore = create((set, get) => ({
     set({ atendimentosLoadedFor: null })
   },
 
+  marcarAguardandoClienteConversa: async (conversaId) => {
+    const data = await marcarAguardandoClienteChat(conversaId)
+    const payload = data?.conversa ?? data ?? {}
+    const patch = { ...payload, id: conversaId }
+    get().patchConversa(patch)
+    useChatStore.getState().updateChat(patch)
+    useChatStore.getState().requestChatListResync()
+    set({ atendimentosLoadedFor: null })
+  },
+
+  retomarAtendimentoConversa: async (conversaId) => {
+    const data = await retomarAtendimentoChat(conversaId)
+    const payload = data?.conversa ?? data ?? {}
+    const patch = { ...payload, id: conversaId }
+    get().patchConversa(patch)
+    useChatStore.getState().updateChat(patch)
+    useChatStore.getState().requestChatListResync()
+    set({ atendimentosLoadedFor: null })
+  },
+
   /* =====================================================
      TIMELINE
   ===================================================== */
@@ -729,6 +751,7 @@ export const useConversaStore = create((set, get) => ({
       if ("departamento_id" in partial) merged.departamento_id = partial.departamento_id
       if ("atendente_id" in partial) merged.atendente_id = partial.atendente_id
       if ("atendente_nome" in partial) merged.atendente_nome = partial.atendente_nome
+      if ("aguardando_cliente_desde" in partial) merged.aguardando_cliente_desde = partial.aguardando_cliente_desde
       if ("departamento" in partial) merged.departamento = partial.departamento
       if ("departamento_id" in partial && partial.departamento_id == null) {
         merged.setor = null
