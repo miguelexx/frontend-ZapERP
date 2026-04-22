@@ -1268,11 +1268,11 @@ export default function ChatList() {
           incluir_todos_clientes: "1",
         };
       } else {
+        // Sem "Por funcionário": respeitar escopo padrão da sessão no backend.
         params = {
           aguardando_cliente: "1",
           tag_id: tagFilter !== "todas" ? tagFilter : undefined,
           departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
           data_inicio: dataInicio || undefined,
           data_fim: dataFim || undefined,
           incluir_todos_clientes: "1",
@@ -1337,6 +1337,8 @@ export default function ChatList() {
         if (aguardandoQuery) {
           params.aguardando_cliente = "1";
           delete params.status_atendimento;
+          // Escopo por sessão; atendente_id só quando gestor usa "Por funcionário".
+          delete params.atendente_id;
         } else if (finalAutoQuery) {
           params.status_atendimento = "fechada";
           params.finalizacao_motivo = "ausencia_cliente";
@@ -1707,7 +1709,7 @@ export default function ChatList() {
     if (isAppAdmin(user) && departamentoFilter !== "todos") {
       list = list.filter((c) => String(c?.departamento_id ?? "") === String(departamentoFilter));
     }
-    if (!adminPorFuncionario && atendenteFilter !== "todos") {
+    if (!adminPorFuncionario && atendenteFilter !== "todos" && !aguardandoClienteOnly && tab !== "aguardando_cliente") {
       list = list.filter((c) => String(c?.atendente_id ?? "") === String(atendenteFilter));
     }
 
