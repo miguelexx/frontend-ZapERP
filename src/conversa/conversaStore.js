@@ -176,11 +176,18 @@ export const useConversaStore = create((set, get) => ({
         socket.emit("marcar_conversa_lida", { conversa_id: normalizedId })
       }
       useChatStore.getState().clearUnread(normalizedId)
-      // Sincroniza status_atendimento na lista lateral (ex.: em_atendimento no header = em_atendimento na lista)
-      if (conversa?.status_atendimento != null || conversa?.exibir_badge_aberta !== undefined) {
+      // Sincroniza status na lista lateral com o header/detalhe (GET /chats/:id).
+      if (
+        conversa?.status_atendimento != null ||
+        conversa?.status_atendimento_real != null ||
+        conversa?.aguardando_cliente_desde !== undefined ||
+        conversa?.exibir_badge_aberta !== undefined
+      ) {
         useChatStore.getState().updateChat({
           id: normalizedId,
           status_atendimento: conversa?.status_atendimento,
+          status_atendimento_real: conversa?.status_atendimento_real,
+          aguardando_cliente_desde: conversa?.aguardando_cliente_desde,
           exibir_badge_aberta: conversa?.exibir_badge_aberta,
         })
       }
@@ -299,11 +306,17 @@ export const useConversaStore = create((set, get) => ({
         hasMore: !!nextCursor,
       })
 
-      // Sincroniza status_atendimento na lista (ex.: após assumir = em_atendimento)
-      if (merged?.status_atendimento != null || merged?.exibir_badge_aberta !== undefined) {
+      if (
+        merged?.status_atendimento != null ||
+        merged?.status_atendimento_real != null ||
+        merged?.aguardando_cliente_desde !== undefined ||
+        merged?.exibir_badge_aberta !== undefined
+      ) {
         useChatStore.getState().updateChat({
           id,
           status_atendimento: merged?.status_atendimento,
+          status_atendimento_real: merged?.status_atendimento_real,
+          aguardando_cliente_desde: merged?.aguardando_cliente_desde,
           exibir_badge_aberta: merged?.exibir_badge_aberta,
         })
       }
@@ -627,6 +640,7 @@ export const useConversaStore = create((set, get) => ({
     const optimistic = {
       id: conversaId,
       status_atendimento: "em_atendimento",
+      status_atendimento_real: "em_atendimento",
       exibir_badge_aberta: false,
       ...(me?.id != null ? { atendente_id: me.id } : {}),
       ...(me?.nome ? { atendente_nome: me.nome } : {}),
@@ -634,12 +648,14 @@ export const useConversaStore = create((set, get) => ({
     const patch = { ...optimistic, ...payload, id: conversaId }
     get().patchConversa(patch)
     useChatStore.getState().updateChat(patch)
+    useChatStore.getState().requestChatListResync()
     set({ atendimentosLoadedFor: null })
   },
 
   transferirConversa: async (conversaId, novoAtendenteId, observacao = null) => {
     await transferirChat(conversaId, Number(novoAtendenteId), observacao)
     await get().refresh()
+    useChatStore.getState().requestChatListResync()
     set({ atendimentosLoadedFor: null })
   },
 
@@ -654,6 +670,7 @@ export const useConversaStore = create((set, get) => ({
     const patch = { ...optimistic, ...payload, id: conversaId }
     get().patchConversa(patch)
     useChatStore.getState().updateChat(patch)
+    useChatStore.getState().requestChatListResync()
     set({ atendimentosLoadedFor: null })
   },
 
@@ -668,6 +685,7 @@ export const useConversaStore = create((set, get) => ({
     const patch = { ...optimistic, ...payload, id: conversaId }
     get().patchConversa(patch)
     useChatStore.getState().updateChat(patch)
+    useChatStore.getState().requestChatListResync()
     set({ atendimentosLoadedFor: null })
   },
 

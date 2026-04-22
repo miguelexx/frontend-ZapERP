@@ -1,6 +1,21 @@
 // src/chats/chatService.js
 import api from "../api/http";
 
+/**
+ * GET /chats pode devolver array cru ou objeto com conversas/chats/items.
+ * @param {unknown} data
+ * @returns {any[]}
+ */
+export function normalizeChatsResponse(data) {
+  if (data == null) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === "object") {
+    const raw = data.conversas ?? data.chats ?? data.items ?? data.results;
+    if (Array.isArray(raw)) return raw;
+  }
+  return [];
+}
+
 // 🔹 EXPORTS NOMEADOS (usados no ChatList.jsx)
 // pesquisa avançada: tag_id, data_inicio, data_fim, status_atendimento, atendente_id, palavra
 export async function fetchChats(params = {}) {
@@ -28,7 +43,7 @@ export async function fetchChats(params = {}) {
   const wantsCollab =
     params.incluir_colaboradores_encaminhar === true || params.incluir_colaboradores_encaminhar === "1";
   if (wantsCollab) return splitChatsEncaminharPayload(data);
-  return data || [];
+  return normalizeChatsResponse(data);
 }
 
 /**

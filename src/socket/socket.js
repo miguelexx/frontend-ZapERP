@@ -6,6 +6,7 @@ import { shouldNotifyIncomingMessage } from "../notifications/chatNotificationSe
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
 import { SOCKET_EVENTS } from "./events"
+import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
 
 const TYPING_EXPIRY_MS = 5000
 let typingExpiryTimer = null
@@ -47,6 +48,41 @@ function updateDocumentTitleFromChats() {
   const chats = useChatStore.getState().chats || []
   const total = chats.reduce((acc, c) => acc + (Number(c.unread_count) || 0), 0)
   applyDocumentTitle(total)
+}
+
+/**
+ * Inbound: o backend retoma de `aguardando_cliente` → `em_atendimento` (manual) sem exigir refetch.
+ * Aplica otimista na lista e no detalhe; alinha com `conversa_atualizada` se o backend emitir em seguida.
+ * @param {string|number} conversaId
+ * @param {any} msg
+ */
+function applyRetomadaSeAguardandoPorMensagemRecebida(conversaId, msg) {
+  if (conversaId == null || conversaId === "") return
+  if (msg?.fromMe) return
+  const d = String(msg?.direcao || "").toLowerCase()
+  if (d === "out" || d === "outbound" || d === "enviada" || d === "enviado") return
+  if (d && d !== "in" && d !== "inbound" && d !== "recebida") return
+
+  const convStore = useConversaStore.getState()
+  const chatStore = useChatStore.getState()
+  const chats = chatStore.chats || []
+  const row = chats.find((c) => String(c.id) === String(conversaId))
+  const aberto = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
+  const openConv = aberto ? convStore.conversa : null
+
+  const rowAguarda = row && getStatusAtendimentoEffective(row) === "aguardando_cliente"
+  const openAguarda = openConv && getStatusAtendimentoEffective(openConv) === "aguardando_cliente"
+  if (!rowAguarda && !openAguarda) return
+
+  const patch = {
+    id: conversaId,
+    status_atendimento: "em_atendimento",
+    status_atendimento_real: "em_atendimento",
+    aguardando_cliente_desde: null,
+  }
+  if (row) chatStore.updateChat(patch)
+  if (aberto) convStore.patchConversa(patch)
+  chatStore.requestChatListResync()
 }
 
 // Som de notificação: tenta arquivo MP3, fallback para beep via Web Audio API
@@ -454,6 +490,8 @@ export function initSocket(token) {
       chatStore.setUltimaMensagem(conversaId, msg)
       chatStore.bumpChatToTop(conversaId)
     }
+
+    applyRetomadaSeAguardandoPorMensagemRecebida(conversaId, msg)
 
     const isAberta =
       convStore.selectedId &&
@@ -917,6 +955,8 @@ export function initSocket(token) {
         const meta = { id: chat.id }
         mergeSetorEAtendenteNoAlvo(meta, chat)
         if ("status_atendimento" in chat) meta.status_atendimento = chat.status_atendimento
+        if ("status_atendimento_real" in chat) meta.status_atendimento_real = chat.status_atendimento_real
+        if ("aguardando_cliente_desde" in chat) meta.aguardando_cliente_desde = chat.aguardando_cliente_desde
         if ("exibir_badge_aberta" in chat) meta.exibir_badge_aberta = chat.exibir_badge_aberta
         useConversaStore.getState().patchConversa(meta)
       } catch (_) {
