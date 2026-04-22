@@ -121,8 +121,8 @@ function AtendimentoUnreadDot({ show }) {
   return (
     <span
       className="chat-list-atendimento-dot"
-      title="Nova mensagem no atendimento"
-      aria-label="Nova mensagem no atendimento"
+      title="Aguardando cliente"
+      aria-label="Aguardando cliente"
       role="status"
     />
   );
@@ -973,27 +973,14 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
-  const stAt = getStatusAtendimentoEffective(chat);
-  const isEmAtendimento = stAt === "em_atendimento";
-  const isAguardandoManualRow = stAt === "aguardando_cliente";
   const currentUserId = useAuthStore.getState()?.user?.id;
   const isResponsavel =
     !isGroup &&
     currentUserId != null &&
     chat?.atendente_id != null &&
     String(chat.atendente_id) === String(currentUserId);
-  const isHumanStatus = isEmAtendimento || isAguardandoManualRow;
-  const lastDirection = getLastDirection(chat);
-  const hasAtendimentoUnreadHint = chat?.tem_novas_mensagens_em_atendimento === true;
-  const aguardaRespostaAtendente =
-    isResponsavel &&
-    isHumanStatus &&
-    (
-      lastDirection === "in" ||
-      // fallback: quando direção ainda não veio no payload, usa hint legado até sincronizar.
-      (!lastDirection && hasAtendimentoUnreadHint)
-    );
-  const showAtendimentoDot = aguardaRespostaAtendente;
+  // Indicador complementar discreto: só quando conversa está em "aguardando cliente".
+  const showAtendimentoDot = isConversaAguardandoCliente(chat) && isResponsavel;
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
