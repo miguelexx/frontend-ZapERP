@@ -1183,16 +1183,26 @@ a { color: inherit; text-decoration: none; }
 
 .chat-list-atendimento-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: rgba(34, 197, 94, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.92) 0 22%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(145deg, #34d399, #10b981 60%, #059669);
+  border: 1px solid rgba(255, 255, 255, 0.75);
   flex-shrink: 0;
+  align-self: center;
+  margin-inline: 4px;
+  box-shadow:
+    0 0 0 2px rgba(16, 185, 129, 0.14),
+    0 4px 10px rgba(5, 150, 105, 0.28);
 }
 
 [data-theme="dark"] .chat-list-atendimento-dot {
-  border-color: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 0 0 2px rgba(16, 185, 129, 0.2),
+    0 4px 10px rgba(5, 150, 105, 0.35);
 }
 
 /* Ponto de notificação (nova mensagem não lida) */
