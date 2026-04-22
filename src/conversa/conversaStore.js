@@ -714,7 +714,7 @@ export const useConversaStore = create((set, get) => ({
   ===================================================== */
   patchConversa: (partial) => {
     if (!partial?.id) return
-    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil", "foto_perfil_contato_cache", "exibir_badge_aberta", "status_atendimento"]
+    const fixedFields = ["contato_nome", "nome_contato_cache", "cliente_nome", "telefone", "telefone_exibivel", "cliente_telefone", "nome_grupo", "foto_perfil", "foto_perfil_contato_cache", "exibir_badge_aberta", "status_atendimento", "status_atendimento_real"]
     const preserveBlocked = ["mensagens_bloqueadas", "atendente_nome"]
     set((state) => {
       if (!state.conversa || String(state.conversa.id) !== String(partial.id))
@@ -752,6 +752,7 @@ export const useConversaStore = create((set, get) => ({
       if ("atendente_id" in partial) merged.atendente_id = partial.atendente_id
       if ("atendente_nome" in partial) merged.atendente_nome = partial.atendente_nome
       if ("aguardando_cliente_desde" in partial) merged.aguardando_cliente_desde = partial.aguardando_cliente_desde
+      if ("status_atendimento_real" in partial) merged.status_atendimento_real = partial.status_atendimento_real
       if ("departamento" in partial) merged.departamento = partial.departamento
       if ("departamento_id" in partial && partial.departamento_id == null) {
         merged.setor = null

@@ -10,6 +10,7 @@ import {
   canReabrir,
 } from "../auth/permissions";
 import api from "../api/http";
+import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 
 function getApiErrorMessage(e) {
   return e?.response?.data?.error || e?.message || "Erro na operação.";
@@ -142,7 +143,7 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
 
   if (!conversa || !user) return null;
 
-  const status = String(conversa?.status_atendimento || "").toLowerCase();
+  const status = getStatusAtendimentoEffective(conversa);
   const meuId = user?.id;
   const userRole = String(user?.role || user?.perfil || "").toLowerCase();
   const isPrivileged = userRole === "admin" || userRole === "supervisor";
@@ -389,7 +390,7 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
   if (podeMarcarAguardandoCliente) {
     actions.push({
       id: "aguardar_cliente",
-      className: "wa-btn-secondary",
+      className: "wa-btn-aguardar-cliente",
       labelLong: "Aguardar cliente",
       labelShort: "Aguard.",
       onClick: handleMarcarAguardandoCliente,

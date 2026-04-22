@@ -107,8 +107,8 @@
 }
 
 [data-theme="dark"] .chat-list-row.is-active .chat-list-status.awaiting-client {
-  background: rgba(139, 92, 246, 0.35);
-  color: #ddd6fe !important;
+  background: rgba(14, 165, 233, 0.28);
+  color: #bae6fd !important;
 }
 
 [data-theme="dark"] .chat-list-row.is-active .chat-list-status.closed {
@@ -1289,8 +1289,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-status.awaiting-client {
-  background: rgba(139, 92, 246, 0.14);
-  color: #7c3aed;
+  background: rgba(14, 165, 233, 0.1);
+  color: #0369a1;
 }
 
 .chat-list-status.closed {

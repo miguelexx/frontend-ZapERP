@@ -13,7 +13,7 @@ import {
   encaminharMensagemViaAPI,
   enviarLocalizacao,
 } from "./conversaService";
-import { isGroupConversation } from "../utils/conversaUtils";
+import { isGroupConversation, getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import "./conversa.css";
 import api from "../api/http";
 import { useAuthStore } from "../auth/authStore";
@@ -202,10 +202,10 @@ function statusBadge(status, exibirBadgeAberta, finalizacaoMotivo) {
   if (s === "aguardando_cliente") {
     return {
       text: "Aguardando cliente",
-      bg: "rgba(139,92,246,0.12)",
-      color: "#7c3aed",
-      border: "rgba(139,92,246,0.22)",
-      dot: "#7c3aed",
+      bg: "rgba(14,165,233,0.09)",
+      color: "#0369a1",
+      border: "rgba(14,165,233,0.2)",
+      dot: "#0284c7",
     };
   }
   if (s === "em_atendimento") {
@@ -2209,18 +2209,33 @@ export default function ConversaView() {
   const showAvatarImg = Boolean(avatarUrl && !avatarImgError);
 
   const badge = useMemo(
-    () => statusBadge(conversa?.status_atendimento, conversa?.exibir_badge_aberta, conversa?.finalizacao_motivo),
-    [conversa?.status_atendimento, conversa?.exibir_badge_aberta, conversa?.finalizacao_motivo]
+    () =>
+      statusBadge(
+        getStatusAtendimentoEffective(conversa),
+        conversa?.exibir_badge_aberta,
+        conversa?.finalizacao_motivo
+      ),
+    [
+      conversa?.status_atendimento,
+      conversa?.status_atendimento_real,
+      conversa?.exibir_badge_aberta,
+      conversa?.finalizacao_motivo,
+    ]
   );
 
   const encerramentoAusenciaHint = useMemo(() => {
-    const s = safeString(conversa?.status_atendimento).toLowerCase();
+    const s = safeString(getStatusAtendimentoEffective(conversa)).toLowerCase();
     if (s !== "fechada") return null;
     if (safeString(conversa?.finalizacao_motivo).toLowerCase() !== "ausencia_cliente" && conversa?.finalizada_automaticamente !== true) {
       return null;
     }
     return "Encerrada automaticamente por ausência do cliente.";
-  }, [conversa?.status_atendimento, conversa?.finalizacao_motivo, conversa?.finalizada_automaticamente]);
+  }, [
+    conversa?.status_atendimento,
+    conversa?.status_atendimento_real,
+    conversa?.finalizacao_motivo,
+    conversa?.finalizada_automaticamente,
+  ]);
 
   useEffect(() => {
     setAvatarImgError(false);
@@ -4000,7 +4015,7 @@ export default function ConversaView() {
     if (!conversa?.id || conversa?.mensagens_bloqueadas) return false;
     if (conversa?.exibir_cta_assumir_sem_mensagens !== true) return false;
     if (!canAssumir(user)) return false;
-    const status = String(conversa?.status_atendimento || "").toLowerCase();
+    const status = getStatusAtendimentoEffective(conversa);
     if (status === "fechada" || status === "encerrada") return false;
     const atendenteId = conversa?.atendente_id ?? null;
     const hasAtendente = atendenteId !== null && atendenteId !== "";

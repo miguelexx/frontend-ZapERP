@@ -194,6 +194,7 @@ function payloadImpactaListaLateral(payload) {
       return true
   }
   if (Object.prototype.hasOwnProperty.call(payload, "status_atendimento")) return true
+  if (Object.prototype.hasOwnProperty.call(payload, "status_atendimento_real")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "atendente_id")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "departamento_id")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "aguardando_cliente_desde")) return true
@@ -709,6 +710,7 @@ export function initSocket(token) {
       if (payload.foto_perfil != null && payload.foto_perfil !== "") next.foto_perfil = payload.foto_perfil
       if (payload.foto_perfil_contato_cache != null && payload.foto_perfil_contato_cache !== "") next.foto_perfil_contato_cache = payload.foto_perfil_contato_cache
       if (payload.status_atendimento != null) next.status_atendimento = payload.status_atendimento
+      if ("status_atendimento_real" in payload) next.status_atendimento_real = payload.status_atendimento_real
       if (payload.telefone != null) next.telefone = payload.telefone
       if (payload.cliente_id != null) next.cliente_id = payload.cliente_id
       if (payload.exibir_badge_aberta !== undefined) next.exibir_badge_aberta = !!payload.exibir_badge_aberta

@@ -14,3 +14,20 @@ export function isGroupConversation(conversa) {
   if (tipo === 'grupo' || tipo === 'group') return true
   return false
 }
+
+/**
+ * Status efetivo para UI e regras: no detalhe a API pode expor `status_atendimento_real` como fonte de verdade.
+ * Na listagem costuma vir `status_atendimento` alinhado ao backend.
+ * @param {object} [conversa]
+ * @returns {string} valor normalizado (snake_case lower)
+ */
+export function getStatusAtendimentoEffective(conversa) {
+  if (!conversa || typeof conversa !== 'object') return ''
+  const raw = conversa.status_atendimento_real ?? conversa.status_atendimento
+  return raw != null ? String(raw).toLowerCase().trim().replace(/\s+/g, '_') : ''
+}
+
+/** Modo manual: não inferir por `aguardando_cliente_desde` (job automático em em_atendimento). */
+export function isAguardandoClienteManual(conversa) {
+  return getStatusAtendimentoEffective(conversa) === 'aguardando_cliente'
+}

@@ -5,7 +5,11 @@ import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
 import { useAuthStore } from "../auth/authStore";
-import { isGroupConversation } from "../utils/conversaUtils";
+import {
+  isGroupConversation,
+  getStatusAtendimentoEffective,
+  isAguardandoClienteManual,
+} from "../utils/conversaUtils";
 import api from "../api/http";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -44,7 +48,7 @@ function rowPrefs(c) {
 
 /** Chip “Abertas”: apenas conversas com `status_atendimento === aberta` (fila / não assumidas). */
 function conversaContaComoAbertaNoChip(c) {
-  const s = String(c?.status_atendimento || "").toLowerCase().trim();
+  const s = getStatusAtendimentoEffective(c);
   if (s !== "aberta") return false;
   if (c?.exibir_badge_aberta === false) return false;
   return true;
@@ -798,7 +802,7 @@ function Chip({ active, onClick, children }) {
 
 function StatusPill({ status, exibirBadgeAberta, chat }) {
   const s = String(status || "").toLowerCase().trim().replace(/\s+/g, "_");
-  // status_atendimento tem prioridade: em_atendimento e fechada sincronizam com o header do chat
+  /** Badge “Aguardando” secundário: só fluxo automático (job), nunca inferir manual pelo timestamp. */
   const map = {
     em_atendimento: { label: "Em atendimento", cls: "chat-list-status in" },
     aguardando_cliente: { label: "Aguardando cliente", cls: "chat-list-status awaiting-client" },
@@ -808,10 +812,11 @@ function StatusPill({ status, exibirBadgeAberta, chat }) {
   const ausenciaFechada =
     s === "fechada" &&
     (String(chat?.finalizacao_motivo) === "ausencia_cliente" || chat?.finalizada_automaticamente === true);
-  const aguardandoCliente =
+  const aguardandoClienteAutomatico =
     s === "em_atendimento" &&
     chat?.atendente_id != null &&
-    chat?.aguardando_cliente_desde != null;
+    chat?.aguardando_cliente_desde != null &&
+    !isAguardandoClienteManual(chat);
   if (it) {
     return (
       <span className="chat-list-statusRow">
@@ -830,7 +835,7 @@ function StatusPill({ status, exibirBadgeAberta, chat }) {
             Ausência
           </span>
         ) : null}
-        {aguardandoCliente ? (
+        {aguardandoClienteAutomatico ? (
           <span className="chat-list-badge-await" title="Última mensagem foi da equipe; aguardando resposta do cliente">
             Aguardando
           </span>
@@ -912,9 +917,9 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
-  const stAt = String(chat?.status_atendimento || "").toLowerCase();
+  const stAt = getStatusAtendimentoEffective(chat);
   const isEmAtendimento = stAt === "em_atendimento";
-  const isAguardandoClienteManual = stAt === "aguardando_cliente";
+  const isAguardandoManualRow = stAt === "aguardando_cliente";
   const currentUserId = useAuthStore.getState()?.user?.id;
   const isResponsavel =
     !isGroup &&
@@ -923,7 +928,7 @@ function ChatRow({
     String(chat.atendente_id) === String(currentUserId);
   const hasAtendimentoUnread = chat?.tem_novas_mensagens_em_atendimento === true;
   const showAtendimentoDot =
-    (isEmAtendimento || isAguardandoClienteManual) && isResponsavel && hasAtendimentoUnread;
+    (isEmAtendimento || isAguardandoManualRow) && isResponsavel && hasAtendimentoUnread;
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
@@ -1015,7 +1020,11 @@ function ChatRow({
             {semConversa ? (
               <span className="chat-list-badge-sem-conversa" title="Clique para iniciar conversa">Sem conversa</span>
             ) : (
-              <StatusPill status={chat?.status_atendimento} exibirBadgeAberta={chat?.exibir_badge_aberta} chat={chat} />
+              <StatusPill
+                status={getStatusAtendimentoEffective(chat)}
+                exibirBadgeAberta={chat?.exibir_badge_aberta}
+                chat={chat}
+              />
             )}
           </div>
         </div>
@@ -1048,7 +1057,8 @@ const MemoChatRow = memo(ChatRow, (prev, next) => {
     prev.active === next.active &&
     prev.isMenuOpen === next.isMenuOpen &&
     Number(a.unread_count ?? a.unread ?? 0) === Number(b.unread_count ?? b.unread ?? 0) &&
-    String(a.status_atendimento ?? "") === String(b.status_atendimento ?? "") &&
+    String(getStatusAtendimentoEffective(a)) === String(getStatusAtendimentoEffective(b)) &&
+    String(a.status_atendimento_real ?? "") === String(b.status_atendimento_real ?? "") &&
     String(a.finalizacao_motivo ?? "") === String(b.finalizacao_motivo ?? "") &&
     Boolean(a.finalizada_automaticamente) === Boolean(b.finalizada_automaticamente) &&
     String(a.aguardando_cliente_desde ?? "") === String(b.aguardando_cliente_desde ?? "") &&
@@ -1592,22 +1602,21 @@ export default function ChatList() {
       } else if (tab === "abertas") {
         list = list.filter((c) => conversaContaComoAbertaNoChip(c));
       } else if (tab === "em_atendimento") {
-        list = list.filter((c) => String(c.status_atendimento) === "em_atendimento");
+        list = list.filter((c) => getStatusAtendimentoEffective(c) === "em_atendimento");
       } else if (tab === "finalizadas") {
-        list = list.filter((c) => String(c.status_atendimento) === "fechada");
+        list = list.filter((c) => getStatusAtendimentoEffective(c) === "fechada");
       } else if (tab === "finalizadas_auto") {
         list = list.filter(
           (c) =>
-            String(c.status_atendimento) === "fechada" &&
+            getStatusAtendimentoEffective(c) === "fechada" &&
             (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
         );
       } else if (tab === "aguardando_cliente") {
         list = list.filter((c) => {
-          if (String(c.status_atendimento) === "aguardando_cliente" && c?.atendente_id != null)
-            return true;
+          if (isAguardandoClienteManual(c) && c?.atendente_id != null) return true;
           return (
             c?.aguardando_cliente_desde != null &&
-            String(c.status_atendimento) === "em_atendimento" &&
+            getStatusAtendimentoEffective(c) === "em_atendimento" &&
             c?.atendente_id != null
           );
         });
@@ -1621,17 +1630,16 @@ export default function ChatList() {
       if (tab === "finalizadas_auto" || onlyFinalizadasAusencia) {
         list = list.filter(
           (c) =>
-            String(c.status_atendimento) === "fechada" &&
+            getStatusAtendimentoEffective(c) === "fechada" &&
             (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
         );
       }
       if (tab === "aguardando_cliente" || aguardandoClienteOnly) {
         list = list.filter((c) => {
-          if (String(c.status_atendimento) === "aguardando_cliente" && c?.atendente_id != null)
-            return true;
+          if (isAguardandoClienteManual(c) && c?.atendente_id != null) return true;
           return (
             c?.aguardando_cliente_desde != null &&
-            String(c.status_atendimento) === "em_atendimento" &&
+            getStatusAtendimentoEffective(c) === "em_atendimento" &&
             c?.atendente_id != null
           );
         });
@@ -1649,23 +1657,25 @@ export default function ChatList() {
     if (adminPorFuncionario) {
       list = list.filter((c) => conversaMatchesAdminAtendenteFilter(c, adminAtendenteFilterId));
     } else if (statusFilter !== "todos" && !skipStatusFilterRow) {
-      list = list.filter((c) => String(c.status_atendimento) === statusFilter);
+      list = list.filter((c) => getStatusAtendimentoEffective(c) === statusFilter);
     }
 
     if (!adminPorFuncionario && onlyFinalizadasAusencia && tab !== "finalizadas_auto") {
       list = list.filter(
         (c) =>
-          String(c.status_atendimento) === "fechada" &&
+          getStatusAtendimentoEffective(c) === "fechada" &&
           (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
       );
     }
     if (!adminPorFuncionario && aguardandoClienteOnly && tab !== "aguardando_cliente") {
-      list = list.filter(
-        (c) =>
+      list = list.filter((c) => {
+        if (isAguardandoClienteManual(c) && c?.atendente_id != null) return true;
+        return (
           c?.aguardando_cliente_desde != null &&
-          String(c.status_atendimento) === "em_atendimento" &&
+          getStatusAtendimentoEffective(c) === "em_atendimento" &&
           c?.atendente_id != null
-      );
+        );
+      });
     }
 
     if (tagFilter !== "todas") {
@@ -1971,11 +1981,11 @@ export default function ChatList() {
     return isToday(ts);
   }).length;
   const countAbertas = chats.filter((c) => conversaContaComoAbertaNoChip(c)).length;
-  const countEmAtendimento = chats.filter((c) => String(c.status_atendimento) === "em_atendimento").length;
-  const countFinalizadas = chats.filter((c) => String(c.status_atendimento) === "fechada").length;
+  const countEmAtendimento = chats.filter((c) => getStatusAtendimentoEffective(c) === "em_atendimento").length;
+  const countFinalizadas = chats.filter((c) => getStatusAtendimentoEffective(c) === "fechada").length;
   const countFinalizadasAuto = chats.filter(
     (c) =>
-      String(c.status_atendimento) === "fechada" &&
+      getStatusAtendimentoEffective(c) === "fechada" &&
       (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
   ).length;
   /** Com aba/checkbox “Aguardando cliente”, GET /chats já vem filtrado — contador = tamanho da lista; senão, estimativa no cliente. */
@@ -1983,11 +1993,10 @@ export default function ChatList() {
     tab === "aguardando_cliente" || aguardandoClienteOnly
       ? chats.length
       : chats.filter((c) => {
-          if (String(c.status_atendimento) === "aguardando_cliente" && c?.atendente_id != null)
-            return true;
+          if (isAguardandoClienteManual(c) && c?.atendente_id != null) return true;
           return (
             c?.aguardando_cliente_desde != null &&
-            String(c.status_atendimento) === "em_atendimento" &&
+            getStatusAtendimentoEffective(c) === "em_atendimento" &&
             c?.atendente_id != null
           );
         }).length;

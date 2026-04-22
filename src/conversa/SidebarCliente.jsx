@@ -5,6 +5,7 @@ import { useAuthStore } from "../auth/authStore";
 import { useNotificationStore } from "../notifications/notificationStore";
 import { getDisplayName } from "../chats/chatList";
 import * as cfg from "../api/configService";
+import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 
 function initials(nome = "") {
   const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
@@ -265,21 +266,21 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   }, [conversa, isGroup]);
 
   const statusLabel = useMemo(() => {
-    const s = String(conversa?.status_atendimento || "").toLowerCase();
+    const s = getStatusAtendimentoEffective(conversa);
     if (s === "em_atendimento") return "Em atendimento";
     if (s === "aguardando_cliente") return "Aguardando cliente";
     if (s === "fechada") return "Finalizada";
     if (!s) return "Aberta";
     return s;
-  }, [conversa]);
+  }, [conversa?.status_atendimento, conversa?.status_atendimento_real]);
 
   const statusTone = useMemo(() => {
-    const s = String(conversa?.status_atendimento || "").toLowerCase();
+    const s = getStatusAtendimentoEffective(conversa);
     if (s === "fechada") return "closed";
     if (s === "em_atendimento") return "active";
     if (s === "aguardando_cliente") return "awaiting";
     return "open";
-  }, [conversa?.status_atendimento]);
+  }, [conversa?.status_atendimento, conversa?.status_atendimento_real]);
 
   const createdAt = useMemo(() => {
     if (!conversa?.criado_em) return "";
