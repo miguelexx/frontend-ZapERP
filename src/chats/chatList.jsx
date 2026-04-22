@@ -1404,6 +1404,8 @@ export default function ChatList() {
           };
         });
         const extra = arr.filter((c) => c?.id != null && !fromApi.has(String(c.id)));
+        // Em consultas de "aguardando_cliente", não reaproveitar conversas antigas fora do filtro.
+        if (aguardandoQuery) return merged;
         if (extra.length === 0) return merged;
         const getTs = (x) => x?.ultima_mensagem?.criado_em || x?.ultima_atividade || x?.criado_em || 0;
         const combined = [...merged, ...extra];
@@ -1658,6 +1660,15 @@ export default function ChatList() {
             getStatusAtendimentoEffective(c) === "fechada" &&
             (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
         );
+      } else if (tab === "aguardando_cliente") {
+        list = list.filter((c) => {
+          if (isAguardandoClienteManual(c) && c?.atendente_id != null) return true;
+          return (
+            getStatusAtendimentoEffective(c) === "em_atendimento" &&
+            c?.aguardando_cliente_desde != null &&
+            c?.atendente_id != null
+          );
+        });
       }
     }
 
@@ -1694,6 +1705,16 @@ export default function ChatList() {
           getStatusAtendimentoEffective(c) === "fechada" &&
           (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
       );
+    }
+    if (!adminPorFuncionario && aguardandoClienteOnly && tab !== "aguardando_cliente") {
+      list = list.filter((c) => {
+        if (isAguardandoClienteManual(c) && c?.atendente_id != null) return true;
+        return (
+          getStatusAtendimentoEffective(c) === "em_atendimento" &&
+          c?.aguardando_cliente_desde != null &&
+          c?.atendente_id != null
+        );
+      });
     }
     if (tagFilter !== "todas") {
       list = list.filter((c) =>
