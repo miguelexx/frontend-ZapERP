@@ -57,7 +57,22 @@ function conversaContaComoAbertaNoChip(c) {
 /** Admin UI (filtro lateral por funcionário): aceita `role` ou `perfil`. */
 function isAppAdmin(user) {
   const p = String(user?.perfil ?? user?.role ?? "").toLowerCase();
-  return p === "admin";
+  return p === "admin" || p === "supervisor";
+}
+
+function countDistinctConversas(list) {
+  const arr = Array.isArray(list) ? list : [];
+  const byKey = new Set();
+  arr.forEach((c) => {
+    const key =
+      c?.id != null
+        ? `conv-${c.id}`
+        : c?.cliente_id != null
+          ? `cliente-${c.cliente_id}`
+          : null;
+    if (key) byKey.add(String(key));
+  });
+  return byKey.size;
 }
 
 /**
@@ -1280,7 +1295,7 @@ export default function ChatList() {
       }
       const data = await fetchChats(params);
       const list = Array.isArray(data) ? data : [];
-      setAguardandoClienteBadgeCount(list.length);
+      setAguardandoClienteBadgeCount(countDistinctConversas(list));
     } catch (e) {
       console.error("Erro ao carregar contagem Aguardando cliente:", e);
       setAguardandoClienteBadgeCount(0);
@@ -1349,7 +1364,7 @@ export default function ChatList() {
 
       const data = await fetchChats(params);
       let list = Array.isArray(data) ? data : [];
-      if (!adminPorFuncionario && mineOnly && user?.id) {
+      if (!adminPorFuncionario && mineOnly && user?.id && !isAppAdmin(user)) {
         list = list.filter((c) => String(c.atendente_id) === String(user.id));
       }
       // Desduplicar por id (conversas) ou por cliente_id (clientes sem conversa) — NÃO descartar itens com id null
