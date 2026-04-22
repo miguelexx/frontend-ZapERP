@@ -1,9 +1,11 @@
 /* Toast — Design System ZapERP */
 .ds-toast {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  transform: none;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translateX(-50%);
   max-width: 90vw;
   min-width: 280px;
   padding: 14px 20px;
@@ -158,13 +160,14 @@
 /* Acima da barra inferior do CRM no mobile */
 @media (max-width: 768px) {
   .ds-toast {
-    left: 12px;
-    right: 12px;
-    transform: none;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
     max-width: none;
     min-width: 0;
-    width: auto;
-    bottom: calc(72px + env(safe-area-inset-bottom, 0));
+    width: min(92vw, 560px);
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    bottom: auto;
     box-sizing: border-box;
     animation: ds-toast-in-mobile 0.2s ease-out;
   }
