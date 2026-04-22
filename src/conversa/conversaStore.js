@@ -642,8 +642,9 @@ export const useConversaStore = create((set, get) => ({
       status_atendimento: "em_atendimento",
       status_atendimento_real: "em_atendimento",
       exibir_badge_aberta: false,
+      mensagens_bloqueadas: false,
+      atendente_nome: me?.nome ?? null,
       ...(me?.id != null ? { atendente_id: me.id } : {}),
-      ...(me?.nome ? { atendente_nome: me.nome } : {}),
     }
     const patch = { ...optimistic, ...payload, id: conversaId }
     get().patchConversa(patch)
@@ -681,6 +682,9 @@ export const useConversaStore = create((set, get) => ({
       id: conversaId,
       status_atendimento: "fila",
       exibir_badge_aberta: true,
+      mensagens_bloqueadas: false,
+      atendente_nome: null,
+      atendente_id: null,
     }
     const patch = { ...optimistic, ...payload, id: conversaId }
     get().patchConversa(patch)

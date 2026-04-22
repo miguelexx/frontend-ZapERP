@@ -194,6 +194,27 @@ function getLastMessage(chat) {
   return msgs[msgs.length - 1];
 }
 
+function normalizeDirection(v) {
+  const d = String(v || "").toLowerCase().trim();
+  if (!d) return "";
+  if (d === "inbound" || d === "recebida" || d === "entrada") return "in";
+  if (d === "outbound" || d === "enviada" || d === "saida") return "out";
+  return d;
+}
+
+/** Fonte de verdade (prioridade): preview -> mensagens[0] -> ultima_mensagem -> fallback final. */
+function getLastDirection(chat) {
+  const dirPreview = normalizeDirection(chat?.ultima_mensagem_preview?.direcao);
+  if (dirPreview) return dirPreview;
+  const dirMsg0 = normalizeDirection(chat?.mensagens?.[0]?.direcao ?? chat?.messages?.[0]?.direcao);
+  if (dirMsg0) return dirMsg0;
+  const dirUltima = normalizeDirection(chat?.ultima_mensagem?.direcao);
+  if (dirUltima) return dirUltima;
+  const dirFallback = normalizeDirection(getLastMessage(chat)?.direcao);
+  if (dirFallback) return dirFallback;
+  return "";
+}
+
 function getMediaUrl(url, urlAbsoluta) {
   if (urlAbsoluta) return urlAbsoluta;
   if (!url) return "";
@@ -961,9 +982,18 @@ function ChatRow({
     currentUserId != null &&
     chat?.atendente_id != null &&
     String(chat.atendente_id) === String(currentUserId);
-  const hasAtendimentoUnread = chat?.tem_novas_mensagens_em_atendimento === true;
-  const showAtendimentoDot =
-    (isEmAtendimento || isAguardandoManualRow) && isResponsavel && hasAtendimentoUnread;
+  const isHumanStatus = isEmAtendimento || isAguardandoManualRow;
+  const lastDirection = getLastDirection(chat);
+  const hasAtendimentoUnreadHint = chat?.tem_novas_mensagens_em_atendimento === true;
+  const aguardaRespostaAtendente =
+    isResponsavel &&
+    isHumanStatus &&
+    (
+      lastDirection === "in" ||
+      // fallback: quando direção ainda não veio no payload, usa hint legado até sincronizar.
+      (!lastDirection && hasAtendimentoUnreadHint)
+    );
+  const showAtendimentoDot = aguardaRespostaAtendente;
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
