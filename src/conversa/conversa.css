@@ -5734,6 +5734,11 @@
     font-size: 11px;
   }
 
+  /* No mobile, prioriza leitura de nome + status; evita ruído de "Setor: ..." no header. */
+  .wa-header-metaStrip .wa-header-metaItem:not(.wa-status-pill--meta) {
+    display: none;
+  }
+
   /* Estado (ex.: "Em atendimento"): nunca partir letra-a-letra — ellipsis se não couber */
   .wa-header-metaStrip .wa-status-pill--meta {
     flex: 0 0 auto;
@@ -5765,10 +5770,7 @@
     align-items: center;
     gap: 8px;
     padding-bottom: 2px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    overflow: hidden;
   }
 
   .wa-header-metaStrip::-webkit-scrollbar {

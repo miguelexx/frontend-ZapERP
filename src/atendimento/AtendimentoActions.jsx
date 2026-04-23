@@ -422,8 +422,15 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
   }
 
   const overflowExtra = typeof overflowTop === "function" ? overflowTop(closeMenu) : null;
-  /** No compacto: todas as ações de atendimento ficam visíveis; o menu "…" é só para extras (tags, contato…). */
-  const showCompactOverflowMenu = compactToolbar && Boolean(overflowExtra);
+  const compactOverflowActions = compactToolbar
+    ? actions.filter((a) => a.id === "aguardar_cliente")
+    : [];
+  const compactInlineActions = compactToolbar
+    ? actions.filter((a) => a.id !== "aguardar_cliente")
+    : actions;
+  /** No compacto: mantém ações críticas visíveis e move "Aguardar cliente" para o menu "…". */
+  const showCompactOverflowMenu =
+    compactToolbar && (Boolean(overflowExtra) || compactOverflowActions.length > 0);
 
   const transferModal =
     transferOpen
@@ -550,7 +557,7 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
       <div className="wa-atendToolbar wa-atendToolbar--compact" ref={menuWrapRef}>
         {prepend ? <div className="wa-atendToolbar-prepend">{prepend}</div> : null}
 
-        {actions.map((a) => renderToolbarButton(a))}
+        {compactInlineActions.map((a) => renderToolbarButton(a))}
 
         {showCompactOverflowMenu ? (
           <div className="wa-atendToolbar-overflowWrap">
@@ -574,7 +581,25 @@ export default function AtendimentoActions({ compactToolbar = false, overflowTop
                   onClick={closeMenu}
                 />
                 <div className="wa-atendToolbar-dropdown" role="menu" aria-label="Mais opções">
-                  <div className="wa-atendToolbar-menuExtras">{overflowExtra}</div>
+                  <div className="wa-atendToolbar-menuExtras">
+                    {compactOverflowActions.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="wa-atendToolbar-sheetBtn"
+                        onClick={() => {
+                          a.onClick?.();
+                          closeMenu();
+                        }}
+                        disabled={busy}
+                        title={a.title}
+                        aria-label={a.ariaLabel}
+                      >
+                        <span className="wa-atendToolbar-sheetLabel">{a.labelLong}</span>
+                      </button>
+                    ))}
+                    {overflowExtra}
+                  </div>
                 </div>
               </>
             ) : null}
