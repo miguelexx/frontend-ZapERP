@@ -3,6 +3,7 @@ import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
 import { shouldNotifyIncomingMessage } from "../notifications/chatNotificationService"
+import { notifyIncomingDesktopMessage } from "../notifications/desktopNotificationService"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
 import { SOCKET_EVENTS } from "./events"
@@ -237,33 +238,6 @@ function payloadImpactaListaLateral(payload) {
   return false
 }
 
-/**
- * @param {string} title
- * @param {string} body
- * @param {{ tag?: string }} [opts]
- */
-function showDesktopNotification(title, body, opts = {}) {
-  if (typeof window === "undefined" || !("Notification" in window)) return
-  if (Notification.permission === "granted") {
-    try {
-      const icon = "/brand/zaperp-favicon.svg"
-      const n = new Notification(title, {
-        body,
-        icon,
-        tag: opts.tag || undefined,
-      })
-      n.onclick = () => window.focus()
-      setTimeout(() => n.close(), 5000)
-    } catch (_) {}
-    return
-  }
-  if (Notification.permission === "default") {
-    Notification.requestPermission().then((p) => {
-      if (p === "granted") showDesktopNotification(title, body, opts)
-    })
-  }
-}
-
 function getMessagesScrollMetrics() {
   if (typeof document === "undefined") return null
   const container = document.querySelector(".wa-messages")
@@ -359,9 +333,6 @@ export function initSocket(token) {
     const convId = useConversaStore.getState().selectedId
     if (convId) joinConversaIfNeeded(convId)
     updateDocumentTitleFromChats()
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {})
-    }
   })
 
   /* ===========================
@@ -497,8 +468,37 @@ export function initSocket(token) {
       convStore.selectedId &&
       String(convStore.selectedId) === String(conversaId)
 
+    const notificationDecision = shouldNotifyIncomingMessage({
+      msg,
+      selectedConversationId: convStore.selectedId,
+      currentPathname: typeof window !== "undefined" ? window.location?.pathname : "",
+    })
+    if (notificationDecision.notify) {
+      const contato = getChatDisplayName(conversaId)
+      const chatsLatest = chatStore.chats || []
+      const chatAtual = chatsLatest.find((c) => String(c.id) === String(conversaId))
+      const avatarUrl =
+        chatAtual?.foto_perfil ||
+        chatAtual?.foto_grupo ||
+        chatAtual?.foto_perfil_contato_cache ||
+        msg?.senderPhoto ||
+        msg?.photo ||
+        null
+      const suppressPing = consumeSuppressNovaMensagemSound(conversaId)
+      if (!suppressPing) {
+        playNotificationSound()
+      }
+      notifyIncomingDesktopMessage({
+        msg,
+        contatoNome: contato,
+        avatarUrl,
+        selectedConversationId: convStore.selectedId,
+        currentPathname: typeof window !== "undefined" ? window.location?.pathname : "",
+      })
+    }
+
     /* ----------------------------------
-       🔔 NOTIFICAÇÕES (som, desktop, toast, título) — somente se conversa NÃO aberta
+       🔔 Atualizações de contador/título somente se conversa NÃO aberta
        incUnread só para direcao 'in' (mensagem recebida)
     ---------------------------------- */
     if (!isAberta) {
@@ -510,39 +510,6 @@ export function initSocket(token) {
         }
       }
       updateDocumentTitleFromChats()
-
-      const notificationDecision = shouldNotifyIncomingMessage({
-        msg,
-        selectedConversationId: convStore.selectedId,
-      })
-      if (notificationDecision.notify) {
-        const contato = getChatDisplayName(conversaId)
-        const tipo = (msg.tipo || "").toLowerCase()
-        const textoBruto = (msg.texto || "").trim()
-        const texto =
-          textoBruto
-            ? textoBruto.slice(0, 80)
-            : tipo === "imagem"
-              ? "📷 Imagem"
-              : tipo === "video"
-                ? "🎬 Vídeo"
-                : tipo === "sticker"
-                  ? "🎭 Figurinha"
-                  : tipo === "audio"
-                    ? "🎵 Áudio"
-                    : tipo === "arquivo"
-                      ? "📎 Arquivo"
-                      : "Nova mensagem"
-        const suppressPing = consumeSuppressNovaMensagemSound(conversaId)
-        if (!suppressPing) {
-          playNotificationSound()
-        }
-        useNotificationStore.getState().showToast({
-          type: "info",
-          title: contato,
-          message: texto,
-        })
-      }
       return
     }
 
@@ -918,8 +885,18 @@ export function initSocket(token) {
 
     const tabHidden = typeof document !== "undefined" && document.visibilityState === "hidden"
     if (tabHidden) {
-      const tag = ui.tag != null && ui.tag !== "" ? String(ui.tag) : `conversa_atribuida_${convId}`
-      showDesktopNotification(title, body, { tag })
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          const tag = ui.tag != null && ui.tag !== "" ? String(ui.tag) : `conversa_atribuida_${convId}`
+          const n = new Notification(title, {
+            body,
+            icon: "/brand/zaperp-favicon.svg",
+            tag,
+          })
+          n.onclick = () => window.focus()
+          setTimeout(() => n.close(), 5000)
+        } catch (_) {}
+      }
     }
   })
 

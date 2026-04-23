@@ -4,6 +4,7 @@ import { useAuthStore } from "../auth/authStore";
 import { can } from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
+import { getOpenConversationNotificationEventName } from "../notifications/desktopNotificationService";
 import "../components/layout/skip-link.css";
 
 const THEME_KEY = "theme";
@@ -40,6 +41,19 @@ export default function MainLayout() {
     window.addEventListener("theme-change", onThemeChange);
     return () => window.removeEventListener("theme-change", onThemeChange);
   }, []);
+
+  useEffect(() => {
+    const eventName = getOpenConversationNotificationEventName();
+    const onOpenFromDesktopNotification = (event) => {
+      const conversaId = event?.detail?.conversaId;
+      if (conversaId == null || conversaId === "") return;
+      navigate("/atendimento", {
+        state: { openConversaId: conversaId },
+      });
+    };
+    window.addEventListener(eventName, onOpenFromDesktopNotification);
+    return () => window.removeEventListener(eventName, onOpenFromDesktopNotification);
+  }, [navigate]);
 
   function handleLogout() {
     logout();

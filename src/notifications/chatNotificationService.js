@@ -1,4 +1,5 @@
 const DEDUPE_TTL_MS = 6000
+const MAX_REALTIME_AGE_MS = 3 * 60 * 1000
 const dedupeCache = new Map()
 
 function normalize(value) {
@@ -36,10 +37,26 @@ function isWindowFocused() {
   return visible && focused
 }
 
+function isConversationRouteActive(currentPathname) {
+  if (typeof currentPathname === "string" && currentPathname.trim()) {
+    return currentPathname.startsWith("/atendimento")
+  }
+  if (typeof window === "undefined") return false
+  return String(window.location?.pathname || "").startsWith("/atendimento")
+}
+
+function isRealtimeFreshMessage(msg) {
+  const tsRaw = msg?.criado_em || msg?.timestamp || msg?.created_at
+  if (!tsRaw) return true
+  const ts = new Date(tsRaw).getTime()
+  if (!Number.isFinite(ts)) return true
+  return Date.now() - ts <= MAX_REALTIME_AGE_MS
+}
+
 /**
  * Ponto único para decidir notificação visual de novas mensagens.
  */
-export function shouldNotifyIncomingMessage({ msg, selectedConversationId }) {
+export function shouldNotifyIncomingMessage({ msg, selectedConversationId, currentPathname }) {
   const conversaId = normalize(msg?.conversa_id)
   if (!conversaId) return { notify: false, reason: "missing_conversation" }
 
@@ -48,8 +65,13 @@ export function shouldNotifyIncomingMessage({ msg, selectedConversationId }) {
   const direction = normalize(msg?.direcao).toLowerCase()
   if (direction && direction !== "in") return { notify: false, reason: "non_inbound" }
 
+  if (!isRealtimeFreshMessage(msg)) {
+    return { notify: false, reason: "stale_history_message" }
+  }
+
   const isOpenConversation = normalize(selectedConversationId) === conversaId
-  if (isOpenConversation && isWindowFocused()) {
+  const canSuppressByActiveContext = isOpenConversation && isConversationRouteActive(currentPathname) && isWindowFocused()
+  if (canSuppressByActiveContext) {
     return { notify: false, reason: "active_focused_conversation" }
   }
 
