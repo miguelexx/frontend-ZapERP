@@ -189,9 +189,12 @@ export default function Configuracoes() {
             onOpenConnectWhatsapp={() => navigate("/configuracoes/whatsapp")}
             onSave={async (v) => {
               const updated = await cfg.putEmpresa(v);
-              setEmpresa(updated || v);
-              if (updated != null && updated.crm_habilitado !== undefined) {
-                useAuthStore.getState().updateUser({ crm_habilitado: updated.crm_habilitado });
+              const nextEmpresa = updated || v;
+              setEmpresa(nextEmpresa);
+              const crmHabilitado = nextEmpresa?.crm_habilitado;
+              if (crmHabilitado !== undefined) {
+                // Atualiza imediatamente o estado global para refletir no chat sem refresh.
+                useAuthStore.getState().updateUser({ crm_habilitado: crmHabilitado });
               }
               loadAll();
             }}
