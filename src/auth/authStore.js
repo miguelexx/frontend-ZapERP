@@ -1,11 +1,12 @@
 import { create } from "zustand"
 import { login as loginService } from "./authService"
+import { getUsuarioMe } from "../api/configService"
 import { initSocket, disconnectSocket } from "../socket/socket"
 import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
 import { usePermissoesStore } from "./permissoesStore"
 
-export const useAuthStore = create((set) => ({
+export const useAuthStore = create((set, get) => ({
   user: null,
   token: null,
   loading: false,
@@ -53,6 +54,8 @@ export const useAuthStore = create((set) => ({
       // Carrega permissões do usuário (menus e proteção de rotas)
       usePermissoesStore.getState().fetchPermissoes().catch(() => {})
 
+      get().syncUsuarioMe?.().catch(() => {})
+
       return data
     } catch (err) {
       set({ loading: false })
@@ -76,6 +79,22 @@ export const useAuthStore = create((set) => ({
 
     set({ user: null, token: null })
     window.location.href = "/login"
+  },
+
+  /** Atualiza flags do utilizador a partir de GET /usuarios/me (ex.: crm_habilitado). */
+  syncUsuarioMe: async () => {
+    const { token, user } = get()
+    if (!token || !user) return
+    try {
+      const me = await getUsuarioMe()
+      if (!me || typeof me !== "object") return
+      const patch = {}
+      if (me.crm_habilitado !== undefined) patch.crm_habilitado = me.crm_habilitado
+      if (Object.keys(patch).length === 0) return
+      get().updateUser(patch)
+    } catch (_) {
+      /* rede / sessão — ignorar */
+    }
   },
 
   /** Atualiza dados do usuário logado (ex.: após PATCH /usuarios/me) */

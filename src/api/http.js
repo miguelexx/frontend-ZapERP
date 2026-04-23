@@ -49,6 +49,9 @@ api.interceptors.response.use(
         import("../notifications/notificationStore").then((m) => m.useNotificationStore?.getState()?.showToast(payload)).catch(() => {})
       }
       if (status === 403) {
+        if (err?.config?.skipGlobal403Toast === true) {
+          return Promise.reject(err)
+        }
         show({
           type: "error",
           title: "Acesso restrito",

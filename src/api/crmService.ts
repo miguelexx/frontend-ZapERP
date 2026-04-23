@@ -145,7 +145,9 @@ export interface FromConversaLeadResponse {
 export async function postLeadFromConversa(conversaId: number, body?: Record<string, unknown>) {
   const res = await api.post<FromConversaLeadResponse>(`${CRM}/leads/from-conversa/${conversaId}`, body ?? {}, {
     validateStatus: (s) => s === 200 || s === 201 || s === 409,
-  });
+    // evita toast global 403; o chat trata CRM_DISABLED localmente
+    skipGlobal403Toast: true,
+  } as Parameters<typeof api.post>[2] & { skipGlobal403Toast?: boolean });
   return { status: res.status, data: res.data };
 }
 

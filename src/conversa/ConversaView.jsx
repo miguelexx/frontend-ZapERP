@@ -1911,6 +1911,7 @@ export default function ConversaView() {
   const podeGerenciarSetores = canGerenciarSetores(user);
   const podeTransferirSetor = canTransferirSetorConversa(user);
   const podeGerenciarTags = canTag(user);
+  const mostrarEnviarCrm = user?.crm_habilitado !== false;
   const headerCompact = useMatchMedia("(max-width: 640px)");
 
   const podeEnviar = useMemo(() => {
@@ -4444,12 +4445,13 @@ export default function ConversaView() {
                   </button>
                 ) : null}
 
-                {!isGroup && conversaId ? (
+                {!isGroup && conversaId && mostrarEnviarCrm ? (
                   <SendToCrmChatButton
                     ref={sendCrmRef}
                     conversaId={conversaId}
                     hideToolbarButton={headerCompact}
                     isGroup={isGroup}
+                    crmEnabled={mostrarEnviarCrm}
                   />
                 ) : null}
               </div>
@@ -4492,7 +4494,7 @@ export default function ConversaView() {
                                     <span className="wa-atendToolbar-sheetLabel">Tags do cliente</span>
                                   </button>
                                 ) : null}
-                                {!isGroup && conversaId ? (
+                                {!isGroup && conversaId && mostrarEnviarCrm ? (
                                   <button
                                     type="button"
                                     className="wa-atendToolbar-sheetBtn"
@@ -4547,11 +4549,17 @@ export default function ConversaView() {
         </div>
 
         {!isGroup && podeTransferirSetor && showTransferirSetor && (
+          <>
+            <button
+              type="button"
+              className="wa-floatingSheet-backdrop"
+              aria-label="Fechar painel de setor"
+              onClick={() => setShowTransferirSetor(false)}
+            />
           <div
-            className="wa-tagsPanel"
+            className="wa-tagsPanel wa-tagsPanel--setor"
             role="dialog"
             aria-label="Transferir setor"
-            style={{ minWidth: 260 }}
           >
             <div className="wa-tagsPanel-head">
               <span className="wa-tagsPanel-title">Transferir setor</span>
@@ -4597,10 +4605,18 @@ export default function ConversaView() {
               )}
             </div>
           </div>
+          </>
         )}
 
         {!isGroup && podeGerenciarTags && tagsOpen && (
-          <div className="wa-tagsPanel" role="dialog" aria-label="Tags da conversa">
+          <>
+            <button
+              type="button"
+              className="wa-floatingSheet-backdrop"
+              aria-label="Fechar painel de tags"
+              onClick={() => handleToggleTagPanel()}
+            />
+          <div className="wa-tagsPanel wa-tagsPanel--tags" role="dialog" aria-label="Tags da conversa">
             <div className="wa-tagsPanel-head">
               <span className="wa-tagsPanel-title">Tags do cliente</span>
               <button
@@ -4638,6 +4654,7 @@ export default function ConversaView() {
               )}
             </div>
           </div>
+          </>
         )}
 
         <SidebarCliente

@@ -187,7 +187,14 @@ export default function Configuracoes() {
             empresa={empresa}
             empresasWhatsapp={empresasWhatsapp}
             onOpenConnectWhatsapp={() => navigate("/configuracoes/whatsapp")}
-            onSave={async (v) => { const updated = await cfg.putEmpresa(v); setEmpresa(updated || v); loadAll(); }}
+            onSave={async (v) => {
+              const updated = await cfg.putEmpresa(v);
+              setEmpresa(updated || v);
+              if (updated != null && updated.crm_habilitado !== undefined) {
+                useAuthStore.getState().updateUser({ crm_habilitado: updated.crm_habilitado });
+              }
+              loadAll();
+            }}
             onRefresh={loadAll}
           />
         )}
@@ -376,6 +383,17 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
       <div className="ia-field">
         <label>Ativo</label>
         <Switch checked={!!v.ativo} onChange={(x) => setV((c) => ({ ...c, ativo: x }))} />
+      </div>
+      <div className="ia-field config-appearance-row" style={{ marginTop: 16 }}>
+        <label>Módulo CRM para a empresa</label>
+        <Switch
+          checked={v.crm_habilitado !== false}
+          onChange={(on) => setV((c) => ({ ...c, crm_habilitado: on }))}
+          aria-label="Módulo CRM ativo para a empresa"
+        />
+        <span className="ia-muted config-appearance-hint">
+          Quando desligado, o botão «Enviar ao CRM» no chat não aparece e as APIs do CRM respondem com acesso negado.
+        </span>
       </div>
       <h4 style={{ marginTop: 24 }}>SLA / Limites</h4>
       <div className="ia-field">

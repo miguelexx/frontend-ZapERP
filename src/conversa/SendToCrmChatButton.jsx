@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { postLeadFromConversa } from "../api/crmService";
@@ -14,12 +14,42 @@ export function IconFunnelSend() {
   );
 }
 
+function IconCheckMini() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function IconSpinnerMini() {
+  return (
+    <svg className="wa-crmSendBtn-spinnerSvg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.22" />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 function getApiError(e) {
-  return e?.response?.data?.error || e?.message || "Não foi possível enviar ao CRM.";
+  const status = e?.response?.status;
+  const data = e?.response?.data;
+  const code = data?.code;
+  const msg = data?.error || e?.message;
+  if (status === 403 && (code === "CRM_DISABLED" || String(msg || "").includes("CRM"))) {
+    return "O CRM está desativado para esta empresa. Peça ao administrador para ativar em Configurações.";
+  }
+  return msg || "Não foi possível enviar ao CRM.";
 }
 
 const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
-  { conversaId, hideToolbarButton = false, isGroup = false },
+  { conversaId, hideToolbarButton = false, isGroup = false, crmEnabled = true },
   ref
 ) {
   const navigate = useNavigate();
@@ -29,6 +59,14 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   const [loading, setLoading] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [criarNotaResumo, setCriarNotaResumo] = useState(true);
+  const [successFlash, setSuccessFlash] = useState(false);
+  const successTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    };
+  }, []);
 
   const openModal = useCallback(() => {
     setModalOpen(true);
@@ -38,11 +76,11 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     ref,
     () => ({
       open: () => {
-        if (!conversaId || isGroup) return;
+        if (!conversaId || isGroup || crmEnabled === false) return;
         openModal();
       },
     }),
-    [conversaId, isGroup, openModal]
+    [conversaId, isGroup, crmEnabled, openModal]
   );
 
   const leadNavigate = useCallback(
@@ -68,7 +106,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
 
   async function handleSubmit(e) {
     e?.preventDefault?.();
-    if (!conversaId || loading) return;
+    if (!conversaId || loading || crmEnabled === false) return;
     setLoading(true);
     try {
       const body = {
@@ -83,6 +121,12 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
       setObservacoes("");
 
       if (status === 201) {
+        if (successTimerRef.current) clearTimeout(successTimerRef.current);
+        setSuccessFlash(true);
+        successTimerRef.current = setTimeout(() => {
+          setSuccessFlash(false);
+          successTimerRef.current = null;
+        }, 1400);
         showSuccessToast(
           "Enviado ao CRM",
           fc.tags_sincronizadas != null
@@ -129,7 +173,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     }
   }
 
-  if (isGroup || !conversaId) {
+  if (isGroup || !conversaId || crmEnabled === false) {
     return null;
   }
 
@@ -196,7 +240,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
                 Cancelar
               </button>
-              <button type="submit" className="wa-btn-primary" disabled={loading}>
+              <button type="submit" className="wa-btn-primary" disabled={loading} aria-busy={loading}>
                 {loading ? "A enviar…" : "Confirmar envio"}
               </button>
             </div>
@@ -206,21 +250,25 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
       document.body
     );
 
+  const headerBusy = loading;
+  const iconEl = headerBusy ? <IconSpinnerMini /> : successFlash ? <IconCheckMini /> : <IconFunnelSend />;
+
   return (
     <>
       {!hideToolbarButton ? (
         <button
           type="button"
-          className="wa-header-btn wa-crmSendBtn"
+          className={`wa-header-btn wa-crmSendBtn ${successFlash ? "wa-crmSendBtn--successPulse" : ""}`}
           onClick={openModal}
-          disabled={!conversaId || loading}
+          disabled={!conversaId || headerBusy}
           title="Enviar conversa ao CRM"
           aria-label="Enviar conversa ao CRM"
+          aria-busy={headerBusy}
         >
           <span className="wa-crmSendBtn-icon" aria-hidden>
-            <IconFunnelSend />
+            {iconEl}
           </span>
-          <span className="wa-crmSendBtn-label">Enviar ao CRM</span>
+          <span className="wa-crmSendBtn-label">{headerBusy ? "A enviar…" : "Enviar ao CRM"}</span>
         </button>
       ) : null}
       {modal}
