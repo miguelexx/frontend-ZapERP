@@ -1,5 +1,14 @@
 /* ZapERP — Web Push (VAPID). Android/iOS tratam som, prioridade e entrega em segundo plano de forma distinta; não há API aqui para uniformizar. */
-const SUPPRESS_REPLY_MS = 220
+const SUPPRESS_REPLY_MS = 180
+
+/**
+ * Só interroga clientes com janela realmente em foco.
+ * Em PWA móvel em segundo plano, matchAll costuma devolver clientes sem foco; esperar resposta deles
+ * (MessageChannel + timeout) por cada um tornava o push lento e, em alguns SO, inconsistente após a 1.ª notificação.
+ */
+function clientsComJanelaEmFoco(clientList) {
+  return (clientList || []).filter((c) => typeof c.focused === 'boolean' && c.focused === true)
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())
@@ -12,46 +21,58 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('push', (event) => {
   event.waitUntil(
     (async () => {
-      let payload = {}
       try {
-        const text = event.data ? await event.data.text() : '{}'
-        payload = JSON.parse(text || '{}')
-      } catch (_) {
-        payload = {}
-      }
-
-      const conversaId = payload?.data?.conversaId
-      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      let suppress = false
-
-      for (const client of clients) {
+        let payload = {}
         try {
-          const mc = new MessageChannel()
-          const done = new Promise((resolve) => {
-            mc.port1.onmessage = (e) => resolve(!!e?.data?.suppress)
-            setTimeout(() => resolve(false), SUPPRESS_REPLY_MS)
-          })
-          client.postMessage({ type: 'ZAP_PUSH_SUPPRESS_CHECK', payload: { conversaId } }, [mc.port2])
-          if (await done) {
-            suppress = true
-            break
-          }
-        } catch (_) {}
+          const text = event.data ? await event.data.text() : '{}'
+          payload = JSON.parse(text || '{}')
+        } catch (_) {
+          payload = {}
+        }
+
+        const conversaId = payload?.data?.conversaId
+        const msgId = payload?.data?.messageId
+        const candidatos = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        const clientesFocados = clientsComJanelaEmFoco(candidatos)
+
+        let suppress = false
+        for (const client of clientesFocados) {
+          try {
+            const mc = new MessageChannel()
+            const done = new Promise((resolve) => {
+              mc.port1.onmessage = (e) => resolve(!!e?.data?.suppress)
+              setTimeout(() => resolve(false), SUPPRESS_REPLY_MS)
+            })
+            client.postMessage({ type: 'ZAP_PUSH_SUPPRESS_CHECK', payload: { conversaId } }, [mc.port2])
+            if (await done) {
+              suppress = true
+              break
+            }
+          } catch (_) {}
+        }
+
+        if (suppress) return
+
+        const title = payload.title || 'ZapERP'
+        const tagFallback =
+          (msgId != null && String(msgId).trim() !== '' && `zap-${String(msgId)}`) ||
+          (typeof payload.tag === 'string' && payload.tag.trim() !== '' && payload.tag.trim()) ||
+          `zap-fallback-${Date.now()}`
+
+        const options = {
+          body: payload.body || '',
+          icon: payload.icon,
+          badge: payload.badge,
+          tag: tagFallback,
+          renotify: false,
+          silent: false,
+          data: payload.data && typeof payload.data === 'object' ? payload.data : {},
+        }
+
+        await self.registration.showNotification(title, options)
+      } catch (e) {
+        console.error('[zaperp-sw] push handler:', e)
       }
-
-      if (suppress) return
-
-      const title = payload.title || 'ZapERP'
-      const options = {
-        body: payload.body || '',
-        icon: payload.icon,
-        badge: payload.badge,
-        tag: payload.tag || 'zap-msg',
-        renotify: false,
-        data: payload.data || {},
-      }
-
-      await self.registration.showNotification(title, options)
     })()
   )
 })
@@ -74,18 +95,22 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     (async () => {
-      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      for (const client of clientList) {
-        if (origin && String(client.url || '').startsWith(origin) && 'focus' in client) {
-          await client.focus()
-          client.postMessage({
-            type: 'ZAP_PUSH_NAVIGATE',
-            openPath: openPath.startsWith('http') ? openPath : openPath,
-          })
-          return
+      try {
+        const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        for (const client of clientList) {
+          if (origin && String(client.url || '').startsWith(origin) && 'focus' in client) {
+            await client.focus()
+            client.postMessage({
+              type: 'ZAP_PUSH_NAVIGATE',
+              openPath: openPath.startsWith('http') ? openPath : openPath,
+            })
+            return
+          }
         }
+        await self.clients.openWindow(targetUrl)
+      } catch (e) {
+        console.error('[zaperp-sw] notificationclick:', e)
       }
-      await self.clients.openWindow(targetUrl)
     })()
   )
 })

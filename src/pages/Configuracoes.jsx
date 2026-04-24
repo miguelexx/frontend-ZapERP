@@ -56,6 +56,7 @@ export default function Configuracoes() {
   const [tags, setTags] = useState([]);
   const [respostas, setRespostas] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [clientesTotal, setClientesTotal] = useState(0);
   const [planos, setPlanos] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [empresasWhatsapp, setEmpresasWhatsapp] = useState([]);
@@ -96,13 +97,13 @@ export default function Configuracoes() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const [emp, usr, dep, tag, resp, cli, plan, aud, ew] = await Promise.all([
+      const [emp, usr, dep, tag, resp, cliRes, plan, aud, ew] = await Promise.all([
         cfg.getEmpresa().catch(() => null),
         cfg.getUsuarios().catch(() => []),
         cfg.getDepartamentos().catch(() => []),
         cfg.getTags().catch(() => []),
         cfg.getRespostasSalvas().catch(() => []),
-        cfg.getClientes().catch(() => []),
+        cfg.getClientesComTotal().catch(() => ({ clientes: [], total: 0 })),
         cfg.getPlanos().catch(() => []),
         cfg.getAuditoria(100).catch(() => []),
         cfg.getEmpresasWhatsapp().catch(() => []),
@@ -112,7 +113,8 @@ export default function Configuracoes() {
       setDepartamentos(dep);
       setTags(tag);
       setRespostas(resp);
-      setClientes(cli);
+      setClientes(cliRes?.clientes || []);
+      setClientesTotal(Number(cliRes?.total) || 0);
       setPlanos(plan);
       setAuditoria(aud);
       setEmpresasWhatsapp(ew);
@@ -126,10 +128,12 @@ export default function Configuracoes() {
   /** Carrega clientes com filtro opcional (nome ou telefone) */
   const loadClientes = useCallback(async (params = {}) => {
     try {
-      const cli = await cfg.getClientes(params);
-      setClientes(cli);
+      const cliRes = await cfg.getClientesComTotal(params);
+      setClientes(cliRes?.clientes || []);
+      setClientesTotal(Number(cliRes?.total) || 0);
     } catch (e) {
       setClientes([]);
+      setClientesTotal(0);
     }
   }, []);
 
@@ -249,6 +253,7 @@ export default function Configuracoes() {
         {tab === "clientes" && (
           <SecaoClientes
             clientes={clientes}
+            clientesTotal={clientesTotal}
             onRefresh={loadAll}
             onSyncContacts={loadAll}
             onSearchClientes={loadClientes}
@@ -1107,7 +1112,7 @@ function SecaoRespostas({ respostas, departamentos, onRefresh }) {
   );
 }
 
-function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, empresa, onUpdateEmpresa, tags }) {
+function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContacts, onSearchClientes, empresa, onUpdateEmpresa, tags }) {
   const navigate = useNavigate();
   const addChat = useChatStore((s) => s.addChat);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
@@ -1224,13 +1229,13 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
   };
 
   const handleApagarTodosClientes = async () => {
-    if (clientes.length === 0 && !busca.trim()) {
+    if ((Number(clientesTotal) || 0) === 0 && !busca.trim()) {
       alert("Não há clientes para apagar.");
       return;
     }
     const msg = busca.trim()
       ? "Apagar TODOS os clientes desta empresa? (inclusive os que não aparecem na busca atual). As conversas continuarão sem vínculo. Esta ação não pode ser desfeita."
-      : `Apagar TODOS os ${clientes.length} cliente(s)? As conversas continuarão sem vínculo. Esta ação não pode ser desfeita.`;
+      : `Apagar TODOS os ${Number(clientesTotal) || 0} cliente(s)? As conversas continuarão sem vínculo. Esta ação não pode ser desfeita.`;
     if (!window.confirm(msg)) return;
     setExcluindoTodos(true);
     try {
@@ -1267,7 +1272,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
             type="button"
             className="ia-btn ia-btn--outline"
             style={{ color: "#dc2626", borderColor: "#dc2626" }}
-            disabled={excluindoTodos || (clientes.length === 0 && !busca.trim())}
+            disabled={excluindoTodos || ((Number(clientesTotal) || 0) === 0 && !busca.trim())}
             onClick={handleApagarTodosClientes}
           >
             {excluindoTodos ? "Apagando…" : "Apagar todos os clientes"}
@@ -1346,7 +1351,7 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
         {searching && <span className="ia-muted" style={{ marginLeft: 8 }}>Buscando…</span>}
       </div>
       <p className="ia-muted">
-        {clientes.length} cliente(s) {busca.trim() ? "encontrado(s)." : "cadastrado(s)."} — conectado à tabela <code>clientes</code> do banco.
+        {Number(clientesTotal) || 0} cliente(s) {busca.trim() ? "encontrado(s)." : "cadastrado(s)."} — conectado à tabela <code>clientes</code> do banco.
       </p>
       <div style={{ overflowX: "auto" }}>
         <table className="ia-table">
@@ -1445,8 +1450,6 @@ function SecaoClientes({ clientes, onRefresh, onSyncContacts, onSearchClientes, 
           </tbody>
         </table>
       </div>
-      {clientes.length > 200 && <p className="ia-muted">Exibindo 200 de {clientes.length}</p>}
-
       {clienteModal ? (
         <ModalCliente
           mode={clienteModal.mode}

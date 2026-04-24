@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import AppRoutes from "./routes/AppRoutes";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuthStore } from "./auth/authStore";
+import { initPushSubscriptionLifecycle } from "./push/pushSubscriptionLifecycle";
 import "./styles/theme.css";
 import "./styles/app.css";
 
@@ -30,6 +31,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 
 if (import.meta.env.PROD && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then(() => initPushSubscriptionLifecycle())
+      .catch(() => {});
   });
 }
