@@ -17,6 +17,7 @@ import "../components/feedback/skeleton.css";
 import "../components/ui/switch.css";
 import "./IA.css";
 import "./Configuracoes.css";
+import PushNotificationsCard from "../push/PushNotificationsCard";
 
 const TABS = [
   { id: "geral", label: "Geral" },
@@ -360,6 +361,8 @@ function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenC
           Quando ativado, o cliente verá seu nome acima das mensagens que você envia no WhatsApp.
         </span>
       </div>
+
+      <PushNotificationsCard />
 
       <h4 style={{ marginTop: 24 }}>Aparência</h4>
       <div className="ia-field config-appearance-row">

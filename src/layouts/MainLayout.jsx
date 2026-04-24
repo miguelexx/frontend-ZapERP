@@ -5,6 +5,7 @@ import { can } from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 import { getOpenConversationNotificationEventName } from "../notifications/desktopNotificationService";
+import { useConversaStore } from "../conversa/conversaStore";
 import "../components/layout/skip-link.css";
 
 const THEME_KEY = "theme";
@@ -53,6 +54,44 @@ export default function MainLayout() {
     };
     window.addEventListener(eventName, onOpenFromDesktopNotification);
     return () => window.removeEventListener(eventName, onOpenFromDesktopNotification);
+  }, [navigate]);
+
+  useEffect(() => {
+    const onSwMessage = (event) => {
+      const t = event.data?.type;
+      if (t === "ZAP_PUSH_NAVIGATE") {
+        const openPath = event.data?.openPath || "/atendimento";
+        try {
+          const u = new URL(openPath, window.location.origin);
+          const conversa = u.searchParams.get("conversa");
+          if (conversa) {
+            navigate("/atendimento", { state: { openConversaId: conversa } });
+          } else {
+            navigate("/atendimento");
+          }
+        } catch {
+          navigate("/atendimento");
+        }
+        return;
+      }
+      if (t === "ZAP_PUSH_SUPPRESS_CHECK") {
+        const conversaId = event.data?.payload?.conversaId;
+        const selectedId = useConversaStore.getState().selectedId;
+        const focused =
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible" &&
+          (typeof document.hasFocus !== "function" ? true : document.hasFocus());
+        const suppress =
+          focused && conversaId != null && selectedId != null && String(selectedId) === String(conversaId);
+        try {
+          event.ports[0]?.postMessage({ suppress: !!suppress });
+        } catch {}
+      }
+    };
+    const sw = navigator.serviceWorker;
+    if (!sw?.addEventListener) return undefined;
+    sw.addEventListener("message", onSwMessage);
+    return () => sw.removeEventListener("message", onSwMessage);
   }, [navigate]);
 
   function handleLogout() {

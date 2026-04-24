@@ -1,26 +1,50 @@
+import { makeIncomingDedupeKey } from "./chatNotificationService"
+
 const OPEN_CONVERSATION_EVENT = "zaperp:open-conversation-from-notification"
-const DESKTOP_DEDUPE_TTL_MS = 45_000
-const desktopDedupe = new Map()
+
+/** Segunda linha de defesa se notify for chamado duas vezes para o mesmo evento (TTL curto). */
+const DESKTOP_EXTRA_DEDUPE_MS = 8000
+const desktopShownKeys = new Map()
+const MAX_DESKTOP_KEYS = 400
 
 function normalize(value) {
   if (value == null) return ""
   return String(value).trim()
 }
 
-function cleanupDesktopDedupe(now = Date.now()) {
-  for (const [key, exp] of desktopDedupe.entries()) {
-    if (exp <= now) desktopDedupe.delete(key)
+function cleanupDesktopKeys(now = Date.now()) {
+  for (const [key, exp] of desktopShownKeys.entries()) {
+    if (exp <= now) desktopShownKeys.delete(key)
   }
 }
 
-function makeDesktopNotificationKey(msg) {
-  const conversaId = normalize(msg?.conversa_id)
-  const messageId = normalize(msg?.id || msg?.mensagem_id || msg?.whatsapp_id)
-  const ts = normalize(msg?.criado_em || msg?.timestamp || msg?.created_at)
-  return `${conversaId}::${messageId || "sem_id"}::${ts || "sem_ts"}`
+function trimDesktopKeysIfNeeded() {
+  cleanupDesktopKeys(Date.now())
+  if (desktopShownKeys.size <= MAX_DESKTOP_KEYS) return
+  const overflow = desktopShownKeys.size - MAX_DESKTOP_KEYS + 80
+  let removed = 0
+  for (const k of desktopShownKeys.keys()) {
+    desktopShownKeys.delete(k)
+    if (++removed >= overflow) break
+  }
 }
 
-function hasDesktopSupport() {
+/**
+ * Evita duas chamadas à Notification API para o mesmo payload num curto intervalo.
+ * A decisão principal continua em shouldNotifyIncomingMessage + dedupe no chatNotificationService.
+ */
+function tryClaimDesktopSlot(msg) {
+  const key = makeIncomingDedupeKey(msg)
+  const now = Date.now()
+  cleanupDesktopKeys(now)
+  const exp = desktopShownKeys.get(key)
+  if (exp && exp > now) return false
+  desktopShownKeys.set(key, now + DESKTOP_EXTRA_DEDUPE_MS)
+  trimDesktopKeysIfNeeded()
+  return true
+}
+
+export function hasDesktopNotificationSupport() {
   return typeof window !== "undefined" && "Notification" in window
 }
 
@@ -35,29 +59,15 @@ function toPublicAsset(url) {
 function buildMessagePreview(msg) {
   const tipo = normalize(msg?.tipo).toLowerCase()
   const textoBruto = normalize(msg?.texto || msg?.conteudo)
-  if (textoBruto) return textoBruto.slice(0, 120)
+  if (textoBruto) return textoBruto.slice(0, 140)
   if (tipo === "imagem") return "📷 Imagem"
   if (tipo === "video") return "🎬 Vídeo"
   if (tipo === "sticker") return "🎭 Figurinha"
   if (tipo === "audio") return "🎵 Áudio"
+  if (tipo === "voice") return "🎵 Áudio"
   if (tipo === "arquivo") return "📎 Arquivo"
   if (tipo === "location") return "📍 Localização"
   return "Nova mensagem"
-}
-
-function markDesktopNotification(key) {
-  const now = Date.now()
-  cleanupDesktopDedupe(now)
-  const exp = desktopDedupe.get(key)
-  if (exp && exp > now) return false
-  desktopDedupe.set(key, now + DESKTOP_DEDUPE_TTL_MS)
-  return true
-}
-
-function requestNotificationPermissionSafely() {
-  if (!hasDesktopSupport()) return
-  if (Notification.permission !== "default") return
-  Notification.requestPermission().catch(() => {})
 }
 
 function dispatchOpenConversation(conversaId) {
@@ -71,40 +81,55 @@ function dispatchOpenConversation(conversaId) {
   )
 }
 
+function focusAppWindow() {
+  try {
+    window.focus()
+  } catch (_) {}
+}
+
 /**
- * Notificação desktop para mensagens novas em tempo real.
- * Em navegador puro, a posição da notificação é controlada pelo SO.
+ * Notificação nativa do sistema (Notification API).
+ * Limitações reais: o SO/navegador pode agrupar, omitir som ou não mostrar em modo “Não incomodar”,
+ * mesmo com permissão concedida.
+ *
+ * Chamado apenas após shouldNotifyIncomingMessage — não repetir aqui regras de inbound/histórico/foco.
+ *
+ * @returns {Promise<{ shown: boolean, reason: string }>}
  */
-export function notifyIncomingDesktopMessage({ msg, contatoNome, avatarUrl, selectedConversationId, currentPathname }) {
-  if (!hasDesktopSupport()) return { shown: false, reason: "unsupported" }
-  if (Notification.permission === "denied") return { shown: false, reason: "permission_denied" }
+export async function notifyIncomingDesktopMessage({ msg, contatoNome, avatarUrl }) {
+  if (!hasDesktopNotificationSupport()) {
+    return { shown: false, reason: "unsupported" }
+  }
 
   const conversaId = normalize(msg?.conversa_id)
-  if (!conversaId) return { shown: false, reason: "missing_conversation" }
+  if (!conversaId) {
+    return { shown: false, reason: "missing_conversation" }
+  }
 
-  const isFocusedWindow =
-    typeof document !== "undefined" &&
-    document.visibilityState === "visible" &&
-    (typeof document.hasFocus === "function" ? document.hasFocus() : true)
-  const isConversationRouteActive = normalize(currentPathname || window.location?.pathname).startsWith("/atendimento")
-  const isSameConversation = normalize(selectedConversationId) === conversaId
-  if (isFocusedWindow && isConversationRouteActive && isSameConversation) {
-    return { shown: false, reason: "active_focused_conversation" }
+  if (Notification.permission === "denied") {
+    return { shown: false, reason: "permission_denied" }
   }
 
   if (Notification.permission === "default") {
-    requestNotificationPermissionSafely()
-    return { shown: false, reason: "permission_pending" }
+    try {
+      const perm = await Notification.requestPermission()
+      if (perm !== "granted") {
+        return { shown: false, reason: perm === "denied" ? "permission_denied" : "permission_blocked" }
+      }
+    } catch {
+      return { shown: false, reason: "permission_failed" }
+    }
   }
 
-  const dedupeKey = makeDesktopNotificationKey(msg)
-  if (!markDesktopNotification(dedupeKey)) return { shown: false, reason: "duplicate_event" }
+  if (!tryClaimDesktopSlot(msg)) {
+    return { shown: false, reason: "duplicate_desktop_guard" }
+  }
 
   const title = normalize(contatoNome) || "Nova mensagem"
-  const preview = buildMessagePreview(msg)
-  const body = `${preview}\nConversa #${conversaId}`
+  const body = buildMessagePreview(msg)
   const icon = toPublicAsset(avatarUrl)
-  const tag = `incoming_msg_${conversaId}`
+  const mid = normalize(msg?.id || msg?.mensagem_id || msg?.whatsapp_id)
+  const tag = mid ? `zap-desk-${mid}` : `zap-desk-c${conversaId}-${Date.now()}`
 
   try {
     const notification = new Notification(title, {
@@ -113,22 +138,27 @@ export function notifyIncomingDesktopMessage({ msg, contatoNome, avatarUrl, sele
       tag,
       renotify: false,
       requireInteraction: false,
-      data: { conversaId },
+      silent: false,
+      data: {
+        conversaId,
+        messageId: mid || null,
+      },
     })
 
     notification.onclick = () => {
-      try {
-        window.focus()
-      } catch (_) {}
+      focusAppWindow()
       dispatchOpenConversation(conversaId)
-      notification.close()
+      try {
+        notification.close()
+      } catch (_) {}
     }
 
+    const autoCloseMs = 12_000
     setTimeout(() => {
       try {
         notification.close()
       } catch (_) {}
-    }, 8_000)
+    }, autoCloseMs)
 
     return { shown: true, reason: "ok" }
   } catch {
@@ -139,4 +169,3 @@ export function notifyIncomingDesktopMessage({ msg, contatoNome, avatarUrl, sele
 export function getOpenConversationNotificationEventName() {
   return OPEN_CONVERSATION_EVENT
 }
-

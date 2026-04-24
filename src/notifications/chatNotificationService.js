@@ -1,4 +1,5 @@
 const DEDUPE_TTL_MS = 6000
+const MAX_DEDUPE_KEYS = 600
 const MAX_REALTIME_AGE_MS = 3 * 60 * 1000
 const dedupeCache = new Map()
 
@@ -13,12 +14,24 @@ function cleanupExpired(now = Date.now()) {
   }
 }
 
-function makeNotificationKey(msg) {
+/** Chave estável para dedup da mesma mensagem (som + desktop). */
+export function makeIncomingDedupeKey(msg) {
   const conversaId = normalize(msg?.conversa_id)
   const messageId = normalize(msg?.id || msg?.mensagem_id || msg?.whatsapp_id)
   const tsBase = normalize(msg?.criado_em || msg?.timestamp || msg?.created_at)
   const tsBucket = tsBase ? Math.floor(new Date(tsBase).getTime() / 5000) : Math.floor(Date.now() / 5000)
   return `${conversaId}::${messageId || "sem_id"}::${tsBucket}`
+}
+
+function trimDedupeIfNeeded() {
+  cleanupExpired(Date.now())
+  if (dedupeCache.size <= MAX_DEDUPE_KEYS) return
+  const overflow = dedupeCache.size - MAX_DEDUPE_KEYS + 100
+  let removed = 0
+  for (const k of dedupeCache.keys()) {
+    dedupeCache.delete(k)
+    if (++removed >= overflow) break
+  }
 }
 
 function markIfDuplicate(key) {
@@ -27,22 +40,44 @@ function markIfDuplicate(key) {
   const exp = dedupeCache.get(key)
   if (exp && exp > now) return true
   dedupeCache.set(key, now + DEDUPE_TTL_MS)
+  trimDedupeIfNeeded()
   return false
 }
 
-function isWindowFocused() {
+/** Aba do ZapERP visível (Page Visibility API). */
+export function isPageVisible() {
   if (typeof document === "undefined") return false
-  const visible = document.visibilityState === "visible"
-  const focused = typeof document.hasFocus === "function" ? document.hasFocus() : true
-  return visible && focused
+  return document.visibilityState === "visible"
 }
 
-function isConversationRouteActive(currentPathname) {
+/**
+ * Foco do sistema na janela do navegador.
+ * Ao usar outro programa ou clicar fora do Chrome/Edge, costuma ficar false mesmo com a aba ZapERP selecionada.
+ */
+export function hasBrowserWindowFocus() {
+  if (typeof document === "undefined") return false
+  return typeof document.hasFocus !== "function" ? true : document.hasFocus()
+}
+
+/**
+ * Suprimir som/desktop só quando o atendente está com o ZapERP em primeiro plano:
+ * aba visível e janela do navegador com foco no SO.
+ * Outra aba, outro app, janela atrás ou minimizada → não suprimir.
+ */
+export function isAppUiFullyFocusedForSuppress() {
+  return isPageVisible() && hasBrowserWindowFocus()
+}
+
+export function isConversationRouteActive(currentPathname) {
   if (typeof currentPathname === "string" && currentPathname.trim()) {
     return currentPathname.startsWith("/atendimento")
   }
   if (typeof window === "undefined") return false
   return String(window.location?.pathname || "").startsWith("/atendimento")
+}
+
+export function isConversationOpen(selectedConversationId, conversaId) {
+  return normalize(selectedConversationId) === normalize(conversaId)
 }
 
 function isRealtimeFreshMessage(msg) {
@@ -53,9 +88,7 @@ function isRealtimeFreshMessage(msg) {
   return Date.now() - ts <= MAX_REALTIME_AGE_MS
 }
 
-/**
- * Ponto único para decidir notificação visual de novas mensagens.
- */
+/** Único critério para som + notificação desktop em mensagens inbound em tempo real. */
 export function shouldNotifyIncomingMessage({ msg, selectedConversationId, currentPathname }) {
   const conversaId = normalize(msg?.conversa_id)
   if (!conversaId) return { notify: false, reason: "missing_conversation" }
@@ -69,15 +102,15 @@ export function shouldNotifyIncomingMessage({ msg, selectedConversationId, curre
     return { notify: false, reason: "stale_history_message" }
   }
 
-  const isOpenConversation = normalize(selectedConversationId) === conversaId
-  const canSuppressByActiveContext = isOpenConversation && isConversationRouteActive(currentPathname) && isWindowFocused()
+  const isOpenConversation = isConversationOpen(selectedConversationId, conversaId)
+  const canSuppressByActiveContext =
+    isOpenConversation && isConversationRouteActive(currentPathname) && isAppUiFullyFocusedForSuppress()
   if (canSuppressByActiveContext) {
     return { notify: false, reason: "active_focused_conversation" }
   }
 
-  const key = makeNotificationKey(msg)
+  const key = makeIncomingDedupeKey(msg)
   if (markIfDuplicate(key)) return { notify: false, reason: "duplicate_event", key }
 
   return { notify: true, reason: "ok", key }
 }
-

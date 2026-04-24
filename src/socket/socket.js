@@ -151,6 +151,17 @@ function getChatDisplayName(conversaId) {
   return nome || "Nova mensagem"
 }
 
+function canNotifyByConversationOwnership(chat, currentUserId) {
+  if (!chat || typeof chat !== "object") return false
+  const status = getStatusAtendimentoEffective(chat)
+  if (status === "aberta") return true
+  if (status === "em_atendimento" || status === "aguardando_cliente") {
+    if (currentUserId == null) return false
+    return String(chat?.atendente_id ?? "") === String(currentUserId)
+  }
+  return false
+}
+
 /** Multi-tenant: company_id do usuário logado (evita circular com authStore) */
 function getCurrentCompanyId() {
   try {
@@ -473,10 +484,12 @@ export function initSocket(token) {
       selectedConversationId: convStore.selectedId,
       currentPathname: typeof window !== "undefined" ? window.location?.pathname : "",
     })
-    if (notificationDecision.notify) {
+    const chatsLatest = chatStore.chats || []
+    const chatAtual = chatsLatest.find((c) => String(c.id) === String(conversaId))
+    const myUserId = getCurrentUserId()
+    const canNotifyForThisConversation = canNotifyByConversationOwnership(chatAtual, myUserId)
+    if (notificationDecision.notify && canNotifyForThisConversation) {
       const contato = getChatDisplayName(conversaId)
-      const chatsLatest = chatStore.chats || []
-      const chatAtual = chatsLatest.find((c) => String(c.id) === String(conversaId))
       const avatarUrl =
         chatAtual?.foto_perfil ||
         chatAtual?.foto_grupo ||
@@ -488,13 +501,11 @@ export function initSocket(token) {
       if (!suppressPing) {
         playNotificationSound()
       }
-      notifyIncomingDesktopMessage({
+      void notifyIncomingDesktopMessage({
         msg,
         contatoNome: contato,
         avatarUrl,
-        selectedConversationId: convStore.selectedId,
-        currentPathname: typeof window !== "undefined" ? window.location?.pathname : "",
-      })
+      }).catch(() => {})
     }
 
     /* ----------------------------------
