@@ -520,12 +520,26 @@ export const useConversaStore = create((set, get) => ({
       // Nova mensagem: adicionar com dedupe por Map
       const byId = new Map()
       list.forEach((m, i) => {
-        const k = m.whatsapp_id ? `wa-${m.whatsapp_id}` : m.id ? String(m.id) : m.tempId ? `temp-${m.tempId}` : `legacy-${i}`
+        const msgConvId = m?.conversa_id ?? convId
+        const k = m.whatsapp_id
+          ? `wa-${String(msgConvId || "")}-${String(m.whatsapp_id)}`
+          : m.id
+            ? String(m.id)
+            : m.tempId
+              ? `temp-${m.tempId}`
+              : `legacy-${i}`
         byId.set(k, m)
       })
       const newMsg = { ...msg }
       if (convId) newMsg.conversa_id = convId
-      const newK = msg.whatsapp_id ? `wa-${msg.whatsapp_id}` : msg.id ? String(msg.id) : msg.tempId ? `temp-${msg.tempId}` : key
+      const newConvId = newMsg?.conversa_id ?? convId
+      const newK = msg.whatsapp_id
+        ? `wa-${String(newConvId || "")}-${String(msg.whatsapp_id)}`
+        : msg.id
+          ? String(msg.id)
+          : msg.tempId
+            ? `temp-${msg.tempId}`
+            : key
       byId.set(newK, newMsg)
       return { mensagens: get()._sortMensagensByCriadoEmAsc(Array.from(byId.values())) }
     })

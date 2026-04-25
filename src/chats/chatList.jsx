@@ -2520,7 +2520,8 @@ export default function ChatList() {
         ) : (
           chatsFiltrados.map((c) => {
             const id = c?.id;
-            const rowKey = id != null ? String(id) : `cliente-${c?.cliente_id ?? c?.telefone ?? Math.random()}`;
+            if (id == null || id === "") return null;
+            const rowKey = String(id);
             const active = id != null && String(selectedId) === String(id);
 
             return (

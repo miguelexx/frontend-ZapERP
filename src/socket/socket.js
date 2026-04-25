@@ -916,7 +916,9 @@ export function initSocket(token) {
      NUNCA refetchar mensagens do chat aberto — isso causa "aparecer e sumir".
      Apenas atualizar item na lista quando for outra conversa. */
   const atualizarDebounce = {}
-  socket.on("atualizar_conversa", ({ id, removida } = {}) => {
+  socket.on("atualizar_conversa", (rawPayload = {}) => {
+    if (shouldIgnoreByCompany(rawPayload)) return
+    const { id, removida } = rawPayload
     if (!id) return
     if (removida === true) {
       useChatStore.getState().removeChat(id)

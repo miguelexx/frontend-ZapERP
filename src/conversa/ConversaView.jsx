@@ -1892,7 +1892,6 @@ export default function ConversaView() {
     cursor,
     carregarConversa,
     anexarMensagem,
-    reconciliarMensagem,
     removerMensagem,
     removerMensagemTemp,
     tags,
@@ -2857,14 +2856,8 @@ export default function ConversaView() {
         });
 
         clearPending();
-        if (opts.waitSocketOnly) {
-          // Sucesso de upload sem montar mensagem local: aguarda nova_mensagem via socket.
-        } else {
-          if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
-            anexarMensagem(data);
-          } else {
-            await refresh({ silent: true });
-          }
+        if (!opts.waitSocketOnly && (!data?.id || Number(data?.conversa_id) !== Number(conversaId))) {
+          await refresh({ silent: true });
         }
       } catch (err) {
         console.error("Erro ao enviar arquivo:", err);
@@ -3238,20 +3231,8 @@ export default function ConversaView() {
     try {
       const res = await enviarMensagem(conversaId, t, replyMeta || undefined);
       // API pode retornar { ok, id, conversa_id } SEM mensagem — msg vem só via socket nova_mensagem
-      if (res?.mensagem) {
-        const msg = res.mensagem;
-        const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
-        if (mesmaConversa || !msg.conversa_id) {
-          const patched = replyMeta
-            ? { ...msg, conversa_id: Number(conversaId), reply_meta: replyMeta }
-            : { ...msg, conversa_id: Number(conversaId) };
-          reconciliarMensagem(tempId, patched);
-          if (replyMeta && msg?.id) {
-            saveReplyMeta(conversaId, msg.id, replyMeta);
-          }
-        } else {
-          removerMensagemTemp(tempId);
-        }
+      if (res?.mensagem?.id && replyMeta) {
+        saveReplyMeta(conversaId, res.mensagem.id, replyMeta);
       } else if (!res?.ok && res?.id == null) {
         // Resposta indica falha: remover temp. Sucesso { ok, id } sem mensagem: manter temp; socket nova_mensagem fará upsert.
         removerMensagemTemp(tempId);
@@ -3272,7 +3253,7 @@ export default function ConversaView() {
       setSending(false);
       focusMessageInput();
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem, reconciliarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar, focusMessageInput]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar, focusMessageInput]);
 
   const handleEnviarLink = useCallback(async () => {
     if (!conversaId) return;
@@ -3317,16 +3298,8 @@ export default function ConversaView() {
       setLinkDescricao("");
       setLinkImagem("");
       setReplyTo(null);
-      if (res?.mensagem) {
-        const msg = res.mensagem;
-        const mesmaConversa = Number(msg.conversa_id) === Number(conversaId);
-        if (mesmaConversa || !msg.conversa_id) {
-          const patched = replyMeta ? { ...msg, conversa_id: Number(conversaId), reply_meta: replyMeta } : { ...msg, conversa_id: Number(conversaId) };
-          anexarMensagem(patched);
-          if (replyMeta && msg?.id) {
-            saveReplyMeta(conversaId, msg.id, replyMeta);
-          }
-        }
+      if (res?.mensagem?.id && replyMeta) {
+        saveReplyMeta(conversaId, res.mensagem.id, replyMeta);
       }
     } catch (err) {
       console.error("Erro ao enviar link:", err);
@@ -3341,7 +3314,7 @@ export default function ConversaView() {
       setSending(false);
       focusMessageInput();
     }
-  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, anexarMensagem, showToast, podeEnviar, focusMessageInput]);
+  }, [conversaId, linkUrl, linkTitulo, linkDescricao, linkImagem, replyTo, nome, showToast, podeEnviar, focusMessageInput]);
 
   const onEscape = useCallback(() => {
     if (isRecording) handleCancelRecording();
@@ -3685,20 +3658,15 @@ export default function ConversaView() {
         const tipo = String(forwardMsg?.tipo || "").toLowerCase();
         const hasMediaUrl = !!(forwardMsg?.url || forwardMsg?.url_absoluta);
         try {
-          const res = await encaminharMensagemViaAPI(destConversaId, forwardMsg.id);
-          const mensagemEncaminhada = res?.kind === "single" ? res.mensagem : res;
-          if (mensagemEncaminhada?.id && Number(mensagemEncaminhada?.conversa_id) === Number(conversaId)) {
-            anexarMensagem(mensagemEncaminhada);
-          }
+          await encaminharMensagemViaAPI(destConversaId, forwardMsg.id);
+          // Inserção no chat aberto fica exclusiva do evento socket `nova_mensagem`.
           return null;
         } catch (e) {
           console.warn("Encaminhar via API falhou, tentando fallback:", e?.response?.data?.error || e?.message);
           if (hasMediaUrl && (tipo === "arquivo" || tipo === "imagem" || tipo === "video" || tipo === "vídeo")) {
             try {
-              const data = await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
-              if (data?.id && Number(data?.conversa_id) === Number(conversaId)) {
-                anexarMensagem({ ...data, encaminhado: true });
-              }
+              await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
+              // Inserção no chat aberto fica exclusiva do evento socket `nova_mensagem`.
               return null;
             } catch (e2) {
               console.warn("Fallback arquivo também falhou:", e2);
@@ -3722,9 +3690,7 @@ export default function ConversaView() {
       for (const item of items) {
         if (item?.ok) {
           okCount++;
-          if (item.mensagem && Number(item.mensagem?.conversa_id) === Number(conversaId)) {
-            anexarMensagem({ ...item.mensagem, encaminhado: true });
-          }
+          // Inserção no chat aberto fica exclusiva do evento socket `nova_mensagem`.
         } else if (item && item.ok === false) {
           failCount++;
           const hint = item.mensagem_id != null ? ` (#${item.mensagem_id})` : "";
@@ -3740,7 +3706,7 @@ export default function ConversaView() {
       }
       return { successes: okCount, failures: failCount, total: items.length };
     },
-    [forwardMsgs, anexarMensagem, conversaId, showToast]
+    [forwardMsgs, conversaId, showToast]
   );
 
   const confirmForwardTo = useCallback(

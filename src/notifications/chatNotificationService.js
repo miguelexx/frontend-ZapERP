@@ -96,7 +96,7 @@ export function shouldNotifyIncomingMessage({ msg, selectedConversationId, curre
   if (msg?.fromMe === true) return { notify: false, reason: "from_me" }
 
   const direction = normalize(msg?.direcao).toLowerCase()
-  if (direction && direction !== "in") return { notify: false, reason: "non_inbound" }
+  if (direction !== "in") return { notify: false, reason: "non_inbound" }
 
   if (!isRealtimeFreshMessage(msg)) {
     return { notify: false, reason: "stale_history_message" }
