@@ -5554,6 +5554,14 @@
 ========================================================= */
 
 @media (max-width: 640px) {
+  .wa-shell.wa-mobile-input-focused .wa-footer {
+    padding-bottom: 10px !important;
+  }
+
+  main.main-content--crm .wa-shell.wa-mobile-input-focused .wa-footer {
+    padding-bottom: 8px !important;
+  }
+
   .wa-shell {
     display: flex;
     flex-direction: column;

@@ -2082,11 +2082,16 @@ export default function ConversaView() {
     if (!shell || !header) return;
 
     const mq = window.matchMedia("(max-width: 640px)");
+    const syncMobileInputFocusClass = () => {
+      const isFocused = Boolean(input && document.activeElement === input);
+      shell.classList.toggle("wa-mobile-input-focused", mq.matches && isFocused);
+    };
 
     const syncHeaderLayout = () => {
       if (!mq.matches) {
         shell.style.removeProperty("--wa-mobile-header-h");
         shell.style.removeProperty("--wa-vv-top");
+        shell.classList.remove("wa-mobile-input-focused");
         return;
       }
       shell.style.setProperty("--wa-mobile-header-h", `${header.offsetHeight}px`);
@@ -2094,6 +2099,7 @@ export default function ConversaView() {
       if (vvNow) {
         shell.style.setProperty("--wa-vv-top", `${vvNow.offsetTop}px`);
       }
+      syncMobileInputFocusClass();
     };
 
     syncHeaderLayout();
@@ -2112,9 +2118,7 @@ export default function ConversaView() {
       vv.addEventListener("scroll", onVv);
     }
 
-    const onInputFocusBlur = () => {
-      requestAnimationFrame(syncHeaderLayout);
-    };
+    const onInputFocusBlur = () => requestAnimationFrame(syncHeaderLayout);
     if (input) {
       input.addEventListener("focus", onInputFocusBlur);
       input.addEventListener("blur", onInputFocusBlur);
@@ -2132,6 +2136,7 @@ export default function ConversaView() {
         input.removeEventListener("focus", onInputFocusBlur);
         input.removeEventListener("blur", onInputFocusBlur);
       }
+      shell.classList.remove("wa-mobile-input-focused");
       shell.style.removeProperty("--wa-mobile-header-h");
       shell.style.removeProperty("--wa-vv-top");
     };
