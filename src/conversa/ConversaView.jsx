@@ -11,6 +11,7 @@ import {
   enviarLink,
   encaminharArquivo,
   encaminharMensagemViaAPI,
+  assumirChat,
   enviarLocalizacao,
 } from "./conversaService";
 import { isGroupConversation, getStatusAtendimentoEffective } from "../utils/conversaUtils";
@@ -48,6 +49,19 @@ const WA_INPUT_MAX_HEIGHT_PX = 160;
 
 /** Limite do backend para encaminhamento em lote. */
 const FORWARD_SELECT_MAX = 30;
+/** Máximo de conversas de destino por ação de encaminhamento (UI + validação cliente). */
+const FORWARD_DEST_MAX = 10;
+
+function formatForwardHttpError(err) {
+  const status = err?.response?.status;
+  const server = err?.response?.data?.error ?? err?.response?.data?.message;
+  if (server != null && String(server).trim() !== "") return String(server).trim();
+  if (status === 401) return "Sessão expirada. Faça login novamente.";
+  if (status === 403) return "Você não tem permissão para esta ação.";
+  if (status === 404) return "Conversa ou recurso não encontrado.";
+  if (status >= 500) return "Erro no servidor. Tente novamente em instantes.";
+  return err?.message || "Falha de rede ou resposta inesperada.";
+}
 
 /* =========================================================
    Utils
@@ -2022,6 +2036,11 @@ export default function ConversaView() {
   const [forwardClientesLoading, setForwardClientesLoading] = useState(false);
   const [forwardColaboradores, setForwardColaboradores] = useState([]);
   const [forwardColaboradoresLoading, setForwardColaboradoresLoading] = useState(false);
+  /** Ordem de clique: ids de conversa destino (máx. FORWARD_DEST_MAX). */
+  const [forwardSelectedConversaIds, setForwardSelectedConversaIds] = useState([]);
+  const [forwardMax10Msg, setForwardMax10Msg] = useState("");
+  const [forwardMultiProgress, setForwardMultiProgress] = useState(null);
+  const forwardMax10TimerRef = useRef(null);
 
   const [msgInfoOpen, setMsgInfoOpen] = useState(false);
   const [msgInfo, setMsgInfo] = useState(null);
@@ -2443,6 +2462,12 @@ export default function ConversaView() {
     if (!url) return;
     setMediaViewer({ url, type: type || "imagem", fileName: fileName || null });
   }, []);
+
+  const onHeaderAvatarClick = useCallback(() => {
+    if (showAvatarImg && avatarUrl) {
+      openMediaViewer(avatarUrl, "imagem", nome);
+    }
+  }, [showAvatarImg, avatarUrl, nome, openMediaViewer]);
 
   const closeMediaViewer = useCallback(() => {
     setMediaViewer(null);
@@ -3538,6 +3563,7 @@ export default function ConversaView() {
     }
     setForwardMsgs(capped);
     setForwardQuery("");
+    setForwardSelectedConversaIds([]);
     setForwardOpen(true);
   }, [orderedSelectedIds, mensagens, showToast]);
 
@@ -3633,14 +3659,40 @@ export default function ConversaView() {
   }, [mensagens, scrollToMsg, showToast]);
 
   const closeForward = useCallback(() => {
+    if (forwardMax10TimerRef.current) {
+      clearTimeout(forwardMax10TimerRef.current);
+      forwardMax10TimerRef.current = null;
+    }
     setForwardOpen(false);
     setForwardMsgs(null);
     setForwardQuery("");
     setForwardSending(false);
+    setForwardSelectedConversaIds([]);
+    setForwardMax10Msg("");
+    setForwardMultiProgress(null);
+  }, []);
+
+  const toggleForwardConversaSelect = useCallback((rawId) => {
+    if (rawId == null) return;
+    const s = String(rawId);
+    setForwardSelectedConversaIds((prev) => {
+      if (prev.includes(s)) return prev.filter((x) => x !== s);
+      if (prev.length >= FORWARD_DEST_MAX) {
+        setForwardMax10Msg("Máximo de 10 contatos.");
+        if (forwardMax10TimerRef.current) clearTimeout(forwardMax10TimerRef.current);
+        forwardMax10TimerRef.current = setTimeout(() => {
+          setForwardMax10Msg("");
+          forwardMax10TimerRef.current = null;
+        }, 4000);
+        return prev;
+      }
+      return [...prev, s];
+    });
   }, []);
 
   const execEncaminhar = useCallback(
-    async (destConversaId) => {
+    async (destConversaId, opts = {}) => {
+      const { quietBatchItemToasts = false } = opts;
       const msgs = Array.isArray(forwardMsgs) ? forwardMsgs : [];
       if (!msgs.length) return;
 
@@ -3690,15 +3742,16 @@ export default function ConversaView() {
       for (const item of items) {
         if (item?.ok) {
           okCount++;
-          // Inserção no chat aberto fica exclusiva do evento socket `nova_mensagem`.
         } else if (item && item.ok === false) {
           failCount++;
-          const hint = item.mensagem_id != null ? ` (#${item.mensagem_id})` : "";
-          showToast({
-            type: "error",
-            title: "Falha ao encaminhar",
-            message: String(item.error || item.status || `Item${hint}`),
-          });
+          if (!quietBatchItemToasts) {
+            const hint = item.mensagem_id != null ? ` (#${item.mensagem_id})` : "";
+            showToast({
+              type: "error",
+              title: "Falha ao encaminhar",
+              message: String(item.error || item.status || `Item${hint}`),
+            });
+          }
         }
       }
       if (okCount === 0 && items.length) {
@@ -3706,8 +3759,87 @@ export default function ConversaView() {
       }
       return { successes: okCount, failures: failCount, total: items.length };
     },
-    [forwardMsgs, conversaId, showToast]
+    [forwardMsgs, showToast]
   );
+
+  const confirmForwardToMany = useCallback(async () => {
+    const ids = (forwardSelectedConversaIds || []).filter((x) => x != null && String(x) !== "");
+    if (ids.length < 1 || ids.length > FORWARD_DEST_MAX || !forwardMsgs?.length || forwardSending) return;
+    setForwardSending(true);
+    setForwardMultiProgress({ current: 0, total: ids.length });
+    const forwardOk = [];
+    const forwardFail = [];
+    const assumeFail = [];
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const destId = ids[i];
+        setForwardMultiProgress({ current: i + 1, total: ids.length });
+        try {
+          const stats = await execEncaminhar(destId, { quietBatchItemToasts: true });
+          forwardOk.push(destId);
+          if (stats && stats.failures > 0) {
+            /* lote de mensagens com falhas parciais: POST já aceitou; ainda assumimos a conversa */
+          }
+          try {
+            await assumirChat(destId);
+          } catch (ae) {
+            assumeFail.push({ id: destId, error: formatForwardHttpError(ae) });
+          }
+        } catch (e) {
+          forwardFail.push({ id: destId, error: formatForwardHttpError(e) });
+        }
+      }
+
+      if (forwardOk.length > 0 && forwardFail.length === 0 && assumeFail.length === 0) {
+        showToast({
+          type: "success",
+          title: "Encaminhamento concluído",
+          message: `Concluído para ${forwardOk.length} destino(s). As conversas ficaram com você após assumir.`,
+        });
+      } else if (forwardOk.length > 0 && (forwardFail.length > 0 || assumeFail.length > 0)) {
+        const bits = [];
+        if (forwardFail.length) {
+          bits.push(
+            `Falha ao encaminhar em ${forwardFail.length} destino(s): ${forwardFail.map((f) => `#${f.id}`).join(", ")}.`
+          );
+        }
+        if (assumeFail.length) {
+          bits.push(
+            `Encaminhado, mas não foi possível assumir em ${assumeFail.length} destino(s): ${assumeFail.map((a) => `#${a.id}`).join(", ")}.`
+          );
+        }
+        showToast({
+          type: "warning",
+          title: "Resultado parcial",
+          message: bits.join(" "),
+        });
+      } else {
+        showToast({
+          type: "error",
+          title: "Falha ao encaminhar",
+          message: forwardFail.map((f) => f.error).filter(Boolean).join(" · ") || "Não foi possível encaminhar.",
+        });
+      }
+      try {
+        useChatStore.getState().requestChatListResync();
+      } catch (_) {}
+      closeForward();
+      exitSelectMode();
+    } catch (e) {
+      showToast({ type: "error", title: "Encaminhamento", message: formatForwardHttpError(e) });
+    } finally {
+      setForwardSending(false);
+      setForwardMultiProgress(null);
+    }
+  }, [
+    forwardSelectedConversaIds,
+    forwardMsgs,
+    forwardSending,
+    execEncaminhar,
+    showToast,
+    closeForward,
+    exitSelectMode,
+  ]);
 
   const confirmForwardTo = useCallback(
     async (destConversaId) => {
@@ -3729,11 +3861,23 @@ export default function ConversaView() {
             message: n > 1 ? `${n} mensagens encaminhadas com sucesso.` : "Mensagem encaminhada com sucesso.",
           });
         }
+        try {
+          await assumirChat(destConversaId);
+        } catch (ae) {
+          showToast({
+            type: "warning",
+            title: "Encaminhado, mas não foi possível assumir",
+            message: formatForwardHttpError(ae),
+          });
+        }
+        try {
+          useChatStore.getState().requestChatListResync();
+        } catch (_) {}
         closeForward();
         exitSelectMode();
       } catch (e) {
         console.error("Erro ao encaminhar:", e);
-        showToast({ type: "error", title: "Falha ao encaminhar", message: "Não foi possível encaminhar a mensagem." });
+        showToast({ type: "error", title: "Falha ao encaminhar", message: formatForwardHttpError(e) });
       } finally {
         setForwardSending(false);
       }
@@ -3766,11 +3910,23 @@ export default function ConversaView() {
             message: n > 1 ? `${n} mensagens encaminhadas com sucesso.` : "Mensagem encaminhada com sucesso.",
           });
         }
+        try {
+          await assumirChat(destId);
+        } catch (ae) {
+          showToast({
+            type: "warning",
+            title: "Encaminhado, mas não foi possível assumir",
+            message: formatForwardHttpError(ae),
+          });
+        }
+        try {
+          useChatStore.getState().requestChatListResync();
+        } catch (_) {}
         closeForward();
         exitSelectMode();
       } catch (e) {
         console.error("Erro ao encaminhar (cliente):", e);
-        showToast({ type: "error", title: "Falha ao encaminhar", message: e.response?.data?.error || e.message || "Não foi possível encaminhar." });
+        showToast({ type: "error", title: "Falha ao encaminhar", message: formatForwardHttpError(e) });
       } finally {
         setForwardSending(false);
       }
@@ -4294,19 +4450,28 @@ export default function ConversaView() {
           </button>
           <div className="wa-header-left">
             <div className="wa-avatarWrap">
-              <div className="wa-avatar" aria-hidden="true">
-                {showAvatarImg ? (
-                  <img
-                    src={avatarUrl}
-                    alt=""
-                    className="wa-avatar-img"
-                    referrerPolicy="no-referrer"
-                    onError={() => setAvatarImgError(true)}
-                  />
-                ) : (
-                  avatar
-                )}
-              </div>
+              <button
+                type="button"
+                className="wa-avatarButton"
+                onClick={onHeaderAvatarClick}
+                disabled={!showAvatarImg}
+                title={showAvatarImg ? "Ver foto ampliada" : undefined}
+                aria-label={showAvatarImg ? `Ver foto ampliada de ${safeString(nome) || "contato"}` : undefined}
+              >
+                <div className="wa-avatar" aria-hidden="true">
+                  {showAvatarImg ? (
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      className="wa-avatar-img"
+                      referrerPolicy="no-referrer"
+                      onError={() => setAvatarImgError(true)}
+                    />
+                  ) : (
+                    avatar
+                  )}
+                </div>
+              </button>
             </div>
             <div className="wa-header-info">
               <div className="wa-header-titleBlock">
@@ -4880,18 +5045,38 @@ export default function ConversaView() {
         )}
 
         {forwardOpen && forwardMsgs?.length ? createPortal(
-          <div className="wa-modalOverlay wa-forwardOverlay" role="dialog" aria-label="Encaminhar mensagens" onMouseDown={closeForward}>
+          <div
+            className="wa-modalOverlay wa-forwardOverlay"
+            role="dialog"
+            aria-label="Encaminhar mensagens"
+            onMouseDown={() => {
+              if (!forwardSending) closeForward();
+            }}
+          >
             <div className="wa-modal wa-forwardModal" onMouseDown={(e) => e.stopPropagation()}>
               <div className="wa-modal-head">
-                <div className="wa-modal-title">{forwardMsgs.length > 1 ? `Encaminhar (${forwardMsgs.length})` : "Encaminhar"}</div>
-                <button type="button" className="wa-iconBtn" onClick={closeForward} title="Fechar">
+                <div className="wa-forwardHeadLeft">
+                  <div className="wa-modal-title">{forwardMsgs.length > 1 ? `Encaminhar (${forwardMsgs.length})` : "Encaminhar"}</div>
+                  <div className="wa-forwardHeadCounter" aria-live="polite">
+                    {forwardSelectedConversaIds.length} selecionada(s) · até {FORWARD_DEST_MAX} destinos
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="wa-iconBtn"
+                  onClick={closeForward}
+                  title="Fechar"
+                  disabled={forwardSending}
+                >
                   <IconClose />
                 </button>
               </div>
               <div className="wa-modal-body wa-forwardBody">
                 <div className="wa-forwardHint">
                   <div className="wa-forwardPreview">{forwardPreviewLabel}</div>
-                  <div className="wa-forwardSub">Conversa de cliente (WhatsApp) ou colaborador (chat interno). Ordem: como na seleção.</div>
+                  <div className="wa-forwardSub">
+                    Escolha conversas (até {FORWARD_DEST_MAX}) e confirme, use &quot;Apenas esta&quot; para um destino único, ou colaborador / busca de cliente.
+                  </div>
                 </div>
 
                 <input
@@ -4939,7 +5124,17 @@ export default function ConversaView() {
                 </div>
 
                 <div className="wa-forwardSection" style={{ marginTop: 14 }}>
-                  <div className="wa-forwardSectionTitle">Conversas</div>
+                  <div className="wa-forwardSectionHead">
+                    <div className="wa-forwardSectionTitle">Conversas</div>
+                    <span className="wa-forwardSectionCap" aria-hidden="true">
+                      máx. {FORWARD_DEST_MAX} destinos
+                    </span>
+                  </div>
+                  {forwardMax10Msg ? (
+                    <p className="wa-forwardMaxHint" role="status" aria-live="polite">
+                      {forwardMax10Msg}
+                    </p>
+                  ) : null}
                   {forwardCandidates.length === 0 ? (
                     <div className="wa-muted" style={{ padding: "10px 4px" }}>
                       {forwardQuery.trim() ? "Nenhuma conversa encontrada." : "Carregando conversas…"}
@@ -4952,25 +5147,49 @@ export default function ConversaView() {
                         const atNome = safeString(c?.atendente_nome ?? c?.atendenteNome).trim();
                         const atMail = safeString(c?.atendente_email ?? c?.atendenteEmail).trim();
                         const atendenteTitle = [atNome ? `Atendente: ${atNome}` : "", atMail].filter(Boolean).join(" · ");
+                        const idStr = String(c.id);
+                        const sel = forwardSelectedConversaIds.includes(idStr);
                         return (
-                          <button
+                          <div
                             key={`conv-${c.id}`}
-                            type="button"
-                            className="wa-forwardItem"
-                            onClick={() => confirmForwardTo(c.id)}
-                            title={`Encaminhar para ${n}`}
-                            disabled={forwardSending}
+                            className={`wa-forwardItem wa-forwardItem--row ${sel ? "isSelected" : ""}`}
                           >
-                            <div className="wa-forwardItem-name">{n}</div>
-                            {telLinha ? <div className="wa-forwardItem-sub">{telLinha}</div> : null}
-                            {atNome ? (
-                              <div className="wa-forwardItem-atendente" title={atendenteTitle || undefined}>
-                                Atendente: {atNome}
-                              </div>
-                            ) : (
-                              <div className="wa-forwardItem-atendente wa-forwardItem-atendente--empty">Sem atendente atribuído</div>
-                            )}
-                          </button>
+                            <label className="wa-forwardItem-checkLabel">
+                              <input
+                                type="checkbox"
+                                className="wa-forwardItem-check"
+                                checked={sel}
+                                onChange={() => toggleForwardConversaSelect(c.id)}
+                                disabled={forwardSending}
+                                aria-label={`Incluir conversa: ${n}`}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="wa-forwardItem-main"
+                              onClick={() => !forwardSending && toggleForwardConversaSelect(c.id)}
+                              disabled={forwardSending}
+                            >
+                              <div className="wa-forwardItem-name">{n}</div>
+                              {telLinha ? <div className="wa-forwardItem-sub">{telLinha}</div> : null}
+                              {atNome ? (
+                                <div className="wa-forwardItem-atendente" title={atendenteTitle || undefined}>
+                                  Atendente: {atNome}
+                                </div>
+                              ) : (
+                                <div className="wa-forwardItem-atendente wa-forwardItem-atendente--empty">Sem atendente atribuído</div>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              className="wa-btn wa-btn-ghost wa-forwardItem-solo"
+                              onClick={() => confirmForwardTo(c.id)}
+                              disabled={forwardSending}
+                              title="Encaminhar somente para esta conversa (um destino)"
+                            >
+                              Apenas esta
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -5006,6 +5225,23 @@ export default function ConversaView() {
                     </div>
                   )}
                 </div>
+              </div>
+              <div className="wa-forwardFooter">
+                <button type="button" className="wa-btn wa-btn-ghost" onClick={closeForward} disabled={forwardSending}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-primary"
+                  onClick={confirmForwardToMany}
+                  disabled={forwardSending || forwardSelectedConversaIds.length < 1}
+                >
+                  {forwardMultiProgress
+                    ? `Enviando ${forwardMultiProgress.current}/${forwardMultiProgress.total}…`
+                    : `Encaminhar selecionados${
+                        forwardSelectedConversaIds.length ? ` (${forwardSelectedConversaIds.length})` : ""
+                      }`}
+                </button>
               </div>
             </div>
           </div>,

@@ -156,6 +156,27 @@
   flex-shrink: 0;
 }
 
+.wa-avatarButton {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  line-height: 0;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wa-avatarButton:not(:disabled) {
+  cursor: zoom-in;
+}
+
+.wa-avatarButton:disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
 .wa-avatar {
   width: 40px;
   height: 40px;
@@ -3700,9 +3721,14 @@
 .wa-forwardModal {
   width: min(720px, calc(100vw - 24px));
   max-height: min(78vh, 680px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .wa-forwardBody {
   overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .wa-forwardSection {
   margin-top: 6px;
@@ -3769,6 +3795,115 @@
 .wa-forwardItem-atendente--empty {
   font-weight: 500;
   opacity: 0.85;
+}
+
+.wa-forwardHeadLeft {
+  min-width: 0;
+  flex: 1;
+}
+
+.wa-forwardHeadCounter {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  font-weight: 500;
+}
+
+.wa-forwardSectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 2px 8px;
+}
+
+.wa-forwardSectionHead .wa-forwardSectionTitle {
+  margin: 0;
+}
+
+.wa-forwardSectionCap {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  white-space: nowrap;
+}
+
+.wa-forwardMaxHint {
+  margin: 0 0 8px 2px;
+  font-size: 12px;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .wa-forwardMaxHint {
+  color: #fb923c;
+}
+
+.wa-forwardItem--row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.wa-forwardItem--row.isSelected {
+  border-color: rgba(0, 168, 132, 0.45);
+  background: rgba(0, 168, 132, 0.08);
+}
+
+.wa-forwardItem-checkLabel {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.wa-forwardItem-check {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--wa-green, #00a884);
+}
+
+.wa-forwardItem-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border-radius: 8px;
+}
+
+.wa-forwardItem-main:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.wa-forwardItem-solo {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.wa-forwardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--wa-panel-border);
+  background: var(--wa-header-bg, var(--wa-panel));
+  flex-shrink: 0;
+}
+
+.wa-forwardModal .wa-modal-head {
+  align-items: flex-start;
 }
 
 /* Encaminhar — mobile: sheet em tela cheia, lista tocável, texto quebra */
