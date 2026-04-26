@@ -839,11 +839,13 @@ function HeaderButton({ title, onClick, children, innerRef, disabled }) {
   );
 }
 
-function Chip({ active, onClick, children }) {
+function Chip({ active, onClick, children, variant = "default" }) {
   return (
     <button
       type="button"
-      className={`chat-list-chip ${active ? "is-active" : ""}`}
+      className={`chat-list-chip${variant === "primary" ? " chat-list-chip--primary" : ""}${
+        active ? " is-active" : ""
+      }`}
       onClick={onClick}
     >
       {children}
@@ -2326,58 +2328,61 @@ export default function ChatList() {
         </div>
       </div>
 
-      <div className="chat-list-chips">
-        <Chip active={tab === "todas"} onClick={() => setTab("todas")}>
-          <span>Todas</span>
-          <span className="chat-list-chip-count">{total}</span>
-        </Chip>
-        <Chip active={tab === "hoje"} onClick={() => setTab("hoje")}>
-          <span>Hoje</span>
-          <span className="chat-list-chip-count">{countHoje}</span>
-        </Chip>
-        <Chip active={tab === "abertas"} onClick={() => setTab("abertas")}>
-          <span>Abertas</span>
-          <span className="chat-list-chip-count">{countAbertas}</span>
-        </Chip>
-        <Chip active={tab === "minha_fila"} onClick={() => setTab("minha_fila")}>
-          <span>Minha fila</span>
-          <span className="chat-list-chip-count">{minhaFilaCount}</span>
-        </Chip>
-        <Chip active={tab === "em_atendimento"} onClick={() => setTab("em_atendimento")}>
-          <span>Em atendimento</span>
-          <span className="chat-list-chip-count">{countEmAtendimento}</span>
-        </Chip>
-        <Chip active={tab === "finalizadas"} onClick={() => setTab("finalizadas")}>
-          <span>Finalizadas</span>
-          <span className="chat-list-chip-count">{countFinalizadas}</span>
-        </Chip>
-        <Chip active={tab === "finalizadas_auto"} onClick={() => setTab("finalizadas_auto")}>
-          <span>Por ausência</span>
-          <span className="chat-list-chip-count">{countFinalizadasAuto}</span>
-        </Chip>
-        <Chip active={tab === "aguardando_cliente"} onClick={() => setTab("aguardando_cliente")}>
-          <span>Aguardando cliente</span>
-          <span className="chat-list-chip-count">{countAguardandoCliente}</span>
-        </Chip>
-
-        {isAppAdmin(user) && (
-          <AdminAtendenteFilter
-            usuarios={atendentes}
-            selectedUserId={adminAtendenteFilterId}
-            open={adminAtendentePanelOpen}
-            onOpenChange={setAdminAtendentePanelOpen}
-            onBeforeOpen={() => {
-              setShowNovoMenu(false);
-              setShowFilters(false);
-              closeMenu();
-            }}
-            onSelectUser={(u) => {
-              if (u?.id == null) return;
-              setAdminAtendenteFilterId(String(u.id));
-            }}
-            onClear={clearAdminAtendenteFilter}
-          />
-        )}
+      <div className="chat-list-chips-wrap">
+        <div className="chat-list-chips chat-list-chips--primary" role="group" aria-label="Filtro principal">
+          <Chip variant="primary" active={tab === "minha_fila"} onClick={() => setTab("minha_fila")}>
+            <span>Minha fila</span>
+            <span className="chat-list-chip-count">{minhaFilaCount}</span>
+          </Chip>
+        </div>
+        <div className="chat-list-chips chat-list-chips--secondary" role="group" aria-label="Outros filtros de conversa">
+          <Chip active={tab === "todas"} onClick={() => setTab("todas")}>
+            <span>Todas</span>
+            <span className="chat-list-chip-count">{total}</span>
+          </Chip>
+          <Chip active={tab === "hoje"} onClick={() => setTab("hoje")}>
+            <span>Hoje</span>
+            <span className="chat-list-chip-count">{countHoje}</span>
+          </Chip>
+          <Chip active={tab === "abertas"} onClick={() => setTab("abertas")}>
+            <span>Abertas</span>
+            <span className="chat-list-chip-count">{countAbertas}</span>
+          </Chip>
+          <Chip active={tab === "em_atendimento"} onClick={() => setTab("em_atendimento")}>
+            <span>Em atendimento</span>
+            <span className="chat-list-chip-count">{countEmAtendimento}</span>
+          </Chip>
+          <Chip active={tab === "finalizadas"} onClick={() => setTab("finalizadas")}>
+            <span>Finalizadas</span>
+            <span className="chat-list-chip-count">{countFinalizadas}</span>
+          </Chip>
+          <Chip active={tab === "finalizadas_auto"} onClick={() => setTab("finalizadas_auto")}>
+            <span>Por ausência</span>
+            <span className="chat-list-chip-count">{countFinalizadasAuto}</span>
+          </Chip>
+          <Chip active={tab === "aguardando_cliente"} onClick={() => setTab("aguardando_cliente")}>
+            <span>Aguardando cliente</span>
+            <span className="chat-list-chip-count">{countAguardandoCliente}</span>
+          </Chip>
+          {isAppAdmin(user) && (
+            <AdminAtendenteFilter
+              usuarios={atendentes}
+              selectedUserId={adminAtendenteFilterId}
+              open={adminAtendentePanelOpen}
+              onOpenChange={setAdminAtendentePanelOpen}
+              onBeforeOpen={() => {
+                setShowNovoMenu(false);
+                setShowFilters(false);
+                closeMenu();
+              }}
+              onSelectUser={(u) => {
+                if (u?.id == null) return;
+                setAdminAtendenteFilterId(String(u.id));
+              }}
+              onClear={clearAdminAtendenteFilter}
+            />
+          )}
+        </div>
       </div>
 
       {showFilters && (
