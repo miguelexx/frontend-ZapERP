@@ -4232,6 +4232,62 @@
   flex-shrink: 0;
 }
 
+.wa-autocorrectToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--wa-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wa-autocorrectToggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wa-autocorrectToggle-track {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--wa-panel-border);
+  background: color-mix(in oklab, var(--wa-text-muted) 22%, transparent);
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.wa-autocorrectToggle-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  transform: translateX(0);
+  transition: transform 0.18s ease;
+}
+
+.wa-autocorrectToggle.isEnabled {
+  color: var(--wa-text);
+}
+
+.wa-autocorrectToggle.isEnabled .wa-autocorrectToggle-track {
+  background: color-mix(in oklab, var(--wa-green-send) 42%, transparent);
+  border-color: color-mix(in oklab, var(--wa-green-send) 58%, var(--wa-panel-border));
+}
+
+.wa-autocorrectToggle.isEnabled .wa-autocorrectToggle-thumb {
+  transform: translateX(14px);
+}
+
+.wa-autocorrectToggle-text {
+  white-space: nowrap;
+}
+
 /* Ícones do footer: mesma altura do input (44px) para alinhamento perfeito */
 .wa-footer .wa-iconBtn {
   flex-shrink: 0;
@@ -4478,6 +4534,21 @@
 
 .wa-input:focus {
   box-shadow: 0 0 0 1px var(--ds-accent-soft);
+}
+
+.wa-input--autocorrect-flash {
+  animation: wa-autocorrect-flash 0.2s ease-out;
+}
+
+@keyframes wa-autocorrect-flash {
+  0% {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--wa-green-send) 40%, transparent);
+    background: color-mix(in oklab, var(--wa-green-send) 12%, var(--wa-input-bg));
+  }
+  100% {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+    background: var(--wa-input-bg);
+  }
 }
 
 .wa-sendBtn {

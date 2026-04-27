@@ -37,6 +37,7 @@ import {
 import * as cfg from "../api/configService";
 import SidebarCliente from "./SidebarCliente";
 import { useMatchMedia } from "../hooks/useMatchMedia";
+import { getAutocorrectEdit } from "../utils/autocorrectText";
 import EmptyState from "../components/feedback/EmptyState";
 import DSToast from "../components/feedback/Toast";
 import { SkeletonLine } from "../components/feedback/Skeleton";
@@ -298,6 +299,12 @@ function buildStickerStorageKey(user) {
   const companyId = user?.company_id ?? user?.empresa_id ?? user?.companyId ?? user?.empresaId ?? "default";
   const userId = user?.id ?? user?.user_id ?? user?.userId ?? "anon";
   return `wa_stickers_recent_${companyId}_${userId}`;
+}
+
+function buildAutoCorrectStorageKey(user) {
+  const companyId = user?.company_id ?? user?.empresa_id ?? user?.companyId ?? user?.empresaId ?? "default";
+  const userId = user?.id ?? user?.user_id ?? user?.userId ?? "anon";
+  return `wa_autocorrect_enabled_${companyId}_${userId}`;
 }
 
 function readRecentStickers(user) {
@@ -1938,6 +1945,8 @@ export default function ConversaView() {
   }, [user?.id, user?.perfil, user?.role, conversa?.atendente_id, conversa?.id, conversa?.mensagens_bloqueadas]);
 
   const [texto, setTexto] = useState("");
+  const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(true);
+  const [autoCorrectFlash, setAutoCorrectFlash] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -2056,6 +2065,7 @@ export default function ConversaView() {
   const waHeaderRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const sendCrmRef = useRef(null);
+  const autoCorrectFlashTimeoutRef = useRef(null);
 
   const focusMessageInput = useCallback(() => {
     requestAnimationFrame(() => {
@@ -2091,6 +2101,25 @@ export default function ConversaView() {
   useEffect(() => {
     setRecentStickers(readRecentStickers(user));
   }, [user?.id, user?.company_id, user?.empresa_id]);
+
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    try {
+      const raw = localStorage.getItem(buildAutoCorrectStorageKey(user));
+      setAutoCorrectEnabled(raw == null ? true : raw === "1");
+    } catch {
+      setAutoCorrectEnabled(true);
+    }
+  }, [user?.id, user?.company_id, user?.empresa_id]);
+
+  useEffect(() => {
+    return () => {
+      if (autoCorrectFlashTimeoutRef.current) {
+        clearTimeout(autoCorrectFlashTimeoutRef.current);
+        autoCorrectFlashTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   /* Mobile: cabeçalho fixo (viewport) + padding no shell; teclado via visualViewport e foco no input */
   useLayoutEffect(() => {
@@ -3193,7 +3222,7 @@ export default function ConversaView() {
     };
   }, [conversaId, clearTyping]);
 
-  const handleEnviar = useCallback(async () => {
+  const handleEnviar = useCallback(async (forcedText) => {
     if (!conversaId) return;
     if (!podeEnviar) {
       showToast({
@@ -3204,7 +3233,7 @@ export default function ConversaView() {
       return;
     }
 
-    const t = safeString(texto);
+    const t = safeString(forcedText ?? texto);
     if (!t) return;
     emitTypingStop();
     const chatParaNome = fromChat ?? conversa;
@@ -3399,15 +3428,88 @@ export default function ConversaView() {
     disabled: loading,
   });
 
+  const runInputFlash = useCallback(() => {
+    setAutoCorrectFlash(true);
+    if (autoCorrectFlashTimeoutRef.current) {
+      clearTimeout(autoCorrectFlashTimeoutRef.current);
+    }
+    autoCorrectFlashTimeoutRef.current = setTimeout(() => {
+      setAutoCorrectFlash(false);
+      autoCorrectFlashTimeoutRef.current = null;
+    }, 220);
+  }, []);
+
+  const updateAutoCorrectPreference = useCallback((next) => {
+    setAutoCorrectEnabled(next);
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(buildAutoCorrectStorageKey(user), next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [user]);
+
+  const applyAutocorrectFromEvent = useCallback((e, triggerChar) => {
+    if (!autoCorrectEnabled) return null;
+    if (e.nativeEvent?.isComposing || e.isComposing) return null;
+    const el = e.currentTarget;
+    if (!el || typeof el.selectionStart !== "number" || typeof el.selectionEnd !== "number") return null;
+
+    const edit = getAutocorrectEdit({
+      text: el.value,
+      selectionStart: el.selectionStart,
+      selectionEnd: el.selectionEnd,
+      triggerChar,
+    });
+    if (!edit) return null;
+
+    e.preventDefault();
+    if (typeof el.setRangeText === "function") {
+      el.setRangeText(edit.replacement, edit.replaceStart, edit.replaceEnd, "end");
+      setTexto(el.value);
+      syncTextareaHeight();
+    } else {
+      const cur = String(el.value || "");
+      const nextValue = `${cur.slice(0, edit.replaceStart)}${edit.replacement}${cur.slice(edit.replaceEnd)}`;
+      const nextPos = edit.replaceStart + edit.replacement.length;
+      setTexto(nextValue);
+      requestAnimationFrame(() => {
+        try {
+          el.setSelectionRange?.(nextPos, nextPos);
+        } catch {}
+      });
+    }
+
+    runInputFlash();
+    return edit;
+  }, [autoCorrectEnabled, runInputFlash, syncTextareaHeight]);
+
   const handleKeyDownInput = useCallback(
     (e) => {
-      if (e.key !== "Enter") return;
-      if (e.shiftKey) return;
       if (e.nativeEvent?.isComposing || e.isComposing) return;
+
+      const key = String(e.key || "");
+      const punctuationTrigger = key.length === 1 && [".", ",", "!", "?", ";", ":"].includes(key);
+      if (key === " " || punctuationTrigger) {
+        applyAutocorrectFromEvent(e, key);
+        return;
+      }
+
+      if (key !== "Enter") return;
+
+      if (e.shiftKey) {
+        applyAutocorrectFromEvent(e, "\n");
+        return;
+      }
+
+      const edit = applyAutocorrectFromEvent(e, "\n");
       e.preventDefault();
-      handleEnviar();
+      const textToSend = edit
+        ? `${String(e.currentTarget?.value || "")}`.replace(/\n$/, "")
+        : texto;
+      handleEnviar(textToSend);
     },
-    [handleEnviar]
+    [applyAutocorrectFromEvent, handleEnviar, texto]
   );
 
   const persistPins = useCallback((next) => {
@@ -5875,6 +5977,21 @@ export default function ConversaView() {
                   </button>
                 </div>
               ) : null}
+              <label
+                className={`wa-autocorrectToggle ${autoCorrectEnabled ? "isEnabled" : ""}`}
+                title="Ativar ou desativar correção ortográfica automática"
+              >
+                <input
+                  type="checkbox"
+                  checked={autoCorrectEnabled}
+                  onChange={(e) => updateAutoCorrectPreference(e.target.checked)}
+                  aria-label="Correção automática"
+                />
+                <span className="wa-autocorrectToggle-track" aria-hidden="true">
+                  <span className="wa-autocorrectToggle-thumb" />
+                </span>
+                <span className="wa-autocorrectToggle-text">Correção automática</span>
+              </label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -5919,7 +6036,7 @@ export default function ConversaView() {
                 onBlur={emitTypingStop}
                 onPaste={handlePaste}
                 placeholder={podeEnviar ? "Digite uma mensagem" : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário." : "Assuma esta conversa para responder")}
-                className="wa-input"
+                className={`wa-input ${autoCorrectFlash ? "wa-input--autocorrect-flash" : ""}`}
                 onKeyDown={handleKeyDownInput}
                 disabled={sending || !conversaId || !podeEnviar}
                 aria-label={podeEnviar ? "Digite sua resposta. Enter para enviar, Shift+Enter para nova linha, Esc para fechar painéis." : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário. Você não pode enviar mensagens." : "Assuma esta conversa para responder.")}
