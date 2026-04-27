@@ -629,7 +629,7 @@ a { color: inherit; text-decoration: none; }
 .chat-list-chip--primary {
   min-height: 30px;
   height: auto;
-  padding: 5px 14px 5px 13px;
+  padding: 6px 14px 6px 13px;
   min-width: min(188px, 100%);
   font-size: 12px;
   font-weight: 600;
@@ -637,7 +637,9 @@ a { color: inherit; text-decoration: none; }
   color: var(--cl-text);
   background: linear-gradient(180deg, rgba(0, 168, 132, 0.11), rgba(0, 168, 132, 0.07));
   border: 1px solid rgba(0, 168, 132, 0.26);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  justify-content: center;
+  position: relative;
 }
 
 .chat-list-chip--primary:hover {
@@ -657,6 +659,23 @@ a { color: inherit; text-decoration: none; }
   background: rgba(255, 255, 255, 0.3);
   color: inherit;
   font-weight: 700;
+}
+
+/* Mensagem discreta de contexto do filtro principal */
+.chat-list-chip--primary::after {
+  content: "Atendimentos organizados para você responder primeiro.";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: currentColor;
+  opacity: 0.58;
+  pointer-events: none;
 }
 
 .chat-list-chip--primary:not(.is-active) .chat-list-chip-count {
@@ -694,6 +713,7 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   margin-left: 0;
   flex: 0 0 auto;
+  margin-top: 14px;
 }
 
 /* Alinhar gatilho “Por funcionário” ao visual dos chips secundários (só no contexto da lista) */
@@ -1093,7 +1113,7 @@ a { color: inherit; text-decoration: none; }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   justify-content: center;
 }
 
@@ -1170,9 +1190,10 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
   min-width: 0;
+  max-width: 52%;
 }
 
 .chat-list-time {
@@ -1467,11 +1488,11 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 19px;
-  height: 19px;
-  padding: 0 7px;
+  min-height: 20px;
+  height: 20px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -1509,8 +1530,10 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 4px 6px;
+  gap: 5px 6px;
   max-width: 100%;
+  row-gap: 5px;
+  margin-top: 1px;
 }
 
 /* Selo extra (Ausência / Aguardando automático) — menor e mais discreto que o status principal */
@@ -1532,9 +1555,9 @@ a { color: inherit; text-decoration: none; }
 }
 
 .chat-list-statusRow > .chat-list-badge-await {
-  height: 15px;
-  min-height: 15px;
-  font-size: 8.5px;
+  height: 14px;
+  min-height: 14px;
+  font-size: 8px;
   padding: 0 4px;
   opacity: 0.9;
   font-weight: 450;
@@ -1543,6 +1566,30 @@ a { color: inherit; text-decoration: none; }
   max-width: 86px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Quando há múltiplos status/setores, aumenta respiro e distribui badges melhor */
+.chat-list-row:has(.chat-list-statusRow .chat-list-status + .chat-list-status),
+.chat-list-row:has(.chat-list-statusRow .chat-list-badge-await) {
+  padding-top: calc(var(--cl-space-3) + 3px);
+  padding-bottom: calc(var(--cl-space-3) + 3px);
+}
+
+.chat-list-row:has(.chat-list-statusRow .chat-list-status + .chat-list-status) .chat-list-statusRow,
+.chat-list-row:has(.chat-list-statusRow .chat-list-badge-await) .chat-list-statusRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: end;
+}
+
+/* Destaque sutil para cards com status "Aberta", com foco no tema escuro */
+[data-theme="dark"] .chat-list-row:has(.chat-list-status.open) {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.09), rgba(59, 130, 246, 0.04));
+  border-color: rgba(59, 130, 246, 0.16);
+}
+
+[data-theme="dark"] .chat-list-row:has(.chat-list-status.open):hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.06));
 }
 
 [data-theme="dark"] .chat-list-badge-await {
@@ -1837,6 +1884,12 @@ a { color: inherit; text-decoration: none; }
   .chat-list-chips--secondary {
     padding-top: 6px;
     padding-bottom: 8px;
+  }
+
+  .chat-list-chip--primary::after {
+    white-space: normal;
+    width: min(220px, 86vw);
+    text-align: center;
   }
 
   .chat-list-row {

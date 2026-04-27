@@ -655,8 +655,9 @@
 
   cursor:pointer;
 
-  background:#f3f4f6;
-  color:#374151;
+  background: transparent;
+  color: var(--wa-text);
+  border-color: color-mix(in srgb, currentColor 22%, transparent);
 
   transition:
     background .18s ease,
@@ -668,7 +669,7 @@
 /* micro animação tecnológica */
 .wa-actions button:hover:not(:disabled){
   transform:translateY(-1px);
-  background:#e5e7eb;
+  background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
 /* clique */
@@ -686,15 +687,15 @@
    ASSUMIR / PRIMÁRIO (verde leve)
 ------------------------- */
 .wa-actions .wa-btn-primary{
-  background:rgba(0,168,132,.10);
-  color:var(--wa-green);
-  border:1px solid rgba(0,168,132,.20);
+  background: var(--ds-accent);
+  color: #fff;
+  border-color: var(--ds-accent);
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
 .wa-actions .wa-btn-primary:hover:not(:disabled){
-  background:rgba(0,168,132,.18);
-  box-shadow:0 4px 12px rgba(0,168,132,.14);
+  background: var(--ds-accent-hover);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-accent) 26%, transparent);
 }
 
 /* -------------------------
@@ -721,72 +722,72 @@
    ENCERRAR / PERIGO (vermelho moderno)
 ------------------------- */
 .wa-actions .wa-btn-danger{
-  background:rgba(239,68,68,.08);
-  color:#dc2626;
-  border:1px solid rgba(239,68,68,.18);
+  background: var(--ds-error);
+  color: #fff;
+  border-color: var(--ds-error);
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
 .wa-actions .wa-btn-danger:hover:not(:disabled){
-  background:rgba(239,68,68,.16);
-  box-shadow:0 4px 12px rgba(239,68,68,.18);
+  background: color-mix(in srgb, var(--ds-error) 88%, black);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-error) 30%, transparent);
 }
 
 /* -------------------------
    TRANSFERIR (azul discreto)
 ------------------------- */
 .wa-actions .wa-btn-transferir{
-  background:rgba(14,165,233,.10);
-  color:#0284c7;
-  border:1px solid rgba(14,165,233,.20);
+  background: transparent;
+  color: var(--wa-text);
+  border-color: color-mix(in srgb, currentColor 24%, transparent);
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 .wa-actions .wa-btn-transferir:hover:not(:disabled){
-  background:rgba(14,165,233,.18);
-  box-shadow:0 4px 12px rgba(14,165,233,.14);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  box-shadow: none;
 }
 
 /* -------------------------
    AGUARDAR CLIENTE (manual — slate/ciano discreto)
 ------------------------- */
 .wa-actions .wa-btn-aguardar-cliente{
-  background: rgba(248, 250, 252, 0.95);
-  color: rgb(71, 85, 105);
-  border: 1px solid rgba(148, 163, 184, 0.38);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  background: transparent;
+  color: var(--wa-text);
+  border-color: color-mix(in srgb, currentColor 24%, transparent);
+  box-shadow: none;
   transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
 }
 .wa-actions .wa-btn-aguardar-cliente:hover:not(:disabled){
-  background: rgba(241, 245, 249, 0.98);
-  border-color: rgba(100, 116, 139, 0.42);
-  color: rgb(51, 65, 85);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  color: var(--wa-text);
+  box-shadow: none;
 }
 .wa-actions .wa-btn-aguardar-cliente:active:not(:disabled){
   transform: translateY(0);
 }
 [data-theme="dark"] .wa-actions .wa-btn-aguardar-cliente{
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(226, 232, 240, 0.92);
-  border-color: rgba(148, 163, 184, 0.28);
+  background: transparent;
+  color: var(--wa-text);
+  border-color: color-mix(in srgb, currentColor 24%, transparent);
   box-shadow: none;
 }
 [data-theme="dark"] .wa-actions .wa-btn-aguardar-cliente:hover:not(:disabled){
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(148, 163, 184, 0.4);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
 }
 
 /* -------------------------
    SECUNDÁRIO / REABRIR (neutro)
 ------------------------- */
 .wa-actions .wa-btn-secondary{
-  background:rgba(0,0,0,.04);
+  background: transparent;
   color:var(--wa-text);
-  border:1px solid rgba(0,0,0,.10);
+  border-color: color-mix(in srgb, currentColor 24%, transparent);
   transition: background 0.12s ease;
 }
 .wa-actions .wa-btn-secondary:hover:not(:disabled){
-  background:rgba(0,0,0,.07);
+  background: color-mix(in srgb, currentColor 8%, transparent);
 }
 /* Ícones estilo SaaS minimalista */
 
