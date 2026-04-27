@@ -22,6 +22,7 @@ import "../components/feedback/empty-state.css";
 import "../components/feedback/skeleton.css";
 import "../components/ui/button.css";
 import "./chatList.css";
+import "./chatList.chips-premium.css";
 import NovoContatoModal from "./NovoContatoModal";
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import ConversationActionMenu from "./ConversationActionMenu";
