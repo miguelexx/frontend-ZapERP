@@ -3,6 +3,8 @@
    Tema definido em theme.css
 ============================== */
 
+@import "./zaperp-polish.css";
+
 /* Atendimento Layout */
 .atendimento-layout {
   height: 100vh;
