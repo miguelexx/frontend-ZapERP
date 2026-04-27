@@ -3282,7 +3282,11 @@ export default function ConversaView() {
       return;
     }
 
-    const t = safeString(forcedText ?? texto);
+    const forcedLooksLikeEvent =
+      forcedText &&
+      typeof forcedText === "object" &&
+      ("nativeEvent" in forcedText || "preventDefault" in forcedText || "currentTarget" in forcedText);
+    const t = safeString((forcedLooksLikeEvent ? undefined : forcedText) ?? texto);
     if (!t) return;
     emitTypingStop();
     const chatParaNome = fromChat ?? conversa;
@@ -6194,7 +6198,7 @@ export default function ConversaView() {
                         if (e.button !== 0) return;
                         e.preventDefault();
                       }}
-                      onClick={handleEnviar}
+                      onClick={() => handleEnviar()}
                       disabled={sending || !hasDraft || !conversaId || !podeEnviar}
                       className="wa-sendBtn"
                       title="Enviar"
@@ -6232,7 +6236,7 @@ export default function ConversaView() {
                         if (e.button !== 0) return;
                         e.preventDefault();
                       }}
-                      onClick={handleEnviar}
+                      onClick={() => handleEnviar()}
                       disabled={sending || !hasDraft || !conversaId || !podeEnviar}
                       className="wa-sendBtn"
                       title="Enviar"
