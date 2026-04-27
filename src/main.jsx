@@ -4,6 +4,7 @@ import AppRoutes from "./routes/AppRoutes";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuthStore } from "./auth/authStore";
 import { initPushSubscriptionLifecycle } from "./push/pushSubscriptionLifecycle";
+import { initServiceWorkerBridge } from "./push/swBridge";
 import "./styles/theme.css";
 import "./styles/app.css";
 
@@ -20,6 +21,7 @@ function applyTheme() {
 }
 
 applyTheme();
+initServiceWorkerBridge();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

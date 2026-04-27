@@ -274,6 +274,52 @@ function logSocketConversaDebug(eventName, payload) {
 let socket = null
 /** Ref para idempotência de join — evita joins duplicados ao reconectar ou trocar conversa */
 let currentConversationId = null
+let socketAwakeListenersBound = false
+let onWindowFocusReconnect = null
+let onWindowOnlineReconnect = null
+let onWindowPageShowReconnect = null
+let onVisibilityReconnect = null
+
+function tryReconnectSocket(reason) {
+  if (!socket) return
+  if (socket.connected || socket.active) return
+  try {
+    socket.connect()
+    if (import.meta.env.DEV) {
+      console.debug("[socket] reconnect trigger:", reason)
+    }
+  } catch (_) {}
+}
+
+function bindSocketAwakeListeners() {
+  if (socketAwakeListenersBound) return
+  socketAwakeListenersBound = true
+  if (typeof window === "undefined" || typeof document === "undefined") return
+
+  onWindowFocusReconnect = () => tryReconnectSocket("window_focus")
+  onWindowOnlineReconnect = () => tryReconnectSocket("online")
+  onWindowPageShowReconnect = () => tryReconnectSocket("pageshow")
+  onVisibilityReconnect = () => {
+    if (document.visibilityState === "visible") tryReconnectSocket("visibility_visible")
+  }
+
+  window.addEventListener("focus", onWindowFocusReconnect)
+  window.addEventListener("online", onWindowOnlineReconnect)
+  window.addEventListener("pageshow", onWindowPageShowReconnect)
+  document.addEventListener("visibilitychange", onVisibilityReconnect)
+}
+
+function unbindSocketAwakeListeners() {
+  if (typeof window === "undefined" || typeof document === "undefined") return
+  if (onWindowFocusReconnect) window.removeEventListener("focus", onWindowFocusReconnect)
+  if (onWindowOnlineReconnect) window.removeEventListener("online", onWindowOnlineReconnect)
+  if (onWindowPageShowReconnect) window.removeEventListener("pageshow", onWindowPageShowReconnect)
+  if (onVisibilityReconnect) document.removeEventListener("visibilitychange", onVisibilityReconnect)
+  onWindowFocusReconnect = null
+  onWindowOnlineReconnect = null
+  onWindowPageShowReconnect = null
+  onVisibilityReconnect = null
+}
 
 /** Emite leave da sala atual. Sempre usar antes de join em outra conversa. */
 export function leaveConversa(id) {
@@ -343,6 +389,7 @@ export function initSocket(token) {
     }
     const convId = useConversaStore.getState().selectedId
     if (convId) joinConversaIfNeeded(convId)
+    useChatStore.getState().requestChatListResync?.()
     updateDocumentTitleFromChats()
   })
 
@@ -984,6 +1031,8 @@ export function initSocket(token) {
     }
   })
 
+  bindSocketAwakeListeners()
+
   return socket
 }
 
@@ -1004,6 +1053,8 @@ export function disconnectSocket() {
   } catch (_) {}
 
   currentConversationId = null
+  unbindSocketAwakeListeners()
+  socketAwakeListenersBound = false
   try {
     if (socket) socket.disconnect()
   } catch (_) {}
