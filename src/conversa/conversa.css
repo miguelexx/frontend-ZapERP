@@ -5762,11 +5762,16 @@
 
 @media (max-width: 640px) {
   .wa-shell.wa-mobile-input-focused .wa-footer {
-    padding-bottom: 10px !important;
+    padding-bottom: 6px !important;
   }
 
   main.main-content--crm .wa-shell.wa-mobile-input-focused .wa-footer {
-    padding-bottom: 8px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .main-content:has(.wa-shell.wa-mobile-input-focused),
+  .main-content.main-content--crm:has(.wa-shell.wa-mobile-input-focused) {
+    padding-bottom: 0 !important;
   }
 
   .wa-shell {
