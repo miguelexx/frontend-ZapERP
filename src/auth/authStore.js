@@ -5,6 +5,7 @@ import { initSocket, disconnectSocket } from "../socket/socket"
 import { useChatStore } from "../chats/chatsStore"
 import { useConversaStore } from "../conversa/conversaStore"
 import { usePermissoesStore } from "./permissoesStore"
+import { unsubscribeWebPush } from "../push/webPushClient"
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -67,6 +68,7 @@ export const useAuthStore = create((set, get) => ({
   // LOGOUT
   // ======================
   logout: () => {
+    unsubscribeWebPush().catch(() => {})
     localStorage.removeItem("zap_erp_auth")
 
     // encerra a conexão para evitar “sessão fantasma” após logout

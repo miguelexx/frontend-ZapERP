@@ -4,6 +4,7 @@ import {
   fetchVapidPublicKey,
   subscribeWebPush,
   unsubscribeWebPush,
+  syncPushSubscriptionSilently,
 } from "./webPushClient"
 import { getPushPlatformHints } from "./pushPlatform"
 
@@ -12,6 +13,7 @@ export default function PushNotificationsCard() {
   const [serverEnabled, setServerEnabled] = useState(false)
   const [subscribed, setSubscribed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [lastSyncAt, setLastSyncAt] = useState(null)
 
   const refresh = useCallback(async () => {
     if (!pushSupported()) {
@@ -26,6 +28,7 @@ export default function PushNotificationsCard() {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       setSubscribed(!!sub)
+      setLastSyncAt(new Date().toISOString())
     } catch {
       setServerEnabled(false)
       setSubscribed(false)
@@ -42,6 +45,7 @@ export default function PushNotificationsCard() {
     setBusy(true)
     try {
       await subscribeWebPush()
+      setLastSyncAt(new Date().toISOString())
       await refresh()
     } finally {
       setBusy(false)
@@ -52,6 +56,18 @@ export default function PushNotificationsCard() {
     setBusy(true)
     try {
       await unsubscribeWebPush()
+      setLastSyncAt(new Date().toISOString())
+      await refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReactivate() {
+    setBusy(true)
+    try {
+      await syncPushSubscriptionSilently()
+      setLastSyncAt(new Date().toISOString())
       await refresh()
     } finally {
       setBusy(false)
@@ -83,6 +99,7 @@ export default function PushNotificationsCard() {
 
   const perm = typeof Notification !== "undefined" ? Notification.permission : "denied"
   const platformHints = getPushPlatformHints()
+  const syncLabel = lastSyncAt ? new Date(lastSyncAt).toLocaleString("pt-BR") : "nunca"
 
   return (
     <div className="ia-field config-appearance-row" style={{ marginTop: 24 }}>
@@ -98,6 +115,12 @@ export default function PushNotificationsCard() {
           </li>
         ))}
       </ul>
+      <div className="ia-muted" style={{ marginBottom: 12, display: "grid", gap: 4 }}>
+        <span><strong>Suportado:</strong> {pushSupported() ? "sim" : "não"}</span>
+        <span><strong>Permissão:</strong> {perm}</span>
+        <span><strong>Assinado:</strong> {subscribed ? "sim" : "não"}</span>
+        <span><strong>Última sincronização:</strong> {syncLabel}</span>
+      </div>
       {perm === "denied" ? (
         <p className="ia-muted">
           As notificações estão bloqueadas nas configurações do navegador ou do sistema. Libere para o site ZapERP nas
@@ -106,6 +129,9 @@ export default function PushNotificationsCard() {
       ) : subscribed ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <span className="ia-muted">Notificações push ativas neste dispositivo.</span>
+          <button type="button" className="ia-btn ia-btn--outline" disabled={busy} onClick={handleReactivate}>
+            Reativar notificações
+          </button>
           <button type="button" className="ia-btn ia-btn--outline" disabled={busy} onClick={handleDisable}>
             Desativar neste aparelho
           </button>
@@ -114,6 +140,9 @@ export default function PushNotificationsCard() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <button type="button" className="ia-btn ia-btn--primary" disabled={busy} onClick={handleEnable}>
             Ativar notificações push
+          </button>
+          <button type="button" className="ia-btn ia-btn--outline" disabled={busy} onClick={handleReactivate}>
+            Reativar notificações
           </button>
           <span className="ia-muted">Será solicitada permissão do sistema/Gestor de notificações.</span>
         </div>

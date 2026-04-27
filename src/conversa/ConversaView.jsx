@@ -2066,7 +2066,6 @@ export default function ConversaView() {
   const typingTimeoutRef = useRef(null);
   const sendCrmRef = useRef(null);
   const autoCorrectFlashTimeoutRef = useRef(null);
-  const lastMessagesScrollTopRef = useRef(0);
   const autoCorrectTrackedRef = useRef([]);
   const autoCorrectIgnoredRef = useRef([]);
 
@@ -2771,21 +2770,6 @@ export default function ConversaView() {
   const handleMessagesScroll = useCallback(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
-    const prevTop = Number(lastMessagesScrollTopRef.current || 0);
-    const nextTop = Number(el.scrollTop || 0);
-    const scrolledUp = nextTop + 6 < prevTop;
-    lastMessagesScrollTopRef.current = nextTop;
-
-    if (
-      scrolledUp &&
-      window.matchMedia?.("(max-width: 640px)")?.matches &&
-      document.activeElement === inputRef.current
-    ) {
-      try {
-        inputRef.current?.blur?.();
-      } catch {}
-    }
-
     shouldStickToBottomRef.current = isNearBottom(el, 120);
     if (!hasMore || loadingMore || !cursor) return;
     if (el.scrollTop < 120) {
@@ -6214,11 +6198,6 @@ export default function ConversaView() {
                         if (e.button !== 0) return;
                         e.preventDefault();
                       }}
-                      onPointerDown={(e) => {
-                        if (e.pointerType === "mouse" && e.button !== 0) return;
-                        e.preventDefault();
-                      }}
-                      onTouchStart={(e) => e.preventDefault()}
                       onClick={() => handleEnviar()}
                       disabled={sending || !hasDraft || !conversaId || !podeEnviar}
                       className="wa-sendBtn"
@@ -6257,11 +6236,6 @@ export default function ConversaView() {
                         if (e.button !== 0) return;
                         e.preventDefault();
                       }}
-                      onPointerDown={(e) => {
-                        if (e.pointerType === "mouse" && e.button !== 0) return;
-                        e.preventDefault();
-                      }}
-                      onTouchStart={(e) => e.preventDefault()}
                       onClick={() => handleEnviar()}
                       disabled={sending || !hasDraft || !conversaId || !podeEnviar}
                       className="wa-sendBtn"

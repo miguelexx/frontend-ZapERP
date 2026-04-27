@@ -24,9 +24,16 @@ export function pushSupported() {
 /** GET chave pública VAPID (sem auth). */
 export async function fetchVapidPublicKey() {
   const base = getApiBaseUrl()
-  const res = await fetch(`${base}/usuarios/push/vapid-public-key`)
-  const json = await res.json().catch(() => ({}))
-  return { ok: res.ok && !!json.publicKey, ...json }
+  const endpoints = ["/users/push/vapid-public-key", "/usuarios/push/vapid-public-key"]
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(`${base}${ep}`)
+      const json = await res.json().catch(() => ({}))
+      if (res.ok && json?.publicKey) return { ok: true, ...json }
+      if (json?.enabled === false) return { ok: false, ...json }
+    } catch (_) {}
+  }
+  return { ok: false, publicKey: null }
 }
 
 /**
@@ -68,19 +75,27 @@ export async function unsubscribeWebPush() {
   const sub = await reg.pushManager.getSubscription()
   if (!sub) return { ok: true }
   const json = sub.toJSON()
-  try {
-    await api.delete("/usuarios/me/push/subscribe", { data: { endpoint: json.endpoint } })
-  } catch (_) {}
+  const endpoints = ["/users/me/push/subscribe", "/usuarios/me/push/subscribe"]
+  for (const ep of endpoints) {
+    try {
+      await api.delete(ep, { data: { endpoint: json.endpoint } })
+      break
+    } catch (_) {}
+  }
   await sub.unsubscribe().catch(() => {})
   return { ok: true }
 }
 
 async function sendSubscriptionToBackend(sub) {
   const json = sub?.toJSON?.() || {}
-  await api.post("/usuarios/me/push/subscribe", {
-    endpoint: json.endpoint,
-    keys: json.keys,
-  })
+  const payload = { endpoint: json.endpoint, keys: json.keys }
+  try {
+    await api.post("/users/me/push/subscribe", payload)
+    return
+  } catch (e) {
+    if (e?.response?.status && e.response.status !== 404) throw e
+  }
+  await api.post("/usuarios/me/push/subscribe", payload)
 }
 
 function hasAuthToken() {
@@ -121,4 +136,16 @@ export async function syncPushSubscriptionSilently() {
 
   await sendSubscriptionToBackend(sub)
   return { ok: true }
+}
+
+export async function hasActivePushSubscription() {
+  if (!pushSupported()) return false
+  if (Notification.permission !== "granted") return false
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    return !!sub
+  } catch {
+    return false
+  }
 }

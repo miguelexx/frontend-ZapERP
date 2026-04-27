@@ -4,6 +4,7 @@ import { useConversaStore } from "../conversa/conversaStore"
 import { useNotificationStore } from "../notifications/notificationStore"
 import { shouldNotifyIncomingMessage } from "../notifications/chatNotificationService"
 import { notifyIncomingDesktopMessage } from "../notifications/desktopNotificationService"
+import { hasActivePushSubscription } from "../push/webPushClient"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
 import { SOCKET_EVENTS } from "./events"
@@ -272,6 +273,7 @@ function logSocketConversaDebug(eventName, payload) {
 }
 
 let socket = null
+let pushProbeCache = { at: 0, value: false }
 /** Ref para idempotência de join — evita joins duplicados ao reconectar ou trocar conversa */
 let currentConversationId = null
 let socketAwakeListenersBound = false
@@ -289,6 +291,16 @@ function tryReconnectSocket(reason) {
       console.debug("[socket] reconnect trigger:", reason)
     }
   } catch (_) {}
+}
+
+async function shouldSkipLocalIncomingNotification() {
+  if (typeof document === "undefined") return false
+  if (document.visibilityState === "visible") return false
+  const now = Date.now()
+  if (now - pushProbeCache.at < 10_000) return pushProbeCache.value
+  const active = await hasActivePushSubscription()
+  pushProbeCache = { at: now, value: active }
+  return active
 }
 
 function bindSocketAwakeListeners() {
@@ -548,11 +560,14 @@ export function initSocket(token) {
       if (!suppressPing) {
         playNotificationSound()
       }
-      void notifyIncomingDesktopMessage({
-        msg,
-        contatoNome: contato,
-        avatarUrl,
-      }).catch(() => {})
+      void (async () => {
+        if (await shouldSkipLocalIncomingNotification()) return
+        await notifyIncomingDesktopMessage({
+          msg,
+          contatoNome: contato,
+          avatarUrl,
+        })
+      })().catch(() => {})
     }
 
     /* ----------------------------------

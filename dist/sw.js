@@ -59,12 +59,18 @@ self.addEventListener('push', (event) => {
           (typeof payload.tag === 'string' && payload.tag.trim() !== '' && payload.tag.trim()) ||
           `zap-fallback-${Date.now()}`
 
+        const shouldRequireInteraction =
+          payload?.requireInteraction === true ||
+          payload?.data?.requireInteraction === true ||
+          payload?.priority === 'high'
+
         const options = {
           body: payload.body || '',
           icon: payload.icon,
           badge: payload.badge,
           tag: tagFallback,
           renotify: false,
+          requireInteraction: shouldRequireInteraction,
           silent: false,
           data: payload.data && typeof payload.data === 'object' ? payload.data : {},
         }
@@ -73,6 +79,21 @@ self.addEventListener('push', (event) => {
       } catch (e) {
         console.error('[zaperp-sw] push handler:', e)
       }
+    })()
+  )
+})
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        for (const client of clients) {
+          try {
+            client.postMessage({ type: 'ZAP_PUSH_RESYNC_REQUIRED', reason: 'pushsubscriptionchange' })
+          } catch (_) {}
+        }
+      } catch (_) {}
     })()
   )
 })
