@@ -6277,6 +6277,17 @@
     padding: 14px 20px;
     min-height: 48px;
   }
+
+  .wa-autocorrectToggle {
+    display: none;
+  }
+
+  .wa-attachItem--autocorrect .wa-attachItem-icon {
+    background: color-mix(in oklab, var(--wa-green-send) 20%, transparent);
+    color: color-mix(in oklab, var(--wa-green-send) 78%, var(--wa-text));
+    font-size: 12px;
+    font-weight: 700;
+  }
 }
 
 /* Mobile (480px): visual WhatsApp — header com contato, mensagens compactas, teclas menores */

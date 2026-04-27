@@ -2066,6 +2066,51 @@ export default function ConversaView() {
   const typingTimeoutRef = useRef(null);
   const sendCrmRef = useRef(null);
   const autoCorrectFlashTimeoutRef = useRef(null);
+  const autoCorrectTrackedRef = useRef([]);
+  const autoCorrectIgnoredRef = useRef([]);
+
+  const AUTO_CORRECT_CONTEXT_WINDOW = 12;
+  const AUTO_CORRECT_CONTEXT_MATCH = 6;
+
+  const normalizeAutoWord = useCallback((value) => String(value || "").toLowerCase(), []);
+
+  const getAutoContext = useCallback((text, start, end) => {
+    const value = String(text || "");
+    const s = Math.max(0, Number(start) || 0);
+    const e = Math.max(s, Number(end) || s);
+    return {
+      before: value.slice(Math.max(0, s - AUTO_CORRECT_CONTEXT_WINDOW), s),
+      after: value.slice(e, Math.min(value.length, e + AUTO_CORRECT_CONTEXT_WINDOW)),
+    };
+  }, []);
+
+  const contextMatches = useCallback((candidate, tracked) => {
+    const beforeSize = Math.min(AUTO_CORRECT_CONTEXT_MATCH, candidate.before.length, tracked.before.length);
+    const afterSize = Math.min(AUTO_CORRECT_CONTEXT_MATCH, candidate.after.length, tracked.after.length);
+    const beforeOk =
+      beforeSize === 0 || candidate.before.slice(-beforeSize) === tracked.before.slice(-beforeSize);
+    const afterOk = afterSize === 0 || candidate.after.slice(0, afterSize) === tracked.after.slice(0, afterSize);
+    return beforeOk && afterOk;
+  }, []);
+
+  const resetAutocorrectTracking = useCallback(() => {
+    autoCorrectTrackedRef.current = [];
+    autoCorrectIgnoredRef.current = [];
+  }, []);
+
+  const hasWordWithContext = useCallback((text, wordLower, context) => {
+    const value = String(text || "");
+    if (!value || !wordLower) return false;
+    const re = /[A-Za-zÀ-ÖØ-öø-ÿ]+/g;
+    let m;
+    while ((m = re.exec(value)) != null) {
+      const found = normalizeAutoWord(m[0]);
+      if (found !== wordLower) continue;
+      const ctx = getAutoContext(value, m.index, m.index + m[0].length);
+      if (contextMatches(ctx, context)) return true;
+    }
+    return false;
+  }, [contextMatches, getAutoContext, normalizeAutoWord]);
 
   const focusMessageInput = useCallback(() => {
     requestAnimationFrame(() => {
@@ -2097,6 +2142,10 @@ export default function ConversaView() {
   }, [texto, syncTextareaHeight]);
 
   const conversaId = conversa?.id || null;
+
+  useEffect(() => {
+    resetAutocorrectTracking();
+  }, [conversaId, resetAutocorrectTracking]);
 
   useEffect(() => {
     setRecentStickers(readRecentStickers(user));
@@ -3278,6 +3327,7 @@ export default function ConversaView() {
       chatStore.setUltimaMensagem(conversaId, optimisticMsg);
       chatStore.bumpChatToTop(conversaId);
     }
+    resetAutocorrectTracking();
     setTexto("");
     setReplyTo(null);
     setSending(true);
@@ -3307,7 +3357,7 @@ export default function ConversaView() {
       setSending(false);
       focusMessageInput();
     }
-  }, [conversaId, texto, replyTo, showToast, anexarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar, focusMessageInput]);
+  }, [conversaId, texto, replyTo, showToast, anexarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar, focusMessageInput, resetAutocorrectTracking]);
 
   const handleEnviarLink = useCallback(async () => {
     if (!conversaId) return;
@@ -3463,14 +3513,24 @@ export default function ConversaView() {
     });
     if (!edit) return null;
 
+    const originalWord = String(el.value || "").slice(edit.replaceStart, edit.replaceEnd);
+    const originalLower = normalizeAutoWord(originalWord);
+    const candidateContext = getAutoContext(el.value, edit.replaceStart, edit.replaceEnd);
+    const shouldIgnore = autoCorrectIgnoredRef.current.some(
+      (item) => item?.originalLower === originalLower && contextMatches(candidateContext, item.context)
+    );
+    if (shouldIgnore) return null;
+
     e.preventDefault();
+    let nextValue = "";
     if (typeof el.setRangeText === "function") {
       el.setRangeText(edit.replacement, edit.replaceStart, edit.replaceEnd, "end");
-      setTexto(el.value);
+      nextValue = String(el.value || "");
+      setTexto(nextValue);
       syncTextareaHeight();
     } else {
       const cur = String(el.value || "");
-      const nextValue = `${cur.slice(0, edit.replaceStart)}${edit.replacement}${cur.slice(edit.replaceEnd)}`;
+      nextValue = `${cur.slice(0, edit.replaceStart)}${edit.replacement}${cur.slice(edit.replaceEnd)}`;
       const nextPos = edit.replaceStart + edit.replacement.length;
       setTexto(nextValue);
       requestAnimationFrame(() => {
@@ -3480,9 +3540,51 @@ export default function ConversaView() {
       });
     }
 
+    const correctedLower = normalizeAutoWord(edit.correctedWord);
+    const correctionContext = getAutoContext(
+      nextValue,
+      edit.replaceStart,
+      edit.replaceStart + String(edit.correctedWord || "").length
+    );
+    autoCorrectTrackedRef.current.push({
+      originalLower,
+      correctedLower,
+      context: correctionContext,
+    });
+
     runInputFlash();
     return edit;
-  }, [autoCorrectEnabled, runInputFlash, syncTextareaHeight]);
+  }, [autoCorrectEnabled, contextMatches, getAutoContext, normalizeAutoWord, runInputFlash, syncTextareaHeight]);
+
+  const handleInputChange = useCallback((e) => {
+    const nextValue = String(e.target.value || "");
+    const tracked = autoCorrectTrackedRef.current;
+
+    if (tracked.length > 0) {
+      const remaining = [];
+      for (const item of tracked) {
+        const stillCorrected = hasWordWithContext(nextValue, item.correctedLower, item.context);
+        if (stillCorrected) {
+          remaining.push(item);
+          continue;
+        }
+        const revertedToOriginal = hasWordWithContext(nextValue, item.originalLower, item.context);
+        if (revertedToOriginal) {
+          autoCorrectIgnoredRef.current.push({
+            originalLower: item.originalLower,
+            context: item.context,
+          });
+        }
+      }
+      autoCorrectTrackedRef.current = remaining;
+    }
+
+    if (!nextValue) {
+      resetAutocorrectTracking();
+    }
+
+    setTexto(nextValue);
+  }, [hasWordWithContext, resetAutocorrectTracking]);
 
   const handleKeyDownInput = useCallback(
     (e) => {
@@ -5954,29 +6056,42 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-location" aria-hidden="true">📍</span>
                       <span>Localização</span>
                     </button>
+                    {headerCompact ? (
+                      <button
+                        type="button"
+                        className="wa-attachItem wa-attachItem--autocorrect"
+                        role="menuitemcheckbox"
+                        aria-checked={autoCorrectEnabled ? "true" : "false"}
+                        onClick={() => {
+                          updateAutoCorrectPreference(!autoCorrectEnabled);
+                          setAttachMenuOpen(false);
+                        }}
+                      >
+                        <span className="wa-attachItem-icon wa-attachIcon-clip" aria-hidden="true">✓</span>
+                        <span>{autoCorrectEnabled ? "Desativar correção automática" : "Ativar correção automática"}</span>
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
-              {!headerCompact ? (
-                <div className="wa-stickerWrap">
-                  <button
-                    ref={stickerBtnRef}
-                    type="button"
-                    className={`wa-iconBtn wa-stickerBtn ${stickerOpen ? "isActive" : ""}`}
-                    onClick={() => {
-                      setStickerOpen((v) => !v);
-                      setAttachMenuOpen(false);
-                      setEmojiOpen(false);
-                    }}
-                    title="Figurinhas"
-                    aria-label="Figurinhas"
-                    aria-expanded={stickerOpen}
-                    disabled={sending || !conversaId || !podeEnviar}
-                  >
-                    <IconSticker />
-                  </button>
-                </div>
-              ) : null}
+              <div className="wa-stickerWrap">
+                <button
+                  ref={stickerBtnRef}
+                  type="button"
+                  className={`wa-iconBtn wa-stickerBtn ${stickerOpen ? "isActive" : ""}`}
+                  onClick={() => {
+                    setStickerOpen((v) => !v);
+                    setAttachMenuOpen(false);
+                    setEmojiOpen(false);
+                  }}
+                  title="Figurinhas"
+                  aria-label="Figurinhas"
+                  aria-expanded={stickerOpen}
+                  disabled={sending || !conversaId || !podeEnviar}
+                >
+                  <IconSticker />
+                </button>
+              </div>
               <label
                 className={`wa-autocorrectToggle ${autoCorrectEnabled ? "isEnabled" : ""}`}
                 title="Ativar ou desativar correção ortográfica automática"
@@ -6032,7 +6147,7 @@ export default function ConversaView() {
               <textarea
                 ref={inputRef}
                 value={texto}
-                onChange={(e) => setTexto(e.target.value)}
+                onChange={handleInputChange}
                 onBlur={emitTypingStop}
                 onPaste={handlePaste}
                 placeholder={podeEnviar ? "Digite uma mensagem" : (conversa?.mensagens_bloqueadas ? "Este atendimento foi assumido por outro usuário." : "Assuma esta conversa para responder")}
