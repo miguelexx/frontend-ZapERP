@@ -5,6 +5,7 @@ import { useNotificationStore } from "../notifications/notificationStore"
 import { shouldNotifyIncomingMessage } from "../notifications/chatNotificationService"
 import { notifyIncomingDesktopMessage } from "../notifications/desktopNotificationService"
 import { hasActivePushSubscription } from "../push/webPushClient"
+import { shouldDeferLocalNotificationToWebPush } from "../push/pushPlatform"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
 import { SOCKET_EVENTS } from "./events"
@@ -155,6 +156,8 @@ function getChatDisplayName(conversaId) {
 function canNotifyByConversationOwnership(chat, currentUserId) {
   if (!chat || typeof chat !== "object") return false
   const status = getStatusAtendimentoEffective(chat)
+  // Sem status na lista ainda (ex.: primeira mensagem antes do merge com o servidor): não bloquear alerta.
+  if (!status) return true
   if (status === "aberta") return true
   if (status === "em_atendimento" || status === "aguardando_cliente") {
     if (currentUserId == null) return false
@@ -296,6 +299,9 @@ function tryReconnectSocket(reason) {
 async function shouldSkipLocalIncomingNotification() {
   if (typeof document === "undefined") return false
   if (document.visibilityState === "visible") return false
+  // Desktop: sempre tentar Notification API em segundo plano (comportamento tipo WhatsApp Web).
+  // Evita depender só do Web Push no PC, onde o alerta nativo costuma ser o que o utilizador espera.
+  if (!shouldDeferLocalNotificationToWebPush()) return false
   const now = Date.now()
   if (now - pushProbeCache.at < 10_000) return pushProbeCache.value
   const active = await hasActivePushSubscription()

@@ -28,6 +28,23 @@ function isAndroidDevice() {
 }
 
 /**
+ * Mobile / PWA instalada: pode-se preferir Web Push quando a página está suspensa,
+ * para evitar som/desktop duplicado com a Notification API.
+ * No PC (Chrome/Edge/Firefox em janela normal), retorna false — o alerta nativo deve continuar
+ * mesmo que exista subscription push (o push desktop nem sempre cobre o caso “aba em segundo plano”).
+ */
+export function shouldDeferLocalNotificationToWebPush() {
+  if (typeof window === "undefined") return false
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true
+  } catch (_) {}
+  try {
+    if (window.navigator && window.navigator.standalone === true) return true
+  } catch (_) {}
+  return isIOSDevice() || isAndroidDevice()
+}
+
+/**
  * @returns {{ variant: 'ios' | 'android' | 'other', standalone: boolean, lines: string[] }}
  */
 export function getPushPlatformHints() {
