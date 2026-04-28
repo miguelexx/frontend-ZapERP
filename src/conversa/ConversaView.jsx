@@ -1001,9 +1001,10 @@ function snippetFromMsg(msg) {
 /** Para reply nativo no WhatsApp (UltraMsg `msgId`): prioriza `whatsapp_id` da mensagem citada. */
 function pickReplyToIdForApi(msg) {
   if (!msg) return undefined;
-  const wa = msg.whatsapp_id != null && String(msg.whatsapp_id).trim() !== "" ? String(msg.whatsapp_id).trim() : null;
+  const source = msg?.mensagem && typeof msg.mensagem === "object" ? msg.mensagem : msg;
+  const wa = source.whatsapp_id != null && String(source.whatsapp_id).trim() !== "" ? String(source.whatsapp_id).trim() : null;
   if (wa) return wa;
-  if (msg.id != null && msg.id !== "") return msg.id;
+  if (source.id != null && source.id !== "") return source.id;
   return undefined;
 }
 
