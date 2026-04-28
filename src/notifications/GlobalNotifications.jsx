@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNotificationStore } from "./notificationStore";
 import { useChatStore } from "../chats/chatsStore";
+import { syncAppBadgeFromUnreadTotal } from "./appBadgeSync";
 import Toast from "../components/feedback/Toast";
 import "../components/feedback/toast.css";
 
@@ -14,6 +15,7 @@ export default function GlobalNotifications() {
   useEffect(() => {
     const total = chats.reduce((acc, c) => acc + Number(c?.unread_count ?? 0), 0);
     document.title = total > 0 ? `(${total}) ${TITLE_BASE}` : TITLE_BASE;
+    syncAppBadgeFromUnreadTotal(total);
     return () => {
       document.title = TITLE_BASE;
     };

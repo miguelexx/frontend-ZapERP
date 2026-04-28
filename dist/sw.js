@@ -76,6 +76,20 @@ self.addEventListener('push', (event) => {
         }
 
         await self.registration.showNotification(title, options)
+
+        // Ícone na Tela Início: indicador quando o app está em segundo plano (Badging API no SW).
+        try {
+          const reg = self.registration
+          if (reg && typeof reg.setAppBadge === 'function') {
+            const hint = payload?.data?.badgeCount
+            const n = hint != null && Number.isFinite(Number(hint)) ? Math.max(0, Math.floor(Number(hint))) : null
+            if (n != null && n > 0) {
+              await reg.setAppBadge(Math.min(n, 99))
+            } else {
+              await reg.setAppBadge(1)
+            }
+          }
+        } catch (_) {}
       } catch (e) {
         console.error('[zaperp-sw] push handler:', e)
       }
