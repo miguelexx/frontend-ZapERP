@@ -15,6 +15,7 @@ import RelatorioDiarioPanel from "../supervisao/components/RelatorioDiarioPanel"
 import {
   formatTempoMinutos,
   normalizePendente,
+  safeDisplayText,
   sortPendentes,
   toArray,
   toIsoDate,
@@ -243,7 +244,7 @@ export default function Supervisao() {
           <div className="supervisao-modal" onClick={(e) => e.stopPropagation()}>
             <header>
               <h3>Movimentação do funcionário</h3>
-              <p>{funcionarioAtivo?.nome ?? ""}</p>
+              <p>{safeDisplayText(funcionarioAtivo?.nome ?? funcionarioAtivo?.name, "")}</p>
             </header>
             {loadingMovimentacao ? (
               <p>Carregando detalhes...</p>
@@ -252,7 +253,12 @@ export default function Supervisao() {
                 <div className="supervisao-modal-grid">
                   <div>
                     <strong>Resumo do dia</strong>
-                    <p>{movimentacao?.resumo_conversa ?? movimentacao?.resumo ?? "Sem resumo disponível."}</p>
+                    <p>
+                      {safeDisplayText(
+                        movimentacao?.resumo_conversa ?? movimentacao?.resumo,
+                        "Sem resumo disponível."
+                      )}
+                    </p>
                   </div>
                   <div>
                     <strong>Conversas em aberto</strong>
@@ -264,8 +270,8 @@ export default function Supervisao() {
                   <ul className="supervisao-eventos">
                     {toArray(movimentacao, ["eventos", "movimentacoes"]).map((evento, idx) => (
                       <li key={`${String(evento?.id ?? idx)}`}>
-                        {evento?.descricao ?? evento?.tipo ?? "Evento"}{" "}
-                        <small>{evento?.hora ?? evento?.criado_em ?? ""}</small>
+                        {safeDisplayText(evento?.descricao ?? evento?.tipo, "Evento")}{" "}
+                        <small>{safeDisplayText(evento?.hora ?? evento?.criado_em, "")}</small>
                       </li>
                     ))}
                   </ul>

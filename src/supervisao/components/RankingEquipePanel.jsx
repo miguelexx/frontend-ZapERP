@@ -1,5 +1,5 @@
 import EmptyState from "../../components/feedback/EmptyState";
-import { formatTempoMinutos, toNumber } from "../supervisaoUtils";
+import { formatTempoMinutos, safeDisplayText, toNumber } from "../supervisaoUtils";
 
 export default function RankingEquipePanel({ equipe, onAbrirMovimentacao }) {
   return (
@@ -16,7 +16,7 @@ export default function RankingEquipePanel({ equipe, onAbrirMovimentacao }) {
               className="supervisao-team-card"
               onClick={() => onAbrirMovimentacao(funcionario)}
             >
-              <strong>{funcionario?.nome ?? "Funcionário"}</strong>
+              <strong>{safeDisplayText(funcionario?.nome ?? funcionario?.name, "Funcionário")}</strong>
               <span>
                 {toNumber(funcionario?.assumidos_hoje ?? funcionario?.assumidosHoje ?? funcionario?.total_assumidos ?? 0)} assumidos hoje
               </span>

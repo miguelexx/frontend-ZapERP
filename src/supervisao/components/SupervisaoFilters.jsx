@@ -1,3 +1,5 @@
+import { resolveDepartamentoNome, safeDisplayText } from "../supervisaoUtils";
+
 export default function SupervisaoFilters({
   filtros,
   onChangeFiltro,
@@ -23,7 +25,7 @@ export default function SupervisaoFilters({
         <option value="">Todos atendentes</option>
         {atendentes.map((item) => (
           <option key={String(item.id)} value={String(item.id)}>
-            {item.nome ?? item.name ?? "Atendente"}
+            {safeDisplayText(item.nome ?? item.name, "Atendente")}
           </option>
         ))}
       </select>
@@ -34,11 +36,14 @@ export default function SupervisaoFilters({
         onChange={(e) => onChangeFiltro("departamento", e.target.value)}
       >
         <option value="">Todos departamentos</option>
-        {departamentos.map((item, idx) => (
-          <option key={String(item?.id ?? item?.nome ?? idx)} value={String(item?.nome ?? item ?? "")}>
-            {item?.nome ?? item}
-          </option>
-        ))}
+        {departamentos.map((item, idx) => {
+          const label = resolveDepartamentoNome(item?.departamento ?? item);
+          return (
+            <option key={String(item?.departamento_id ?? item?.id ?? label ?? idx)} value={label}>
+              {label}
+            </option>
+          );
+        })}
       </select>
 
       <select

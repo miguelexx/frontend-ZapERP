@@ -1,5 +1,5 @@
 import EmptyState from "../../components/feedback/EmptyState";
-import { formatTempoMinutos, toNumber } from "../supervisaoUtils";
+import { formatTempoMinutos, resolveDepartamentoNome, safeDisplayText, toNumber } from "../supervisaoUtils";
 
 export default function RelatorioDiarioPanel({ relatorio, onAbrirConversa }) {
   const totais = relatorio?.totais ?? {};
@@ -41,7 +41,7 @@ export default function RelatorioDiarioPanel({ relatorio, onAbrirConversa }) {
                 return (
                   <li key={String(item?.departamento_id ?? item?.nome ?? idx)}>
                     <div className="supervisao-bar-label">
-                      <span>{item?.nome ?? item?.departamento ?? "Departamento"}</span>
+                      <span>{resolveDepartamentoNome(item?.departamento ?? item)}</span>
                       <strong>{qtd}</strong>
                     </div>
                     <div className="supervisao-bar-track">
@@ -63,7 +63,7 @@ export default function RelatorioDiarioPanel({ relatorio, onAbrirConversa }) {
               {clientesCriticos.slice(0, 6).map((item, idx) => (
                 <li key={String(item?.conversa_id ?? item?.id ?? idx)}>
                   <div>
-                    <strong>{item?.cliente_nome ?? "Cliente"}</strong>
+                    <strong>{safeDisplayText(item?.cliente_nome ?? item?.cliente?.nome, "Cliente")}</strong>
                     <span>{toNumber(item?.minutos_aguardando ?? item?.tempo_aguardando_minutos ?? 0)} min aguardando</span>
                   </div>
                   <button type="button" onClick={() => onAbrirConversa(item?.conversa_id ?? item?.conversaId)}>
