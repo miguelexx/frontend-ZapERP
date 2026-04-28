@@ -984,6 +984,15 @@ function snippetFromMsg(msg) {
   return "(mídia)";
 }
 
+/** Para reply nativo no WhatsApp (UltraMsg `msgId`): prioriza `whatsapp_id` da mensagem citada. */
+function pickReplyToIdForApi(msg) {
+  if (!msg) return undefined;
+  const wa = msg.whatsapp_id != null && String(msg.whatsapp_id).trim() !== "" ? String(msg.whatsapp_id).trim() : null;
+  if (wa) return wa;
+  if (msg.id != null && msg.id !== "") return msg.id;
+  return undefined;
+}
+
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
@@ -3309,7 +3318,7 @@ export default function ConversaView() {
             name: getReplySenderLabel(replyTo, nome, chatParaNome),
             snippet: snippetFromMsg(replyTo),
             ts: Date.now(),
-            replyToId: replyTo?.whatsapp_id || replyTo?.id,
+            replyToId: pickReplyToIdForApi(replyTo),
           }
         : null;
 
@@ -3399,7 +3408,7 @@ export default function ConversaView() {
             name: getReplySenderLabel(replyTo, nome, chatParaNome),
             snippet: snippetFromMsg(replyTo),
             ts: Date.now(),
-            replyToId: replyTo?.whatsapp_id || replyTo?.id,
+            replyToId: pickReplyToIdForApi(replyTo),
           }
         : null;
 

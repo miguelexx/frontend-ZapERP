@@ -6,6 +6,8 @@ import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 import { getOpenConversationNotificationEventName } from "../notifications/desktopNotificationService";
 import { useConversaStore } from "../conversa/conversaStore";
+import { useChatStore } from "../chats/chatsStore";
+import { useMatchMedia } from "../hooks/useMatchMedia";
 import "../components/layout/skip-link.css";
 
 const THEME_KEY = "theme";
@@ -22,6 +24,18 @@ function applyTheme(theme) {
 export default function MainLayout() {
   const navigate = useNavigate();
   const { logout, user } = useAuthStore();
+  /** Barra inferior CRM / breakpoint da sidebar mobile (app.css) */
+  const isMobileBottomNav = useMatchMedia("(max-width: 768px)");
+  const unreadAtendimentoTotal = useChatStore((s) => {
+    const list = s.chats || [];
+    let n = 0;
+    for (let i = 0; i < list.length; i++) {
+      n += Number(list[i]?.unread_count ?? list[i]?.unread ?? 0) || 0;
+    }
+    return n;
+  });
+  /** Bolinha tipo app: só mobile; lista já reflete nova_mensagem + leitura (setUnread ao abrir chat). */
+  const showAtendimentoUnreadDot = isMobileBottomNav && unreadAtendimentoTotal > 0;
   const canAccessConfig = can("config_acessar", user);
   const canAccessDashboard_ = can("dashboard_acessar", user);
   const canAccessChatbot_ = can("chatbot_acessar", user);
@@ -116,7 +130,7 @@ export default function MainLayout() {
         <nav className="sidebar-nav sidebar-nav--compact">
           {canAccessDashboard_ && <NavItem to="/dashboard" label="Dashboard" icon={<IconDashboard />} />}
           {canAccessDashboard_ && <NavItem to="/dashboard/ia" label="IA" icon={<IconBot />} />}
-          <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} />
+          <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} unreadDot={showAtendimentoUnreadDot} />
           <NavItem to="/crm" label="CRM" icon={<IconCrm />} title="Funil de vendas e leads" />
           <NavItem to="/chat-interno" label="Chat interno" icon={<IconInternalTeam />} title="Mensagens entre funcionários (não é WhatsApp)" />
           {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
@@ -153,10 +167,20 @@ export default function MainLayout() {
   );
 }
 
-function NavItem({ to, label, icon, title }) {
+function NavItem({ to, label, icon, title, unreadDot }) {
+  const baseTitle = title ?? label ?? "";
+  const linkTitle = unreadDot && baseTitle ? `${baseTitle} — mensagens não lidas` : baseTitle || undefined;
+
   return (
-    <NavLink to={to} className="sidebar-nav-item" title={title ?? label}>
-      <span className="sidebar-nav-icon">{icon}</span>
+    <NavLink to={to} className={({ isActive }) => `sidebar-nav-item${isActive ? " active" : ""}`} title={linkTitle}>
+      {unreadDot ? (
+        <span className="sidebar-nav-iconWrap sidebar-nav-iconWrap--unread">
+          <span className="sidebar-nav-icon">{icon}</span>
+          <span className="sidebar-nav-unreadDot" title="Novas mensagens" aria-hidden="true" />
+        </span>
+      ) : (
+        <span className="sidebar-nav-icon">{icon}</span>
+      )}
       <span className="sidebar-nav-label">{label}</span>
     </NavLink>
   );
