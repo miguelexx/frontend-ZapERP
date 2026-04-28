@@ -1,0 +1,86 @@
+export const NIVEL_ORDER = {
+  critico: 0,
+  prioritario: 1,
+  atencao: 2,
+  normal: 3,
+};
+
+export function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+export function toArray(data, fallbackKeys = []) {
+  if (Array.isArray(data)) return data;
+  for (let i = 0; i < fallbackKeys.length; i += 1) {
+    const val = data?.[fallbackKeys[i]];
+    if (Array.isArray(val)) return val;
+  }
+  return [];
+}
+
+export function formatTempoMinutos(mins) {
+  const total = toNumber(mins, 0);
+  if (total < 60) return `${total} min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${h}h ${m}min`;
+}
+
+export function normalizeNivel(rawNivel, minutosAguardando, slaMinutos = 30) {
+  const nivel = String(rawNivel || "").trim().toLowerCase();
+  if (nivel === "normal" || nivel === "atencao" || nivel === "prioritario" || nivel === "critico") {
+    return nivel;
+  }
+  const mins = toNumber(minutosAguardando, 0);
+  const sla = Math.max(5, toNumber(slaMinutos, 30));
+  if (mins >= sla) return "critico";
+  if (mins >= Math.floor(sla * 0.85)) return "prioritario";
+  if (mins >= Math.floor(sla * 0.65)) return "atencao";
+  return "normal";
+}
+
+export function normalizePendente(item, slaMinutos = 30) {
+  const minutosAguardando = toNumber(
+    item?.minutos_aguardando ??
+      item?.tempo_aguardando_minutos ??
+      item?.tempoAguardandoMinutos ??
+      item?.tempo_espera_minutos ??
+      item?.minutes_waiting ??
+      0
+  );
+  const nivel = normalizeNivel(item?.nivel, minutosAguardando, slaMinutos);
+  return {
+    ...item,
+    minutosAguardando,
+    nivel,
+    resumoConversa:
+      item?.resumo_conversa ??
+      item?.ultima_mensagem_resumo ??
+      item?.ultimaMensagemResumo ??
+      item?.ultima_mensagem ??
+      "Sem resumo de mensagem",
+    ultimaMensagemEm: item?.ultima_mensagem_em ?? item?.ultimaMensagemEm ?? item?.updated_at ?? null,
+    conversaId: item?.conversa_id ?? item?.conversaId ?? item?.id ?? null,
+    clienteNome: item?.cliente_nome ?? item?.cliente?.nome ?? "Cliente sem nome",
+    telefone: item?.telefone ?? item?.cliente_telefone ?? "-",
+    funcionarioNome: item?.funcionario_nome ?? item?.responsavel_nome ?? "Sem responsável",
+    departamentoNome: item?.departamento_nome ?? item?.setor ?? "Sem departamento",
+  };
+}
+
+export function sortPendentes(list = []) {
+  return [...list].sort((a, b) => {
+    const pA = NIVEL_ORDER[a?.nivel] ?? 99;
+    const pB = NIVEL_ORDER[b?.nivel] ?? 99;
+    if (pA !== pB) return pA - pB;
+    return toNumber(b?.minutosAguardando, 0) - toNumber(a?.minutosAguardando, 0);
+  });
+}
+
+export function toIsoDate(date = new Date()) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}

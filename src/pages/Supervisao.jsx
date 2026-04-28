@@ -3,134 +3,156 @@ import { useNavigate } from "react-router-dom";
 import EmptyState from "../components/feedback/EmptyState";
 import {
   getClientesPendentesSupervisao,
+  getRelatorioDiarioSupervisao,
   getMovimentacaoFuncionarioSupervisao,
   getResumoSupervisao,
 } from "../api/supervisaoService";
+import SupervisaoTopCards from "../supervisao/components/SupervisaoTopCards";
+import SupervisaoFilters from "../supervisao/components/SupervisaoFilters";
+import ClientesPendentesPanel from "../supervisao/components/ClientesPendentesPanel";
+import RankingEquipePanel from "../supervisao/components/RankingEquipePanel";
+import RelatorioDiarioPanel from "../supervisao/components/RelatorioDiarioPanel";
+import {
+  formatTempoMinutos,
+  normalizePendente,
+  sortPendentes,
+  toArray,
+  toIsoDate,
+  toNumber,
+} from "../supervisao/supervisaoUtils";
 import "./supervisao.css";
 
-function getArray(value, fallbackKeys = []) {
-  if (Array.isArray(value)) return value;
-  for (let i = 0; i < fallbackKeys.length; i++) {
-    const item = value?.[fallbackKeys[i]];
-    if (Array.isArray(item)) return item;
-  }
-  return [];
-}
-
-function toNumber(value, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function getNivelByMinutes(minutes, slaMinutes = 30) {
-  const limit = toNumber(slaMinutes, 30);
-  if (minutes >= limit) return "critico";
-  if (minutes >= Math.max(15, Math.floor(limit * 0.7))) return "atencao";
-  return "normal";
-}
-
-function formatTempo(mins) {
-  const total = toNumber(mins, 0);
-  if (total < 60) return `${total} min`;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return `${h}h ${m}min`;
-}
-
-function getPendentesOrdenados(clientesPendentes, slaMinutos) {
-  const rows = clientesPendentes.map((item) => {
-    const tempoAguardandoMinutos = toNumber(
-      item?.tempo_aguardando_minutos ??
-        item?.tempoAguardandoMinutos ??
-        item?.tempo_espera_minutos ??
-        item?.minutes_waiting ??
-        0
-    );
-    const nivel =
-      String(item?.nivel ?? "").toLowerCase() || getNivelByMinutes(tempoAguardandoMinutos, slaMinutos);
-    return { ...item, tempoAguardandoMinutos, nivel };
-  });
-
-  return rows.sort((a, b) => {
-    const peso = { critico: 0, atencao: 1, normal: 2 };
-    const pA = peso[a.nivel] ?? 3;
-    const pB = peso[b.nivel] ?? 3;
-    if (pA !== pB) return pA - pB;
-    return b.tempoAguardandoMinutos - a.tempoAguardandoMinutos;
-  });
-}
+const INITIAL_FILTERS = {
+  busca: "",
+  atendenteId: "",
+  departamento: "",
+  nivel: "",
+  somenteAtrasados: false,
+  periodo: "hoje",
+  data: toIsoDate(new Date()),
+};
 
 export default function Supervisao() {
   const navigate = useNavigate();
-  const [resumo, setResumo] = useState(null);
-  const [clientesPendentes, setClientesPendentes] = useState([]);
+  const [resumo, setResumo] = useState({});
+  const [clientesPendentesRaw, setClientesPendentesRaw] = useState([]);
+  const [relatorioDiario, setRelatorioDiario] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [filtros, setFiltros] = useState(INITIAL_FILTERS);
   const [funcionarioAtivo, setFuncionarioAtivo] = useState(null);
   const [movimentacao, setMovimentacao] = useState(null);
   const [loadingMovimentacao, setLoadingMovimentacao] = useState(false);
 
+  const dataRelatorio = filtros.data || toIsoDate(new Date());
+
   const carregarDados = useCallback(async () => {
+    let isFirstLoad = false;
+    setError("");
+    setRefreshing(true);
     try {
-      setError("");
-      const [resumoData, pendentesData] = await Promise.all([
+      isFirstLoad = loading;
+      const [resumoData, pendentesData, relatorioData] = await Promise.all([
         getResumoSupervisao(),
         getClientesPendentesSupervisao(),
+        getRelatorioDiarioSupervisao(dataRelatorio),
       ]);
       setResumo(resumoData || {});
-      setClientesPendentes(Array.isArray(pendentesData) ? pendentesData : []);
+      setClientesPendentesRaw(Array.isArray(pendentesData) ? pendentesData : []);
+      setRelatorioDiario(relatorioData || {});
     } catch (err) {
-      setError(err?.response?.data?.error || "Nao foi possivel carregar a central de supervisao.");
+      setError(err?.response?.data?.error || "Não foi possível carregar a central de supervisão.");
     } finally {
+      if (isFirstLoad) setLoading(false);
+      setRefreshing(false);
       setLoading(false);
     }
-  }, []);
+  }, [dataRelatorio, loading]);
 
   useEffect(() => {
-    carregarDados();
+    void carregarDados();
     const timer = setInterval(() => {
-      carregarDados();
+      void carregarDados();
     }, 30000);
     return () => clearInterval(timer);
   }, [carregarDados]);
 
   const slaMinutos = toNumber(resumo?.sla_minutos ?? resumo?.slaMinutos ?? 30, 30);
 
-  const cards = useMemo(() => {
-    return [
-      {
-        label: "Atendimentos abertos",
-        valor: toNumber(resumo?.atendimentos_abertos ?? resumo?.atendimentosAbertos ?? 0),
-      },
-      {
-        label: "Aguardando funcionario",
-        valor: toNumber(resumo?.aguardando_funcionario ?? resumo?.aguardandoFuncionario ?? 0),
-      },
-      {
-        label: "Atrasados",
-        valor: toNumber(resumo?.atrasados ?? 0),
-      },
-      {
-        label: "Tempo medio de resposta",
-        valor: formatTempo(toNumber(resumo?.tempo_medio_resposta_minutos ?? resumo?.tempoMedioRespostaMinutos ?? 0)),
-      },
-    ];
-  }, [resumo]);
+  const clientesPendentes = useMemo(
+    () => sortPendentes(clientesPendentesRaw.map((item) => normalizePendente(item, slaMinutos))),
+    [clientesPendentesRaw, slaMinutos]
+  );
 
   const pendentesOrdenados = useMemo(
-    () => getPendentesOrdenados(clientesPendentes, slaMinutos),
-    [clientesPendentes, slaMinutos]
+    () =>
+      clientesPendentes.filter((item) => {
+        if (filtros.atendenteId && String(item?.atendente_id ?? item?.funcionario_id ?? "") !== String(filtros.atendenteId)) {
+          return false;
+        }
+        if (filtros.departamento && String(item.departamentoNome || "").toLowerCase() !== String(filtros.departamento).toLowerCase()) {
+          return false;
+        }
+        if (filtros.nivel && item.nivel !== filtros.nivel) return false;
+        if (filtros.somenteAtrasados && item.minutosAguardando < 30) return false;
+        if (filtros.busca) {
+          const q = filtros.busca.toLowerCase();
+          const hay = `${item.clienteNome} ${item.telefone} ${item.resumoConversa}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      }),
+    [clientesPendentes, filtros]
   );
 
-  const equipeHoje = useMemo(
-    () => getArray(resumo, ["equipe_hoje", "equipeHoje", "funcionarios", "atendentes"]),
+  const equipeHoje = useMemo(() => {
+    const rankingRelatorio = toArray(relatorioDiario, ["ranking_funcionarios"]);
+    if (rankingRelatorio.length > 0) return rankingRelatorio;
+    return toArray(resumo, ["equipe_hoje", "equipeHoje", "funcionarios", "atendentes"]);
+  }, [resumo, relatorioDiario]);
+
+  const cards = useMemo(
+    () => [
+      {
+        key: "abertos",
+        label: "Atendimentos abertos",
+        value: toNumber(resumo?.atendimentos_abertos ?? resumo?.atendimentosAbertos ?? resumo?.cards?.abertos ?? 0),
+      },
+      {
+        key: "aguardando",
+        label: "Aguardando funcionário",
+        value: toNumber(
+          resumo?.aguardando_funcionario ??
+            resumo?.aguardandoFuncionario ??
+            resumo?.cards?.aguardando_funcionario ??
+            pendentesOrdenados.length
+        ),
+      },
+      {
+        key: "atrasados",
+        label: "Atrasados > 30 min",
+        value: toNumber(resumo?.cards?.atrasados_30min ?? resumo?.atrasados_30min ?? resumo?.atrasados ?? 0),
+      },
+      {
+        key: "tmr",
+        label: "Tempo médio de resposta",
+        value: formatTempoMinutos(
+          toNumber(resumo?.tempo_medio_resposta_minutos ?? resumo?.tempoMedioRespostaMinutos ?? resumo?.cards?.tempo_medio ?? 0)
+        ),
+      },
+    ],
+    [resumo, pendentesOrdenados.length]
+  );
+
+  const departamentos = useMemo(
+    () => toArray(relatorioDiario, ["departamentos_maior_demanda"]),
+    [relatorioDiario]
+  );
+  const atendentes = useMemo(
+    () => toArray(resumo, ["equipe_hoje", "equipeHoje", "funcionarios", "atendentes", "usuarios"]),
     [resumo]
   );
-
-  const avisos = useMemo(() => {
-    const criticos = pendentesOrdenados.filter((item) => item.nivel === "critico");
-    return criticos.slice(0, 8);
-  }, [pendentesOrdenados]);
 
   async function abrirMovimentacao(funcionario) {
     if (!funcionario?.id) return;
@@ -151,14 +173,36 @@ export default function Supervisao() {
     navigate("/atendimento", { state: { openConversaId: conversaId } });
   }
 
+  function onChangeFiltro(key, value) {
+    setFiltros((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function onResetFiltros() {
+    setFiltros({ ...INITIAL_FILTERS, data: toIsoDate(new Date()) });
+  }
+
   if (loading) {
-    return <div className="supervisao-page">Carregando supervisao...</div>;
+    return (
+      <div className="supervisao-page">
+        <div className="supervisao-skeleton-row" />
+        <div className="supervisao-skeleton-grid">
+          <div className="supervisao-skeleton-card" />
+          <div className="supervisao-skeleton-card" />
+          <div className="supervisao-skeleton-card" />
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div className="supervisao-page">
-        <div className="supervisao-error">{error}</div>
+        <div className="supervisao-error">
+          <p>{error}</p>
+          <button type="button" className="supervisao-secondary-btn" onClick={() => void carregarDados()}>
+            Tentar novamente
+          </button>
+        </div>
       </div>
     );
   }
@@ -166,101 +210,39 @@ export default function Supervisao() {
   return (
     <div className="supervisao-page">
       <header className="supervisao-header">
-        <h1>Supervisao</h1>
+        <h1>Supervisão</h1>
         <p>Acompanhe clientes aguardando resposta e o desempenho da equipe em tempo real.</p>
+        {refreshing ? <small className="supervisao-refreshing">Atualizando dados...</small> : null}
       </header>
 
-      <section className="supervisao-cards">
-        {cards.map((card) => (
-          <article key={card.label} className="supervisao-card">
-            <strong>{card.valor}</strong>
-            <span>{card.label}</span>
-          </article>
-        ))}
-      </section>
+      <SupervisaoTopCards cards={cards} />
+
+      <SupervisaoFilters
+        filtros={filtros}
+        onChangeFiltro={onChangeFiltro}
+        atendentes={atendentes}
+        departamentos={departamentos}
+        onReset={onResetFiltros}
+      />
 
       <section className="supervisao-grid">
-        <div className="supervisao-panel">
-          <div className="supervisao-panel-header">
-            <h2>Clientes aguardando resposta</h2>
-          </div>
-          {pendentesOrdenados.length === 0 ? (
-            <EmptyState title="Nenhum cliente aguardando resposta no momento." description="" />
-          ) : (
-            <div className="supervisao-list">
-              {pendentesOrdenados.map((item, index) => (
-                <article key={String(item?.conversa_id ?? item?.id ?? `pendente-${index}`)} className={`supervisao-row is-${item.nivel}`}>
-                  <div className="supervisao-row-main">
-                    <strong>{item?.cliente_nome ?? item?.cliente?.nome ?? "Cliente sem nome"}</strong>
-                    <span>{item?.telefone ?? item?.cliente_telefone ?? "-"}</span>
-                    <p>{item?.ultima_mensagem_resumo ?? item?.ultimaMensagemResumo ?? "Sem resumo de mensagem"}</p>
-                  </div>
-                  <div className="supervisao-row-meta">
-                    <span>{item?.funcionario_nome ?? item?.responsavel_nome ?? "Sem responsavel"}</span>
-                    <span>{item?.departamento_nome ?? item?.setor ?? "Sem departamento"}</span>
-                    <span>{formatTempo(item.tempoAguardandoMinutos)}</span>
-                    <span className={`badge badge-${item.nivel}`}>{item.nivel}</span>
-                    <button type="button" onClick={() => abrirConversa(item?.conversa_id ?? item?.conversaId)}>
-                      Abrir conversa
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="supervisao-panel">
-          <h2>Equipe hoje</h2>
-          {equipeHoje.length === 0 ? (
-            <EmptyState title="Sem dados de equipe hoje." description="" />
-          ) : (
-            <div className="supervisao-team-grid">
-              {equipeHoje.map((funcionario) => (
-                <button
-                  key={String(funcionario?.id ?? funcionario?.usuario_id)}
-                  type="button"
-                  className="supervisao-team-card"
-                  onClick={() => abrirMovimentacao(funcionario)}
-                >
-                  <strong>{funcionario?.nome ?? "Funcionario"}</strong>
-                  <span>{toNumber(funcionario?.assumidos_hoje ?? funcionario?.assumidosHoje ?? 0)} assumidos hoje</span>
-                  <span>{toNumber(funcionario?.sem_resposta ?? funcionario?.clientes_sem_resposta ?? 0)} sem resposta</span>
-                  <span>{toNumber(funcionario?.atrasados ?? 0)} atrasados</span>
-                  <span>Tempo medio: {formatTempo(toNumber(funcionario?.tempo_medio_resposta_minutos ?? 0))}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ClientesPendentesPanel clientes={pendentesOrdenados} onAbrirConversa={abrirConversa} />
+        <RankingEquipePanel equipe={equipeHoje} onAbrirMovimentacao={abrirMovimentacao} />
       </section>
 
-      <section className="supervisao-panel">
-        <h2>Avisos de prioridade</h2>
-        {avisos.length === 0 ? (
-          <p className="supervisao-empty-note">Todos os atendimentos estao dentro do prazo.</p>
-        ) : (
-          <ul className="supervisao-alerts">
-            {avisos.map((item, index) => (
-              <li key={`alert-${String(item?.conversa_id ?? item?.id ?? index)}`}>
-                <span>
-                  {item?.cliente_nome ?? "Cliente"} aguardando ha {formatTempo(item.tempoAguardandoMinutos)} -{" "}
-                  {item?.funcionario_nome ?? "Sem responsavel"} ({item?.departamento_nome ?? "Sem departamento"})
-                </span>
-                <button type="button" onClick={() => abrirConversa(item?.conversa_id ?? item?.conversaId)}>
-                  Abrir conversa
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <RelatorioDiarioPanel relatorio={relatorioDiario} onAbrirConversa={abrirConversa} />
+
+      {pendentesOrdenados.length === 0 ? (
+        <div className="supervisao-panel">
+          <EmptyState title="Todos os atendimentos estão dentro do prazo." description="" />
+        </div>
+      ) : null}
 
       {funcionarioAtivo ? (
         <div className="supervisao-modal-backdrop" onClick={() => setFuncionarioAtivo(null)}>
           <div className="supervisao-modal" onClick={(e) => e.stopPropagation()}>
             <header>
-              <h3>Movimentacao do funcionario</h3>
+              <h3>Movimentação do funcionário</h3>
               <p>{funcionarioAtivo?.nome ?? ""}</p>
             </header>
             {loadingMovimentacao ? (
@@ -270,7 +252,7 @@ export default function Supervisao() {
                 <div className="supervisao-modal-grid">
                   <div>
                     <strong>Resumo do dia</strong>
-                    <p>{movimentacao?.resumo ?? "Sem resumo disponivel."}</p>
+                    <p>{movimentacao?.resumo_conversa ?? movimentacao?.resumo ?? "Sem resumo disponível."}</p>
                   </div>
                   <div>
                     <strong>Conversas em aberto</strong>
@@ -280,7 +262,7 @@ export default function Supervisao() {
                 <div>
                   <strong>Eventos importantes</strong>
                   <ul className="supervisao-eventos">
-                    {getArray(movimentacao, ["eventos", "movimentacoes"]).map((evento, idx) => (
+                    {toArray(movimentacao, ["eventos", "movimentacoes"]).map((evento, idx) => (
                       <li key={`${String(evento?.id ?? idx)}`}>
                         {evento?.descricao ?? evento?.tipo ?? "Evento"}{" "}
                         <small>{evento?.hora ?? evento?.criado_em ?? ""}</small>

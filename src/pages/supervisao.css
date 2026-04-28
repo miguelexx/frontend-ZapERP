@@ -16,6 +16,44 @@
   color: var(--ds-text-secondary);
 }
 
+.supervisao-refreshing {
+  color: var(--ds-text-tertiary);
+}
+
+.supervisao-filters {
+  display: grid;
+  grid-template-columns: 2fr repeat(5, minmax(140px, 1fr)) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.supervisao-input,
+.supervisao-select {
+  height: 36px;
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface-1);
+  color: var(--ds-text-primary);
+  border-radius: 10px;
+  padding: 0 10px;
+}
+
+.supervisao-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-text-secondary);
+  font-size: 12px;
+}
+
+.supervisao-secondary-btn {
+  height: 36px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  background: var(--ds-surface-2);
+  color: var(--ds-text-primary);
+  padding: 0 12px;
+}
+
 .supervisao-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
@@ -81,6 +119,11 @@
   font-size: 12px;
 }
 
+.supervisao-row-datetime {
+  color: var(--ds-text-tertiary);
+  font-size: 11px;
+}
+
 .supervisao-row-main {
   min-width: 0;
   display: flex;
@@ -120,6 +163,16 @@
   background: rgba(234, 179, 8, 0.05);
 }
 
+.supervisao-row.is-normal {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.supervisao-row.is-prioritario {
+  border-color: rgba(249, 115, 22, 0.35);
+  background: rgba(249, 115, 22, 0.08);
+}
+
 .supervisao-row.is-critico {
   border-color: rgba(239, 68, 68, 0.32);
   background: rgba(239, 68, 68, 0.06);
@@ -133,12 +186,18 @@
 }
 
 .badge-normal {
-  background: var(--ds-surface-2);
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.32);
 }
 
 .badge-atencao {
   background: rgba(234, 179, 8, 0.14);
   border-color: rgba(234, 179, 8, 0.32);
+}
+
+.badge-prioritario {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: rgba(249, 115, 22, 0.32);
 }
 
 .badge-critico {
@@ -195,6 +254,86 @@
   color: var(--ds-text-secondary);
 }
 
+.supervisao-relatorio-totais {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.supervisao-relatorio-totais article {
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--ds-surface-2);
+}
+
+.supervisao-relatorio-totais strong {
+  display: block;
+  font-size: 20px;
+}
+
+.supervisao-relatorio-totais span {
+  color: var(--ds-text-secondary);
+  font-size: 12px;
+}
+
+.supervisao-relatorio-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+}
+
+.supervisao-relatorio-departamentos ul,
+.supervisao-relatorio-criticos ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.supervisao-bar-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.supervisao-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ds-surface-3);
+  overflow: hidden;
+}
+
+.supervisao-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #14b8a6);
+}
+
+.supervisao-relatorio-criticos li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.supervisao-relatorio-criticos li div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.supervisao-relatorio-criticos li span {
+  color: var(--ds-text-secondary);
+  font-size: 12px;
+}
+
 .supervisao-error {
   border: 1px solid rgba(239, 68, 68, 0.32);
   border-radius: 10px;
@@ -239,6 +378,33 @@
   gap: 10px;
 }
 
+.supervisao-skeleton-row {
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--ds-surface-2), var(--ds-surface-3), var(--ds-surface-2));
+  background-size: 200% 100%;
+  animation: supervisao-shimmer 1.2s infinite linear;
+}
+
+.supervisao-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.supervisao-skeleton-card {
+  height: 130px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--ds-surface-2), var(--ds-surface-3), var(--ds-surface-2));
+  background-size: 200% 100%;
+  animation: supervisao-shimmer 1.2s infinite linear;
+}
+
+@keyframes supervisao-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
 .supervisao-eventos {
   margin: 6px 0 0;
   padding-left: 18px;
@@ -252,6 +418,14 @@
   .supervisao-grid {
     grid-template-columns: 1fr;
   }
+
+  .supervisao-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .supervisao-relatorio-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -260,6 +434,14 @@
   }
 
   .supervisao-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .supervisao-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .supervisao-relatorio-totais {
     grid-template-columns: 1fr;
   }
 
