@@ -36,6 +36,7 @@ import {
 } from "../api/tagService";
 import * as cfg from "../api/configService";
 import SidebarCliente from "./SidebarCliente";
+import { SwipeReplyTrack } from "./SwipeReplyTrack";
 import { useMatchMedia } from "../hooks/useMatchMedia";
 import { getAutocorrectEdit } from "../utils/autocorrectText";
 import EmptyState from "../components/feedback/EmptyState";
@@ -1244,6 +1245,7 @@ const Bubble = memo(function Bubble({
   onConversarContact,
   onAdicionarGrupoContact,
   mostrarNomeAoCliente = true,
+  swipeReplyEnabled = false,
 }) {
   const out = msg?.direcao === "out";
   const canDeleteForEveryone = useMemo(() => {
@@ -1421,6 +1423,16 @@ const Bubble = memo(function Bubble({
         </button>
       ) : null}
 
+      <SwipeReplyTrack
+        enabled={Boolean(swipeReplyEnabled && !isCall)}
+        outgoing={out}
+        gestureBlocked={menuOpen || reactionOpen || selectMode}
+        onCommit={() => {
+          setMenuOpen(false);
+          setReactionOpen(false);
+          onReply?.(msg);
+        }}
+      >
       <div
         className={[
           "wa-bubble",
@@ -1740,6 +1752,7 @@ const Bubble = memo(function Bubble({
           </div>
         ) : null}
       </div>
+      </SwipeReplyTrack>
 
       {menuOpen
         ? createPortal(
@@ -5161,6 +5174,7 @@ export default function ConversaView() {
                   onConversarContact={handleConversarContact}
                   onAdicionarGrupoContact={handleAdicionarGrupoContact}
                   mostrarNomeAoCliente={user?.mostrar_nome_ao_cliente !== false}
+                  swipeReplyEnabled={headerCompact && !selectMode}
                 />
               );
             })}

@@ -1237,6 +1237,23 @@
   justify-content: flex-end;
 }
 
+/* Faixa do gesto “arrastar para responder” — pan-y preserva rolagem vertical da lista */
+.wa-swipeReplyTrack {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  width: fit-content;
+  touch-action: pan-y;
+}
+
+.wa-swipeReplyShift {
+  will-change: transform;
+}
+
+.wa-swipeReplyShift.wa-swipeReplyShift--spring {
+  transition: transform 0.22s cubic-bezier(0.22, 0.82, 0.22, 1);
+}
+
 /* =========================================================
    BOLHAS (BUBBLES) — WhatsApp Web premium
    Largura mínima confortável, máx 68%, padding generoso,
