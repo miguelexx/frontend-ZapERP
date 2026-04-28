@@ -13,7 +13,6 @@ import ClientesPendentesPanel from "../supervisao/components/ClientesPendentesPa
 import RankingEquipePanel from "../supervisao/components/RankingEquipePanel";
 import RelatorioDiarioPanel from "../supervisao/components/RelatorioDiarioPanel";
 import {
-  formatTempoMinutos,
   normalizePendente,
   safeDisplayText,
   sortPendentes,
@@ -116,13 +115,9 @@ export default function Supervisao() {
   const cards = useMemo(
     () => [
       {
-        key: "abertos",
-        label: "Atendimentos abertos",
-        value: toNumber(resumo?.atendimentos_abertos ?? resumo?.atendimentosAbertos ?? resumo?.cards?.abertos ?? 0),
-      },
-      {
         key: "aguardando",
         label: "Aguardando funcionário",
+        accent: "primary",
         value: toNumber(
           resumo?.aguardando_funcionario ??
             resumo?.aguardandoFuncionario ??
@@ -133,14 +128,8 @@ export default function Supervisao() {
       {
         key: "atrasados",
         label: "Atrasados > 30 min",
+        accent: "warning",
         value: toNumber(resumo?.cards?.atrasados_30min ?? resumo?.atrasados_30min ?? resumo?.atrasados ?? 0),
-      },
-      {
-        key: "tmr",
-        label: "Tempo médio de resposta",
-        value: formatTempoMinutos(
-          toNumber(resumo?.tempo_medio_resposta_minutos ?? resumo?.tempoMedioRespostaMinutos ?? resumo?.cards?.tempo_medio ?? 0)
-        ),
       },
     ],
     [resumo, pendentesOrdenados.length]
@@ -184,12 +173,15 @@ export default function Supervisao() {
 
   if (loading) {
     return (
-      <div className="supervisao-page">
-        <div className="supervisao-skeleton-row" />
-        <div className="supervisao-skeleton-grid">
+      <div className="supervisao-page supervisao-page--loading">
+        <div className="supervisao-skeleton-row supervisao-skeleton-row--hero" />
+        <div className="supervisao-skeleton-grid supervisao-skeleton-grid--kpis">
           <div className="supervisao-skeleton-card" />
           <div className="supervisao-skeleton-card" />
-          <div className="supervisao-skeleton-card" />
+        </div>
+        <div className="supervisao-skeleton-grid supervisao-skeleton-grid--main">
+          <div className="supervisao-skeleton-card supervisao-skeleton-card--tall" />
+          <div className="supervisao-skeleton-card supervisao-skeleton-card--tall" />
         </div>
       </div>
     );
@@ -211,9 +203,18 @@ export default function Supervisao() {
   return (
     <div className="supervisao-page">
       <header className="supervisao-header">
-        <h1>Supervisão</h1>
-        <p>Acompanhe clientes aguardando resposta e o desempenho da equipe em tempo real.</p>
-        {refreshing ? <small className="supervisao-refreshing">Atualizando dados...</small> : null}
+        <div className="supervisao-header-inner">
+          <p className="supervisao-header-eyebrow">Central operacional</p>
+          <h1>Supervisão</h1>
+          <p className="supervisao-header-desc">
+            Acompanhe clientes aguardando resposta e o desempenho da equipe em tempo real.
+          </p>
+          {refreshing ? (
+            <p className="supervisao-refreshing" role="status">
+              Atualizando dados…
+            </p>
+          ) : null}
+        </div>
       </header>
 
       <SupervisaoTopCards cards={cards} />
@@ -234,7 +235,7 @@ export default function Supervisao() {
       <RelatorioDiarioPanel relatorio={relatorioDiario} onAbrirConversa={abrirConversa} />
 
       {pendentesOrdenados.length === 0 ? (
-        <div className="supervisao-panel">
+        <div className="supervisao-panel supervisao-panel--raised supervisao-note-empty">
           <EmptyState title="Todos os atendimentos estão dentro do prazo." description="" />
         </div>
       ) : null}

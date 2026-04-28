@@ -17,8 +17,13 @@ function formatDateTime(value) {
 
 export default function ClientesPendentesPanel({ clientes, onAbrirConversa }) {
   return (
-    <div className="supervisao-panel">
-      <h2>Clientes aguardando resposta</h2>
+    <div className="supervisao-panel supervisao-panel--raised">
+      <div className="supervisao-panel-head">
+        <h2>Clientes aguardando resposta</h2>
+        {clientes.length > 0 ? (
+          <span className="supervisao-panel-count">{clientes.length}</span>
+        ) : null}
+      </div>
       {clientes.length === 0 ? (
         <EmptyState title="Nenhum cliente aguardando resposta no momento." description="" />
       ) : (
@@ -38,7 +43,11 @@ export default function ClientesPendentesPanel({ clientes, onAbrirConversa }) {
                 <span>{item.departamentoNome}</span>
                 <span>{formatTempoMinutos(item.minutosAguardando)}</span>
                 <span className={`badge badge-${item.nivel}`}>{item.nivel}</span>
-                <button type="button" onClick={() => onAbrirConversa(item.conversaId)}>
+                <button
+                  type="button"
+                  className="supervisao-primary-btn"
+                  onClick={() => onAbrirConversa(item.conversaId)}
+                >
                   Abrir conversa
                 </button>
               </div>

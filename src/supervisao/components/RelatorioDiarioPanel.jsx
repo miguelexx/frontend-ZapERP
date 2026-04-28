@@ -10,8 +10,10 @@ export default function RelatorioDiarioPanel({ relatorio, onAbrirConversa }) {
   const maxDemanda = Math.max(1, ...departamentos.map((d) => toNumber(d?.quantidade ?? d?.total ?? 0)));
 
   return (
-    <section className="supervisao-panel">
-      <h2>Relatório diário</h2>
+    <section className="supervisao-panel supervisao-panel--raised supervisao-panel--wide">
+      <div className="supervisao-panel-head">
+        <h2>Relatório diário</h2>
+      </div>
 
       <div className="supervisao-relatorio-totais">
         <article>
