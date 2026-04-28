@@ -4,24 +4,21 @@
  * Requer HTTPS; comportamento final depende do SO (como WhatsApp Web no ícone).
  */
 
-const MAX_BADGE = 99
-
 function hasBadgeApi() {
   return typeof navigator !== "undefined" && "setAppBadge" in navigator && "clearAppBadge" in navigator
 }
 
 /**
- * @param {number} total - soma de unread_count das conversas (ou 0 para limpar)
+ * @param {number} value - número a mostrar no ícone (ex.: quantidade de conversas em aberto na fila)
  */
-export function syncAppBadgeFromUnreadTotal(total) {
+export function syncAppBadgeNumber(value) {
   if (!hasBadgeApi()) return
-  const n = Math.floor(Number(total) || 0)
+  const n = Math.floor(Number(value) || 0)
   if (n <= 0) {
     navigator.clearAppBadge().catch(() => {})
     return
   }
-  const display = Math.min(n, MAX_BADGE)
-  navigator.setAppBadge(display).catch(() => {})
+  navigator.setAppBadge(n).catch(() => {})
 }
 
 export function clearAppBadgeIfSupported() {

@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useNotificationStore } from "./notificationStore";
 import { useChatStore } from "../chats/chatsStore";
-import { syncAppBadgeFromUnreadTotal } from "./appBadgeSync";
+import { syncAppBadgeNumber } from "./appBadgeSync";
+import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import Toast from "../components/feedback/Toast";
 import "../components/feedback/toast.css";
 
@@ -13,9 +14,11 @@ export default function GlobalNotifications() {
   const chats = useChatStore((s) => s.chats || []);
 
   useEffect(() => {
-    const total = chats.reduce((acc, c) => acc + Number(c?.unread_count ?? 0), 0);
-    document.title = total > 0 ? `(${total}) ${TITLE_BASE}` : TITLE_BASE;
-    syncAppBadgeFromUnreadTotal(total);
+    const totalMsgs = chats.reduce((acc, c) => acc + Number(c?.unread_count ?? 0), 0);
+    document.title = totalMsgs > 0 ? `(${totalMsgs}) ${TITLE_BASE}` : TITLE_BASE;
+    // Ícone da PWA: quantidade de conversas na fila "Aberta" (não soma de mensagens — evita ficar preso em 99).
+    const openConversations = chats.filter((c) => getStatusAtendimentoEffective(c) === "aberta").length;
+    syncAppBadgeNumber(openConversations);
     return () => {
       document.title = TITLE_BASE;
     };
