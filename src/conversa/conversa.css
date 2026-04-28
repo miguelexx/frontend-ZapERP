@@ -4424,6 +4424,14 @@
 .wa-attachIcon-contact { background: rgba(77, 178, 201, 0.25); }
 .wa-attachIcon-location { background: rgba(214, 152, 62, 0.28); }
 .wa-attachIcon-clip { background: rgba(79, 195, 127, 0.25); }
+.wa-attachIcon-pix {
+  background: rgba(0, 168, 132, 0.24);
+  color: rgba(24, 245, 178, 0.95);
+}
+.wa-attachIcon-pix svg {
+  width: 20px;
+  height: 20px;
+}
 
 /* Barra de gravação — mesma altura do input (44px) para alinhamento */
 .wa-recording-bar {

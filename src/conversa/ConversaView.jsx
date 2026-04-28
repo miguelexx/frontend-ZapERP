@@ -13,6 +13,8 @@ import {
   encaminharMensagemViaAPI,
   assumirChat,
   enviarLocalizacao,
+  getPixConfig,
+  putPixConfig,
 } from "./conversaService";
 import { isGroupConversation, getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import "./conversa.css";
@@ -508,6 +510,18 @@ function IconPlus(props) {
     <svg viewBox="0 0 24 24" width="24" height="24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function IconPix(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M8 5 5 8l3 3 4-4" />
+      <path d="M16 5l3 3-3 3-4-4" />
+      <path d="M8 19l-3-3 3-3 4 4" />
+      <path d="M16 19l3-3-3-3-4 4" />
+      <path d="M10.8 10.8h2.4v2.4h-2.4z" />
     </svg>
   );
 }
@@ -2038,6 +2052,15 @@ export default function ConversaView() {
   const [linkTitulo, setLinkTitulo] = useState("");
   const [linkDescricao, setLinkDescricao] = useState("");
   const [linkImagem, setLinkImagem] = useState("");
+  const [pixModalOpen, setPixModalOpen] = useState(false);
+  const [pixConfigLoading, setPixConfigLoading] = useState(false);
+  const [pixConfigLoaded, setPixConfigLoaded] = useState(false);
+  const [pixConfigSaving, setPixConfigSaving] = useState(false);
+  const [pixActionBusy, setPixActionBusy] = useState(false);
+  const [pixTipoChave, setPixTipoChave] = useState("cpf");
+  const [pixChave, setPixChave] = useState("");
+  const [pixNomeRecebedor, setPixNomeRecebedor] = useState("");
+  const [pixMensagemPadrao, setPixMensagemPadrao] = useState("");
   const [departamentos, setDepartamentos] = useState([]);
   const [transferirSetorLoading, setTransferirSetorLoading] = useState(false);
   const [showRespostasSalvas, setShowRespostasSalvas] = useState(false);
@@ -2671,6 +2694,111 @@ export default function ConversaView() {
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }, []);
+
+  const isPixConfigured = useCallback((cfgData) => {
+    if (!cfgData || typeof cfgData !== "object") return false;
+    const tipo = safeString(cfgData.tipo_chave).toLowerCase();
+    const chave = safeString(cfgData.chave_pix);
+    const nome = safeString(cfgData.nome_recebedor);
+    return !!tipo && !!chave && !!nome;
+  }, []);
+
+  const applyPixConfigToForm = useCallback((cfgData) => {
+    const next = cfgData && typeof cfgData === "object" ? cfgData : {};
+    setPixTipoChave(safeString(next.tipo_chave).toLowerCase() || "cpf");
+    setPixChave(safeString(next.chave_pix));
+    setPixNomeRecebedor(safeString(next.nome_recebedor));
+    setPixMensagemPadrao(safeString(next.mensagem_padrao));
+  }, []);
+
+  const fetchPixConfigIfNeeded = useCallback(async () => {
+    if (pixConfigLoading) return null;
+    setPixConfigLoading(true);
+    try {
+      const payload = await getPixConfig();
+      const config = payload?.config && typeof payload.config === "object" ? payload.config : null;
+      if (config) applyPixConfigToForm(config);
+      setPixConfigLoaded(true);
+      return config;
+    } catch (err) {
+      console.error("Erro ao carregar Pix:", err);
+      showToast({
+        type: "error",
+        title: "Pix",
+        message: "Não foi possível carregar a configuração Pix da empresa.",
+      });
+      return null;
+    } finally {
+      setPixConfigLoading(false);
+    }
+  }, [pixConfigLoading, applyPixConfigToForm, showToast]);
+
+  const buildPixMessagePreview = useCallback((cfgData) => {
+    const tipoRaw = safeString(cfgData?.tipo_chave).toLowerCase();
+    const tipoLabel =
+      tipoRaw === "cpf"
+        ? "CPF"
+        : tipoRaw === "cnpj"
+          ? "CNPJ"
+          : tipoRaw === "email"
+            ? "E-mail"
+            : tipoRaw === "telefone"
+              ? "Telefone"
+              : "Chave aleatória";
+    const extra = safeString(cfgData?.mensagem_padrao);
+    const lines = [
+      "Segue a chave Pix para pagamento:",
+      "",
+      `Nome: ${safeString(cfgData?.nome_recebedor)}`,
+      `Tipo da chave: ${tipoLabel}`,
+      `Chave Pix: ${safeString(cfgData?.chave_pix)}`,
+    ];
+    if (extra) lines.push("", extra);
+    lines.push("", "Após o pagamento, por favor envie o comprovante por aqui.");
+    return lines.join("\n").trim();
+  }, []);
+
+  const handleSalvarPixConfig = useCallback(async (opts = {}) => {
+    if (pixConfigSaving) return false;
+    const payload = {
+      tipo_chave: safeString(pixTipoChave).toLowerCase(),
+      chave_pix: safeString(pixChave),
+      nome_recebedor: safeString(pixNomeRecebedor),
+      mensagem_padrao: safeString(pixMensagemPadrao) || null,
+    };
+    if (!payload.chave_pix || !payload.nome_recebedor) {
+      showToast({
+        type: "warning",
+        title: "Pix",
+        message: "Preencha tipo, chave e nome do recebedor.",
+      });
+      return false;
+    }
+    setPixConfigSaving(true);
+    try {
+      const data = await putPixConfig(payload);
+      const saved = data?.config || payload;
+      applyPixConfigToForm(saved);
+      setPixConfigLoaded(true);
+      showToast({
+        type: "success",
+        title: "Pix configurado",
+        message: "Os dados Pix foram salvos com sucesso.",
+      });
+      if (opts?.closeModal !== false) setPixModalOpen(false);
+      return true;
+    } catch (err) {
+      console.error("Erro ao salvar Pix:", err);
+      showToast({
+        type: "error",
+        title: "Pix",
+        message: err?.response?.data?.error || "Não foi possível salvar os dados Pix.",
+      });
+      return false;
+    } finally {
+      setPixConfigSaving(false);
+    }
+  }, [pixConfigSaving, pixTipoChave, pixChave, pixNomeRecebedor, pixMensagemPadrao, applyPixConfigToForm, showToast]);
 
   const handleEnviarLocalizacao = useCallback(async () => {
     if (!conversaId || shareLocationSending) return;
@@ -3385,6 +3513,47 @@ export default function ConversaView() {
     }
   }, [conversaId, texto, replyTo, showToast, anexarMensagem, removerMensagemTemp, nome, emitTypingStop, podeEnviar, focusMessageInput, resetAutocorrectTracking]);
 
+  const handlePixMenuClick = useCallback(async () => {
+    if (!conversaId || sending || pixActionBusy || !podeEnviar) return;
+    setAttachMenuOpen(false);
+    setPixActionBusy(true);
+    try {
+      const localCfg = {
+        tipo_chave: pixTipoChave,
+        chave_pix: pixChave,
+        nome_recebedor: pixNomeRecebedor,
+        mensagem_padrao: pixMensagemPadrao,
+      };
+      let cfgToUse = isPixConfigured(localCfg) ? localCfg : null;
+      if (!cfgToUse || !pixConfigLoaded) {
+        const fetched = await fetchPixConfigIfNeeded();
+        if (fetched && isPixConfigured(fetched)) cfgToUse = fetched;
+      }
+      if (!cfgToUse || !isPixConfigured(cfgToUse)) {
+        setPixModalOpen(true);
+        return;
+      }
+      const msg = buildPixMessagePreview(cfgToUse);
+      await handleEnviar(msg);
+    } finally {
+      setPixActionBusy(false);
+    }
+  }, [
+    conversaId,
+    sending,
+    pixActionBusy,
+    podeEnviar,
+    pixTipoChave,
+    pixChave,
+    pixNomeRecebedor,
+    pixMensagemPadrao,
+    isPixConfigured,
+    pixConfigLoaded,
+    fetchPixConfigIfNeeded,
+    buildPixMessagePreview,
+    handleEnviar,
+  ]);
+
   const handleEnviarLink = useCallback(async () => {
     if (!conversaId) return;
     if (!podeEnviar) {
@@ -3471,6 +3640,7 @@ export default function ConversaView() {
       setMsgInfoOpen(false);
       setMsgInfo(null);
     }
+    if (pixModalOpen) setPixModalOpen(false);
     if (selectMode) {
       setSelectMode(false);
       setSelectedMsgIds({});
@@ -3493,6 +3663,7 @@ export default function ConversaView() {
     showTransferirSetor,
     forwardOpen,
     msgInfoOpen,
+    pixModalOpen,
     selectMode,
     replyTo,
   ]);
@@ -5479,6 +5650,99 @@ export default function ConversaView() {
           document.body
         ) : null}
 
+        {pixModalOpen &&
+          createPortal(
+            <div
+              className="wa-modalOverlay"
+              role="dialog"
+              aria-label="Configurar Pix"
+              onMouseDown={() => !pixConfigSaving && setPixModalOpen(false)}
+            >
+              <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+                <div className="wa-modal-head">
+                  <div className="wa-modal-title">Configurar Pix</div>
+                  <button
+                    type="button"
+                    className="wa-iconBtn"
+                    onClick={() => setPixModalOpen(false)}
+                    title="Fechar"
+                    disabled={pixConfigSaving}
+                  >
+                    <IconClose />
+                  </button>
+                </div>
+                <div className="wa-modal-body">
+                  <div className="wa-field">
+                    <label className="wa-label">Tipo da chave Pix</label>
+                    <select
+                      className="wa-input"
+                      value={pixTipoChave}
+                      onChange={(e) => setPixTipoChave(String(e.target.value || "").toLowerCase())}
+                      disabled={pixConfigSaving || pixConfigLoading}
+                    >
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="email">E-mail</option>
+                      <option value="telefone">Telefone</option>
+                      <option value="aleatoria">Chave aleatória</option>
+                    </select>
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Chave Pix</label>
+                    <input
+                      className="wa-input"
+                      value={pixChave}
+                      onChange={(e) => setPixChave(e.target.value)}
+                      placeholder="Digite a chave Pix"
+                      autoFocus
+                      disabled={pixConfigSaving || pixConfigLoading}
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Nome do recebedor/empresa</label>
+                    <input
+                      className="wa-input"
+                      value={pixNomeRecebedor}
+                      onChange={(e) => setPixNomeRecebedor(e.target.value)}
+                      placeholder="Nome exibido para pagamento"
+                      disabled={pixConfigSaving || pixConfigLoading}
+                    />
+                  </div>
+                  <div className="wa-field">
+                    <label className="wa-label">Mensagem padrão (opcional)</label>
+                    <textarea
+                      className="wa-input"
+                      rows={3}
+                      value={pixMensagemPadrao}
+                      onChange={(e) => setPixMensagemPadrao(e.target.value)}
+                      placeholder="Ex: Valor referente ao pedido #123"
+                      disabled={pixConfigSaving || pixConfigLoading}
+                    />
+                  </div>
+                </div>
+                <div className="wa-modal-footer">
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-ghost"
+                    onClick={() => setPixModalOpen(false)}
+                    disabled={pixConfigSaving}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="wa-btn wa-btn-primary"
+                    onClick={() => handleSalvarPixConfig()}
+                    disabled={pixConfigSaving || pixConfigLoading}
+                  >
+                    {pixConfigSaving ? "Salvando..." : "Salvar Pix"}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+
         {showLinkModal &&
           createPortal(
             <div className="wa-modalOverlay" role="dialog" aria-label="Enviar link" onMouseDown={() => !sending && setShowLinkModal(false)}>
@@ -6067,13 +6331,41 @@ export default function ConversaView() {
                       <span className="wa-attachItem-icon wa-attachIcon-camera" aria-hidden="true">📷</span>
                       <span>Câmera</span>
                     </button>
-                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { stickerInputRef.current?.click(); setAttachMenuOpen(false); }}>
-                      <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">🖼️</span>
-                      <span>Figurinha</span>
+                    {headerCompact ? (
+                      <>
+                        <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { stickerInputRef.current?.click(); setAttachMenuOpen(false); }}>
+                          <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">🖼️</span>
+                          <span>Figurinha</span>
+                        </button>
+                        <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openAudioPicker(); setAttachMenuOpen(false); }}>
+                          <span className="wa-attachItem-icon wa-attachIcon-audio" aria-hidden="true">🎵</span>
+                          <span>Áudio</span>
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="wa-attachItem"
+                      role="menuitem"
+                      onClick={handlePixMenuClick}
+                      disabled={pixActionBusy || sending || !conversaId || !podeEnviar}
+                    >
+                      <span className="wa-attachItem-icon wa-attachIcon-pix" aria-hidden="true"><IconPix /></span>
+                      <span>{pixActionBusy ? "Enviando Pix..." : "Pix"}</span>
                     </button>
-                    <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { openAudioPicker(); setAttachMenuOpen(false); }}>
-                      <span className="wa-attachItem-icon wa-attachIcon-audio" aria-hidden="true">🎵</span>
-                      <span>Áudio</span>
+                    <button
+                      type="button"
+                      className="wa-attachItem"
+                      role="menuitem"
+                      onClick={async () => {
+                        setAttachMenuOpen(false);
+                        await fetchPixConfigIfNeeded();
+                        setPixModalOpen(true);
+                      }}
+                      disabled={pixConfigLoading || sending}
+                    >
+                      <span className="wa-attachItem-icon wa-attachIcon-clip" aria-hidden="true">⚙️</span>
+                      <span>Configurar Pix</span>
                     </button>
                     <button type="button" className="wa-attachItem" role="menuitem" onClick={() => { setShareContactOpen(true); setAttachMenuOpen(false); }}>
                       <span className="wa-attachItem-icon wa-attachIcon-contact" aria-hidden="true">👤</span>

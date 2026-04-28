@@ -83,6 +83,21 @@ export async function enviarLink(conversaId, { url, titulo, descricao, imagem, t
   return data;
 }
 
+export async function getPixConfig() {
+  const { data } = await api.get('/chats/pix-config');
+  return data;
+}
+
+export async function putPixConfig(payload) {
+  const { data } = await api.put('/chats/pix-config', payload || {});
+  return data;
+}
+
+export async function enviarMensagemPix(conversaId) {
+  const { data } = await api.post(`/chats/${conversaId}/pix`);
+  return data;
+}
+
 export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
   const params = {};
   if (opts?.scope) params.scope = String(opts.scope);
