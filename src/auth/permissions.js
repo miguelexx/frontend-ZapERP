@@ -4,6 +4,11 @@ function role(user) {
   return String(user?.role || user?.perfil || "").toLowerCase();
 }
 
+export function isSupervisorOrAdmin(user) {
+  const userRole = role(user);
+  return userRole === "admin" || userRole === "administrador" || userRole === "supervisor";
+}
+
 /** Mapa codigo -> função de check por role (fallback quando API não retornou) */
 const CODIGO_TO_ROLE_CHECK = {
   dashboard_acessar: (u) => ["supervisor", "admin"].includes(role(u)),

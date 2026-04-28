@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
-import { can } from "../auth/permissions";
+import { can, isSupervisorOrAdmin } from "../auth/permissions";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 import { getOpenConversationNotificationEventName } from "../notifications/desktopNotificationService";
@@ -40,6 +40,7 @@ export default function MainLayout() {
   const canAccessDashboard_ = can("dashboard_acessar", user);
   const canAccessChatbot_ = can("chatbot_acessar", user);
   const canAccessUsers = can("usuarios_acessar", user);
+  const canAccessSupervisao = isSupervisorOrAdmin(user);
   const isAdmin = canAccessUsers;
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
@@ -133,6 +134,7 @@ export default function MainLayout() {
           <NavItem to="/atendimento" label="Atendimento" icon={<IconAtendimento />} unreadDot={showAtendimentoUnreadDot} />
           <NavItem to="/crm" label="CRM" icon={<IconCrm />} title="Funil de vendas e leads" />
           <NavItem to="/chat-interno" label="Chat interno" icon={<IconInternalTeam />} title="Mensagens entre funcionários (não é WhatsApp)" />
+          {canAccessSupervisao && <NavItem to="/supervisao" label="Supervisão" icon={<IconSupervisao />} />}
           {canAccessConfig && <NavItem to="/configuracoes" label="Configurações" icon={<IconConfig />} />}
           {canAccessChatbot_ && (
             <NavItem to="/ia" label="Bot" icon={<IconIASparkle />} title="Chatbot / automação" />
@@ -264,6 +266,14 @@ function IconBot() {
       <path d="M12 7v4" />
       <circle cx="9" cy="16" r="1" fill="currentColor" />
       <circle cx="15" cy="16" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconSupervisao() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 13h8V3H3v10Zm10 8h8V11h-8v10ZM3 21h8v-6H3v6Zm10-10h8V3h-8v8Z" />
     </svg>
   );
 }

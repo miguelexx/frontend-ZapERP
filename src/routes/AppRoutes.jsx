@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
-import { can } from "../auth/permissions";
+import { can, isSupervisorOrAdmin } from "../auth/permissions";
 import ProtectedRoute from "./ProtectedRoute";
 
 import Login from "../pages/Login";
@@ -20,6 +20,7 @@ import Permissoes from "../pages/Permissoes";
 import Mensagens from "../pages/Mensagens";
 import Atalhos from "../pages/Atalhos";
 import InternalChat from "../pages/InternalChat";
+import Supervisao from "../pages/Supervisao";
 
 import CrmLayout from "../crm/CrmLayout";
 import CrmDashboard from "../crm/pages/CrmDashboard";
@@ -37,6 +38,7 @@ export default function AppRoutes() {
   const canAccessDashboard_ = can("dashboard_acessar", user);
   const canAccessChatbot_ = can("chatbot_acessar", user);
   const canAccessUsers = can("usuarios_acessar", user);
+  const canAccessSupervisao = isSupervisorOrAdmin(user);
 
   if (!token) {
     return (
@@ -71,6 +73,14 @@ export default function AppRoutes() {
           />
           <Route path="/atendimento" element={<Atendimento />} />
           <Route path="/chat-interno" element={<InternalChat />} />
+          <Route
+            path="/supervisao"
+            element={
+              <ProtectedRoute canAccess={canAccessSupervisao} redirectTo="/atendimento">
+                <Supervisao />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/atendimento/novo-contato" element={<NovoContato />} />
           <Route path="/atendimento/novo-grupo" element={<NovoGrupo />} />
           <Route path="/atendimento/nova-comunidade" element={<NovaComunidade />} />

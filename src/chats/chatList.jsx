@@ -5,6 +5,7 @@ import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
 import { useAuthStore } from "../auth/authStore";
+import { isSupervisorOrAdmin } from "../auth/permissions";
 import {
   isGroupConversation,
   getStatusAtendimentoEffective,
@@ -29,6 +30,7 @@ import ConversationActionMenu from "./ConversationActionMenu";
 import { useConversationActionMenu } from "./useConversationActionMenu";
 import AdminAtendenteFilter from "./AdminAtendenteFilter";
 import { useAdminAtendenteFilter } from "./useAdminAtendenteFilter";
+import { getClientesPendentesSupervisao, getResumoSupervisao } from "../api/supervisaoService";
 import {
   clearConversation,
   deleteConversation,
@@ -55,10 +57,9 @@ function conversaContaComoAbertaNoChip(c) {
   return true;
 }
 
-/** Admin UI (filtro lateral por funcionário): aceita `role` ou `perfil`. */
+/** Admin UI (filtro lateral por funcionário): aceita role/perfil legado. */
 function isAppAdmin(user) {
-  const p = String(user?.perfil ?? user?.role ?? "").toLowerCase();
-  return p === "admin" || p === "supervisor";
+  return isSupervisorOrAdmin(user);
 }
 
 function countDistinctConversas(list) {
@@ -840,13 +841,13 @@ function HeaderButton({ title, onClick, children, innerRef, disabled }) {
   );
 }
 
-function Chip({ active, onClick, children, variant = "default" }) {
+function Chip({ active, onClick, children, variant = "default", className = "" }) {
   return (
     <button
       type="button"
       className={`chat-list-chip${variant === "primary" ? " chat-list-chip--primary" : ""}${
         active ? " is-active" : ""
-      }`}
+      } ${className}`.trim()}
       onClick={onClick}
     >
       {children}
@@ -1217,7 +1218,7 @@ export default function ChatList() {
   const novoMenuRef = useRef(null);
 
   // tabs estilo WhatsApp (chip row)
-  // todas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente
+  // todas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente | aguardando_funcionario
   const [tab, setTab] = useState("minha_fila");
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -1226,6 +1227,12 @@ export default function ChatList() {
     if (tab === "nao_lidas") setTab("todas");
   }, [tab]);
 
+  useEffect(() => {
+    if (!isSupervisorOrAdmin(user) && tab === "aguardando_funcionario") {
+      setTab("minha_fila");
+    }
+  }, [user, tab]);
+
   /** GET /chats?minha_fila=1 — fila do atendente (abertas + em atendimento comigo); sem status_atendimento na query. */
   const [minhaFilaList, setMinhaFilaList] = useState(null);
   const [minhaFilaCount, setMinhaFilaCount] = useState(0);
@@ -1233,6 +1240,9 @@ export default function ChatList() {
   const [emAtendimentoBadgeCount, setEmAtendimentoBadgeCount] = useState(0);
   /** Contador do chip “Aguardando cliente”: sempre GET /chats?aguardando_cliente=1 (escopo do backend), nunca length de “Todas”. */
   const [aguardandoClienteBadgeCount, setAguardandoClienteBadgeCount] = useState(0);
+  /** Supervisão: resumo para badge e lista de conversas pendentes do funcionário. */
+  const [supervisaoResumo, setSupervisaoResumo] = useState(null);
+  const [pendentesFuncionarioIds, setPendentesFuncionarioIds] = useState([]);
 
   // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
   const [zapiConnected, setZapiConnected] = useState(null);
@@ -1404,6 +1414,36 @@ export default function ChatList() {
     dataFim,
   ]);
 
+  const refreshSupervisaoData = useCallback(async () => {
+    if (!isSupervisorOrAdmin(user)) {
+      setSupervisaoResumo(null);
+      setPendentesFuncionarioIds([]);
+      return;
+    }
+    try {
+      const [resumoData, pendentesData] = await Promise.all([
+        getResumoSupervisao(),
+        getClientesPendentesSupervisao(),
+      ]);
+      setSupervisaoResumo(resumoData || {});
+      const ids = (Array.isArray(pendentesData) ? pendentesData : [])
+        .map((item) => String(item?.conversa_id ?? item?.conversaId ?? ""))
+        .filter(Boolean);
+      setPendentesFuncionarioIds(ids);
+    } catch {
+      setPendentesFuncionarioIds([]);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!isSupervisorOrAdmin(user)) return undefined;
+    void refreshSupervisaoData();
+    const interval = setInterval(() => {
+      void refreshSupervisaoData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [user, refreshSupervisaoData]);
+
   async function load() {
     setLoading(true);
     try {
@@ -1525,6 +1565,7 @@ export default function ChatList() {
       void refreshMinhaFila();
       void refreshEmAtendimentoBadge();
       void refreshAguardandoClienteBadge();
+      void refreshSupervisaoData();
     } catch (e) {
       console.error("Erro ao carregar conversas:", e);
       setChats([]);
@@ -1549,6 +1590,7 @@ export default function ChatList() {
     adminAtendenteFilterId,
     onlyFinalizadasAusencia,
     aguardandoClienteOnly,
+    refreshSupervisaoData,
   ]);
 
   // loadRef para sync/interval — deve estar definido antes dos effects que o usam
@@ -1780,6 +1822,9 @@ export default function ChatList() {
             c?.atendente_id != null
           );
         });
+      } else if (tab === "aguardando_funcionario") {
+        const pendingSet = new Set(pendentesFuncionarioIds.map((id) => String(id)));
+        list = list.filter((c) => pendingSet.has(String(c?.id ?? "")));
       }
     }
 
@@ -1908,6 +1953,7 @@ export default function ChatList() {
     adminAtendenteFilterId,
     onlyFinalizadasAusencia,
     aguardandoClienteOnly,
+    pendentesFuncionarioIds,
   ]);
 
   const visibleConversationIds = useMemo(
@@ -2139,6 +2185,13 @@ export default function ChatList() {
   ).length;
   /** Chip: sempre vem do GET dedicado `aguardando_cliente=1` (escopo backend), não do length da lista atual. */
   const countAguardandoCliente = aguardandoClienteBadgeCount;
+  const countAguardandoFuncionario = Number(
+    supervisaoResumo?.aguardando_funcionario ??
+      supervisaoResumo?.aguardandoFuncionario ??
+      pendentesFuncionarioIds.length
+  ) || 0;
+  const aguardandoFuncionarioVisualState =
+    countAguardandoFuncionario >= 10 ? "critical" : countAguardandoFuncionario >= 4 ? "attention" : "neutral";
 
   const adminPorFuncionarioAtivo =
     adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
@@ -2365,6 +2418,19 @@ export default function ChatList() {
             <span>Aguardando cliente</span>
             <span className="chat-list-chip-count">{countAguardandoCliente}</span>
           </Chip>
+          {isSupervisorOrAdmin(user) && (
+            <Chip
+              active={tab === "aguardando_funcionario"}
+              onClick={() => setTab("aguardando_funcionario")}
+              className={`chat-list-chip--aguardando-funcionario is-${aguardandoFuncionarioVisualState}`}
+            >
+              <span>Aguardando funcionario</span>
+              <span className="chat-list-chip-count">{countAguardandoFuncionario}</span>
+              {aguardandoFuncionarioVisualState === "critical" ? (
+                <span className="chat-list-chip-critical-dot" aria-hidden="true" />
+              ) : null}
+            </Chip>
+          )}
           {isAppAdmin(user) && (
             <AdminAtendenteFilter
               usuarios={atendentes}
