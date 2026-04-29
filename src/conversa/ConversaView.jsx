@@ -1971,6 +1971,9 @@ export default function ConversaView() {
   const podeGerenciarTags = canTag(user);
   const mostrarEnviarCrm = user?.crm_habilitado !== false;
   const headerCompact = useMatchMedia("(max-width: 640px)");
+  const composerAppendQueue = useConversaStore((s) => s.composerAppendQueue);
+  const clearComposerAppendQueue = useConversaStore((s) => s.clearComposerAppendQueue);
+  const queueComposerAppend = useConversaStore((s) => s.queueComposerAppend);
 
   const podeEnviar = useMemo(() => {
     if (!user?.id || !conversa?.id) return false;
@@ -2577,6 +2580,19 @@ export default function ConversaView() {
     },
     [toastT]
   );
+
+  useEffect(() => {
+    if (!composerAppendQueue) return;
+    const value = composerAppendQueue;
+    clearComposerAppendQueue();
+    setTexto((prev) => (prev ? `${prev}\n${value}` : value));
+    focusMessageInput();
+    showToast({
+      type: "success",
+      title: "Produto pronto",
+      message: "O produto foi adicionado na caixa de mensagem.",
+    });
+  }, [composerAppendQueue, clearComposerAppendQueue, focusMessageInput, showToast]);
 
   const clearPending = useCallback(() => {
     if (pendingPreview) {
@@ -6161,17 +6177,7 @@ export default function ConversaView() {
           canViewSyncStatus={canVerSyncProdutos}
           canTriggerManualSync={canSincronizarProdutos}
           showToast={showToast}
-          onEnviarParaConversa={(template) => {
-            const value = String(template || "").trim();
-            if (!value) return;
-            setTexto((prev) => (prev ? `${prev}\n${value}` : value));
-            focusMessageInput();
-            showToast({
-              type: "success",
-              title: "Produto pronto",
-              message: "O produto foi adicionado na caixa de mensagem.",
-            });
-          }}
+          onEnviarParaConversa={(template) => queueComposerAppend(template)}
         />
 
         {addToGroupModal?.open ? createPortal(

@@ -421,6 +421,14 @@ a { color: inherit; text-decoration: none; }
   color: currentColor;
 }
 
+.chat-list-header-btnEmoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
 
 /* -----------------------------------------------------------------------
    05) MENU NOVO (dropdown) — flat, minimal

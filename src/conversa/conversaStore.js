@@ -50,7 +50,18 @@ export const useConversaStore = create((set, get) => ({
   // Indicador de digitação em tempo real: { [conversaId]: { usuario_id, nome, expiresAt } }
   typing: {},
 
+  /** Texto enfileirado para colar no composer (ex.: painel de produtos na lista de chats). */
+  composerAppendQueue: null,
+
   setSelectedId: (id) => set({ selectedId: id }),
+
+  queueComposerAppend: (text) => {
+    const t = String(text || "").trim()
+    if (!t) return
+    set({ composerAppendQueue: t })
+  },
+
+  clearComposerAppendQueue: () => set({ composerAppendQueue: null }),
 
   /** Define quem está digitando na conversa (via WebSocket typing_start). Expira em 5s. */
   setTyping: (conversa_id, payload) => {

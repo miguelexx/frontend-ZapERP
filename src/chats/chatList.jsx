@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil, sincronizarContatos } from "./chatService";
+import { fetchChats, abrirConversaCliente, getZapiStatus, sincronizarFotosPerfil } from "./chatService";
 import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
@@ -25,6 +25,7 @@ import "../components/ui/button.css";
 import "./chatList.css";
 import "./chatList.chips-premium.css";
 import NovoContatoModal from "./NovoContatoModal";
+import ProdutoConsultaPanel from "../conversa/ProdutoConsultaPanel";
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import ConversationActionMenu from "./ConversationActionMenu";
 import { useConversationActionMenu } from "./useConversationActionMenu";
@@ -1161,8 +1162,13 @@ export default function ChatList() {
   const carregarConversa = useConversaStore((s) => s.carregarConversa);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
   const selectedId = useConversaStore((s) => s.selectedId);
+  const queueComposerAppend = useConversaStore((s) => s.queueComposerAppend);
 
   const user = useAuthStore((s) => s.user);
+  const userRole = String(user?.role || user?.perfil || "").toLowerCase();
+  const canConsultarProdutos = ["admin", "supervisor", "atendente"].includes(userRole);
+  const canVerSyncProdutos = ["admin", "supervisor"].includes(userRole);
+  const canSincronizarProdutos = userRole === "admin";
 
   const {
     selectedUserId: adminAtendenteFilterId,
@@ -1208,6 +1214,7 @@ export default function ChatList() {
   const [aguardandoClienteOnly, setAguardandoClienteOnly] = useState(false);
 
   const [novoContatoModalOpen, setNovoContatoModalOpen] = useState(false);
+  const [showProdutosPanel, setShowProdutosPanel] = useState(false);
   const [confirmClear, setConfirmClear] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -1247,7 +1254,6 @@ export default function ChatList() {
   // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
   const [zapiConnected, setZapiConnected] = useState(null);
   const [zapiStatusLoaded, setZapiStatusLoaded] = useState(false);
-  const [syncLoading, setSyncLoading] = useState(false);
 
   const showToast = useNotificationStore((s) => s.showToast);
   useEffect(() => {
@@ -1715,44 +1721,6 @@ export default function ChatList() {
 
     const path = routes[type];
     if (path) navigate(path);
-  }
-
-  async function handleSyncContatos() {
-    setSyncLoading(true);
-    try {
-      const res = await sincronizarContatos();
-      if (res?.ok === false) {
-        showToast({
-          type: "warning",
-          title: "Sincronizar contatos",
-          message: res.message || "Erro ao sincronizar. Verifique a configuração do UltraMSG em Integrações.",
-        });
-        return;
-      }
-      const total = res?.total_contatos ?? 0;
-      const criados = res?.criados ?? 0;
-      const atualizados = res?.atualizados ?? 0;
-      showToast({
-        type: "success",
-        title: "Sincronizar contatos",
-        message: `${total} contatos, ${criados} novos, ${atualizados} atualizados.`,
-      });
-      load();
-    } catch (e) {
-      const status = e?.response?.status;
-      const data = e?.response?.data;
-      if (status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      showToast({
-        type: "error",
-        title: "Sincronizar contatos",
-        message: data?.error || e?.message || "Erro ao sincronizar.",
-      });
-    } finally {
-      setSyncLoading(false);
-    }
   }
 
   function handleSelecionarConversa(chatId) {
@@ -2241,7 +2209,7 @@ export default function ChatList() {
             </Icon>
           </HeaderButton>
 
-          <HeaderButton title="Filtros" onClick={() => setShowFilters((v) => !v)}>
+          <HeaderButton title="Filtros e tags" onClick={() => setShowFilters((v) => !v)}>
             <Icon size={14}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <path
@@ -2254,39 +2222,16 @@ export default function ChatList() {
             </Icon>
           </HeaderButton>
 
-          <HeaderButton title="Atualizar" onClick={load}>
-            <Icon size={14}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </Icon>
-          </HeaderButton>
-
-          <HeaderButton title="Sincronizar contatos" onClick={handleSyncContatos} disabled={syncLoading}>
-            <Icon size={14}>
-              {syncLoading ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="chat-list-spin">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeDashoffset="12" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-            </Icon>
-          </HeaderButton>
+          {canConsultarProdutos ? (
+            <HeaderButton
+              title="Consultar produtos"
+              onClick={() => setShowProdutosPanel(true)}
+            >
+              <span className="chat-list-header-btnEmoji" aria-hidden="true">
+                📦
+              </span>
+            </HeaderButton>
+          ) : null}
         </div>
 
         {showNovoMenu &&
@@ -2653,6 +2598,15 @@ export default function ChatList() {
           Esta ação não pode ser desfeita. O histórico e dados vinculados podem ser removidos conforme as regras do sistema.
         </p>
       </ConfirmDialog>
+
+      <ProdutoConsultaPanel
+        open={showProdutosPanel && canConsultarProdutos}
+        onClose={() => setShowProdutosPanel(false)}
+        canViewSyncStatus={canVerSyncProdutos}
+        canTriggerManualSync={canSincronizarProdutos}
+        showToast={showToast}
+        onEnviarParaConversa={(template) => queueComposerAppend(template)}
+      />
 
       <NovoContatoModal
         open={novoContatoModalOpen}
