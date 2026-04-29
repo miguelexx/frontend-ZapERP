@@ -27,6 +27,28 @@ export function formatTempoMinutos(mins) {
   return `${h}h ${m}min`;
 }
 
+/** Tempo médio vindo da API (minutos, pode ser decimal). Null/NaN → traço. */
+export function formatTempoMedioRespostaMinutos(mins) {
+  if (mins == null || mins === "") return "—";
+  const n = Number(mins);
+  if (!Number.isFinite(n)) return "—";
+  if (n < 60) {
+    const rounded = Math.round(n * 10) / 10;
+    return `${rounded} min`;
+  }
+  const h = Math.floor(n / 60);
+  const m = Math.round((n % 60) * 10) / 10;
+  return `${h}h ${m}min`;
+}
+
+/** Quantidade de conversas com status `em_atendimento` para o funcionário (API supervisão). */
+export function pickConversasEmAtendimento(funcionario) {
+  return toNumber(
+    funcionario?.conversas_em_atendimento ?? funcionario?.conversasEmAtendimento ?? 0,
+    0
+  );
+}
+
 /**
  * Evita React error #31 ao renderizar valores que podem vir como objeto da API.
  * @param {unknown} value
