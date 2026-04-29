@@ -23,6 +23,7 @@ import { useAuthStore } from "../auth/authStore";
 import { canAssumir, canGerenciarSetores, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import AtendimentoActions from "../atendimento/AtendimentoActions";
 import SendToCrmChatButton, { IconFunnelSend } from "./SendToCrmChatButton";
+import ProdutoConsultaPanel from "./ProdutoConsultaPanel";
 import { useChatStore } from "../chats/chatsStore";
 import { fetchChats, abrirConversaCliente, abrirConversaPorTelefone } from "../chats/chatService";
 import { forwardAtendimentoMessageToColaborador } from "../api/internalChatService";
@@ -2067,8 +2068,13 @@ export default function ConversaView() {
   const [showRespostasSalvas, setShowRespostasSalvas] = useState(false);
   const [respostasSalvas, setRespostasSalvas] = useState([]);
   const [respostasSalvasLoading, setRespostasSalvasLoading] = useState(false);
+  const [showProdutosPanel, setShowProdutosPanel] = useState(false);
 
   const chats = useChatStore((s) => s.chats);
+  const userRole = String(user?.role || user?.perfil || "").toLowerCase();
+  const canConsultarProdutos = ["admin", "supervisor", "atendente"].includes(userRole);
+  const canVerSyncProdutos = ["admin", "supervisor"].includes(userRole);
+  const canSincronizarProdutos = userRole === "admin";
 
   // ações estilo WhatsApp: responder, encaminhar, fixar, favoritar, selecionar, apagar
   const [replyTo, setReplyTo] = useState(null);
@@ -4992,6 +4998,17 @@ export default function ConversaView() {
                     crmEnabled={mostrarEnviarCrm}
                   />
                 ) : null}
+                {!isGroup && conversaId && canConsultarProdutos ? (
+                  <button
+                    type="button"
+                    className={`wa-header-btn wa-productsQuickBtn ${showProdutosPanel ? "isActive" : ""}`}
+                    onClick={() => setShowProdutosPanel(true)}
+                    title="Consultar produtos"
+                    aria-label="Consultar produtos"
+                  >
+                    <span aria-hidden="true">📦</span>
+                  </button>
+                ) : null}
               </div>
 
               {!isGroup ? (
@@ -5047,6 +5064,21 @@ export default function ConversaView() {
                                       <IconFunnelSend />
                                     </span>
                                     <span className="wa-atendToolbar-sheetLabel">Enviar ao CRM</span>
+                                  </button>
+                                ) : null}
+                                {!isGroup && conversaId && canConsultarProdutos ? (
+                                  <button
+                                    type="button"
+                                    className="wa-atendToolbar-sheetBtn"
+                                    onClick={() => {
+                                      setShowProdutosPanel(true);
+                                      close();
+                                    }}
+                                  >
+                                    <span className="wa-atendToolbar-sheetIcon" aria-hidden="true">
+                                      📦
+                                    </span>
+                                    <span className="wa-atendToolbar-sheetLabel">Consultar produtos</span>
                                   </button>
                                 ) : null}
                                 <button
@@ -6122,6 +6154,25 @@ export default function ConversaView() {
           </div>,
           document.body
         ) : null}
+
+        <ProdutoConsultaPanel
+          open={showProdutosPanel && !isGroup && canConsultarProdutos}
+          onClose={() => setShowProdutosPanel(false)}
+          canViewSyncStatus={canVerSyncProdutos}
+          canTriggerManualSync={canSincronizarProdutos}
+          showToast={showToast}
+          onEnviarParaConversa={(template) => {
+            const value = String(template || "").trim();
+            if (!value) return;
+            setTexto((prev) => (prev ? `${prev}\n${value}` : value));
+            focusMessageInput();
+            showToast({
+              type: "success",
+              title: "Produto pronto",
+              message: "O produto foi adicionado na caixa de mensagem.",
+            });
+          }}
+        />
 
         {addToGroupModal?.open ? createPortal(
           <div
