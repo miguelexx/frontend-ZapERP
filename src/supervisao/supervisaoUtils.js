@@ -49,6 +49,17 @@ export function pickConversasEmAtendimento(funcionario) {
   );
 }
 
+/** Finalizações no dia (eventos `encerrou` com `de_usuario_id` = atendente). */
+export function pickFinalizadasHoje(funcionario) {
+  return toNumber(
+    funcionario?.finalizadas_hoje ??
+      funcionario?.atendimentos_finalizados_hoje ??
+      funcionario?.atendimentosFinalizadosHoje ??
+      0,
+    0
+  );
+}
+
 /**
  * Evita React error #31 ao renderizar valores que podem vir como objeto da API.
  * @param {unknown} value

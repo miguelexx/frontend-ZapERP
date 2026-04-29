@@ -1,8 +1,8 @@
 import EmptyState from "../../components/feedback/EmptyState";
 import {
   formatTempoMedioRespostaMinutos,
-  formatTempoMinutos,
   pickConversasEmAtendimento,
+  pickFinalizadasHoje,
   safeDisplayText,
   toNumber,
 } from "../supervisaoUtils";
@@ -26,13 +26,7 @@ export default function RankingEquipePanel({ equipe, onAbrirMovimentacao }) {
               funcionario?.sem_resposta ?? funcionario?.clientes_sem_resposta ?? funcionario?.pendentes ?? 0,
               0
             );
-            const maiorTempo = toNumber(
-              funcionario?.maior_tempo_sem_responder_minutos ??
-                funcionario?.maior_tempo_sem_resposta_minutos ??
-                funcionario?.maior_tempo_espera_minutos ??
-                0,
-              0
-            );
+            const finalizadasHoje = pickFinalizadasHoje(funcionario);
             const tempoMedio =
               funcionario?.tempo_medio_resposta_minutos ?? funcionario?.tempoMedioRespostaMinutos ?? null;
 
@@ -61,8 +55,8 @@ export default function RankingEquipePanel({ equipe, onAbrirMovimentacao }) {
                       <span className="supervisao-team-stat-value">{semResposta}</span>
                     </li>
                     <li>
-                      <span className="supervisao-team-stat-label">Maior tempo sem responder</span>
-                      <span className="supervisao-team-stat-value">{formatTempoMinutos(maiorTempo)}</span>
+                      <span className="supervisao-team-stat-label">Finalizadas hoje</span>
+                      <span className="supervisao-team-stat-value">{finalizadasHoje}</span>
                     </li>
                     <li>
                       <span className="supervisao-team-stat-label">Tempo médio de resposta</span>
