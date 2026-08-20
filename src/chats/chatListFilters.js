@@ -517,7 +517,13 @@ function canReuseFilteredChatList(cache, params) {
   }
   if (!storeEquivalent) return false;
   // Mesmo conteúdo por linha, mas ordem de sort pode ter mudado (timestamps atualizados em tempo real).
-  return chatListSortOrderKey(cache.chats) === chatListSortOrderKey(params.chats);
+  // `cache.chats` é imutável dentro desta entrada de cache, logo o seu sort-order-key é invariante:
+  // usamos o valor memoizado (cache.sortOrderKey) em vez de reordenar 1040 itens a cada verificação.
+  // Este caminho roda em cada tick de entrega/leitura (status não entra no chatRowListStoreKey, então
+  // storeEquivalent dá true) — cortar 1 dos 2 sorts reduz o trabalho na main thread pela metade.
+  const cachedSortKey =
+    cache.sortOrderKey != null ? cache.sortOrderKey : chatListSortOrderKey(cache.chats);
+  return cachedSortKey === chatListSortOrderKey(params.chats);
 }
 
 /**
@@ -534,6 +540,9 @@ export function computeChatsFiltradosCached(cacheRef, params) {
     list,
     ui: buildChatListUiFilterDeps(params),
     chats: params.chats,
+    // Memoizado junto: `chats` não muda dentro desta entrada, então o sort-order-key também não.
+    // Evita reordenar o array do cache em toda verificação de reuso (ver canReuseFilteredChatList).
+    sortOrderKey: chatListSortOrderKey(params.chats),
     minhaFilaList: params.minhaFilaList,
     pendentesFuncionarioSet: params.pendentesFuncionarioSet,
     conversaIdsPendenciaAtiva: params.conversaIdsPendenciaAtiva,

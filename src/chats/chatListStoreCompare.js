@@ -60,6 +60,11 @@ export function chatListsStoreEquivalent(prev, next) {
   if (!Array.isArray(prev) || !Array.isArray(next)) return false;
   if (prev.length !== next.length) return false;
   for (let i = 0; i < prev.length; i++) {
+    // Curto-circuito por identidade: updateChat/bump fazem `[...chats]` e trocam só a linha
+    // alterada, então as linhas inalteradas mantêm a MESMA referência entre updates. Objeto
+    // idêntico ⇒ mesma chave (garantido); pular evita reconstruir chatRowListStoreKey das
+    // ~N-1 linhas que não mudaram — o custo real deste laço em listas grandes num tick.
+    if (prev[i] === next[i]) continue;
     if (String(prev[i]?.id) !== String(next[i]?.id)) return false;
     if (chatRowListStoreKey(prev[i]) !== chatRowListStoreKey(next[i])) return false;
   }

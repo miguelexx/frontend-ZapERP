@@ -45,6 +45,10 @@ const audioDurationCache = new Map(); // url -> seconds
 const audioDurationPromiseCache = new Map(); // url -> Promise<number|null>
 let audioDurationInFlight = 0;
 const AUDIO_DURATION_CONCURRENCY = 4;
+/* Teto LRU: numa jornada longa a lista vê centenas de URLs de áudio; sem este limite o
+   Map crescia por toda a sessão (pressão de memória no mobile). Mesmo padrão do
+   __waAudioDurationCache no ConversaBubble. */
+const AUDIO_DURATION_CACHE_MAX = 1000;
 const audioDurationQueue = [];
 
 /** Só os minutos ao lado do relógio; recalcula quando minuteTick avança (tick global em ChatListRows). */
@@ -273,15 +277,25 @@ function pumpAudioDurationQueue() {
     loadAudioDuration(job.url)
       .then((sec) => {
         if (sec != null && Number.isFinite(sec) && sec > 0) {
+          // delete+set renova a recência; despeja o mais antigo acima do teto (LRU).
+          audioDurationCache.delete(job.url);
           audioDurationCache.set(job.url, sec);
+          while (audioDurationCache.size > AUDIO_DURATION_CACHE_MAX) {
+            const oldest = audioDurationCache.keys().next().value;
+            if (oldest == null) break;
+            audioDurationCache.delete(oldest);
+          }
         }
         job.resolve(audioDurationCache.get(job.url) ?? null);
       })
       .catch(() => job.resolve(null))
       .finally(() => {
         audioDurationInFlight--;
-        // limpa promise cache para permitir retry eventual se der null por rede
-        if (!audioDurationCache.has(job.url)) audioDurationPromiseCache.delete(job.url);
+        // Resolvida: a duração (se houver) já vive em audioDurationCache e a leitura futura
+        // curto-circuita por ele; a promise não é mais necessária. Se deu null (rede), remover
+        // aqui permite retry numa próxima passagem. Antes, quando cacheava, a entrada resolvida
+        // ficava presa no Map de promessas para sempre.
+        audioDurationPromiseCache.delete(job.url);
         pumpAudioDurationQueue();
       });
   }
