@@ -1629,6 +1629,9 @@ function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContacts, onS
   const [excluindoId, setExcluindoId] = useState(null);
   const [excluindoTodos, setExcluindoTodos] = useState(false);
   const [clienteModal, setClienteModal] = useState(null); // { mode: "new"|"edit", data }
+  const [importarOpen, setImportarOpen] = useState(false);
+  const userPerfil = useAuthStore((s) => s.user?.perfil);
+  const isAdmin = String(userPerfil || "").toLowerCase() === "admin";
   useEffect(() => {
     if (!onSearchClientes) return;
     const t = setTimeout(() => {
@@ -1769,6 +1772,16 @@ function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContacts, onS
           >
             Novo cliente
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="ia-btn ia-btn--outline"
+              onClick={() => setImportarOpen(true)}
+              title="Importar clientes de uma planilha .xlsx"
+            >
+              Importar clientes
+            </button>
+          )}
           <button
             type="button"
             className="ia-btn ia-btn--outline"
@@ -1972,6 +1985,12 @@ function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContacts, onS
           allTags={tags}
           onClose={() => setClienteModal(null)}
           onSaved={() => { setClienteModal(null); onRefresh?.(); }}
+        />
+      ) : null}
+      {importarOpen ? (
+        <ModalImportarClientes
+          onClose={() => setImportarOpen(false)}
+          onImported={() => onRefresh?.()}
         />
       ) : null}
     </div>
@@ -2321,6 +2340,286 @@ function ModalCliente({ mode, cliente, onClose, onSaved, allTags = [] }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Importação de clientes por planilha (.xlsx).
+ * Fluxo: selecionar arquivo → prévia (com mapeamento de colunas editável) → confirmar → resumo.
+ * Colunas usadas: Nome do(a) Aluno(a) · Celular do(a) Responsável Pedagógico · Série (Ano).
+ */
+function ModalImportarClientes({ onClose, onImported }) {
+  const [file, setFile] = useState(null);
+  const [step, setStep] = useState("select"); // select | preview | done
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [mapping, setMapping] = useState({ nome: null, telefone: null, serie: null });
+  const [resultado, setResultado] = useState(null);
+
+  const rodarPreview = async (arquivo, mapOverride) => {
+    setLoading(true);
+    setErro("");
+    try {
+      const data = await cfg.previewImportarClientes(arquivo, mapOverride || undefined);
+      setPreview(data);
+      setMapping({
+        nome: data?.mapping?.nome ?? null,
+        telefone: data?.mapping?.telefone ?? null,
+        serie: data?.mapping?.serie ?? null,
+      });
+      setStep("preview");
+    } catch (e) {
+      setErro(e?.response?.data?.erro || e?.message || "Erro ao analisar a planilha.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFile = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // permite re-selecionar o mesmo arquivo
+    if (!f) return;
+    if (!/\.xlsx$/i.test(f.name)) {
+      setErro("Selecione um arquivo .xlsx (modelo da planilha de matrículas).");
+      return;
+    }
+    setFile(f);
+    setResultado(null);
+    rodarPreview(f, null);
+  };
+
+  const handleMappingChange = (campo, valor) => {
+    const idx = valor === "" ? null : Number(valor);
+    const novo = { ...mapping, [campo]: idx };
+    setMapping(novo);
+    if (file) rodarPreview(file, novo);
+  };
+
+  const handleConfirmar = async () => {
+    if (!file) return;
+    setLoading(true);
+    setErro("");
+    try {
+      const data = await cfg.confirmarImportarClientes(file, mapping);
+      setResultado(data);
+      setStep("done");
+      onImported?.();
+    } catch (e) {
+      setErro(e?.response?.data?.erro || e?.message || "Erro ao importar clientes.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const baixarRelatorio = () => {
+    if (!resultado) return;
+    const linhas = [["tipo", "linha", "nome", "telefone", "serie/tags", "motivo"]];
+    (resultado.ignored || []).forEach((i) =>
+      linhas.push(["Ignorada", i.linha ?? "", i.nome ?? "", i.telefone ?? "", i.serie ?? "", i.motivo ?? ""])
+    );
+    (resultado.conflicts || []).forEach((c) =>
+      linhas.push([
+        "Conflito",
+        (c.linhas || []).join(" / "),
+        (c.nomesConflitantes || []).join(" | "),
+        c.telefone ?? "",
+        (c.tags || []).join(" | "),
+        "Mesmo telefone com nomes diferentes (conferir)",
+      ])
+    );
+    (resultado.falhas || []).forEach((f) =>
+      linhas.push(["Falha", "", f.nome ?? "", f.telefone ?? "", "", f.motivo ?? ""])
+    );
+    const csv =
+      "﻿" +
+      linhas
+        .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";"))
+        .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "relatorio-importacao-clientes.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const headers = preview?.headers || [];
+  const faltaObrigatoria = mapping.nome == null || mapping.telefone == null;
+  const stats = preview?.stats || {};
+  const resumo = resultado?.resumo || {};
+
+  const colSelect = (campo, label, obrigatorio) => (
+    <div className="ia-field" style={{ marginBottom: 8 }}>
+      <label className="ia-label" style={{ fontSize: 13 }}>
+        {label} {obrigatorio ? <span style={{ color: "#dc2626" }}>*</span> : <span className="ia-muted">(opcional)</span>}
+      </label>
+      <select
+        className="ia-input"
+        value={mapping[campo] == null ? "" : String(mapping[campo])}
+        onChange={(e) => handleMappingChange(campo, e.target.value)}
+        disabled={loading}
+      >
+        <option value="">— não usar —</option>
+        {headers.map((h, i) => (
+          <option key={i} value={i}>
+            {h || `Coluna ${i + 1}`}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: "#fff", borderRadius: 12, padding: 24, width: 760, maxWidth: "96vw", maxHeight: "92vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h4 style={{ margin: "0 0 4px 0" }}>Importar clientes por planilha</h4>
+        <p className="ia-muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Envie o arquivo <strong>.xlsx</strong> no modelo de matrículas. Serão usadas as colunas
+          <strong> Nome do(a) Aluno(a)</strong>, <strong>Celular do(a) Responsável Pedagógico</strong> e
+          <strong> Série (Ano)</strong> — as demais são ignoradas. Nenhuma conversa é criada.
+        </p>
+
+        {erro ? (
+          <div style={{ background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
+            {erro}
+          </div>
+        ) : null}
+
+        {step === "select" || (!preview && step !== "done") ? (
+          <div className="ia-field">
+            <label className="ia-btn ia-btn--primary" style={{ display: "inline-block", cursor: "pointer" }}>
+              {loading ? "Analisando…" : "Selecionar arquivo .xlsx"}
+              <input type="file" accept=".xlsx" onChange={handleFile} disabled={loading} style={{ display: "none" }} />
+            </label>
+          </div>
+        ) : null}
+
+        {step === "preview" && preview ? (
+          <>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
+              <div style={{ flex: "1 1 320px" }}>
+                <p className="ia-muted" style={{ fontSize: 12, margin: "0 0 6px 0" }}>
+                  Confira o mapeamento das colunas (detectado automaticamente; ajuste se necessário):
+                </p>
+                {colSelect("nome", "Nome do cliente", true)}
+                {colSelect("telefone", "Telefone / WhatsApp", true)}
+                {colSelect("serie", "Série (tag)", false)}
+              </div>
+              <div style={{ flex: "1 1 220px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 12px", fontSize: 13 }}>
+                  <span className="ia-muted">Linhas na planilha</span><strong>{stats.totalLinhas ?? 0}</strong>
+                  <span className="ia-muted">Contatos válidos</span><strong>{stats.telefonesUnicos ?? 0}</strong>
+                  <span className="ia-muted">Linhas ignoradas</span><strong>{stats.ignoradas ?? 0}</strong>
+                  <span className="ia-muted">Conflitos (conferir)</span><strong>{stats.conflitos ?? 0}</strong>
+                </div>
+              </div>
+            </div>
+
+            {faltaObrigatoria ? (
+              <div style={{ background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
+                Selecione as colunas de <strong>nome</strong> e <strong>telefone</strong> para continuar.
+              </div>
+            ) : null}
+
+            <p className="ia-muted" style={{ fontSize: 12, margin: "8px 0 4px" }}>
+              Prévia dos primeiros contatos:
+            </p>
+            <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8, maxHeight: 260, overflowY: "auto" }}>
+              <table className="ia-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Tags (série)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(preview.amostra || []).length === 0 ? (
+                    <tr><td colSpan={3} className="ia-muted">Nenhum contato válido encontrado.</td></tr>
+                  ) : (
+                    (preview.amostra || []).map((a, i) => (
+                      <tr key={i} style={a.conflito ? { background: "#fff7ed" } : undefined}>
+                        <td>
+                          {a.nome}
+                          {a.conflito ? (
+                            <span title={`Mesmo telefone com: ${(a.nomes_conflitantes || []).join(", ")}`} style={{ marginLeft: 6, color: "#c2410c", fontSize: 11 }}>
+                              ⚠ conflito
+                            </span>
+                          ) : null}
+                        </td>
+                        <td>{a.telefone}</td>
+                        <td>{(a.tags || []).join(", ") || "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="ia-btn-row" style={{ marginTop: 16 }}>
+              <button type="button" className="ia-btn ia-btn--primary" onClick={handleConfirmar} disabled={loading || faltaObrigatoria || (stats.telefonesUnicos ?? 0) === 0}>
+                {loading ? "Importando…" : `Confirmar importação (${stats.telefonesUnicos ?? 0})`}
+              </button>
+              <label className="ia-btn ia-btn--outline" style={{ cursor: "pointer" }}>
+                Trocar arquivo
+                <input type="file" accept=".xlsx" onChange={handleFile} disabled={loading} style={{ display: "none" }} />
+              </label>
+              <button type="button" className="ia-btn ia-btn--outline" onClick={onClose} disabled={loading}>
+                Cancelar
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {step === "done" && resultado ? (
+          <>
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: 16, marginBottom: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "6px 12px", fontSize: 14 }}>
+                <span className="ia-muted">Linhas analisadas</span><strong>{resumo.totalLinhas ?? 0}</strong>
+                <span className="ia-muted">Clientes importados (novos)</span><strong>{resumo.clientesImportados ?? 0}</strong>
+                <span className="ia-muted">Clientes já existentes</span><strong>{resumo.clientesJaExistentes ?? 0}</strong>
+                <span className="ia-muted">Tags criadas</span><strong>{resumo.tagsCriadas ?? 0}</strong>
+                <span className="ia-muted">Tags vinculadas</span><strong>{resumo.tagsVinculadas ?? 0}</strong>
+                <span className="ia-muted">Linhas ignoradas</span><strong>{resumo.linhasIgnoradas ?? 0}</strong>
+                <span className="ia-muted">Conflitos (conferir)</span><strong>{resumo.conflitos ?? 0}</strong>
+                {(resumo.falhas ?? 0) > 0 ? (
+                  <><span className="ia-muted" style={{ color: "#b91c1c" }}>Falhas</span><strong style={{ color: "#b91c1c" }}>{resumo.falhas}</strong></>
+                ) : null}
+              </div>
+            </div>
+
+            {(resumo.linhasIgnoradas ?? 0) + (resumo.conflitos ?? 0) + (resumo.falhas ?? 0) > 0 ? (
+              <p className="ia-muted" style={{ fontSize: 13 }}>
+                Há linhas que não foram importadas ou que precisam de conferência. Baixe o relatório para revisar.
+              </p>
+            ) : (
+              <p className="ia-muted" style={{ fontSize: 13 }}>Importação concluída sem pendências. 🎉</p>
+            )}
+
+            <div className="ia-btn-row" style={{ marginTop: 12 }}>
+              {(resumo.linhasIgnoradas ?? 0) + (resumo.conflitos ?? 0) + (resumo.falhas ?? 0) > 0 ? (
+                <button type="button" className="ia-btn ia-btn--outline" onClick={baixarRelatorio}>
+                  Baixar relatório (.csv)
+                </button>
+              ) : null}
+              <button type="button" className="ia-btn ia-btn--primary" onClick={onClose}>
+                Fechar
+              </button>
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

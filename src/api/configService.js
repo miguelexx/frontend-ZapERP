@@ -221,6 +221,36 @@ export async function excluirTodosClientes() {
   return data
 }
 
+/**
+ * Importação de clientes por planilha (.xlsx).
+ * @param {File} file
+ * @param {{ nome?:number, telefone?:number, serie?:number }} [mapping] override de colunas (0-indexed)
+ */
+function montarFormImport(file, mapping) {
+  const fd = new FormData()
+  fd.append('arquivo', file)
+  if (mapping && (mapping.nome != null || mapping.telefone != null || mapping.serie != null)) {
+    fd.append('mapping', JSON.stringify(mapping))
+  }
+  return fd
+}
+
+/** Analisa a planilha e devolve a prévia (não grava nada). */
+export async function previewImportarClientes(file, mapping) {
+  const { data } = await api.post('/clientes/importar/preview', montarFormImport(file, mapping), {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+/** Executa a importação (cria/reutiliza clientes e vincula as tags das séries). */
+export async function confirmarImportarClientes(file, mapping) {
+  const { data } = await api.post('/clientes/importar', montarFormImport(file, mapping), {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
 // Tags do cliente
 export async function getClienteTags(clienteId) {
   const { data } = await api.get(`/clientes/${clienteId}/tags`)
