@@ -62,9 +62,6 @@ const DEFAULT_CONFIG = {
     finalizar_por_ausencia_mensagem: "",
     finalizar_por_ausencia_reabrir_automaticamente: true,
     finalizar_por_ausencia_reabrir_sem_chatbot: true,
-    encaminhar_sem_escolha_ativo: false,
-    encaminhar_sem_escolha_minutos: 10,
-    encaminhar_sem_escolha_departamentos_ids: [],
   },
   admin_atendimento_alerta: {
     ativo: false,
@@ -1014,15 +1011,6 @@ function SecaoChatbotTriagem({
       finalizar_por_ausencia_mensagem: vals.finalizar_por_ausencia_mensagem != null ? String(vals.finalizar_por_ausencia_mensagem) : "",
       finalizar_por_ausencia_reabrir_automaticamente: vals.finalizar_por_ausencia_reabrir_automaticamente !== false,
       finalizar_por_ausencia_reabrir_sem_chatbot: vals.finalizar_por_ausencia_reabrir_sem_chatbot !== false,
-      encaminhar_sem_escolha_ativo: !!vals.encaminhar_sem_escolha_ativo,
-      encaminhar_sem_escolha_minutos: Math.max(1, Math.min(1440, Number(vals.encaminhar_sem_escolha_minutos) || 10)),
-      encaminhar_sem_escolha_departamentos_ids: [...new Set(
-        (Array.isArray(vals.encaminhar_sem_escolha_departamentos_ids)
-          ? vals.encaminhar_sem_escolha_departamentos_ids
-          : [])
-          .map(Number)
-          .filter((id) => Number.isInteger(id) && id > 0)
-      )],
     };
   };
 
@@ -1040,16 +1028,6 @@ function SecaoChatbotTriagem({
     if (vals.foraHorarioEnabled) {
       const msgFora = (vals.mensagemForaHorario || "").trim();
       if (!msgFora) return "Mensagem fora do horário é obrigatória quando está ativo o envio fora do horário comercial.";
-    }
-    if (vals.encaminhar_sem_escolha_ativo) {
-      const minutos = Number(vals.encaminhar_sem_escolha_minutos);
-      if (!Number.isInteger(minutos) || minutos < 1 || minutos > 1440) {
-        return "Informe um prazo entre 1 e 1440 minutos para o encaminhamento automático.";
-      }
-      const destinationIds = Array.isArray(vals.encaminhar_sem_escolha_departamentos_ids)
-        ? vals.encaminhar_sem_escolha_departamentos_ids.map(Number).filter((id) => Number.isInteger(id) && id > 0)
-        : [];
-      if (destinationIds.length === 0) return "Selecione pelo menos um setor para o encaminhamento automático.";
     }
     const keys = opts.map((o) => String(o.key || "").trim()).filter(Boolean);
     const uniqueKeys = [...new Set(keys)];
@@ -1248,95 +1226,6 @@ function SecaoChatbotTriagem({
             <button type="button" className="chatbot-btn-add" onClick={addOption}>
               + Adicionar nova escolha
             </button>
-
-            <div className={`chatbot-auto-route ${v.encaminhar_sem_escolha_ativo ? "chatbot-auto-route--active" : ""}`}>
-              <div className="chatbot-auto-route-header">
-                <div className="chatbot-auto-route-heading">
-                  <span className="chatbot-auto-route-icon" aria-hidden="true">↗</span>
-                  <div>
-                    <h4>Encaminhamento automático caso o cliente não escolha um setor</h4>
-                    <p>Direcione a conversa após um período sem interação, sem interromper escolhas ou ações manuais.</p>
-                  </div>
-                </div>
-                <div className="chatbot-auto-route-switch">
-                  <span>{v.encaminhar_sem_escolha_ativo ? "Ativado" : "Desativado"}</span>
-                  <Switch
-                    checked={v.encaminhar_sem_escolha_ativo === true}
-                    onChange={(checked) => setV((current) => ({ ...current, encaminhar_sem_escolha_ativo: checked }))}
-                    aria-label="Ativar encaminhamento automático sem escolha de setor"
-                  />
-                </div>
-              </div>
-
-              {v.encaminhar_sem_escolha_ativo && (
-                <div className="chatbot-auto-route-body">
-                  <div className="chatbot-auto-route-time">
-                    <label htmlFor="chatbot-auto-route-minutes">Encaminhar após</label>
-                    <div className="chatbot-auto-route-number">
-                      <input
-                        id="chatbot-auto-route-minutes"
-                        type="number"
-                        className="ia-input"
-                        min={1}
-                        max={1440}
-                        step={1}
-                        value={v.encaminhar_sem_escolha_minutos ?? 10}
-                        onChange={(event) => setV((current) => ({
-                          ...current,
-                          encaminhar_sem_escolha_minutos: event.target.value === "" ? "" : Number(event.target.value),
-                        }))}
-                      />
-                      <span>minutos sem resposta</span>
-                    </div>
-                    <small>O relógio reinicia sempre que houver nova atividade na conversa.</small>
-                  </div>
-
-                  <div className="chatbot-auto-route-destinations">
-                    <div className="chatbot-auto-route-label-row">
-                      <label>Setores de destino</label>
-                      <span>
-                        {(v.encaminhar_sem_escolha_departamentos_ids || []).length} selecionado{(v.encaminhar_sem_escolha_departamentos_ids || []).length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    {departamentos.length > 0 ? (
-                      <div className="chatbot-auto-route-options" role="group" aria-label="Setores de destino do encaminhamento automático">
-                        {departamentos.map((department) => {
-                          const selectedIds = (v.encaminhar_sem_escolha_departamentos_ids || []).map(Number);
-                          const selected = selectedIds.includes(Number(department.id));
-                          return (
-                            <label
-                              key={department.id}
-                              className={`chatbot-auto-route-option ${selected ? "chatbot-auto-route-option--selected" : ""}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => setV((current) => {
-                                  const currentIds = (current.encaminhar_sem_escolha_departamentos_ids || []).map(Number);
-                                  const nextIds = currentIds.includes(Number(department.id))
-                                    ? currentIds.filter((id) => id !== Number(department.id))
-                                    : [...currentIds, Number(department.id)];
-                                  return { ...current, encaminhar_sem_escolha_departamentos_ids: nextIds };
-                                })}
-                              />
-                              <span className="chatbot-auto-route-check" aria-hidden="true">✓</span>
-                              <span>{department.nome}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="chatbot-auto-route-empty">Cadastre departamentos em Configurações antes de ativar esta opção.</p>
-                    )}
-                    {(v.encaminhar_sem_escolha_departamentos_ids || []).length > 1 && (
-                      <p className="chatbot-auto-route-balance">
-                        <span aria-hidden="true">⚖</span> As conversas serão distribuídas para manter os setores equilibrados.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* SEÇÃO 3 — Mensagem ao finalizar atendimento */}
