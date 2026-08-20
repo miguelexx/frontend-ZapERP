@@ -2481,7 +2481,17 @@ function ModalImportarClientes({ onClose, onImported }) {
       onClick={onClose}
     >
       <div
-        style={{ background: "#fff", borderRadius: 12, padding: 24, width: 760, maxWidth: "96vw", maxHeight: "92vh", overflowY: "auto" }}
+        style={{
+          background: "var(--ds-surface-1, #fff)",
+          color: "var(--ds-text-primary, #0f172a)",
+          border: "1px solid var(--ds-border, #e2e8f0)",
+          borderRadius: 12,
+          padding: 24,
+          width: 760,
+          maxWidth: "96vw",
+          maxHeight: "92vh",
+          overflowY: "auto",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <h4 style={{ margin: "0 0 4px 0" }}>Importar clientes por planilha</h4>
@@ -2492,7 +2502,7 @@ function ModalImportarClientes({ onClose, onImported }) {
         </p>
 
         {erro ? (
-          <div style={{ background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
+          <div style={{ background: "rgba(220,38,38,0.12)", color: "#ef4444", border: "1px solid rgba(220,38,38,0.35)", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
             {erro}
           </div>
         ) : null}
@@ -2528,7 +2538,7 @@ function ModalImportarClientes({ onClose, onImported }) {
             </div>
 
             {faltaObrigatoria ? (
-              <div style={{ background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
+              <div style={{ background: "rgba(245,158,11,0.14)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
                 Selecione as colunas de <strong>nome</strong> e <strong>telefone</strong> para continuar.
               </div>
             ) : null}
@@ -2536,7 +2546,7 @@ function ModalImportarClientes({ onClose, onImported }) {
             <p className="ia-muted" style={{ fontSize: 12, margin: "8px 0 4px" }}>
               Prévia dos primeiros contatos:
             </p>
-            <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8, maxHeight: 260, overflowY: "auto" }}>
+            <div style={{ overflowX: "auto", border: "1px solid var(--ds-border, #e2e8f0)", borderRadius: 8, maxHeight: 260, overflowY: "auto" }}>
               <table className="ia-table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
@@ -2550,12 +2560,12 @@ function ModalImportarClientes({ onClose, onImported }) {
                     <tr><td colSpan={3} className="ia-muted">Nenhum contato válido encontrado.</td></tr>
                   ) : (
                     (preview.amostra || []).map((a, i) => (
-                      <tr key={i} style={a.conflito ? { background: "#fff7ed" } : undefined}>
+                      <tr key={i} style={a.conflito ? { background: "rgba(234,88,12,0.12)" } : undefined}>
                         <td>
                           {a.nome}
                           {a.conflito ? (
-                            <span title={`Mesmo telefone com: ${(a.nomes_conflitantes || []).join(", ")}`} style={{ marginLeft: 6, color: "#c2410c", fontSize: 11 }}>
-                              ⚠ conflito
+                            <span title={`Mesmo telefone com: ${(a.nomes_conflitantes || []).join(", ")}`} style={{ marginLeft: 6, color: "#f97316", fontSize: 11, fontWeight: 600 }}>
+                              ⚠ revisar
                             </span>
                           ) : null}
                         </td>
@@ -2585,7 +2595,7 @@ function ModalImportarClientes({ onClose, onImported }) {
 
         {step === "done" && resultado ? (
           <>
-            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: 16, marginBottom: 12 }}>
+            <div style={{ background: "rgba(0,168,132,0.12)", border: "1px solid rgba(0,168,132,0.4)", borderRadius: 8, padding: 16, marginBottom: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "6px 12px", fontSize: 14 }}>
                 <span className="ia-muted">Linhas analisadas</span><strong>{resumo.totalLinhas ?? 0}</strong>
                 <span className="ia-muted">Clientes importados (novos)</span><strong>{resumo.clientesImportados ?? 0}</strong>
@@ -2595,7 +2605,7 @@ function ModalImportarClientes({ onClose, onImported }) {
                 <span className="ia-muted">Linhas ignoradas</span><strong>{resumo.linhasIgnoradas ?? 0}</strong>
                 <span className="ia-muted">Conflitos (conferir)</span><strong>{resumo.conflitos ?? 0}</strong>
                 {(resumo.falhas ?? 0) > 0 ? (
-                  <><span className="ia-muted" style={{ color: "#b91c1c" }}>Falhas</span><strong style={{ color: "#b91c1c" }}>{resumo.falhas}</strong></>
+                  <><span style={{ color: "#ef4444" }}>Falhas</span><strong style={{ color: "#ef4444" }}>{resumo.falhas}</strong></>
                 ) : null}
               </div>
             </div>
