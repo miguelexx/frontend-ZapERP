@@ -14550,3 +14550,29 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   border-color: rgba(245,158,11,0.4);
   color: #fbbf24;
 }
+
+/* =========================================================
+   POLISH VISUAL PREMIUM — feedback tátil consistente (aditivo)
+   Auditoria 2026-08: os botões-ícone (.wa-iconBtn — anexar, emoji,
+   buscar, menu, microfone) e parte dos botões de ação não tinham
+   resposta de "pressão", ao contrário de .wa-btn-primary:active.
+   Aqui só ADICIONAMOS estados :active novos, no MESMO idioma visual
+   já usado no sistema (scale nos alvos circulares, brightness nos
+   retangulares). Não toca hover, layout, foco nem scroll.
+   Respeita prefers-reduced-motion.
+========================================================= */
+.wa-iconBtn:active:not(:disabled) {
+  transform: scale(0.9);
+  transition-duration: 0.05s;
+}
+.wa-actions .wa-btn-secondary:active:not(:disabled),
+.wa-actions .wa-btn-transferir:active:not(:disabled),
+.wa-actions .wa-btn-danger:active:not(:disabled),
+.wa-actions .wa-btn-assumir-destaque:active:not(:disabled) {
+  filter: brightness(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wa-iconBtn:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -18,7 +18,6 @@ import { capitalizeMessageStart, getAutocorrectEdit } from "../utils/autocorrect
 import {
   IconCamera,
   IconClose,
-  IconDocument,
   IconEmoji,
   IconMic,
   IconPix,
@@ -43,7 +42,7 @@ import {
   saveComposerDraft,
 } from "./composerDraftStore";
 import { INTERNAL_NOTE_MAX_LEN } from "./internalNote";
-import { IconNote as TablerNote, IconEyeOff as TablerEyeOff } from "@tabler/icons-react";
+import { IconNote as TablerNote } from "@tabler/icons-react";
 
 const WA_INPUT_FALLBACK_MAX_HEIGHT_PX = 240;
 const COMPOSER_DRAFT_SAVE_MS = 220;

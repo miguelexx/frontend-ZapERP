@@ -10,7 +10,6 @@ import {
   registrarLigacao,
   reenviarMidiaFalha,
   reenviarTextoFalha,
-  listarAtendentesDisponiveisConversa,
   adicionarAtendenteConversa,
   marcarLidaModoSimplesChat,
 } from "./conversaService";
@@ -19,7 +18,6 @@ import {
   getStatusAtendimentoEffective,
   isClosedAttendance,
   exibirBadgePagamentoConcluido,
-  resolveContactMetaFromMessage,
   isConversaModoSimplesAtiva,
   resolveModoSimplesAguardandoEffective,
   buildConversaModoSimplesUiSource,
@@ -88,11 +86,9 @@ import ConversaComposer from "./ConversaComposer";
 
 import { FORWARD_SELECT_MAX, MAX_DOCUMENTOS_LOTE_ENVIO, STICKER_RECENTS_LIMIT } from "./conversaConstants";
 import {
-  parseToDate,
   formatDia,
   sameDay,
   safeString,
-  isFilenameOnlyText,
   isOutgoingMessage,
   isMediaCaptionBundleTop,
   isPlainCaptionFollowMessage,
@@ -120,10 +116,8 @@ import {
   isRichMediaMessage,
   resolveConversaAvatarUrl,
 } from "./utils/conversaViewHelpers";
-import { renderTextWithLinks } from "./utils/conversaViewFormat";
 import {
   snippetFromMsg,
-  pickReplyToIdForApi,
   buildReplyMetaForPersist,
   replySnippetDisplay,
   getReplySenderLabel,
@@ -4770,15 +4764,6 @@ function ConversaViewBody() {
           onSendInternalNote={handleAdicionarNotaInterna}
         />
 
-        {/* ESC handler central */}
-        <button
-          type="button"
-          className="wa-escCatcher"
-          aria-hidden="true"
-          tabIndex={-1}
-          onClick={onEscape}
-          style={{ display: "none" }}
-        />
     </div>
   );
 }

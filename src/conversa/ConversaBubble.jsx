@@ -25,8 +25,6 @@ import {
 import { renderTextWithLinks } from "./utils/conversaViewFormat";
 import {
   replySnippetDisplay,
-  getReplySenderLabel,
-  nameColor,
 } from "./utils/conversaMessageDisplay";
 import { copyTextToClipboard, refreshProxyMediaToken } from "./utils/conversaViewHelpers";
 import {
@@ -40,7 +38,6 @@ import {
 import {
   IconPlay,
   IconPause,
-  IconClose,
   IconEmoji,
   TickSvg,
 } from "./conversaViewIcons";
