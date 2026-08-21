@@ -8,626 +8,800 @@ import {
 } from '../api/disparoVariacoesService'
 import api from '../api/http'
 
+// ── Constantes ────────────────────────────────────────────────────────────────
+
 const TIPOS = [
-  { value: 'texto',     label: 'Texto' },
-  { value: 'imagem',    label: 'Imagem' },
-  { value: 'video',     label: 'Vídeo' },
-  { value: 'audio',     label: 'Áudio' },
-  { value: 'documento', label: 'Documento' },
+  { value: 'texto',     label: 'Texto',     icon: '💬', color: '#128c7e', desc: 'Somente texto' },
+  { value: 'imagem',   label: 'Imagem',     icon: '🖼️',  color: '#8b5cf6', desc: 'Imagem com legenda' },
+  { value: 'video',    label: 'Vídeo',      icon: '🎬', color: '#ef4444', desc: 'Vídeo com legenda' },
+  { value: 'audio',    label: 'Áudio',      icon: '🎵', color: '#f59e0b', desc: 'Arquivo de áudio' },
+  { value: 'documento',label: 'Documento',  icon: '📄', color: '#3b82f6', desc: 'PDF, planilha ou arquivo' },
 ]
 
-const MODOS = [
-  { value: 'unica',       label: 'Variação única', desc: 'Todos recebem a mesma variação' },
-  { value: 'equilibrada', label: 'Distribuição equilibrada', desc: 'Divisão uniforme entre variações ativas' },
-  { value: 'percentual',  label: 'Por percentual', desc: 'Você define o % de cada variação (total = 100%)' },
-  { value: 'manual',      label: 'Manual', desc: 'Atribua variação a cada destinatário' },
+const MODOS_DIST = [
+  {
+    value: 'unica', icon: '🎯',
+    label: 'Variação única',
+    desc: 'Todos os destinatários recebem exatamente a mesma mensagem.',
+  },
+  {
+    value: 'equilibrada', icon: '⚖️',
+    label: 'Distribuição equilibrada',
+    desc: 'As variações são divididas de forma uniforme entre os destinatários.',
+  },
+  {
+    value: 'percentual', icon: '📊',
+    label: 'Por percentual',
+    desc: 'Você define a porcentagem de cada variação. O total deve ser 100%.',
+  },
+  {
+    value: 'manual', icon: '✋',
+    label: 'Atribuição manual',
+    desc: 'Você escolhe a variação de cada destinatário individualmente ou em lote.',
+  },
 ]
 
-const ICONE_TIPO = { texto: '💬', imagem: '🖼️', video: '🎬', audio: '🎵', documento: '📄' }
+const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.value, t]))
 
-// ── Substituição local de variáveis para preview ──────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function normKey(chave) {
+  return String(chave ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '')
+}
+
 function substituirVarsLocal(texto, vars = {}) {
   if (!texto) return texto
-  return texto.replace(/\{\{([^{}]{1,100})\}\}/g, (match, chave) => {
-    const k = chave.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_]/g, '_')
+  return texto.replace(/\{\{([^{}]{1,100})\}\}/g, (_, chave) => {
+    const k = normKey(chave)
     const v = vars[k] ?? vars[chave.trim().toLowerCase()]
     return v !== undefined && v !== null && String(v) !== '' ? String(v) : `[${k}?]`
   })
 }
 
-function contarVarsAusentesMensagem(texto, valoresPadrao = {}) {
+function extrairVarsTexto(texto) {
   const regex = /\{\{([^{}]{1,100})\}\}/g
-  const ausentes = new Set()
-  let m
+  const s = new Set(); let m
   while ((m = regex.exec(texto || '')) !== null) {
-    const k = m[1].trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_]/g, '_')
-    if (k === 'nome' || k === 'telefone') continue
-    if (!(valoresPadrao[k] || valoresPadrao[m[1].trim().toLowerCase()])) ausentes.add(k)
+    const k = normKey(m[1])
+    if (k && !['__proto__','constructor','prototype'].includes(k)) s.add(k)
   }
-  return [...ausentes]
+  return [...s]
+}
+
+function varsAusentes(texto, padrao = {}) {
+  return extrairVarsTexto(texto).filter(k => k !== 'nome' && k !== 'telefone' && !padrao[k])
+}
+
+function fmtBytes(n) {
+  if (!n) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, onBack, onNext }) {
-  const [loading, setLoading] = useState(true)
-  const [variacoes, setVariacoes] = useState([])
-  const [campanha, setCampanha] = useState(null)
-  const [varSelecionadaId, setVarSelecionadaId] = useState(null)
-  const [erro, setErro] = useState('')
-  const [salvando, setSalvando] = useState(false)
-  const [modoDistrib, setModoDistrib] = useState('equilibrada')
-  const [configPerc, setConfigPerc] = useState({}) // id -> percentual
-  const [preview, setPreview] = useState(null)
-  const [previewDestId, setPreviewDestId] = useState('')
-  const [previewCarregando, setPreviewCarregando] = useState(false)
-  const [catalogo, setCatalogo] = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [variacoes, setVariacoes]     = useState([])
+  const [campanha, setCampanha]       = useState(null)
+  const [varAtiva, setVarAtiva]       = useState(null)     // id da variação selecionada
+  const [erro, setErro]               = useState('')
+  const [salvando, setSalvando]       = useState(false)
+  const [catalogo, setCatalogo]       = useState(null)
   const [valoresPadrao, setValoresPadrao] = useState({})
-  const [resumo, setResumo] = useState(null)
-  const [planoPreview, setPlanoPreview] = useState(null)
+  const [resumo, setResumo]           = useState(null)
+  const [confirmado, setConfirmado]   = useState(false)
+  const [revisao, setRevisao]         = useState(false)
+
+  // Distribuição
+  const [modoDistrib, setModoDistrib] = useState('equilibrada')
+  const [configPerc, setConfigPerc]   = useState({})
+  const [plano, setPlano]             = useState(null)
+  const [calculando, setCalculando]   = useState(false)
   const [confirmando, setConfirmando] = useState(false)
-  const [confirmado, setConfirmado] = useState(false)
-  const [abaAtiva, setAbaAtiva] = useState('editor') // editor | variaveis | distribuicao | resumo
-  const [uploadingMidia, setUploadingMidia] = useState(false)
-  const [excluindoId, setExcluindoId] = useState(null)
-  const [editandoNome, setEditandoNome] = useState(false)
-  const [listaDestPreview, setListaDestPreview] = useState([])
-  const fileRef = useRef(null)
-  const textareaRef = useRef(null)
 
-  const varSelecionada = variacoes.find(v => v.id === varSelecionadaId) ?? null
+  // Preview
+  const [previewDest, setPreviewDest]         = useState(null)
+  const [previewData, setPreviewData]         = useState(null)
+  const [previewLoading, setPreviewLoading]   = useState(false)
+  const [listaDest, setListaDest]             = useState([])
 
-  // ── Carga inicial ──────────────────────────────────────────────────────────
+  // Mídia
+  const [uploadingMidia, setUploadingMidia]   = useState(false)
+  const fileRef  = useRef(null)
+  const textaRef = useRef(null)
 
-  const carregarTudo = useCallback(async () => {
+  // Aba ativa no painel direito
+  const [painelDir, setPainelDir] = useState('preview') // preview | variaveis | distribuicao
+
+  const varSel = variacoes.find(v => v.id === varAtiva) ?? null
+
+  // ── Carga inicial ─────────────────────────────────────────────────────────
+
+  const carregar = useCallback(async () => {
     try {
       setLoading(true)
-      const [dadosVar, dadosCatalogo, dadosResumo] = await Promise.all([
+      const [resVar, resCat, resRes] = await Promise.all([
         listarVariacoes(campanhaId),
         catalogoVariaveis(campanhaId),
         resumoMensagens(campanhaId),
       ])
-      setVariacoes(dadosVar.variacoes ?? [])
-      setCampanha(dadosVar.campanha)
-      setCatalogo(dadosCatalogo)
-      setValoresPadrao(dadosCatalogo.valores_padrao ?? {})
-      setResumo(dadosResumo)
-      setConfirmado(dadosResumo.variacao_confirmada ?? false)
-      if (dadosResumo.variacao_modo) setModoDistrib(dadosResumo.variacao_modo)
-      if (!varSelecionadaId && dadosVar.variacoes?.length) setVarSelecionadaId(dadosVar.variacoes[0].id)
-    } catch (e) {
-      setErro(disparoApiError(e))
-    } finally {
-      setLoading(false)
-    }
+      setVariacoes(resVar.variacoes ?? [])
+      setCampanha(resVar.campanha)
+      setCatalogo(resCat)
+      setValoresPadrao(resCat.valores_padrao ?? {})
+      setResumo(resRes)
+      setConfirmado(resRes.variacao_confirmada ?? false)
+      setRevisao(resRes.variacao_revisao ?? false)
+      if (resRes.variacao_modo) setModoDistrib(resRes.variacao_modo)
+      if (!varAtiva && resVar.variacoes?.length) setVarAtiva(resVar.variacoes[0].id)
+    } catch (e) { setErro(disparoApiError(e)) }
+    finally { setLoading(false) }
   }, [campanhaId])
 
-  useEffect(() => { carregarTudo() }, [carregarTudo])
+  useEffect(() => { carregar() }, [carregar])
 
-  // Carrega amostra de destinatários para preview
   useEffect(() => {
     if (!campanhaId) return
-    api.get(`/api/disparo/campanhas/${campanhaId}/destinatarios`, { params: { limit: 20 } })
-      .then(r => setListaDestPreview(r.data?.destinatarios ?? []))
+    api.get(`/api/disparo/campanhas/${campanhaId}/destinatarios`, { params: { limit: 50 } })
+      .then(r => setListaDest(r.data?.destinatarios ?? []))
       .catch(() => {})
   }, [campanhaId])
 
-  // ── Ações sobre variações ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (previewDest && varAtiva) carregarPreview(previewDest)
+  }, [previewDest, varAtiva])
 
-  async function handleCriar() {
+  // ── Variações ─────────────────────────────────────────────────────────────
+
+  async function criarNovaVariacao() {
     try {
       setSalvando(true)
-      const v = await criarVariacao(campanhaId, { tipo_mensagem: 'texto' })
-      setVariacoes(prev => [...prev, v])
-      setVarSelecionadaId(v.id)
-      setAbaAtiva('editor')
+      const ct = variacoes.length
+      const v = await criarVariacao(campanhaId, {
+        tipo_mensagem: 'texto',
+        nome: `Variação ${String.fromCharCode(65 + ct)}`,
+      })
+      setVariacoes(p => [...p, v])
+      setVarAtiva(v.id)
     } catch (e) { setErro(disparoApiError(e)) }
     finally { setSalvando(false) }
   }
 
-  async function handleDuplicar(varId) {
+  async function handleDuplicar(id) {
     try {
       setSalvando(true)
-      const v = await duplicarVariacao(campanhaId, varId)
-      setVariacoes(prev => [...prev, v])
-      setVarSelecionadaId(v.id)
+      const v = await duplicarVariacao(campanhaId, id)
+      setVariacoes(p => [...p, v])
+      setVarAtiva(v.id)
     } catch (e) { setErro(disparoApiError(e)) }
     finally { setSalvando(false) }
   }
 
-  async function handleExcluir(varId) {
+  async function handleExcluir(id) {
     if (!window.confirm('Excluir esta variação? Esta ação não pode ser desfeita.')) return
     try {
-      setExcluindoId(varId)
-      await excluirVariacao(campanhaId, varId)
-      const nova = variacoes.filter(v => v.id !== varId)
+      await excluirVariacao(campanhaId, id)
+      const nova = variacoes.filter(v => v.id !== id)
       setVariacoes(nova)
-      if (varSelecionadaId === varId) setVarSelecionadaId(nova[0]?.id ?? null)
-      await carregarResumo()
+      if (varAtiva === id) setVarAtiva(nova[0]?.id ?? null)
+      await atualizarResumo()
     } catch (e) { setErro(disparoApiError(e)) }
-    finally { setExcluindoId(null) }
   }
 
-  async function handleToggleAtiva(varId, ativa) {
+  async function handleToggle(id, ativa) {
     try {
-      const atualizada = await editarVariacao(campanhaId, varId, { ativa: !ativa })
-      setVariacoes(prev => prev.map(v => v.id === varId ? atualizada : v))
-      await carregarResumo()
+      const a = await editarVariacao(campanhaId, id, { ativa: !ativa })
+      setVariacoes(p => p.map(v => v.id === id ? a : v))
+      await atualizarResumo()
     } catch (e) { setErro(disparoApiError(e)) }
   }
 
-  async function handleSalvarTexto(texto) {
-    if (!varSelecionadaId) return
+  async function salvarTexto(texto) {
+    if (!varAtiva) return
     try {
-      setSalvando(true)
-      const atualizada = await editarVariacao(campanhaId, varSelecionadaId, { texto })
-      setVariacoes(prev => prev.map(v => v.id === varSelecionadaId ? atualizada : v))
+      const a = await editarVariacao(campanhaId, varAtiva, { texto })
+      setVariacoes(p => p.map(v => v.id === varAtiva ? a : v))
     } catch (e) { setErro(disparoApiError(e)) }
-    finally { setSalvando(false) }
   }
 
-  async function handleSalvarNome(nome) {
-    if (!varSelecionadaId) return
+  async function salvarNome(nome) {
+    if (!varAtiva) return
     try {
-      const atualizada = await editarVariacao(campanhaId, varSelecionadaId, { nome })
-      setVariacoes(prev => prev.map(v => v.id === varSelecionadaId ? atualizada : v))
+      const a = await editarVariacao(campanhaId, varAtiva, { nome })
+      setVariacoes(p => p.map(v => v.id === varAtiva ? a : v))
     } catch (e) { setErro(disparoApiError(e)) }
-    finally { setEditandoNome(false) }
   }
 
-  // ── Upload de mídia ────────────────────────────────────────────────────────
+  async function salvarTipo(tipo) {
+    if (!varAtiva) return
+    try {
+      const a = await editarVariacao(campanhaId, varAtiva, { tipo_mensagem: tipo })
+      setVariacoes(p => p.map(v => v.id === varAtiva ? a : v))
+    } catch (e) { setErro(disparoApiError(e)) }
+  }
 
-  async function handleUploadMidia(e) {
+  // ── Mídia ─────────────────────────────────────────────────────────────────
+
+  async function handleUpload(e) {
     const file = e.target.files?.[0]
-    if (!file || !varSelecionadaId) return
+    if (!file || !varAtiva) return
     try {
       setUploadingMidia(true)
-      const atualizada = await uploadMidia(campanhaId, varSelecionadaId, file)
-      setVariacoes(prev => prev.map(v => v.id === varSelecionadaId ? atualizada : v))
+      const a = await uploadMidia(campanhaId, varAtiva, file)
+      setVariacoes(p => p.map(v => v.id === varAtiva ? a : v))
     } catch (e2) { setErro(disparoApiError(e2)) }
     finally { setUploadingMidia(false); if (fileRef.current) fileRef.current.value = '' }
   }
 
   async function handleRemoverMidia() {
-    if (!varSelecionadaId) return
-    if (!window.confirm('Remover a mídia desta variação?')) return
+    if (!varAtiva || !window.confirm('Remover a mídia desta variação?')) return
     try {
-      const atualizada = await removerMidia(campanhaId, varSelecionadaId)
-      setVariacoes(prev => prev.map(v => v.id === varSelecionadaId ? atualizada : v))
+      const a = await removerMidia(campanhaId, varAtiva)
+      setVariacoes(p => p.map(v => v.id === varAtiva ? a : v))
     } catch (e) { setErro(disparoApiError(e)) }
   }
 
-  // ── Inserir variável no cursor ─────────────────────────────────────────────
+  // ── Variáveis ─────────────────────────────────────────────────────────────
 
-  function inserirVariavel(chave) {
-    const ta = textareaRef.current
-    if (!ta || !varSelecionada) return
-    const inicio = ta.selectionStart ?? ta.value.length
-    const fim = ta.selectionEnd ?? ta.value.length
-    const textoAtual = varSelecionada.texto ?? ''
-    const novoTexto = textoAtual.slice(0, inicio) + `{{${chave}}}` + textoAtual.slice(fim)
-    setVariacoes(prev => prev.map(v => v.id === varSelecionadaId ? { ...v, texto: novoTexto } : v))
+  function inserirVar(chave) {
+    const ta = textaRef.current
+    if (!ta || !varSel) return
+    const s = ta.selectionStart ?? ta.value.length
+    const e = ta.selectionEnd ?? ta.value.length
+    const atual = varSel.texto ?? ''
+    const novo  = atual.slice(0, s) + `{{${chave}}}` + atual.slice(e)
+    setVariacoes(p => p.map(v => v.id === varAtiva ? { ...v, texto: novo } : v))
     setTimeout(() => {
       ta.focus()
-      const pos = inicio + `{{${chave}}}`.length
+      const pos = s + `{{${chave}}}`.length
       ta.setSelectionRange(pos, pos)
     }, 0)
   }
 
-  // ── Valores padrão ─────────────────────────────────────────────────────────
-
-  async function handleSalvarPadrao() {
+  async function salvarPadroes() {
     try {
       setSalvando(true)
       await salvarValoresPadrao(campanhaId, valoresPadrao)
-      await carregarTudo()
+      await carregar()
     } catch (e) { setErro(disparoApiError(e)) }
     finally { setSalvando(false) }
   }
 
-  // ── Preview ────────────────────────────────────────────────────────────────
+  // ── Preview ───────────────────────────────────────────────────────────────
 
   async function carregarPreview(destId) {
     if (!destId) return
     try {
-      setPreviewCarregando(true)
-      const p = await previewDestinatario(campanhaId, destId, { variacao_id: varSelecionadaId })
-      setPreview(p)
+      setPreviewLoading(true)
+      const p = await previewDestinatario(campanhaId, destId, { variacao_id: varAtiva })
+      setPreviewData(p)
     } catch (e) { setErro(disparoApiError(e)) }
-    finally { setPreviewCarregando(false) }
+    finally { setPreviewLoading(false) }
   }
 
-  useEffect(() => {
-    if (previewDestId) carregarPreview(previewDestId)
-  }, [previewDestId, varSelecionadaId])
+  // ── Distribuição ──────────────────────────────────────────────────────────
 
-  // ── Resumo / distribuição ──────────────────────────────────────────────────
-
-  async function carregarResumo() {
-    try { const r = await resumoMensagens(campanhaId); setResumo(r) } catch (_) {}
-  }
-
-  async function handlePreviewDistrib() {
+  async function calcularPlano() {
     try {
-      setSalvando(true)
+      setCalculando(true)
       const config = variacoes.filter(v => v.ativa).map(v => ({
-        variacao_id: v.id,
-        percentual: Number(configPerc[v.id] ?? 0),
+        variacao_id: v.id, percentual: Number(configPerc[v.id] ?? 0),
       }))
       const r = await previewDistribuicaoVariacoes(campanhaId, { modo: modoDistrib, configuracoes: config })
-      setPlanoPreview(r.plano)
+      setPlano(r.plano)
       if (r.erros?.length) setErro(r.erros[0])
     } catch (e) { setErro(disparoApiError(e)) }
-    finally { setSalvando(false) }
+    finally { setCalculando(false) }
   }
 
-  async function handleConfirmarDistrib() {
-    const ok = variacoes.filter(v => v.ativa)
-    if (!ok.length) return setErro('Crie e ative pelo menos uma variação antes de confirmar.')
-    for (const v of ok) {
-      const ausentes = contarVarsAusentesMensagem(v.texto, valoresPadrao)
-      if (ausentes.length) return setErro(`Variação "${v.nome}": variáveis sem valor ou padrão: ${ausentes.join(', ')}. Configure os padrões antes de confirmar.`)
+  async function handleConfirmar() {
+    const ausentes = variacoes.filter(v => v.ativa).flatMap(v => varsAusentes(v.texto, valoresPadrao))
+    if ([...new Set(ausentes)].length) {
+      return setErro(`Variáveis sem valor padrão: ${[...new Set(ausentes)].join(', ')}. Configure os padrões antes de confirmar.`)
     }
     try {
       setConfirmando(true)
-      const config = ok.map(v => ({ variacao_id: v.id, percentual: Number(configPerc[v.id] ?? 0) }))
+      const config = variacoes.filter(v => v.ativa).map(v => ({
+        variacao_id: v.id, percentual: Number(configPerc[v.id] ?? 0),
+      }))
       await confirmarDistribuicaoVariacoes(campanhaId, { modo: modoDistrib, configuracoes: config })
       setConfirmado(true)
-      await carregarTudo()
+      setRevisao(false)
+      await carregar()
     } catch (e) { setErro(disparoApiError(e)) }
     finally { setConfirmando(false) }
   }
 
   async function handleRecalcular() {
-    if (!window.confirm('Limpar a distribuição atual e recomeçar?')) return
+    if (!window.confirm('Limpar a distribuição atual e recomeçar do zero?')) return
     try {
       await recalcularDistribuicaoVariacoes(campanhaId)
-      setConfirmado(false)
-      setPlanoPreview(null)
-      await carregarTudo()
+      setConfirmado(false); setPlano(null)
+      await carregar()
     } catch (e) { setErro(disparoApiError(e)) }
   }
 
-  // ── Continuar wizard ───────────────────────────────────────────────────────
-
-  function handleContinuar() {
-    if (!confirmado) return setErro('Confirme a distribuição das variações antes de continuar.')
-    onNext?.()
+  async function atualizarResumo() {
+    try { const r = await resumoMensagens(campanhaId); setResumo(r) } catch (_) {}
   }
+
+  // ── Bloqueantes para "Continuar" ──────────────────────────────────────────
+
+  const ativas = variacoes.filter(v => v.ativa)
+  const todasVarsOk = ativas.every(v => varsAusentes(v.texto, valoresPadrao).length === 0)
+  const totalAusentes = ativas.flatMap(v => varsAusentes(v.texto, valoresPadrao))
+  const bloqueantes = [
+    !ativas.length        && 'Crie pelo menos uma variação ativa.',
+    !todasVarsOk          && `Variáveis sem padrão: ${[...new Set(totalAusentes)].join(', ')}.`,
+    !confirmado           && 'Confirme a distribuição das variações.',
+    revisao               && 'A distribuição precisa ser revisada (houve alterações).',
+  ].filter(Boolean)
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  if (loading) return (
-    <div className="disparo-step-loading">
-      {[1,2,3].map(i => <div key={i} className="disparo-skeleton-row" />)}
-    </div>
-  )
-
-  const somaPerc = variacoes.filter(v => v.ativa).reduce((s, v) => s + Number(configPerc[v.id] ?? 0), 0)
-  const varsAusentesTotal = variacoes.filter(v => v.ativa).flatMap(v => contarVarsAusentesMensagem(v.texto, valoresPadrao))
-  const bloqueantes = [
-    !variacoes.some(v => v.ativa) && 'Crie pelo menos uma variação ativa.',
-    varsAusentesTotal.length > 0 && `Variáveis sem valor padrão: ${[...new Set(varsAusentesTotal)].join(', ')}.`,
-    !confirmado && 'A distribuição de variações ainda não foi confirmada.',
-  ].filter(Boolean)
+  if (loading) return <MensagensLoading />
 
   return (
-    <div className="disparo-mensagens-root">
+    <div className="msg-root">
 
-      {/* ── Cabeçalho ─────────────────────────────────────────────── */}
-      <div className="disparo-step-header">
-        <div>
-          <h2>Etapa 4 — Mensagens</h2>
-          <p className="disparo-step-sub">Configure as variações de mensagem e como serão distribuídas.</p>
-        </div>
-        {campanha?.variacao_revisao && (
-          <div className="disparo-alerta-revisao">
-            ⚠️ Destinatários ou variações mudaram após a confirmação. Revise a distribuição.
-          </div>
-        )}
-      </div>
-
+      {/* ── Erro global ───────────────────────────────── */}
       {erro && (
-        <div className="disparo-erro-banner">
-          <span>{erro}</span>
-          <button onClick={() => setErro('')} className="disparo-erro-fechar">×</button>
+        <div className="msg-erro">
+          <span className="msg-erro__icon">⚠️</span>
+          <span className="msg-erro__txt">{erro}</span>
+          <button className="msg-erro__close" onClick={() => setErro('')}>✕</button>
         </div>
       )}
 
-      {/* ── Abas ──────────────────────────────────────────────────── */}
-      <div className="disparo-abas">
-        {[
-          { id: 'editor',      label: '✏️ Editor' },
-          { id: 'variaveis',   label: `📌 Variáveis${varsAusentesTotal.length ? ` (⚠️ ${[...new Set(varsAusentesTotal)].length})` : ''}` },
-          { id: 'distribuicao',label: '⚖️ Distribuição' },
-          { id: 'resumo',      label: `📊 Resumo${confirmado ? ' ✅' : ''}` },
-        ].map(a => (
-          <button key={a.id} className={`disparo-aba-btn${abaAtiva === a.id ? ' ativo' : ''}`} onClick={() => setAbaAtiva(a.id)}>
-            {a.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ═══ ABA: EDITOR ════════════════════════════════════════════ */}
-      {abaAtiva === 'editor' && (
-        <div className="disparo-editor-layout">
-
-          {/* Sidebar de variações */}
-          <div className="disparo-variacoes-sidebar">
-            <div className="disparo-sidebar-header">
-              <span>Variações ({variacoes.length})</span>
-              <button className="disparo-btn-icon" onClick={handleCriar} disabled={salvando} title="Nova variação">＋</button>
-            </div>
-            {!variacoes.length && (
-              <div className="disparo-empty-state">
-                <p>Nenhuma variação criada.</p>
-                <button className="disparo-btn-primario" onClick={handleCriar}>Criar variação</button>
-              </div>
-            )}
-            {variacoes.map(v => (
-              <div
-                key={v.id}
-                className={`disparo-variacao-card${varSelecionadaId === v.id ? ' selecionado' : ''}${!v.ativa ? ' inativa' : ''}`}
-                onClick={() => setVarSelecionadaId(v.id)}
-              >
-                <div className="disparo-var-card-header">
-                  <span className="disparo-var-tipo">{ICONE_TIPO[v.tipo_mensagem] ?? '💬'}</span>
-                  <span className="disparo-var-nome" title={v.nome}>{v.nome}</span>
-                  {!v.ativa && <span className="disparo-var-badge-inativa">inativa</span>}
-                </div>
-                <div className="disparo-var-card-acoes" onClick={e => e.stopPropagation()}>
-                  <button title="Duplicar" onClick={() => handleDuplicar(v.id)} className="disparo-btn-icon-sm">⧉</button>
-                  <button title={v.ativa ? 'Desativar' : 'Ativar'} onClick={() => handleToggleAtiva(v.id, v.ativa)} className="disparo-btn-icon-sm">
-                    {v.ativa ? '⏸' : '▶'}
-                  </button>
-                  <button title="Excluir" onClick={() => handleExcluir(v.id)} className="disparo-btn-icon-sm perigo" disabled={excluindoId === v.id}>
-                    {excluindoId === v.id ? '…' : '🗑'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Editor central */}
-          <div className="disparo-editor-central">
-            {!varSelecionada ? (
-              <div className="disparo-empty-state">Selecione ou crie uma variação.</div>
-            ) : (
-              <>
-                {/* Nome */}
-                <div className="disparo-editor-nome-linha">
-                  {editandoNome ? (
-                    <NomeEditor
-                      nome={varSelecionada.nome}
-                      onSalvar={handleSalvarNome}
-                      onCancelar={() => setEditandoNome(false)}
-                    />
-                  ) : (
-                    <h3 onClick={() => setEditandoNome(true)} className="disparo-editor-nome" title="Clique para editar">
-                      {varSelecionada.nome} <span className="disparo-editor-editar-icon">✎</span>
-                    </h3>
-                  )}
-                  <div className="disparo-editor-tipo-select">
-                    <label>Tipo:</label>
-                    <select
-                      value={varSelecionada.tipo_mensagem}
-                      onChange={e => editarVariacao(campanhaId, varSelecionada.id, { tipo_mensagem: e.target.value })
-                        .then(a => setVariacoes(p => p.map(v => v.id === varSelecionada.id ? a : v)))}
-                    >
-                      {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Texto */}
-                <TextEditor
-                  varId={varSelecionada.id}
-                  texto={varSelecionada.texto ?? ''}
-                  onSalvar={handleSalvarTexto}
-                  salvando={salvando}
-                  textareaRef={textareaRef}
-                />
-
-                {/* Mídia */}
-                {varSelecionada.tipo_mensagem !== 'texto' && (
-                  <MidiaPanel
-                    variacao={varSelecionada}
-                    uploadingMidia={uploadingMidia}
-                    fileRef={fileRef}
-                    onUpload={handleUploadMidia}
-                    onRemover={handleRemoverMidia}
-                  />
-                )}
-
-                {/* Botão inserir variável */}
-                <div className="disparo-inserir-var-barra">
-                  <span>Inserir variável:</span>
-                  {(catalogo?.variaveis ?? []).map(cv => (
-                    <button key={cv.chave} className="disparo-var-chip" onClick={() => inserirVariavel(cv.chave)}>
-                      {`{{${cv.chave}}}`}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Preview */}
-          <div className="disparo-preview-panel">
-            <div className="disparo-preview-header">
-              <strong>Prévia</strong>
-              <select
-                value={previewDestId}
-                onChange={e => setPreviewDestId(e.target.value)}
-                className="disparo-preview-dest-select"
-              >
-                <option value="">Selecione destinatário…</option>
-                {listaDestPreview.map(d => (
-                  <option key={d.id} value={d.id}>{d.nome || d.telefone_normalizado}</option>
-                ))}
-              </select>
-            </div>
-            {previewCarregando ? (
-              <div className="disparo-skeleton-row" />
-            ) : preview ? (
-              <PreviewBubble preview={preview} />
-            ) : varSelecionada ? (
-              <BubbleSimples variacao={varSelecionada} valoresPadrao={valoresPadrao} />
-            ) : (
-              <div className="disparo-empty-state">Selecione uma variação.</div>
-            )}
-          </div>
+      {/* ── Revisão necessária ────────────────────────── */}
+      {revisao && !erro && (
+        <div className="msg-aviso">
+          <span>⚠️</span>
+          <span>Destinatários ou variações foram alterados após a confirmação. Revise a distribuição antes de continuar.</span>
+          <button className="msg-aviso__btn" onClick={() => setPainelDir('distribuicao')}>Ir para distribuição →</button>
         </div>
       )}
 
-      {/* ═══ ABA: VARIÁVEIS ═════════════════════════════════════════ */}
-      {abaAtiva === 'variaveis' && (
-        <div className="disparo-variaveis-layout">
-          <div className="disparo-variaveis-catalogo">
-            <h3>Catálogo de variáveis</h3>
-            <p className="disparo-step-sub">Total de destinatários: {catalogo?.total_destinatarios ?? 0}</p>
-            <table className="disparo-variaveis-table">
-              <thead>
-                <tr>
-                  <th>Variável</th>
-                  <th>Com valor</th>
-                  <th>Sem valor</th>
-                  <th>Exemplo</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(catalogo?.variaveis ?? []).map(cv => (
-                  <tr key={cv.chave} className={cv.sem_valor > 0 ? 'disparo-var-linha-alerta' : ''}>
-                    <td><code>{`{{${cv.chave}}}`}</code>{cv.sistema && <span className="disparo-var-badge-sistema">sistema</span>}</td>
-                    <td className="disparo-var-td-ok">{cv.total_com_valor}</td>
-                    <td className={cv.sem_valor > 0 ? 'disparo-var-td-erro' : ''}>{cv.sem_valor}</td>
-                    <td className="disparo-var-td-exemplo">{cv.exemplo ?? '—'}</td>
-                    <td>
-                      <button className="disparo-var-chip" onClick={() => inserirVariavel(cv.chave)}>
-                        Inserir
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* ── Layout de 3 colunas ───────────────────────── */}
+      <div className="msg-layout">
 
-          <div className="disparo-variaveis-padrao">
-            <h3>Valores padrão</h3>
-            <p className="disparo-step-sub">Defina o valor a usar quando o destinatário não tiver a variável preenchida.</p>
-            {(catalogo?.variaveis ?? []).filter(cv => !cv.sistema && cv.sem_valor > 0).map(cv => (
-              <div key={cv.chave} className="disparo-padrao-linha">
-                <label>
-                  <code>{`{{${cv.chave}}}`}</code>
-                  <span className="disparo-padrao-hint">{cv.sem_valor} sem valor</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder={`Padrão para ${cv.chave}…`}
-                  value={valoresPadrao[cv.chave] ?? ''}
-                  onChange={e => setValoresPadrao(p => ({ ...p, [cv.chave]: e.target.value }))}
-                  className="disparo-padrao-input"
-                  maxLength={200}
-                />
-              </div>
-            ))}
-            {(catalogo?.variaveis ?? []).filter(cv => !cv.sistema && cv.sem_valor > 0).length === 0 && (
-              <p className="disparo-ok-msg">✅ Todos os destinatários têm valores para as variáveis usadas.</p>
-            )}
-            <button className="disparo-btn-primario" onClick={handleSalvarPadrao} disabled={salvando}>
-              {salvando ? 'Salvando…' : 'Salvar valores padrão'}
+        {/* ╔══════════════════════════╗
+            ║  Coluna 1 — Variações   ║
+            ╚══════════════════════════╝ */}
+        <aside className="msg-sidebar">
+
+          <div className="msg-sidebar__header">
+            <div>
+              <p className="msg-sidebar__titulo">Variações</p>
+              <p className="msg-sidebar__sub">{ativas.length} ativa{ativas.length !== 1 ? 's' : ''} de {variacoes.length}</p>
+            </div>
+            <button className="msg-add-btn" onClick={criarNovaVariacao} disabled={salvando} title="Nova variação">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              Nova
             </button>
           </div>
-        </div>
-      )}
 
-      {/* ═══ ABA: DISTRIBUIÇÃO ══════════════════════════════════════ */}
-      {abaAtiva === 'distribuicao' && (
-        <div className="disparo-distrib-layout">
-          <div className="disparo-distrib-modos">
-            <h3>Modo de distribuição</h3>
-            {MODOS.map(m => (
-              <label key={m.value} className={`disparo-modo-card${modoDistrib === m.value ? ' selecionado' : ''}`}>
-                <input type="radio" name="modo" value={m.value} checked={modoDistrib === m.value} onChange={() => setModoDistrib(m.value)} />
-                <div>
-                  <strong>{m.label}</strong>
-                  <p>{m.desc}</p>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {modoDistrib === 'percentual' && (
-            <div className="disparo-distrib-percentual">
-              <h4>Percentuais</h4>
-              {variacoes.filter(v => v.ativa).map(v => (
-                <div key={v.id} className="disparo-perc-linha">
-                  <span>{v.nome}</span>
-                  <input
-                    type="number" min="0" max="100" step="1"
-                    value={configPerc[v.id] ?? ''}
-                    onChange={e => setConfigPerc(p => ({ ...p, [v.id]: e.target.value }))}
-                    className="disparo-perc-input"
-                  />
-                  <span>%</span>
-                </div>
-              ))}
-              <div className={`disparo-perc-soma${Math.abs(somaPerc - 100) > 0.01 ? ' erro' : ' ok'}`}>
-                Soma: {somaPerc.toFixed(1)}%{Math.abs(somaPerc - 100) > 0.01 ? ' (deve ser 100%)' : ' ✅'}
-              </div>
-            </div>
-          )}
-
-          <div className="disparo-distrib-acoes">
-            <button className="disparo-btn-secundario" onClick={handlePreviewDistrib} disabled={salvando}>
-              {salvando ? 'Calculando…' : 'Calcular prévia'}
-            </button>
-            {planoPreview && <DistribuicaoPreview plano={planoPreview} totalDestinatarios={totalDestinatarios} />}
-          </div>
-
-          {confirmado ? (
-            <div className="disparo-confirmado-banner">
-              ✅ Distribuição confirmada.{campanha?.variacao_revisao ? ' ⚠️ Revisão necessária.' : ''}
-              <button className="disparo-btn-link" onClick={handleRecalcular}>Recalcular</button>
+          {!variacoes.length ? (
+            <div className="msg-sidebar__empty">
+              <div className="msg-sidebar__empty-icon">💬</div>
+              <p className="msg-sidebar__empty-txt">Nenhuma variação ainda</p>
+              <button className="msg-btn-primary msg-btn--sm" onClick={criarNovaVariacao}>
+                Criar primeira variação
+              </button>
             </div>
           ) : (
-            <button className="disparo-btn-primario" onClick={handleConfirmarDistrib} disabled={confirmando || bloqueantes.length > 0}>
-              {confirmando ? 'Confirmando…' : 'Confirmar distribuição'}
-            </button>
-          )}
-
-          {bloqueantes.length > 0 && (
-            <ul className="disparo-bloqueantes">
-              {bloqueantes.map((b, i) => <li key={i}>{b}</li>)}
+            <ul className="msg-var-list">
+              {variacoes.map(v => {
+                const tipo = TIPO_MAP[v.tipo_mensagem] ?? TIPO_MAP.texto
+                const ausentes = varsAusentes(v.texto, valoresPadrao)
+                return (
+                  <li
+                    key={v.id}
+                    className={`msg-var-item${varAtiva === v.id ? ' is-active' : ''}${!v.ativa ? ' is-inactive' : ''}`}
+                    onClick={() => setVarAtiva(v.id)}
+                  >
+                    <div className="msg-var-item__tipo-dot" style={{ background: tipo.color }} />
+                    <div className="msg-var-item__body">
+                      <span className="msg-var-item__nome">{v.nome}</span>
+                      <div className="msg-var-item__meta">
+                        <span className="msg-var-item__badge" style={{ background: tipo.color + '18', color: tipo.color }}>
+                          {tipo.icon} {tipo.label}
+                        </span>
+                        {!v.ativa && <span className="msg-var-item__badge msg-badge--off">pausada</span>}
+                        {ausentes.length > 0 && <span className="msg-var-item__badge msg-badge--warn">⚠ vars</span>}
+                      </div>
+                    </div>
+                    <div className="msg-var-item__acoes" onClick={e => e.stopPropagation()}>
+                      <button
+                        className="msg-icon-btn"
+                        title="Duplicar variação"
+                        onClick={() => handleDuplicar(v.id)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                      </button>
+                      <button
+                        className="msg-icon-btn"
+                        title={v.ativa ? 'Pausar variação' : 'Ativar variação'}
+                        onClick={() => handleToggle(v.id, v.ativa)}
+                      >
+                        {v.ativa
+                          ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                          : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        }
+                      </button>
+                      <button
+                        className="msg-icon-btn msg-icon-btn--danger"
+                        title="Excluir variação"
+                        onClick={() => handleExcluir(v.id)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
-        </div>
-      )}
+        </aside>
 
-      {/* ═══ ABA: RESUMO ════════════════════════════════════════════ */}
-      {abaAtiva === 'resumo' && (
-        <div className="disparo-resumo-layout">
-          {resumo && <ResumoMensagens resumo={resumo} />}
-        </div>
-      )}
+        {/* ╔══════════════════════════╗
+            ║  Coluna 2 — Editor      ║
+            ╚══════════════════════════╝ */}
+        <main className="msg-editor">
+          {!varSel ? (
+            <div className="msg-editor__empty">
+              <div className="msg-editor__empty-icon">✏️</div>
+              <p className="msg-editor__empty-title">Nenhuma variação selecionada</p>
+              <p className="msg-editor__empty-desc">Selecione uma variação na lista ou crie uma nova para começar a editar.</p>
+              <button className="msg-btn-primary" onClick={criarNovaVariacao}>Criar variação</button>
+            </div>
+          ) : (
+            <>
+              {/* Cabeçalho do editor */}
+              <div className="msg-editor__header">
+                <NomeInline nome={varSel.nome} onSalvar={salvarNome} />
+                <div className="msg-editor__tipo-row">
+                  <span className="msg-editor__tipo-label">Tipo de mensagem</span>
+                  <div className="msg-tipo-pills">
+                    {TIPOS.map(t => (
+                      <button
+                        key={t.value}
+                        className={`msg-tipo-pill${varSel.tipo_mensagem === t.value ? ' is-active' : ''}`}
+                        style={varSel.tipo_mensagem === t.value ? { '--pill-color': t.color } : {}}
+                        onClick={() => salvarTipo(t.value)}
+                        title={t.desc}
+                      >
+                        <span>{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
-      {/* ── Rodapé do wizard ──────────────────────────────────────── */}
-      <div className="disparo-wizard-footer">
-        <button className="disparo-btn-secundario" onClick={onBack}>Voltar</button>
-        <div className="disparo-footer-right">
-          <button className="disparo-btn-secundario" onClick={carregarTudo}>Salvar rascunho</button>
+              {/* Área de texto */}
+              <TextareaEditor
+                varId={varSel.id}
+                texto={varSel.texto ?? ''}
+                onSalvar={salvarTexto}
+                onRef={r => { textaRef.current = r }}
+              />
+
+              {/* Variáveis rápidas */}
+              {catalogo?.variaveis?.length > 0 && (
+                <div className="msg-vars-barra">
+                  <span className="msg-vars-barra__label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    Inserir variável:
+                  </span>
+                  <div className="msg-vars-chips">
+                    {catalogo.variaveis.map(cv => (
+                      <button
+                        key={cv.chave}
+                        className={`msg-var-chip${cv.sem_valor > 0 ? ' msg-var-chip--warn' : ''}`}
+                        onClick={() => inserirVar(cv.chave)}
+                        title={cv.sem_valor > 0 ? `${cv.sem_valor} destinatário(s) sem este valor` : `Exemplo: ${cv.exemplo ?? '—'}`}
+                      >
+                        {`{{${cv.chave}}}`}
+                        {cv.sem_valor > 0 && <span className="msg-var-chip__warn">!</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Painel de mídia */}
+              {varSel.tipo_mensagem !== 'texto' && (
+                <MidiaUpload
+                  variacao={varSel}
+                  uploading={uploadingMidia}
+                  fileRef={fileRef}
+                  onUpload={handleUpload}
+                  onRemover={handleRemoverMidia}
+                />
+              )}
+
+              {/* Alertas de variáveis ausentes */}
+              {varsAusentes(varSel.texto, valoresPadrao).length > 0 && (
+                <div className="msg-alerta-vars">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <div>
+                    <strong>Variáveis sem valor padrão:</strong>{' '}
+                    {varsAusentes(varSel.texto, valoresPadrao).map(k => (
+                      <code key={k} className="msg-var-ausente-code">{`{{${k}}}`}</code>
+                    ))}
+                    <button className="msg-link" onClick={() => setPainelDir('variaveis')}>
+                      Definir padrões →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </main>
+
+        {/* ╔══════════════════════════════════╗
+            ║  Coluna 3 — Painel direito      ║
+            ╚══════════════════════════════════╝ */}
+        <aside className="msg-painel">
+
+          {/* Abas do painel */}
+          <div className="msg-painel__abas">
+            {[
+              { id: 'preview',      icon: '👁️',  label: 'Prévia' },
+              { id: 'variaveis',    icon: '🏷️',  label: 'Variáveis' },
+              { id: 'distribuicao', icon: '⚖️',  label: 'Distribuição' },
+            ].map(a => (
+              <button
+                key={a.id}
+                className={`msg-painel__aba${painelDir === a.id ? ' is-active' : ''}`}
+                onClick={() => setPainelDir(a.id)}
+              >
+                <span>{a.icon}</span>
+                <span>{a.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* ── Prévia ──────────────────────────────── */}
+          {painelDir === 'preview' && (
+            <div className="msg-preview-area">
+              <div className="msg-preview__dest-row">
+                <label className="msg-preview__dest-label">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  Destinatário para prévia
+                </label>
+                <select
+                  className="msg-select"
+                  value={previewDest ?? ''}
+                  onChange={e => setPreviewDest(e.target.value || null)}
+                >
+                  <option value="">Selecionar destinatário…</option>
+                  {listaDest.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.nome || d.telefone_normalizado}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="msg-wa-bg">
+                {previewLoading ? (
+                  <div className="msg-preview__loading">Carregando prévia…</div>
+                ) : previewData ? (
+                  <ChatPreview data={previewData} />
+                ) : varSel ? (
+                  <ChatBubbleSimples variacao={varSel} padrao={valoresPadrao} />
+                ) : (
+                  <div className="msg-preview__empty">Selecione uma variação para ver a prévia</div>
+                )}
+              </div>
+
+              {previewData?.variaveis_ausentes?.length > 0 && (
+                <div className="msg-preview__vars-ausentes">
+                  ⚠️ Variáveis não preenchidas para este destinatário:{' '}
+                  {previewData.variaveis_ausentes.map(k => (
+                    <code key={k} className="msg-var-ausente-code">{`{{${k}}}`}</code>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Variáveis ────────────────────────────── */}
+          {painelDir === 'variaveis' && (
+            <div className="msg-vars-area">
+              <div className="msg-section-header">
+                <div>
+                  <p className="msg-section-title">Catálogo de variáveis</p>
+                  <p className="msg-section-sub">
+                    {catalogo?.total_destinatarios ?? 0} destinatários na campanha
+                  </p>
+                </div>
+              </div>
+
+              {/* Lista de variáveis */}
+              <div className="msg-var-cards">
+                {(catalogo?.variaveis ?? []).map(cv => (
+                  <div key={cv.chave} className={`msg-var-card${cv.sem_valor > 0 ? ' msg-var-card--warn' : ''}`}>
+                    <div className="msg-var-card__top">
+                      <div className="msg-var-card__info">
+                        <code className="msg-var-card__chave">{`{{${cv.chave}}}`}</code>
+                        {cv.sistema && <span className="msg-badge msg-badge--sistema">sistema</span>}
+                      </div>
+                      <button
+                        className="msg-var-inserir-btn"
+                        onClick={() => inserirVar(cv.chave)}
+                        title="Inserir no editor"
+                      >
+                        + Inserir
+                      </button>
+                    </div>
+                    <div className="msg-var-card__stats">
+                      <span className="msg-var-stat msg-var-stat--ok">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        {cv.total_com_valor} com valor
+                      </span>
+                      {cv.sem_valor > 0 && (
+                        <span className="msg-var-stat msg-var-stat--warn">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/><circle cx="12" cy="12" r="10"/></svg>
+                          {cv.sem_valor} sem valor
+                        </span>
+                      )}
+                    </div>
+                    {cv.exemplo && <p className="msg-var-card__exemplo">Ex: {cv.exemplo}</p>}
+
+                    {/* Campo de valor padrão */}
+                    {!cv.sistema && cv.sem_valor > 0 && (
+                      <div className="msg-var-padrao">
+                        <label className="msg-var-padrao__label">Valor padrão se ausente:</label>
+                        <input
+                          type="text"
+                          className="msg-input msg-input--sm"
+                          placeholder={`Padrão para ${cv.chave}…`}
+                          value={valoresPadrao[cv.chave] ?? ''}
+                          onChange={e => setValoresPadrao(p => ({ ...p, [cv.chave]: e.target.value }))}
+                          maxLength={200}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {(catalogo?.variaveis ?? []).some(cv => !cv.sistema && cv.sem_valor > 0) && (
+                <button
+                  className="msg-btn-primary msg-btn--full"
+                  onClick={salvarPadroes}
+                  disabled={salvando}
+                >
+                  {salvando ? 'Salvando…' : '💾 Salvar valores padrão'}
+                </button>
+              )}
+
+              {!(catalogo?.variaveis ?? []).some(cv => !cv.sistema && cv.sem_valor > 0) && (
+                <div className="msg-vars-ok">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/></svg>
+                  Todas as variáveis têm valores para todos os destinatários.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Distribuição ─────────────────────────── */}
+          {painelDir === 'distribuicao' && (
+            <div className="msg-distrib-area">
+              <div className="msg-section-header">
+                <div>
+                  <p className="msg-section-title">Distribuição das variações</p>
+                  <p className="msg-section-sub">Como as mensagens serão divididas entre os destinatários</p>
+                </div>
+              </div>
+
+              <div className="msg-modos">
+                {MODOS_DIST.map(m => (
+                  <label
+                    key={m.value}
+                    className={`msg-modo${modoDistrib === m.value ? ' is-active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="modo"
+                      value={m.value}
+                      checked={modoDistrib === m.value}
+                      onChange={() => { setModoDistrib(m.value); setPlano(null) }}
+                    />
+                    <span className="msg-modo__icon">{m.icon}</span>
+                    <div className="msg-modo__texto">
+                      <strong>{m.label}</strong>
+                      <p>{m.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {/* Configuração de percentuais */}
+              {modoDistrib === 'percentual' && (
+                <PercConfig
+                  variacoes={ativas}
+                  config={configPerc}
+                  onChange={setConfigPerc}
+                />
+              )}
+
+              {/* Plano calculado */}
+              {plano && <PlanoBarra plano={plano} />}
+
+              <div className="msg-distrib-btns">
+                <button
+                  className="msg-btn-ghost"
+                  onClick={calcularPlano}
+                  disabled={calculando || !ativas.length}
+                >
+                  {calculando ? 'Calculando…' : '🔍 Calcular prévia'}
+                </button>
+
+                {!confirmado ? (
+                  <button
+                    className="msg-btn-primary"
+                    onClick={handleConfirmar}
+                    disabled={confirmando || !ativas.length || (modoDistrib === 'percentual' && Math.abs(ativas.reduce((s, v) => s + Number(configPerc[v.id] ?? 0), 0) - 100) > 0.01)}
+                  >
+                    {confirmando ? 'Confirmando…' : '✅ Confirmar distribuição'}
+                  </button>
+                ) : (
+                  <div className="msg-confirmado">
+                    <div className="msg-confirmado__info">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/><circle cx="12" cy="12" r="10"/></svg>
+                      Distribuição confirmada
+                    </div>
+                    <button className="msg-link" onClick={handleRecalcular}>Recalcular</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Mini resumo */}
+              {resumo && <MiniResumo resumo={resumo} />}
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {/* ── Rodapé do wizard ─────────────────────────── */}
+      <footer className="msg-footer">
+        <button className="msg-btn-ghost" onClick={onBack}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Voltar
+        </button>
+
+        <div className="msg-footer__center">
+          {bloqueantes.length > 0 && (
+            <div className="msg-footer__bloqueantes">
+              {bloqueantes.map((b, i) => <span key={i}>⛔ {b}</span>)}
+            </div>
+          )}
+        </div>
+
+        <div className="msg-footer__right">
+          <button className="msg-btn-ghost" onClick={carregar} disabled={salvando}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Salvar rascunho
+          </button>
           <button
-            className="disparo-btn-primario"
-            onClick={handleContinuar}
+            className="msg-btn-primary"
+            onClick={() => { if (!bloqueantes.length) onNext?.() }}
             disabled={bloqueantes.length > 0}
-            title={bloqueantes.length ? bloqueantes[0] : ''}
+            title={bloqueantes[0] ?? ''}
           >
-            Continuar →
+            Continuar
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
-      </div>
+      </footer>
 
     </div>
   )
@@ -635,218 +809,345 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
 
 // ── Subcomponentes ────────────────────────────────────────────────────────────
 
-function NomeEditor({ nome, onSalvar, onCancelar }) {
-  const [v, setV] = useState(nome)
+function MensagensLoading() {
   return (
-    <div className="disparo-nome-editor">
-      <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') onSalvar(v); if (e.key === 'Escape') onCancelar() }} autoFocus maxLength={100} className="disparo-nome-input" />
-      <button onClick={() => onSalvar(v)} className="disparo-btn-icon">✓</button>
-      <button onClick={onCancelar} className="disparo-btn-icon">✕</button>
+    <div className="msg-loading">
+      {[1, 2, 3].map(i => <div key={i} className="msg-skeleton" />)}
     </div>
   )
 }
 
-function TextEditor({ varId, texto, onSalvar, salvando, textareaRef }) {
+function NomeInline({ nome, onSalvar }) {
+  const [editando, setEditando] = useState(false)
+  const [val, setVal]           = useState(nome)
+  const ref = useRef(null)
+
+  useEffect(() => { setVal(nome) }, [nome])
+  useEffect(() => { if (editando) ref.current?.focus() }, [editando])
+
+  function confirmar() {
+    onSalvar(val.trim() || nome)
+    setEditando(false)
+  }
+
+  if (!editando) return (
+    <button className="msg-nome-btn" onClick={() => setEditando(true)} title="Clique para renomear">
+      <span>{nome}</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>
+  )
+
+  return (
+    <div className="msg-nome-edit">
+      <input
+        ref={ref}
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') confirmar(); if (e.key === 'Escape') setEditando(false) }}
+        maxLength={100}
+        className="msg-input"
+      />
+      <button className="msg-btn-primary msg-btn--sm" onClick={confirmar}>Salvar</button>
+      <button className="msg-btn-ghost msg-btn--sm" onClick={() => setEditando(false)}>Cancelar</button>
+    </div>
+  )
+}
+
+function TextareaEditor({ varId, texto, onSalvar, onRef }) {
   const [local, setLocal] = useState(texto)
-  const timerRef = useRef(null)
+  const timer = useRef(null)
+  const ref   = useRef(null)
 
   useEffect(() => { setLocal(texto) }, [varId, texto])
 
-  function handleChange(e) {
-    const val = e.target.value
-    setLocal(val)
-    clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => onSalvar(val), 1200)
+  function onChange(e) {
+    const v = e.target.value
+    setLocal(v)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => onSalvar(v), 1200)
   }
 
+  useEffect(() => { if (onRef && ref.current) onRef(ref.current) }, [onRef])
+
   const excedido = local.length > 4000
+  const pct = Math.min(100, (local.length / 4096) * 100)
 
   return (
-    <div className="disparo-textarea-wrap">
+    <div className="msg-textarea-wrap">
       <textarea
-        ref={textareaRef}
+        ref={ref}
         value={local}
-        onChange={handleChange}
-        placeholder="Digite o texto da mensagem…&#10;&#10;Use {{nome}}, {{telefone}}, {{cidade}} para personalizar."
-        rows={8}
-        className={`disparo-textarea${excedido ? ' excedido' : ''}`}
+        onChange={onChange}
+        className={`msg-textarea${excedido ? ' is-over' : ''}`}
+        placeholder={'Digite o texto da mensagem…\n\nUse {{nome}}, {{telefone}}, {{cidade}} para personalizar.'}
+        rows={7}
         maxLength={5000}
+        spellCheck
       />
-      <div className="disparo-textarea-footer">
-        <span className={`disparo-char-count${excedido ? ' excedido' : ''}`}>{local.length} / 5000</span>
-        {excedido && <span className="disparo-alerta-longo">⚠️ Texto muito longo para WhatsApp</span>}
-        {salvando && <span className="disparo-salvando-hint">salvando…</span>}
+      <div className="msg-textarea__bar">
+        <div className="msg-textarea__ring" title={`${local.length} caracteres`}>
+          <svg width="20" height="20" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="#e2e8f0" strokeWidth="2"/>
+            <circle
+              cx="10" cy="10" r="8"
+              fill="none"
+              stroke={excedido ? '#ef4444' : pct > 75 ? '#f59e0b' : '#128c7e'}
+              strokeWidth="2"
+              strokeDasharray={`${2 * Math.PI * 8}`}
+              strokeDashoffset={`${2 * Math.PI * 8 * (1 - pct / 100)}`}
+              strokeLinecap="round"
+              transform="rotate(-90 10 10)"
+            />
+          </svg>
+        </div>
+        <span className={`msg-textarea__count${excedido ? ' is-over' : ''}`}>{local.length}</span>
+        {excedido && <span className="msg-textarea__aviso">⚠ Texto muito longo para WhatsApp</span>}
+        <span className="msg-textarea__hint">Salvamento automático ativo</span>
       </div>
     </div>
   )
 }
 
-function MidiaPanel({ variacao, uploadingMidia, fileRef, onUpload, onRemover }) {
-  const aceitaMime = variacao.tipo_mensagem === 'imagem'    ? 'image/jpeg,image/png,image/webp,image/gif'
-                   : variacao.tipo_mensagem === 'video'     ? 'video/mp4,video/3gpp,video/quicktime'
-                   : variacao.tipo_mensagem === 'audio'     ? 'audio/mpeg,audio/ogg,audio/aac,audio/opus'
-                   : /* documento */ '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.txt,.csv,.zip'
+function MidiaUpload({ variacao, uploading, fileRef, onUpload, onRemover }) {
+  const tipo = TIPO_MAP[variacao.tipo_mensagem] ?? TIPO_MAP.texto
+  const aceitaMime = {
+    imagem:    'image/jpeg,image/png,image/webp,image/gif',
+    video:     'video/mp4,video/3gpp,video/quicktime',
+    audio:     'audio/mpeg,audio/ogg,audio/aac,audio/opus',
+    documento: '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.txt,.csv,.zip',
+  }[variacao.tipo_mensagem] ?? '*'
+
+  const limites = {
+    imagem: '5 MB', video: '32 MB', audio: '16 MB', documento: '100 MB',
+  }[variacao.tipo_mensagem] ?? ''
 
   return (
-    <div className="disparo-midia-panel">
-      <div className="disparo-midia-label">
-        <strong>Mídia</strong>
-        <span className="disparo-midia-tipo-hint">({variacao.tipo_mensagem})</span>
+    <div className="msg-midia-panel">
+      <div className="msg-midia-panel__header">
+        <span className="msg-midia-panel__titulo" style={{ color: tipo.color }}>
+          {tipo.icon} Arquivo {tipo.label}
+        </span>
+        <span className="msg-midia-panel__dica">Máximo {limites}</span>
       </div>
 
       {variacao.midia_url ? (
-        <div className="disparo-midia-preview">
-          {variacao.tipo_mensagem === 'imagem' && <img src={variacao.midia_url} alt={variacao.midia_nome_original} className="disparo-midia-thumb" />}
-          {variacao.tipo_mensagem === 'audio'  && <audio controls src={variacao.midia_url} className="disparo-midia-audio" />}
-          {variacao.tipo_mensagem === 'video'  && <video controls src={variacao.midia_url} className="disparo-midia-video" />}
-          {variacao.tipo_mensagem === 'documento' && (
-            <div className="disparo-midia-doc">
-              📄 {variacao.midia_nome_original} ({variacao.midia_mime}) — {Math.round((variacao.midia_tamanho ?? 0) / 1024)} KB
+        <div className="msg-midia-preview">
+          {variacao.tipo_mensagem === 'imagem' && (
+            <img src={variacao.midia_url} alt={variacao.midia_nome_original} className="msg-midia-img" />
+          )}
+          {variacao.tipo_mensagem === 'audio' && (
+            <div className="msg-midia-audio-wrap">
+              <audio controls src={variacao.midia_url} className="msg-midia-audio" />
             </div>
           )}
-          <button onClick={onRemover} className="disparo-btn-link perigo">Remover mídia</button>
+          {variacao.tipo_mensagem === 'video' && (
+            <video controls src={variacao.midia_url} className="msg-midia-video" />
+          )}
+          {variacao.tipo_mensagem === 'documento' && (
+            <div className="msg-midia-doc">
+              <div className="msg-midia-doc__icon">📄</div>
+              <div className="msg-midia-doc__info">
+                <span className="msg-midia-doc__nome">{variacao.midia_nome_original}</span>
+                <span className="msg-midia-doc__meta">{variacao.midia_mime} · {fmtBytes(variacao.midia_tamanho)}</span>
+              </div>
+            </div>
+          )}
+          <button className="msg-midia-remover" onClick={onRemover}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Remover
+          </button>
         </div>
       ) : (
-        <div className="disparo-midia-upload">
-          <input ref={fileRef} type="file" accept={aceitaMime} onChange={onUpload} id="midia-upload-input" style={{ display: 'none' }} />
-          <label htmlFor="midia-upload-input" className={`disparo-upload-label${uploadingMidia ? ' carregando' : ''}`}>
-            {uploadingMidia ? '⏳ Enviando…' : '📎 Selecionar arquivo'}
-          </label>
-          <span className="disparo-midia-hint">
-            {variacao.tipo_mensagem === 'imagem' && 'JPG, PNG, WebP, GIF — máx 5 MB'}
-            {variacao.tipo_mensagem === 'video'  && 'MP4, 3GP, MOV — máx 32 MB'}
-            {variacao.tipo_mensagem === 'audio'  && 'MP3, OGG, AAC, Opus — máx 16 MB'}
-            {variacao.tipo_mensagem === 'documento' && 'PDF, DOCX, XLSX, etc. — máx 100 MB'}
-          </span>
-        </div>
+        <label className={`msg-midia-upload${uploading ? ' is-loading' : ''}`} htmlFor="midia-input">
+          <input
+            id="midia-input"
+            ref={fileRef}
+            type="file"
+            accept={aceitaMime}
+            onChange={onUpload}
+            style={{ display: 'none' }}
+          />
+          <div className="msg-midia-upload__icon" style={{ color: tipo.color }}>{tipo.icon}</div>
+          <p className="msg-midia-upload__label">
+            {uploading ? '⏳ Enviando arquivo…' : `Clique para selecionar ${tipo.label.toLowerCase()}`}
+          </p>
+          <p className="msg-midia-upload__hint">
+            {!uploading && (
+              variacao.tipo_mensagem === 'imagem'    ? 'JPG, PNG, WebP, GIF — máx 5 MB' :
+              variacao.tipo_mensagem === 'video'     ? 'MP4, 3GP, MOV — máx 32 MB' :
+              variacao.tipo_mensagem === 'audio'     ? 'MP3, OGG, AAC, Opus — máx 16 MB' :
+              variacao.tipo_mensagem === 'documento' ? 'PDF, DOCX, XLSX e outros — máx 100 MB' : ''
+            )}
+          </p>
+        </label>
       )}
     </div>
   )
 }
 
-function BubbleSimples({ variacao, valoresPadrao }) {
-  const textoExibido = substituirVarsLocal(variacao.texto ?? '', { nome: 'Destinatário', telefone: '11999999999', ...valoresPadrao })
+function ChatBubbleSimples({ variacao, padrao }) {
+  const tipo = TIPO_MAP[variacao.tipo_mensagem] ?? TIPO_MAP.texto
+  const texto = substituirVarsLocal(variacao.texto ?? '', {
+    nome: 'Destinatário', telefone: '11 9 9999-9999', ...padrao,
+  })
+
   return (
-    <div className="disparo-bubble-wrap">
+    <div className="msg-wa-bubbles">
       {variacao.midia_url && variacao.tipo_mensagem === 'imagem' && (
-        <img src={variacao.midia_url} alt="prévia" className="disparo-bubble-img" />
+        <div className="msg-bubble msg-bubble--media">
+          <img src={variacao.midia_url} alt="" className="msg-bubble__img" />
+          {texto && <p className="msg-bubble__legenda">{texto}</p>}
+        </div>
       )}
       {variacao.midia_url && variacao.tipo_mensagem === 'audio' && (
-        <audio controls src={variacao.midia_url} className="disparo-bubble-audio" />
+        <div className="msg-bubble msg-bubble--audio">
+          <audio controls src={variacao.midia_url} style={{ width: '100%', height: 32 }} />
+        </div>
       )}
       {variacao.midia_url && variacao.tipo_mensagem === 'documento' && (
-        <div className="disparo-bubble-doc">📄 {variacao.midia_nome_original}</div>
-      )}
-      {textoExibido && (
-        <div className="disparo-bubble">
-          <p className="disparo-bubble-text">{textoExibido}</p>
-          <span className="disparo-bubble-hora">12:00</span>
-        </div>
-      )}
-      {!textoExibido && !variacao.midia_url && <p className="disparo-empty-state">Sem conteúdo ainda.</p>}
-    </div>
-  )
-}
-
-function PreviewBubble({ preview }) {
-  return (
-    <div className="disparo-bubble-wrap">
-      <div className="disparo-preview-info">
-        <strong>{preview.destinatario?.nome || preview.destinatario?.telefone}</strong>
-        <span className="disparo-preview-var-nome">Variação: {preview.variacao?.nome ?? 'não atribuída'}</span>
-        {preview.variaveis_ausentes?.length > 0 && (
-          <span className="disparo-preview-alerta">⚠️ Variáveis sem valor: {preview.variaveis_ausentes.join(', ')}</span>
-        )}
-      </div>
-      {preview.variacao?.midia_url && preview.variacao?.tipo_mensagem === 'imagem' && (
-        <img src={preview.variacao.midia_url} alt="prévia" className="disparo-bubble-img" />
-      )}
-      {preview.variacao?.midia_url && preview.variacao?.tipo_mensagem === 'audio' && (
-        <audio controls src={preview.variacao.midia_url} className="disparo-bubble-audio" />
-      )}
-      {preview.variacao?.midia_url && preview.variacao?.tipo_mensagem === 'documento' && (
-        <div className="disparo-bubble-doc">📄 {preview.variacao.midia_nome_original}</div>
-      )}
-      {preview.texto_substituido && (
-        <div className="disparo-bubble">
-          <p className="disparo-bubble-text">{preview.texto_substituido}</p>
-          <span className="disparo-bubble-hora">12:00</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DistribuicaoPreview({ plano, totalDestinatarios }) {
-  const N = plano.total || totalDestinatarios || 1
-  return (
-    <div className="disparo-distrib-preview">
-      <h4>Prévia da distribuição</h4>
-      {(plano.variacoes ?? []).map(vp => (
-        <div key={vp.variacao_id} className="disparo-distrib-barra-linha">
-          <span className="disparo-distrib-barra-nome">{vp.nome}</span>
-          <div className="disparo-distrib-barra-fundo">
-            <div className="disparo-distrib-barra-fill" style={{ width: `${vp.percentual}%` }} />
+        <div className="msg-bubble msg-bubble--doc">
+          <div className="msg-bubble-doc">
+            <div className="msg-bubble-doc__icon">📄</div>
+            <div>
+              <p className="msg-bubble-doc__nome">{variacao.midia_nome_original ?? 'documento'}</p>
+              <p className="msg-bubble-doc__meta">{variacao.midia_mime}</p>
+            </div>
           </div>
-          <span className="disparo-distrib-barra-pct">{vp.quantidade} ({vp.percentual}%)</span>
+          {texto && <p className="msg-bubble__legenda">{texto}</p>}
+        </div>
+      )}
+      {(variacao.tipo_mensagem === 'texto' || (!variacao.midia_url && texto)) && texto && (
+        <div className="msg-bubble">
+          <p className="msg-bubble__texto">{texto}</p>
+          <div className="msg-bubble__rodape">
+            <span className="msg-bubble__hora">12:00</span>
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 5l3 3 9-7" stroke="#4fc3f7" strokeWidth="1.5" strokeLinecap="round"/><path d="M4 5l3 3 9-7" stroke="#4fc3f7" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </div>
+        </div>
+      )}
+      {!texto && !variacao.midia_url && (
+        <div className="msg-wa-empty">Escreva uma mensagem para visualizar a prévia</div>
+      )}
+    </div>
+  )
+}
+
+function ChatPreview({ data }) {
+  return (
+    <div className="msg-wa-bubbles">
+      {data.variacao?.midia_url && data.variacao.tipo_mensagem === 'imagem' && (
+        <div className="msg-bubble msg-bubble--media">
+          <img src={data.variacao.midia_url} alt="" className="msg-bubble__img" />
+          {data.legenda_substituida && <p className="msg-bubble__legenda">{data.legenda_substituida}</p>}
+        </div>
+      )}
+      {data.variacao?.midia_url && data.variacao.tipo_mensagem === 'audio' && (
+        <div className="msg-bubble msg-bubble--audio">
+          <audio controls src={data.variacao.midia_url} style={{ width: '100%', height: 32 }} />
+        </div>
+      )}
+      {data.texto_substituido && (
+        <div className="msg-bubble">
+          <p className="msg-bubble__texto">{data.texto_substituido}</p>
+          <div className="msg-bubble__rodape">
+            <span className="msg-bubble__hora">12:00</span>
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 5l3 3 9-7" stroke="#4fc3f7" strokeWidth="1.5" strokeLinecap="round"/><path d="M4 5l3 3 9-7" stroke="#4fc3f7" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </div>
+        </div>
+      )}
+      <div className="msg-preview__meta">
+        <span>🏷 <strong>Variação:</strong> {data.variacao?.nome ?? '—'}</span>
+        {data.instancia_id && <span>📡 <strong>Instância:</strong> {data.instancia_id}</span>}
+      </div>
+    </div>
+  )
+}
+
+function PercConfig({ variacoes, config, onChange }) {
+  const soma = variacoes.reduce((s, v) => s + Number(config[v.id] ?? 0), 0)
+  const ok   = Math.abs(soma - 100) < 0.01
+
+  return (
+    <div className="msg-perc-config">
+      <div className="msg-perc-config__header">
+        <span className="msg-section-sub">Percentual por variação</span>
+        <span className={`msg-perc-soma${ok ? ' is-ok' : ' is-error'}`}>
+          {soma.toFixed(1)}%{ok ? ' ✓' : ' (deve ser 100%)'}
+        </span>
+      </div>
+      {variacoes.map(v => (
+        <div key={v.id} className="msg-perc-linha">
+          <span className="msg-perc-linha__nome">{v.nome}</span>
+          <div className="msg-perc-linha__input-wrap">
+            <input
+              type="number" min="0" max="100" step="1"
+              className="msg-input msg-input--num"
+              value={config[v.id] ?? ''}
+              onChange={e => onChange(p => ({ ...p, [v.id]: e.target.value }))}
+            />
+            <span className="msg-perc-linha__sym">%</span>
+          </div>
         </div>
       ))}
-      {(plano.sem_variacao ?? 0) > 0 && (
-        <p className="disparo-alerta-sem-var">⚠️ {plano.sem_variacao} destinatário(s) sem variação atribuída.</p>
-      )}
     </div>
   )
 }
 
-function ResumoMensagens({ resumo }) {
+function PlanoBarra({ plano }) {
+  const N = plano.total || 1
+  const cores = ['#128c7e','#8b5cf6','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6']
+
   return (
-    <div className="disparo-resumo">
-      <h3>Resumo das mensagens</h3>
-      <div className="disparo-resumo-grid">
-        <div className="disparo-resumo-card">
+    <div className="msg-plano">
+      <p className="msg-plano__titulo">Distribuição calculada — {plano.total} destinatários</p>
+      <div className="msg-plano__barra-total">
+        {(plano.variacoes ?? []).map((vp, i) => (
+          vp.quantidade > 0 && (
+            <div
+              key={vp.variacao_id}
+              className="msg-plano__segmento"
+              style={{ width: `${vp.percentual}%`, background: cores[i % cores.length] }}
+              title={`${vp.nome}: ${vp.quantidade} (${vp.percentual}%)`}
+            />
+          )
+        ))}
+      </div>
+      <div className="msg-plano__linhas">
+        {(plano.variacoes ?? []).map((vp, i) => (
+          <div key={vp.variacao_id} className="msg-plano__linha">
+            <span className="msg-plano__dot" style={{ background: cores[i % cores.length] }} />
+            <span className="msg-plano__nome">{vp.nome}</span>
+            <span className="msg-plano__qtd"><strong>{vp.quantidade}</strong> dest.</span>
+            <span className="msg-plano__pct">{vp.percentual}%</span>
+          </div>
+        ))}
+        {(plano.sem_variacao ?? 0) > 0 && (
+          <div className="msg-plano__sem-var">
+            ⚠ {plano.sem_variacao} sem variação
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MiniResumo({ resumo }) {
+  return (
+    <div className="msg-mini-resumo">
+      <div className="msg-mini-resumo__grid">
+        <div className="msg-mini-resumo__card">
           <strong>{(resumo.variacoes ?? []).filter(v => v.ativa).length}</strong>
           <span>Variações ativas</span>
         </div>
-        <div className="disparo-resumo-card">
+        <div className="msg-mini-resumo__card">
           <strong>{resumo.total_destinatarios}</strong>
-          <span>Total de destinatários</span>
+          <span>Destinatários</span>
         </div>
-        <div className={`disparo-resumo-card${(resumo.sem_variacao ?? 0) > 0 ? ' alerta' : ''}`}>
+        <div className={`msg-mini-resumo__card${(resumo.sem_variacao ?? 0) > 0 ? ' is-warn' : ' is-ok'}`}>
           <strong>{resumo.sem_variacao ?? 0}</strong>
           <span>Sem variação</span>
         </div>
-        <div className={`disparo-resumo-card${resumo.variacao_confirmada ? ' ok' : ''}`}>
-          <strong>{resumo.variacao_confirmada ? '✅' : '⏳'}</strong>
-          <span>Distribuição {resumo.variacao_confirmada ? 'confirmada' : 'pendente'}</span>
-        </div>
       </div>
-
-      <table className="disparo-resumo-table">
-        <thead>
-          <tr>
-            <th>Variação</th>
-            <th>Tipo</th>
-            <th>Destinatários</th>
-            <th>% real</th>
-            <th>Ativa</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(resumo.variacoes ?? []).map(v => (
-            <tr key={v.id}>
-              <td>{v.nome}</td>
-              <td>{ICONE_TIPO[v.tipo_mensagem]} {v.tipo_mensagem}</td>
-              <td>{v.destinatarios_atribuidos ?? 0}</td>
-              <td>{v.percentual_real ?? 0}%</td>
-              <td>{v.ativa ? '✅' : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {resumo.variacao_revisao && (
-        <div className="disparo-alerta-revisao">⚠️ Necessita revisão após alterações recentes.</div>
-      )}
     </div>
   )
 }
