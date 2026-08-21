@@ -58,7 +58,6 @@ const TABS = [
   { id: "limites", label: "Limites de Atendimento" },
   { id: "bot", label: "ChatBot / IA" },
   { id: "clientes", label: "Clientes" },
-  { id: "planos", label: "Planos" },
   { id: "auditoria", label: "Auditoria" },
 ];
 
@@ -97,7 +96,6 @@ export default function Configuracoes() {
   const [clientesTotal, setClientesTotal] = useState(0);
   const [clientesLoadingMore, setClientesLoadingMore] = useState(false);
   const clientesPageRef = useRef(1);
-  const [planos, setPlanos] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [empresasWhatsapp, setEmpresasWhatsapp] = useState([]);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -158,14 +156,13 @@ export default function Configuracoes() {
         setRespostas(resp);
         return;
       }
-      const [emp, usr, dep, tag, resp, cliRes, plan, aud, ew] = await Promise.all([
+      const [emp, usr, dep, tag, resp, cliRes, aud, ew] = await Promise.all([
         cfg.getEmpresa().catch(() => null),
         cfg.getUsuarios().catch(() => []),
         cfg.getDepartamentos().catch(() => []),
         cfg.getTags().catch(() => []),
         cfg.getRespostasSalvas().catch(() => []),
         cfg.getClientesComTotal({ page: 1, limit: CLIENTES_PAGE_LIMIT }).catch(() => ({ clientes: [], total: 0 })),
-        cfg.getPlanos().catch(() => []),
         cfg.getAuditoria(100).catch(() => []),
         cfg.getEmpresasWhatsapp().catch(() => []),
       ]);
@@ -177,7 +174,6 @@ export default function Configuracoes() {
       setClientes(cliRes?.clientes || []);
       setClientesTotal(Number(cliRes?.total) || 0);
       clientesPageRef.current = 1;
-      setPlanos(plan);
       setAuditoria(aud);
       setEmpresasWhatsapp(ew);
     } catch (e) {
@@ -366,9 +362,6 @@ export default function Configuracoes() {
               return updated;
             }}
           />
-        )}
-        {tab === "planos" && (
-          <SecaoPlanos planos={planos} />
         )}
         {tab === "auditoria" && (
           <SecaoAuditoria auditoria={auditoria} onRefresh={loadAll} />
@@ -1997,35 +1990,6 @@ function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContacts, onS
   );
 }
 
-function SecaoPlanos({ planos }) {
-  return (
-    <div className="ia-section">
-      <h4>Planos</h4>
-      <p className="ia-muted">Limites de atendentes, conversas e mensagens.</p>
-      <table className="ia-table">
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Atendentes</th>
-            <th>Conversas</th>
-            <th>Mensagens</th>
-          </tr>
-        </thead>
-        <tbody>
-          {planos.map((p) => (
-            <tr key={p.id}>
-              <td>{p.nome || "—"}</td>
-              <td>{p.limite_atendentes ?? "—"}</td>
-              <td>{p.limite_conversas ?? "—"}</td>
-              <td>{p.limite_mensagens ?? "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function SecaoAuditoria({ auditoria, onRefresh }) {
   return (
     <div className="ia-section">
@@ -2602,6 +2566,7 @@ function ModalImportarClientes({ onClose, onImported }) {
                 <span className="ia-muted">Clientes já existentes</span><strong>{resumo.clientesJaExistentes ?? 0}</strong>
                 <span className="ia-muted">Tags criadas</span><strong>{resumo.tagsCriadas ?? 0}</strong>
                 <span className="ia-muted">Tags vinculadas</span><strong>{resumo.tagsVinculadas ?? 0}</strong>
+                <span className="ia-muted">Tags antigas removidas</span><strong>{resumo.tagsRemovidas ?? 0}</strong>
                 <span className="ia-muted">Linhas ignoradas</span><strong>{resumo.linhasIgnoradas ?? 0}</strong>
                 <span className="ia-muted">Conflitos (conferir)</span><strong>{resumo.conflitos ?? 0}</strong>
                 {(resumo.falhas ?? 0) > 0 ? (

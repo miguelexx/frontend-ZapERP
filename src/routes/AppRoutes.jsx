@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { usePermissoesStore } from "../auth/permissoesStore";
-import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin } from "../auth/permissions";
+import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
 import ProtectedRoute from "./ProtectedRoute";
 
 import Login from "../pages/Login";
@@ -26,6 +26,8 @@ const Atalhos = lazy(() => import("../pages/Atalhos"));
 const InternalChat = lazy(() => import("../pages/InternalChat"));
 const Supervisao = lazy(() => import("../pages/Supervisao"));
 const HelpDesk = lazy(() => import("../pages/HelpDesk"));
+const DisparoMensagens = lazy(() => import("../pages/DisparoMensagens"));
+const DisparoWizardPage = lazy(() => import("../pages/DisparoWizardPage"));
 
 const CrmAvancadoRedirect = lazy(() => import("../crm/CrmAvancadoRedirect"));
 const CrmDashboard = lazy(() => import("../crm/pages/CrmDashboard"));
@@ -75,6 +77,7 @@ export default function AppRoutes() {
   const canAccessUsers = can("usuarios_acessar", user);
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
+  const canAccessDisparo = canAcessarDisparo(user);
 
   if (!token) {
     return (
@@ -248,6 +251,26 @@ export default function AppRoutes() {
             }
           />
           <Route path="/campanhas" element={<Navigate to="/atendimento" replace />} />
+          <Route
+            path="/disparo"
+            element={
+              <ProtectedRoute canAccess={canAccessDisparo} redirectTo="/atendimento">
+                <LazyPage>
+                  <DisparoMensagens />
+                </LazyPage>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disparo/campanhas/:id"
+            element={
+              <ProtectedRoute canAccess={canAccessDisparo} redirectTo="/atendimento">
+                <LazyPage>
+                  <DisparoWizardPage />
+                </LazyPage>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/mensagens"
             element={

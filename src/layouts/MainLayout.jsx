@@ -7,6 +7,7 @@ import {
   IconFilter,
   IconHeadset,
   IconLogout,
+  IconSpeakerphone,
   IconMessage2,
   IconRobot,
   IconSettings,
@@ -19,7 +20,7 @@ import {
 } from "@tabler/icons-react";
 import { useAuthStore } from "../auth/authStore";
 import { usePermissoesStore } from "../auth/permissoesStore";
-import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin } from "../auth/permissions";
+import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 import PushPermissionPrompt from "../push/PushPermissionPrompt";
 import {
@@ -84,6 +85,7 @@ export default function MainLayout() {
   const canAccessUsers = can("usuarios_acessar", user);
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
+  const canAccessDisparo = canAcessarDisparo(user);
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
   const navItems = useMemo(
@@ -151,6 +153,13 @@ export default function MainLayout() {
           accent: "crm",
         },
         {
+          to: "/disparo",
+          label: "Disparo",
+          title: "Disparo de Mensagens",
+          icon: IconSpeakerphone,
+          show: canAccessDisparo,
+        },
+        {
           to: "/configuracoes",
           label: "Configurações",
           title: "Configurações",
@@ -183,6 +192,7 @@ export default function MainLayout() {
       canAccessChatbot_,
       canAccessConfig,
       canAccessDashboard_,
+      canAccessDisparo,
       canAccessHelpDesk,
       canAccessRespostasSalvas,
       canAccessSupervisao,

@@ -62,6 +62,9 @@ const DEFAULT_CONFIG = {
     finalizar_por_ausencia_mensagem: "",
     finalizar_por_ausencia_reabrir_automaticamente: true,
     finalizar_por_ausencia_reabrir_sem_chatbot: true,
+    redirecionar_sem_resposta_ativo: false,
+    redirecionar_sem_resposta_minutos: 5,
+    redirecionar_sem_resposta_departamento_id: null,
   },
   admin_atendimento_alerta: {
     ativo: false,
@@ -1011,6 +1014,11 @@ function SecaoChatbotTriagem({
       finalizar_por_ausencia_mensagem: vals.finalizar_por_ausencia_mensagem != null ? String(vals.finalizar_por_ausencia_mensagem) : "",
       finalizar_por_ausencia_reabrir_automaticamente: vals.finalizar_por_ausencia_reabrir_automaticamente !== false,
       finalizar_por_ausencia_reabrir_sem_chatbot: vals.finalizar_por_ausencia_reabrir_sem_chatbot !== false,
+      redirecionar_sem_resposta_ativo: !!vals.redirecionar_sem_resposta_ativo,
+      redirecionar_sem_resposta_minutos: Math.max(1, Math.min(1440, Number(vals.redirecionar_sem_resposta_minutos) || 5)),
+      redirecionar_sem_resposta_departamento_id: vals.redirecionar_sem_resposta_departamento_id
+        ? Number(vals.redirecionar_sem_resposta_departamento_id)
+        : null,
     };
   };
 
@@ -1038,6 +1046,13 @@ function SecaoChatbotTriagem({
         if (!(o.label || "").trim()) return `Opção ${i + 1}: label é obrigatório.`;
         if (!o.departamento_id) return `Opção ${i + 1}: departamento é obrigatório.`;
       }
+    }
+    if (vals.redirecionar_sem_resposta_ativo && !vals.redirecionar_sem_resposta_departamento_id) {
+      return "Selecione um setor padrão para o redirecionamento por falta de resposta.";
+    }
+    if (vals.redirecionar_sem_resposta_ativo) {
+      const min = Number(vals.redirecionar_sem_resposta_minutos);
+      if (!Number.isFinite(min) || min < 1) return "O tempo de espera para redirecionamento deve ser de no mínimo 1 minuto.";
     }
     return null;
   };
@@ -1498,6 +1513,67 @@ function SecaoChatbotTriagem({
               <p className="chatbot-hint" style={{ marginTop: 4 }}>
                 Útil para o cliente continuar o diálogo com a equipe sem receber de novo o menu de triagem.
               </p>
+            </div>
+          </div>
+
+          {/* SEÇÃO 6 — Redirecionamento automático por falta de resposta ao menu */}
+          <div className="chatbot-card">
+            <h3 className="chatbot-card-title">6. Redirecionamento por falta de resposta</h3>
+            <p className="chatbot-card-subtitle">
+              Após o envio do menu de boas-vindas, se o cliente não responder dentro do prazo configurado, a conversa é encaminhada automaticamente para um setor padrão. O redirecionamento é cancelado caso o cliente responda ou selecione um setor antes do prazo. Desligado por padrão.
+            </p>
+            <div className="ds-switch-row" style={{ marginBottom: 16 }}>
+              <Switch
+                checked={v.redirecionar_sem_resposta_ativo === true}
+                onChange={(x) => setV((c) => ({ ...c, redirecionar_sem_resposta_ativo: x }))}
+              />
+              <span>Ativar redirecionamento automático por falta de resposta</span>
+            </div>
+            <div
+              className="chatbot-fora-horario-fields"
+              style={{
+                opacity: v.redirecionar_sem_resposta_ativo ? 1 : 0.55,
+                pointerEvents: v.redirecionar_sem_resposta_ativo ? "auto" : "none",
+              }}
+            >
+              <div className="chatbot-time-row" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+                <div className="ia-field" style={{ minWidth: 140 }}>
+                  <label>Tempo de espera (minutos)</label>
+                  <input
+                    type="number"
+                    className="ia-input chatbot-input-cmd"
+                    min={1}
+                    max={1440}
+                    value={v.redirecionar_sem_resposta_minutos ?? 5}
+                    onChange={(e) =>
+                      setV((c) => ({
+                        ...c,
+                        redirecionar_sem_resposta_minutos: Math.max(1, Math.min(1440, Number(e.target.value) || 5)),
+                      }))
+                    }
+                  />
+                  <p className="chatbot-hint" style={{ marginTop: 4 }}>Entre 1 e 1440 minutos (24 horas). O servidor verifica em ciclos de 1 minuto.</p>
+                </div>
+                <div className="ia-field" style={{ flex: 1, minWidth: 220 }}>
+                  <label>Setor padrão de destino</label>
+                  <select
+                    className="ia-select"
+                    value={v.redirecionar_sem_resposta_departamento_id ?? ""}
+                    onChange={(e) =>
+                      setV((c) => ({
+                        ...c,
+                        redirecionar_sem_resposta_departamento_id: e.target.value ? Number(e.target.value) : null,
+                      }))
+                    }
+                  >
+                    <option value="">— Selecione um setor —</option>
+                    {departamentos.map((d) => (
+                      <option key={d.id} value={d.id}>{d.nome}</option>
+                    ))}
+                  </select>
+                  <p className="chatbot-hint" style={{ marginTop: 4 }}>A conversa será transferida para este setor quando o prazo expirar sem resposta do cliente.</p>
+                </div>
+              </div>
             </div>
           </div>
 

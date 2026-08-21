@@ -110,6 +110,22 @@ function diffObject(before, after) {
   return out;
 }
 
+/** Remove etiquetas duplicadas por nome (cai para id quando não há nome). Mantém a 1ª ocorrência. */
+function dedupeTagsSidebar(tags) {
+  if (!Array.isArray(tags) || tags.length <= 1) return Array.isArray(tags) ? tags : [];
+  const seen = new Set();
+  const out = [];
+  for (const t of tags) {
+    if (!t) continue;
+    const nome = String(t.nome ?? "").trim().toLowerCase();
+    const key = nome ? `n:${nome}` : t.id != null ? `i:${String(t.id)}` : "";
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
 export default function SidebarCliente({ open, onClose, conversa, tags, tempoSemResponder, onObservacaoSaved, isGroup }) {
   const user = useAuthStore((s) => s.user);
   const showToast = useNotificationStore((s) => s.showToast);
@@ -1093,8 +1109,9 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
           <details className="wa-sideCliente-details wa-sideCliente-details--tags">
             <summary>Tags</summary>
             <div className="wa-sideCliente-tags" style={{ marginTop: 10 }}>
-              {tags.map((t) => (
-                <span key={t.id} className="wa-tagChip isSelected">
+              {/* Rede de segurança contra etiqueta duplicada (mesmo nome vindo de duas fontes). */}
+              {dedupeTagsSidebar(tags).map((t) => (
+                <span key={t.id ?? t.nome} className="wa-tagChip isSelected">
                   <span className="wa-tagChip-label">{t.nome}</span>
                 </span>
               ))}

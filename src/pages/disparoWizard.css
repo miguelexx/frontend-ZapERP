@@ -1,0 +1,427 @@
+/* ======================================================
+   Disparo Wizard — Estilos da página de edição de campanha
+   Complementa disparo.css
+   ====================================================== */
+
+.dw-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--ds-bg, #f0f2f5);
+  padding: 20px 24px;
+  box-sizing: border-box;
+  gap: 16px;
+}
+
+/* ── Breadcrumb / voltar ─────────────────────────── */
+.dw-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-text-muted, #64748b);
+  font-size: 13px;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color .13s;
+}
+.dw-back:hover { color: var(--ds-primary, #128c7e); }
+
+/* ── Cabeçalho da campanha ───────────────────────── */
+.dw-campaign-header {
+  background: var(--ds-surface, #fff);
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.dw-campaign-header__name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ds-text, #111b21);
+  margin: 0;
+}
+
+.dw-campaign-header__desc {
+  font-size: 12px;
+  color: var(--ds-text-muted, #64748b);
+  margin: 2px 0 0;
+}
+
+/* ── Wizard steps ────────────────────────────────── */
+.dw-steps {
+  display: flex;
+  background: var(--ds-surface, #fff);
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 0;
+}
+
+.dw-step {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+  position: relative;
+}
+
+.dw-step::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  right: -50%;
+  height: 2px;
+  background: var(--ds-border, #e2e8f0);
+}
+.dw-step:last-child::after { display: none; }
+
+.dw-step--done::after,
+.dw-step--active::after { background: var(--ds-primary, #128c7e); }
+
+.dw-step__circle {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--ds-border, #e2e8f0);
+  background: var(--ds-surface, #fff);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  color: var(--ds-text-muted, #94a3b8);
+  position: relative; z-index: 1;
+  transition: background .15s, border-color .15s;
+}
+.dw-step--active .dw-step__circle {
+  border-color: var(--ds-primary, #128c7e);
+  background: var(--ds-primary, #128c7e);
+  color: #fff;
+}
+.dw-step--done .dw-step__circle {
+  border-color: var(--ds-primary, #128c7e);
+  background: var(--ds-primary, #128c7e);
+  color: #fff;
+}
+.dw-step--locked .dw-step__circle { opacity: .5; }
+
+.dw-step__label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ds-text-muted, #94a3b8);
+  text-align: center;
+  white-space: nowrap;
+}
+.dw-step--active .dw-step__label {
+  color: var(--ds-primary, #128c7e);
+  font-weight: 700;
+}
+.dw-step--done .dw-step__label { color: var(--ds-text-muted, #64748b); }
+
+/* ── Conteúdo do step ────────────────────────────── */
+.dw-content {
+  background: var(--ds-surface, #fff);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  padding: 22px 24px;
+  flex: 1;
+}
+
+/* ── Abas ────────────────────────────────────────── */
+.dw-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--ds-border, #e2e8f0);
+  margin-bottom: 20px;
+}
+.dw-tab {
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-text-muted, #64748b);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .13s, border-color .13s;
+}
+.dw-tab--active {
+  color: var(--ds-primary, #128c7e);
+  border-bottom-color: var(--ds-primary, #128c7e);
+}
+.dw-tab:hover:not(.dw-tab--active) { color: var(--ds-text, #111b21); }
+
+/* ── Barra de busca/filtro ───────────────────────── */
+.dw-search-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.dw-search-input {
+  flex: 1 1 200px;
+  padding: 8px 12px;
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 7px;
+  font-size: 13px;
+  background: var(--ds-input-bg, #f8fafc);
+  color: var(--ds-text, #111b21);
+  outline: none;
+}
+.dw-search-input:focus { border-color: var(--ds-primary, #128c7e); }
+
+/* ── Tabela de contatos ──────────────────────────── */
+.dw-contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.dw-contacts-table th {
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--ds-bg, #f8fafc);
+  color: var(--ds-text-muted, #64748b);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  border-bottom: 1px solid var(--ds-border, #e2e8f0);
+  white-space: nowrap;
+}
+.dw-contacts-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ds-border, #f1f5f9);
+  vertical-align: middle;
+  color: var(--ds-text, #111b21);
+}
+.dw-contacts-table tr:last-child td { border-bottom: none; }
+.dw-contacts-table tr:hover td { background: var(--ds-hover, #f8fafc); }
+.dw-contacts-table input[type="checkbox"] { cursor: pointer; }
+
+.dw-already-tag {
+  font-size: 10.5px;
+  background: #ecfdf5;
+  color: #059669;
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Stats bar ───────────────────────────────────── */
+.dw-stats-bar {
+  display: flex;
+  gap: 14px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  align-items: center;
+}
+.dw-stats-bar__item { color: var(--ds-text-muted, #64748b); }
+.dw-stats-bar__item strong { color: var(--ds-text, #111b21); }
+.dw-stats-bar__item--ok strong { color: #059669; }
+.dw-stats-bar__item--warn strong { color: #d97706; }
+.dw-stats-bar__item--error strong { color: #dc2626; }
+
+/* ── Select-all bar ──────────────────────────────── */
+.dw-select-all-bar {
+  background: #eff6ff;
+  border-radius: 7px;
+  padding: 9px 14px;
+  font-size: 12.5px;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.dw-select-all-bar button {
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ── Import wizard ───────────────────────────────── */
+.dw-import-stages {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.dw-import-stage {
+  flex: 1; min-width: 60px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-text-muted, #94a3b8);
+  padding-bottom: 8px;
+  border-bottom: 3px solid var(--ds-border, #e2e8f0);
+  transition: color .13s, border-color .13s;
+}
+.dw-import-stage--active {
+  color: var(--ds-primary, #128c7e);
+  border-bottom-color: var(--ds-primary, #128c7e);
+}
+.dw-import-stage--done { color: #059669; border-bottom-color: #059669; }
+
+/* ── Upload zone ─────────────────────────────────── */
+.dw-upload-zone {
+  border: 2px dashed var(--ds-border, #cbd5e1);
+  border-radius: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.dw-upload-zone:hover,
+.dw-upload-zone--over {
+  border-color: var(--ds-primary, #128c7e);
+  background: #f0fdf4;
+}
+.dw-upload-zone__icon { opacity: .4; margin-bottom: 12px; }
+.dw-upload-zone__text { font-size: 14px; font-weight: 600; color: var(--ds-text, #111b21); margin: 0 0 4px; }
+.dw-upload-zone__sub { font-size: 12px; color: var(--ds-text-muted, #64748b); margin: 0; }
+
+/* ── Mapping form ────────────────────────────────── */
+.dw-mapping-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+@media (max-width: 600px) { .dw-mapping-grid { grid-template-columns: 1fr; } }
+
+.dw-mapping-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ds-text, #111b21);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.dw-mapping-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--ds-border, #e2e8f0);
+  border-radius: 7px;
+  font-size: 13px;
+  background: var(--ds-input-bg, #f8fafc);
+  color: var(--ds-text, #111b21);
+}
+
+/* ── Preview table ───────────────────────────────── */
+.dw-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 680px) { .dw-preview-grid { grid-template-columns: 1fr; } }
+
+.dw-preview-box {
+  border-radius: 8px;
+  border: 1px solid var(--ds-border, #e2e8f0);
+  overflow: hidden;
+}
+.dw-preview-box__header {
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.dw-preview-box--valid .dw-preview-box__header { background: #f0fdf4; color: #059669; }
+.dw-preview-box--invalid .dw-preview-box__header { background: #fef2f2; color: #dc2626; }
+
+.dw-preview-box__list {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.dw-preview-box__row {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--ds-border, #f1f5f9);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.dw-preview-box__row:last-child { border-bottom: none; }
+.dw-preview-box__name { font-weight: 600; color: var(--ds-text, #111b21); }
+.dw-preview-box__phone { color: var(--ds-text-muted, #64748b); }
+.dw-preview-box__motivo { color: #dc2626; font-size: 11px; }
+
+/* ── Rodapé do wizard ────────────────────────────── */
+.dw-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--ds-border, #e2e8f0);
+  margin-top: 20px;
+}
+.dw-footer__left { display: flex; gap: 8px; flex-wrap: wrap; }
+.dw-footer__right { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Lista de destinatários atuais ───────────────── */
+.dw-recipients-section { margin-top: 24px; }
+.dw-recipients-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dw-recipients-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ds-text, #111b21);
+  margin: 0;
+}
+.dw-recipients-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Aceite LGPD ─────────────────────────────────── */
+.dw-lgpd {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  color: #92400e;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+}
+.dw-lgpd input[type="checkbox"] { flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+
+/* ── Responsividade ──────────────────────────────── */
+@media (max-width: 768px) {
+  .dw-page { padding: 10px 12px; }
+  .dw-content { padding: 14px; }
+  .dw-contacts-table th:nth-child(n+4),
+  .dw-contacts-table td:nth-child(n+4) { display: none; }
+  .dw-footer { flex-direction: column; }
+  .dw-footer__left, .dw-footer__right { width: 100%; justify-content: stretch; }
+}

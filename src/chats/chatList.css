@@ -2536,17 +2536,22 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   font-weight: 500;
   background: var(--cl-beige-200) !important;
   color: var(--cl-text-secondary) !important;
-  max-width: 90px;
+  /* Antes: max-width 90px cortava nomes de etiqueta longos ("7º Ano do Ensino Infantil"
+     virava "7º Ano do Ensino I…"). A linha de etiquetas ocupa a largura toda do card, então
+     deixamos a etiqueta usar todo o espaço disponível — cabe inteira, sem cortar. O ellipsis
+     fica só como rede de segurança para nomes realmente enormes. */
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .chat-list-tag-mini--colored {
   background: transparent !important;
   color: #fff !important;
-  max-width: 120px;
+  max-width: 100%;
 }
 
 .chat-list-row-tags {

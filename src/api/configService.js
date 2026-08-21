@@ -24,11 +24,6 @@ export async function deleteLogoEmpresa() {
   return data
 }
 
-export async function getPlanos() {
-  const { data } = await api.get('/config/planos')
-  return data || []
-}
-
 export async function getAuditoria(limit = 100) {
   const { data } = await api.get('/config/auditoria', { params: { limit } })
   return data || []

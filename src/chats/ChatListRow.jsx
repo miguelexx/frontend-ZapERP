@@ -614,6 +614,26 @@ function PreviewLine({ chat, audioDurationSec }) {
   );
 }
 
+/** Remove etiquetas duplicadas antes de exibir. A mesma etiqueta pode chegar por duas fontes
+ *  (etiqueta da conversa + etiqueta do cliente) ou como linhas repetidas, às vezes com id
+ *  diferente mas o mesmo nome — visualmente é a mesma e a escola reclamava de "aparecer duas".
+ *  Chave pelo nome normalizado (etiqueta igual = duplicada mesmo com id diferente); cai para o
+ *  id quando não houver nome. Mantém a primeira ocorrência (preserva ordem/cor). */
+function dedupeTags(tags) {
+  if (!Array.isArray(tags) || tags.length <= 1) return Array.isArray(tags) ? tags : [];
+  const seen = new Set();
+  const out = [];
+  for (const t of tags) {
+    if (!t) continue;
+    const nome = String(t.nome ?? "").trim().toLowerCase();
+    const key = nome ? `n:${nome}` : t.id != null ? `i:${String(t.id)}` : "";
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
 function TagMini({ tag }) {
   if (!tag) return null;
   const cor = String(tag?.cor || "").trim();
@@ -1248,6 +1268,7 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
+  const tagsUnicas = useMemo(() => dedupeTags(chat?.tags), [chat?.tags]);
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
@@ -1470,14 +1491,14 @@ function ChatRow({
             )}
           </div>
         </div>
-        {!isGroup && chat?.tags?.length > 0 ? (
+        {!isGroup && tagsUnicas.length > 0 ? (
           <div className="chat-list-row-tags">
-            {chat.tags.slice(0, 3).map((t) => (
+            {tagsUnicas.slice(0, 3).map((t) => (
               <TagMini key={t.id ?? t.nome} tag={t} />
             ))}
-            {chat.tags.length > 3 ? (
-              <span className="chat-list-tag-more" title={chat.tags.slice(3).map((t) => t.nome).join(", ")}>
-                +{chat.tags.length - 3}
+            {tagsUnicas.length > 3 ? (
+              <span className="chat-list-tag-more" title={tagsUnicas.slice(3).map((t) => t.nome).join(", ")}>
+                +{tagsUnicas.length - 3}
               </span>
             ) : null}
           </div>

@@ -655,6 +655,7 @@ let socketAwakeListenersBound = false
 let onWindowFocusReconnect = null
 let onWindowOnlineReconnect = null
 let onWindowPageShowReconnect = null
+let onWindowPageHideDisconnect = null
 let onVisibilityReconnect = null
 
 function tryReconnectSocket(reason) {
@@ -689,6 +690,12 @@ function bindSocketAwakeListeners() {
   onWindowFocusReconnect = () => tryReconnectSocket("window_focus")
   onWindowOnlineReconnect = () => tryReconnectSocket("online")
   onWindowPageShowReconnect = () => tryReconnectSocket("pageshow")
+  onWindowPageHideDisconnect = () => {
+    currentConversationId = null
+    try {
+      socket?.disconnect()
+    } catch (_) {}
+  }
   onVisibilityReconnect = () => {
     if (document.visibilityState === "visible") tryReconnectSocket("visibility_visible")
   }
@@ -696,6 +703,7 @@ function bindSocketAwakeListeners() {
   window.addEventListener("focus", onWindowFocusReconnect)
   window.addEventListener("online", onWindowOnlineReconnect)
   window.addEventListener("pageshow", onWindowPageShowReconnect)
+  window.addEventListener("pagehide", onWindowPageHideDisconnect)
   document.addEventListener("visibilitychange", onVisibilityReconnect)
 }
 
@@ -704,10 +712,12 @@ function unbindSocketAwakeListeners() {
   if (onWindowFocusReconnect) window.removeEventListener("focus", onWindowFocusReconnect)
   if (onWindowOnlineReconnect) window.removeEventListener("online", onWindowOnlineReconnect)
   if (onWindowPageShowReconnect) window.removeEventListener("pageshow", onWindowPageShowReconnect)
+  if (onWindowPageHideDisconnect) window.removeEventListener("pagehide", onWindowPageHideDisconnect)
   if (onVisibilityReconnect) document.removeEventListener("visibilitychange", onVisibilityReconnect)
   onWindowFocusReconnect = null
   onWindowOnlineReconnect = null
   onWindowPageShowReconnect = null
+  onWindowPageHideDisconnect = null
   onVisibilityReconnect = null
 }
 
