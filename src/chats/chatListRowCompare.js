@@ -40,13 +40,10 @@ export function chatRowContactSurfaceKey(c) {
   const { displayName, avatarUrl, phone } = getContactDisplay(c);
   const empresa = String(c?.cliente?.empresa ?? c?.cliente_empresa ?? c?.empresa ?? "").trim();
   const setor = String(c?.setor ?? c?.departamento?.nome ?? c?.departamentos?.nome ?? "").trim();
-  const tag = c?.tags?.[0];
-  const tagId = String(tag?.id ?? "");
-  const tagNome = String(tag?.nome ?? "");
-  const tagCor = String(tag?.cor ?? "");
+  const tagsKey = (c?.tags || []).map((t) => `${t.id ?? ""}:${t.nome ?? ""}:${t.cor ?? ""}`).join(",");
   const instanceLabel = String(c?.whatsapp_instance_nome ?? c?.whatsapp_instance_display_phone ?? "").trim();
   const assignees = getAtendimentoAssigneeNames(c).join(",");
-  return `${displayName}|${avatarUrl ?? ""}|${phone}|${empresa}|${setor}|${String(c?.departamento_id ?? "")}|${tagId}|${tagNome}|${tagCor}|${instanceLabel}|${assignees}`;
+  return `${displayName}|${avatarUrl ?? ""}|${phone}|${empresa}|${setor}|${String(c?.departamento_id ?? "")}|${tagsKey}|${instanceLabel}|${assignees}`;
 }
 
 function chatRowNeedsMinuteTick(c, pendentesFuncionarioSet) {

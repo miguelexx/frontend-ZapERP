@@ -2549,6 +2549,26 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   max-width: 120px;
 }
 
+.chat-list-row-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.chat-list-tag-more {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--cl-text-tertiary);
+  flex-shrink: 0;
+}
+
 .chat-list-badge-grupo {
   display: inline-flex;
   align-items: center;

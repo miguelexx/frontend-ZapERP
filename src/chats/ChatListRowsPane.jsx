@@ -29,6 +29,7 @@ function ChatListRowsPane({
   onToggleMenu,
   pendentesFuncionarioSet,
   onNovoContato,
+  searchAtivo = false,
   menuIsOpen,
   menuAnchorRect,
   menuActions,
@@ -120,6 +121,13 @@ function ChatListRowsPane({
                 />
                 {paginationFooter}
               </>
+            ) : searchAtivo ? (
+              <EmptyState
+                title="Nenhum cliente encontrado"
+                description="Nenhum cliente com esse nome ou telefone. Verifique a busca ou cadastre um novo contato."
+                actionLabel="Criar novo contato"
+                action={onNovoContato}
+              />
             ) : (
               <EmptyState
                 title="Nenhuma conversa encontrada"

@@ -442,6 +442,7 @@ function ChatListBody({
         onToggleMenu={openMenu}
         pendentesFuncionarioSet={pendentesFuncionarioSet}
         onNovoContato={onNovoContato}
+        searchAtivo={Boolean(String(debouncedSearch || "").trim())}
         menuIsOpen={!!openConversationId}
         menuAnchorRect={anchorRect}
         menuActions={menuActions}

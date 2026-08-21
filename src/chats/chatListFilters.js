@@ -6,12 +6,63 @@ import {
   isModoSimplesAguardandoAtendente,
   isModoSimplesAguardandoCliente,
 } from "../utils/conversaUtils";
-import { getDisplayName, getPhone } from "./chatListDisplay";
 import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance } from "./chatListRowAtendimento";
 import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
 
 export function digitsOnly(v) {
   return String(v || "").replace(/\D/g, "");
+}
+
+/**
+ * Remove acentos e baixa a caixa — espelha o unaccent_lower(text) do backend
+ * para que "jose" case "José" também na filtragem local da busca.
+ */
+export function foldAccents(v) {
+  return String(v || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Verdadeiro se o nome OU o telefone da linha contém o termo (sem acento / sem caixa).
+ * Cobre os mesmos campos que a busca do backend (RPC nome/pushname/nome_contato_cache/
+ * nome_grupo + telefone do cliente), inclusive clientes SEM conversa.
+ */
+export function chatRowMatchesSearch(c, foldedTerm, termDigits) {
+  if (!foldedTerm && !termDigits) return true;
+  if (foldedTerm) {
+    const nomeCampos = [
+      c?.contato_nome,
+      c?.nome_contato_cache,
+      c?.nome_grupo,
+      c?.cliente?.nome,
+      c?.cliente?.pushname,
+      c?.clientes?.nome,
+      c?.clientes?.pushname,
+      c?.cliente_nome,
+      c?.pushname,
+      c?.nome,
+    ];
+    for (const campo of nomeCampos) {
+      if (campo && foldAccents(campo).includes(foldedTerm)) return true;
+    }
+  }
+  if (termDigits) {
+    const telCampos = [
+      c?.telefone_exibivel,
+      c?.cliente_telefone,
+      c?.telefone,
+      c?.cliente?.telefone,
+      c?.clientes?.telefone,
+      c?.numero,
+    ];
+    for (const tel of telCampos) {
+      if (tel && digitsOnly(tel).includes(termDigits)) return true;
+    }
+  }
+  return false;
 }
 
 /** Modo simples ativo na empresa (aba Minha fila oculta; padrão = Aguardando atendente). */
@@ -377,23 +428,14 @@ export function computeChatsFiltrados({
     list = list.filter((c) => String(c?.atendente_id ?? "") === String(atendenteFilter));
   }
 
-  // busca
+  // busca: nome ou telefone da linha (sem acento / sem caixa), espelhando o backend.
+  // Roda mesmo durante a busca (skipClientSearch é ignorado quando há termo) para que
+  // recentes sem relação — remanescentes na store durante o fetch — não vazem na lista.
   const termRaw = String(debouncedSearch || "").trim();
-  const term = termRaw.toLowerCase();
+  const foldedTerm = foldAccents(termRaw);
   const termDigits = digitsOnly(termRaw);
-  if (term && !skipClientSearch) {
-    list = list.filter((c) => {
-      const title = getDisplayName(c).toLowerCase();
-      const phone = String(getPhone(c) || "").toLowerCase();
-      const telRaw = c?.telefone_exibivel || c?.cliente_telefone || c?.telefone || "";
-      const telDigits = digitsOnly(telRaw);
-
-      const matchName = title.includes(term);
-      const matchPhone =
-        termDigits && (digitsOnly(phone).includes(termDigits) || telDigits.includes(termDigits));
-
-      return matchName || matchPhone;
-    });
+  if (termRaw && (!skipClientSearch || searchBypassesTabFilters)) {
+    list = list.filter((c) => chatRowMatchesSearch(c, foldedTerm, termDigits));
   }
 
   // Camada adicional: filtro de pendência (backend) — intersecta com filtros já aplicados

@@ -2562,11 +2562,11 @@ function ModalImportarClientes({ onClose, onImported }) {
                     (preview.amostra || []).map((a, i) => (
                       <tr key={i} style={a.conflito ? { background: "rgba(234,88,12,0.12)" } : undefined}>
                         <td>
-                          {a.nome}
-                          {a.conflito ? (
-                            <span title={`Mesmo telefone com: ${(a.nomes_conflitantes || []).join(", ")}`} style={{ marginLeft: 6, color: "#f97316", fontSize: 11, fontWeight: 600 }}>
-                              ⚠ revisar
-                            </span>
+                          <div>{a.nome}</div>
+                          {a.conflito && (a.nomes_conflitantes || []).length > 0 ? (
+                            <div style={{ fontSize: 11, color: "#f97316", marginTop: 2, lineHeight: 1.3 }}>
+                              ⚠ Mesmo telefone: {(a.nomes_conflitantes || []).join(", ")}
+                            </div>
                           ) : null}
                         </td>
                         <td>{a.telefone}</td>

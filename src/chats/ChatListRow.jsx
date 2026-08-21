@@ -1422,8 +1422,6 @@ function ChatRow({
               {showFavoriteIndicator ? <span className="chat-list-inline-indicator" title="Conversa favorita" aria-label="Conversa favorita">★</span> : null}
               {isGroup ? (
                 <span className="chat-list-badge-grupo" title="Conversa de grupo">Grupo</span>
-              ) : chat?.tags?.[0] ? (
-                <TagMini tag={chat.tags[0]} />
               ) : null}
             </div>
             {!isGroup && setorLabelNome ? (
@@ -1472,6 +1470,18 @@ function ChatRow({
             )}
           </div>
         </div>
+        {!isGroup && chat?.tags?.length > 0 ? (
+          <div className="chat-list-row-tags">
+            {chat.tags.slice(0, 3).map((t) => (
+              <TagMini key={t.id ?? t.nome} tag={t} />
+            ))}
+            {chat.tags.length > 3 ? (
+              <span className="chat-list-tag-more" title={chat.tags.slice(3).map((t) => t.nome).join(", ")}>
+                +{chat.tags.length - 3}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="chat-list-row-mid">
           <div className="chat-list-midLeft">
             <div className="chat-list-preview-line">
