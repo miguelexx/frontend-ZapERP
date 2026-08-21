@@ -4,6 +4,7 @@ import { IconArrowLeft, IconSpeakerphone } from '@tabler/icons-react'
 import { disparoApiError, editarCampanha, obterCampanha } from '../api/disparoService'
 import DisparoDestinatariosStep from './DisparoDestinatariosStep'
 import DisparoInstanciasStep from './DisparoInstanciasStep'
+import DisparoMensagensStep from './DisparoMensagensStep'
 import './disparo.css'
 import './disparoWizard.css'
 
@@ -13,7 +14,7 @@ const WIZARD_STEPS = [
   { label: 'Informações', id: 'info' },
   { label: 'Destinatários', id: 'destinatarios' },
   { label: 'Instâncias', id: 'instancias' },
-  { label: 'Mensagens', id: 'mensagens', locked: true },
+  { label: 'Mensagens', id: 'mensagens' },
   { label: 'Limites', id: 'limites', locked: true },
   { label: 'Revisão', id: 'revisao', locked: true },
 ]
@@ -237,7 +238,15 @@ export default function DisparoWizardPage() {
             onNext={() => setActiveStep(3)}
           />
         )}
-        {activeStep >= 3 && (
+        {activeStep === 3 && (
+          <DisparoMensagensStep
+            campanhaId={campanhaId}
+            totalDestinatarios={campanha?.total_destinatarios ?? 0}
+            onBack={() => setActiveStep(2)}
+            onNext={() => setActiveStep(4)}
+          />
+        )}
+        {activeStep >= 4 && (
           <LockedStep label={WIZARD_STEPS[activeStep]?.label} />
         )}
       </div>
