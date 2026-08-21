@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { IconArrowLeft, IconSpeakerphone } from '@tabler/icons-react'
 import { disparoApiError, editarCampanha, obterCampanha } from '../api/disparoService'
 import DisparoDestinatariosStep from './DisparoDestinatariosStep'
+import DisparoInstanciasStep from './DisparoInstanciasStep'
 import './disparo.css'
 import './disparoWizard.css'
 
@@ -11,7 +12,7 @@ import './disparoWizard.css'
 const WIZARD_STEPS = [
   { label: 'Informações', id: 'info' },
   { label: 'Destinatários', id: 'destinatarios' },
-  { label: 'Instâncias', id: 'instancias', locked: true },
+  { label: 'Instâncias', id: 'instancias' },
   { label: 'Mensagens', id: 'mensagens', locked: true },
   { label: 'Limites', id: 'limites', locked: true },
   { label: 'Revisão', id: 'revisao', locked: true },
@@ -229,9 +230,11 @@ export default function DisparoWizardPage() {
           />
         )}
         {activeStep === 2 && (
-          <LockedStep
-            label="Instâncias"
-            message="Selecione os destinatários primeiro, depois configure as instâncias WhatsApp."
+          <DisparoInstanciasStep
+            campanhaId={campanhaId}
+            totalDestinatarios={campanha?.total_destinatarios ?? 0}
+            onBack={() => setActiveStep(1)}
+            onNext={() => setActiveStep(3)}
           />
         )}
         {activeStep >= 3 && (
