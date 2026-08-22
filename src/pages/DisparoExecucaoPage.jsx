@@ -5,16 +5,19 @@ import {
   IconAlertTriangle,
   IconArrowLeft,
   IconBan,
+  IconChartBar,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
   IconClock,
   IconDeviceMobile,
+  IconMessageReply,
   IconPlayerPause,
   IconPlayerPlay,
   IconRefresh,
   IconRotateClockwise,
+  IconSettings,
   IconShieldBolt,
   IconSpeakerphone,
   IconTrash,
@@ -41,6 +44,7 @@ import {
   saudeInstancias,
   saudeWorker,
 } from '../api/disparoExecucaoService'
+import DisparoEtapa8Section from '../components/disparo/DisparoEtapa8Section'
 import './disparo.css'
 import './disparoExecucao.css'
 
@@ -55,6 +59,21 @@ const SOCKET_EVENTS = [
   'disparo_item_atualizado',
   'disparo_instancia_desconectada',
   'disparo_limite_atingido',
+  'disparo_optout',
+  'disparo_optout_registrado',
+  'disparo_optout_reativado',
+  'disparo_resposta',
+  'disparo_resposta_vinculada',
+  'disparo_reconciliado',
+]
+
+const PAGE_TABS = [
+  { id: 'execucao', label: 'Execução', icon: IconSpeakerphone },
+  { id: 'relatorio', label: 'Relatório', icon: IconChartBar },
+  { id: 'respostas', label: 'Respostas', icon: IconMessageReply },
+  { id: 'optouts', label: 'Opt-outs', icon: IconUserOff },
+  { id: 'incertos', label: 'Incertos', icon: IconAlertTriangle },
+  { id: 'config', label: 'Config', icon: IconSettings },
 ]
 
 const SOCKET_DEBOUNCE_MS = 300
@@ -254,7 +273,11 @@ export default function DisparoExecucaoPage() {
   const [showEmergencia, setShowEmergencia] = useState(false)
   const [emergenciaTexto, setEmergenciaTexto] = useState('')
 
+  const [activeTab, setActiveTab] = useState('execucao')
+  const [etapa8RefreshKey, setEtapa8RefreshKey] = useState(0)
+
   const socketTimerRef = useRef(null)
+  const etapa8TimerRef = useRef(null)
   const filaTimingRef = useRef({ ultimoEnvio: null, proximoPrevisto: null })
 
   const campanha = execData?.campanha ?? null
@@ -286,7 +309,7 @@ export default function DisparoExecucaoPage() {
         listarFila(campanhaId, {
           page: opts.filaPage ?? filaPage,
           limit: FILA_PAGE_LIMIT,
-          status: opts.filaStatus ?? filaStatus || undefined,
+          status: (opts.filaStatus ?? filaStatus) || undefined,
         }),
         listarEventos(campanhaId, { page: 1, limit: EVENTOS_LIMIT }),
       ])
@@ -349,8 +372,34 @@ export default function DisparoExecucaoPage() {
       }, SOCKET_DEBOUNCE_MS)
     }
 
-    const onDisparoEvent = (payload = {}) => {
-      if (Number(payload.campanha_id) !== campanhaId) return
+    const scheduleEtapa8Refresh = () => {
+      window.clearTimeout(etapa8TimerRef.current)
+      etapa8TimerRef.current = window.setTimeout(() => {
+        setEtapa8RefreshKey((k) => k + 1)
+        reconcile({ silent: true })
+      }, SOCKET_DEBOUNCE_MS)
+    }
+
+    const ETAPA8_EVENTS = new Set([
+      'disparo_optout',
+      'disparo_optout_registrado',
+      'disparo_optout_reativado',
+      'disparo_resposta',
+      'disparo_resposta_vinculada',
+      'disparo_reconciliado',
+    ])
+
+    const onDisparoEvent = (payload = {}, eventName = '') => {
+      const payloadCampanha = payload.campanha_id != null ? Number(payload.campanha_id) : null
+      const isEtapa8 = ETAPA8_EVENTS.has(eventName)
+
+      if (isEtapa8) {
+        if (payloadCampanha != null && payloadCampanha !== campanhaId) return
+        scheduleEtapa8Refresh()
+        return
+      }
+
+      if (payloadCampanha !== campanhaId) return
       scheduleRefresh()
     }
 
@@ -360,15 +409,16 @@ export default function DisparoExecucaoPage() {
     }
 
     for (const ev of SOCKET_EVENTS) {
-      socket?.on(ev, onDisparoEvent)
+      socket?.on(ev, (payload) => onDisparoEvent(payload, ev))
     }
     socket?.on('connect', onReconnect)
     document.addEventListener('visibilitychange', onVisibility)
 
     return () => {
       window.clearTimeout(socketTimerRef.current)
+      window.clearTimeout(etapa8TimerRef.current)
       for (const ev of SOCKET_EVENTS) {
-        socket?.off(ev, onDisparoEvent)
+        socket?.off(ev)
       }
       socket?.off('connect', onReconnect)
       document.removeEventListener('visibilitychange', onVisibility)
@@ -550,6 +600,31 @@ export default function DisparoExecucaoPage() {
         </div>
       )}
 
+      <nav className="dpex-tabs" aria-label="Seções da execução">
+        {PAGE_TABS.map(({ id, label, icon: TabIcon }) => (
+          <button
+            key={id}
+            type="button"
+            className={`dpex-tabs__btn${activeTab === id ? ' is-active' : ''}`}
+            onClick={() => setActiveTab(id)}
+          >
+            <TabIcon size={15} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab !== 'execucao' && (
+        <DisparoEtapa8Section
+          campanhaId={campanhaId}
+          tab={activeTab}
+          refreshKey={etapa8RefreshKey}
+          onReconciled={() => reconcile({ silent: true })}
+        />
+      )}
+
+      {activeTab === 'execucao' && (
+      <>
       {/* Worker saúde compacta */}
       {workerSaude && (
         <div className={`dpex-worker${workerSaude.workers_ativos > 0 ? ' dpex-worker--ok' : ' dpex-worker--warn'}`}>
@@ -911,6 +986,8 @@ export default function DisparoExecucaoPage() {
           </div>
         )}
       </section>
+      </>
+      )}
 
       {/* Modais */}
       {showPausar && (
