@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { IconArrowLeft, IconSpeakerphone } from '@tabler/icons-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { IconArrowLeft, IconPlayerPlay, IconSpeakerphone } from '@tabler/icons-react'
 import { disparoApiError, editarCampanha, obterCampanha } from '../api/disparoService'
 import DisparoDestinatariosStep from './DisparoDestinatariosStep'
 import DisparoInstanciasStep from './DisparoInstanciasStep'
@@ -9,6 +9,11 @@ import DisparoMensagensStep from './DisparoMensagensStep'
 import DisparoRevisaoStep from './DisparoRevisaoStep'
 import './disparo.css'
 import './disparoWizard.css'
+import './disparoExecucao.css'
+
+const EXEC_ACCESS_STATUSES = new Set([
+  'pronta', 'agendada', 'em_execucao', 'pausada', 'concluida', 'cancelada',
+])
 
 // ── Wizard steps config ───────────────────────────────────────────────────────
 
@@ -193,6 +198,20 @@ export default function DisparoWizardPage() {
           {STATUS_LABEL[campanha.status] ?? campanha.status}
         </span>
       </div>
+
+      {/* Banner execução */}
+      {EXEC_ACCESS_STATUSES.has(campanha.status) && (
+        <div className="dpex-wizard-banner">
+          <span>
+            Esta campanha está em fase operacional ({STATUS_LABEL[campanha.status] ?? campanha.status}).
+            Acompanhe o progresso, fila e eventos em tempo real.
+          </span>
+          <Link to={`/disparo/campanhas/${campanhaId}/execucao`} className="dpex-wizard-banner__link">
+            <IconPlayerPlay size={14} />
+            Ir para execução
+          </Link>
+        </div>
+      )}
 
       {/* Steps */}
       <div className="dw-steps" role="tablist" aria-label="Etapas da campanha">

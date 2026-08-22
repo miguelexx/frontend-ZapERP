@@ -15,6 +15,7 @@ import {
   IconCheck,
   IconClock,
   IconPlayerPlay,
+  IconActivity,
   IconAlertCircle,
   IconX,
   IconChevronLeft,
@@ -69,6 +70,10 @@ const STATUS_FILTERS = [
 const WIZARD_STEPS = [
   'Informações', 'Destinatários', 'Instâncias', 'Mensagens', 'Limites', 'Revisão',
 ]
+
+const EXEC_ACCESS_STATUSES = new Set([
+  'pronta', 'agendada', 'em_execucao', 'pausada', 'concluida', 'cancelada',
+])
 
 const PAGE_LIMIT = 20
 
@@ -319,6 +324,7 @@ function CampanhaCard({ campanha, onEditar, onArquivar, onRestaurar, restaurando
   const navigate = useNavigate()
   const cfg = STATUS_CONFIG[campanha.status] ?? STATUS_CONFIG.rascunho
   const podeContinuar = campanha.status === 'rascunho' || campanha.status === 'configurando'
+  const podeAcompanhar = EXEC_ACCESS_STATUSES.has(campanha.status)
 
   return (
     <div
@@ -397,6 +403,16 @@ function CampanhaCard({ campanha, onEditar, onArquivar, onRestaurar, restaurando
           >
             <IconExternalLink size={14} />
             <span>Abrir</span>
+          </button>
+        )}
+        {podeAcompanhar && (
+          <button
+            className="dp-card__action-btn dp-card__action-btn--primary"
+            title="Acompanhar execução"
+            onClick={() => navigate(`/disparo/campanhas/${campanha.id}/execucao`)}
+          >
+            <IconActivity size={14} />
+            <span>Acompanhar</span>
           </button>
         )}
         {campanha.status === 'rascunho' && (

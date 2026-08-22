@@ -28,6 +28,7 @@ const Supervisao = lazy(() => import("../pages/Supervisao"));
 const HelpDesk = lazy(() => import("../pages/HelpDesk"));
 const DisparoMensagens = lazy(() => import("../pages/DisparoMensagens"));
 const DisparoWizardPage = lazy(() => import("../pages/DisparoWizardPage"));
+const DisparoExecucaoPage = lazy(() => import("../pages/DisparoExecucaoPage"));
 
 const CrmAvancadoRedirect = lazy(() => import("../crm/CrmAvancadoRedirect"));
 const CrmDashboard = lazy(() => import("../crm/pages/CrmDashboard"));
@@ -257,6 +258,16 @@ export default function AppRoutes() {
               <ProtectedRoute canAccess={canAccessDisparo} redirectTo="/atendimento">
                 <LazyPage>
                   <DisparoMensagens />
+                </LazyPage>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disparo/campanhas/:id/execucao"
+            element={
+              <ProtectedRoute canAccess={canAccessDisparo} redirectTo="/atendimento">
+                <LazyPage>
+                  <DisparoExecucaoPage />
                 </LazyPage>
               </ProtectedRoute>
             }

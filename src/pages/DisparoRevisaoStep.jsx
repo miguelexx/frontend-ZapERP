@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   IconAlertTriangle,
   IconArrowLeft,
@@ -13,6 +14,7 @@ import {
   IconHistory,
   IconLock,
   IconMessage2,
+  IconPlayerPlay,
   IconShieldCheck,
   IconSpeakerphone,
   IconUsers,
@@ -28,6 +30,11 @@ import {
   validarRevisao,
   voltarEdicao,
 } from '../api/disparoRevisaoService'
+import './disparoExecucao.css'
+
+const EXEC_ACCESS_STATUSES = new Set([
+  'pronta', 'agendada', 'em_execucao', 'pausada', 'concluida', 'cancelada',
+])
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -547,7 +554,20 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
     <div className="rev-root">
       {erro && <div className="disparo-alert disparo-alert--error">{erro}</div>}
       {sucesso && (
-        <div className="disparo-alert rev-alert--success">{sucesso}</div>
+        <div className="disparo-alert rev-alert--success">
+          <div className="dpex-revisao-cta">
+            <span>{sucesso}</span>
+            {EXEC_ACCESS_STATUSES.has(campanha?.status) && (
+              <Link
+                to={`/disparo/campanhas/${campanhaId}/execucao`}
+                className="dpex-revisao-cta__link"
+              >
+                <IconPlayerPlay size={14} />
+                Ir para execução
+              </Link>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Banner congelada vs editável */}
@@ -564,6 +584,17 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
                 )}
                 {' '}Nenhum envio ocorre nesta etapa.
               </p>
+              {EXEC_ACCESS_STATUSES.has(campanha?.status) && (
+                <p style={{ marginTop: 8 }}>
+                  <Link
+                    to={`/disparo/campanhas/${campanhaId}/execucao`}
+                    className="dpex-revisao-cta__link"
+                  >
+                    <IconPlayerPlay size={14} />
+                    Ir para execução
+                  </Link>
+                </p>
+              )}
             </div>
           </>
         ) : (
