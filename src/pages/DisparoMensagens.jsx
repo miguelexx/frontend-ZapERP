@@ -38,6 +38,7 @@ import './disparo.css'
 const STATUS_CONFIG = {
   rascunho:    { label: 'Rascunho',     color: '#64748b', bg: '#f1f5f9', icon: IconEdit },
   configurando:{ label: 'Configurando', color: '#2563eb', bg: '#eff6ff', icon: IconAlertCircle },
+  pronta:      { label: 'Pronta',       color: '#0891b2', bg: '#ecfeff', icon: IconCheck },
   agendada:    { label: 'Agendada',     color: '#d97706', bg: '#fffbeb', icon: IconClock },
   em_execucao: { label: 'Em execução',  color: '#059669', bg: '#ecfdf5', icon: IconPlayerPlay },
   pausada:     { label: 'Pausada',      color: '#b45309', bg: '#fef3c7', icon: IconAlertCircle },

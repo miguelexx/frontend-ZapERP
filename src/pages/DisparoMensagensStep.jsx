@@ -74,6 +74,16 @@ function varsAusentes(texto, padrao = {}) {
   return extrairVarsTexto(texto).filter(k => k !== 'nome' && k !== 'telefone' && !padrao[k])
 }
 
+function getEditorial(variacao) {
+  if (!variacao) return ''
+  if (variacao.tipo_mensagem === 'texto') return variacao.texto ?? ''
+  return variacao.legenda ?? variacao.texto ?? ''
+}
+
+function editorialLabel(tipo) {
+  return tipo === 'texto' ? 'Texto da mensagem' : 'Legenda'
+}
+
 function fmtBytes(n) {
   if (!n) return ''
   if (n < 1024) return `${n} B`
@@ -200,10 +210,13 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
     } catch (e) { setErro(disparoApiError(e)) }
   }
 
-  async function salvarTexto(texto) {
-    if (!varAtiva) return
+  async function salvarEditorial(conteudo) {
+    if (!varAtiva || !varSel) return
     try {
-      const a = await editarVariacao(campanhaId, varAtiva, { texto })
+      const payload = varSel.tipo_mensagem === 'texto'
+        ? { texto: conteudo }
+        : { legenda: conteudo }
+      const a = await editarVariacao(campanhaId, varAtiva, payload)
       setVariacoes(p => p.map(v => v.id === varAtiva ? a : v))
     } catch (e) { setErro(disparoApiError(e)) }
   }
@@ -252,9 +265,12 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
     if (!ta || !varSel) return
     const s = ta.selectionStart ?? ta.value.length
     const e = ta.selectionEnd ?? ta.value.length
-    const atual = varSel.texto ?? ''
+    const atual = getEditorial(varSel)
     const novo  = atual.slice(0, s) + `{{${chave}}}` + atual.slice(e)
-    setVariacoes(p => p.map(v => v.id === varAtiva ? { ...v, texto: novo } : v))
+    const patch = varSel.tipo_mensagem === 'texto'
+      ? { texto: novo }
+      : { legenda: novo, texto: varSel.texto }
+    setVariacoes(p => p.map(v => v.id === varAtiva ? { ...v, ...patch } : v))
     setTimeout(() => {
       ta.focus()
       const pos = s + `{{${chave}}}`.length
@@ -299,7 +315,7 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
   }
 
   async function handleConfirmar() {
-    const ausentes = variacoes.filter(v => v.ativa).flatMap(v => varsAusentes(v.texto, valoresPadrao))
+    const ausentes = variacoes.filter(v => v.ativa).flatMap(v => varsAusentes(getEditorial(v), valoresPadrao))
     if ([...new Set(ausentes)].length) {
       return setErro(`Variáveis sem valor padrão: ${[...new Set(ausentes)].join(', ')}. Configure os padrões antes de confirmar.`)
     }
@@ -332,8 +348,8 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
   // ── Bloqueantes para "Continuar" ──────────────────────────────────────────
 
   const ativas = variacoes.filter(v => v.ativa)
-  const todasVarsOk = ativas.every(v => varsAusentes(v.texto, valoresPadrao).length === 0)
-  const totalAusentes = ativas.flatMap(v => varsAusentes(v.texto, valoresPadrao))
+  const todasVarsOk = ativas.every(v => varsAusentes(getEditorial(v), valoresPadrao).length === 0)
+  const totalAusentes = ativas.flatMap(v => varsAusentes(getEditorial(v), valoresPadrao))
   const bloqueantes = [
     !ativas.length        && 'Crie pelo menos uma variação ativa.',
     !todasVarsOk          && `Variáveis sem padrão: ${[...new Set(totalAusentes)].join(', ')}.`,
@@ -397,7 +413,7 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
             <ul className="msg-var-list">
               {variacoes.map(v => {
                 const tipo = TIPO_MAP[v.tipo_mensagem] ?? TIPO_MAP.texto
-                const ausentes = varsAusentes(v.texto, valoresPadrao)
+                const ausentes = varsAusentes(getEditorial(v), valoresPadrao)
                 return (
                   <li
                     key={v.id}
@@ -486,8 +502,9 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
               {/* Área de texto */}
               <TextareaEditor
                 varId={varSel.id}
-                texto={varSel.texto ?? ''}
-                onSalvar={salvarTexto}
+                tipo={varSel.tipo_mensagem}
+                texto={getEditorial(varSel)}
+                onSalvar={salvarEditorial}
                 onRef={r => { textaRef.current = r }}
               />
 
@@ -526,12 +543,12 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
               )}
 
               {/* Alertas de variáveis ausentes */}
-              {varsAusentes(varSel.texto, valoresPadrao).length > 0 && (
+              {varsAusentes(getEditorial(varSel), valoresPadrao).length > 0 && (
                 <div className="msg-alerta-vars">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                   <div>
                     <strong>Variáveis sem valor padrão:</strong>{' '}
-                    {varsAusentes(varSel.texto, valoresPadrao).map(k => (
+                    {varsAusentes(getEditorial(varSel), valoresPadrao).map(k => (
                       <code key={k} className="msg-var-ausente-code">{`{{${k}}}`}</code>
                     ))}
                     <button className="msg-link" onClick={() => setPainelDir('variaveis')}>
@@ -853,12 +870,13 @@ function NomeInline({ nome, onSalvar }) {
   )
 }
 
-function TextareaEditor({ varId, texto, onSalvar, onRef }) {
+function TextareaEditor({ varId, tipo, texto, onSalvar, onRef }) {
   const [local, setLocal] = useState(texto)
   const timer = useRef(null)
   const ref   = useRef(null)
+  const label = editorialLabel(tipo)
 
-  useEffect(() => { setLocal(texto) }, [varId, texto])
+  useEffect(() => { setLocal(texto) }, [varId, texto, tipo])
 
   function onChange(e) {
     const v = e.target.value
@@ -874,12 +892,15 @@ function TextareaEditor({ varId, texto, onSalvar, onRef }) {
 
   return (
     <div className="msg-textarea-wrap">
+      <label className="msg-editor__tipo-label">{label}</label>
       <textarea
         ref={ref}
         value={local}
         onChange={onChange}
         className={`msg-textarea${excedido ? ' is-over' : ''}`}
-        placeholder={'Digite o texto da mensagem…\n\nUse {{nome}}, {{telefone}}, {{cidade}} para personalizar.'}
+        placeholder={tipo === 'texto'
+          ? 'Digite o texto da mensagem…\n\nUse {{nome}}, {{telefone}}, {{cidade}} para personalizar.'
+          : 'Legenda opcional para a mídia…\n\nUse {{nome}}, {{telefone}} para personalizar.'}
         rows={7}
         maxLength={5000}
         spellCheck
@@ -914,7 +935,7 @@ function MidiaUpload({ variacao, uploading, fileRef, onUpload, onRemover }) {
     imagem:    'image/jpeg,image/png,image/webp,image/gif',
     video:     'video/mp4,video/3gpp,video/quicktime',
     audio:     'audio/mpeg,audio/ogg,audio/aac,audio/opus',
-    documento: '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.txt,.csv,.zip',
+    documento: '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.txt,.csv',
   }[variacao.tipo_mensagem] ?? '*'
 
   const limites = {
@@ -986,25 +1007,34 @@ function MidiaUpload({ variacao, uploading, fileRef, onUpload, onRemover }) {
 }
 
 function ChatBubbleSimples({ variacao, padrao }) {
-  const tipo = TIPO_MAP[variacao.tipo_mensagem] ?? TIPO_MAP.texto
-  const texto = substituirVarsLocal(variacao.texto ?? '', {
+  const tipoMsg = variacao.tipo_mensagem
+  const editorial = getEditorial(variacao)
+  const textoRender = substituirVarsLocal(editorial, {
     nome: 'Destinatário', telefone: '11 9 9999-9999', ...padrao,
   })
+  const isTexto = tipoMsg === 'texto'
 
   return (
     <div className="msg-wa-bubbles">
-      {variacao.midia_url && variacao.tipo_mensagem === 'imagem' && (
+      {variacao.midia_url && tipoMsg === 'imagem' && (
         <div className="msg-bubble msg-bubble--media">
           <img src={variacao.midia_url} alt="" className="msg-bubble__img" />
-          {texto && <p className="msg-bubble__legenda">{texto}</p>}
+          {textoRender && <p className="msg-bubble__legenda">{textoRender}</p>}
         </div>
       )}
-      {variacao.midia_url && variacao.tipo_mensagem === 'audio' && (
+      {variacao.midia_url && tipoMsg === 'video' && (
+        <div className="msg-bubble msg-bubble--media">
+          <video controls src={variacao.midia_url} className="msg-bubble__video" />
+          {textoRender && <p className="msg-bubble__legenda">{textoRender}</p>}
+        </div>
+      )}
+      {variacao.midia_url && tipoMsg === 'audio' && (
         <div className="msg-bubble msg-bubble--audio">
           <audio controls src={variacao.midia_url} style={{ width: '100%', height: 32 }} />
+          {textoRender && <p className="msg-bubble__legenda">{textoRender}</p>}
         </div>
       )}
-      {variacao.midia_url && variacao.tipo_mensagem === 'documento' && (
+      {variacao.midia_url && tipoMsg === 'documento' && (
         <div className="msg-bubble msg-bubble--doc">
           <div className="msg-bubble-doc">
             <div className="msg-bubble-doc__icon">📄</div>
@@ -1013,19 +1043,19 @@ function ChatBubbleSimples({ variacao, padrao }) {
               <p className="msg-bubble-doc__meta">{variacao.midia_mime}</p>
             </div>
           </div>
-          {texto && <p className="msg-bubble__legenda">{texto}</p>}
+          {textoRender && <p className="msg-bubble__legenda">{textoRender}</p>}
         </div>
       )}
-      {(variacao.tipo_mensagem === 'texto' || (!variacao.midia_url && texto)) && texto && (
+      {isTexto && textoRender && (
         <div className="msg-bubble">
-          <p className="msg-bubble__texto">{texto}</p>
+          <p className="msg-bubble__texto">{textoRender}</p>
           <div className="msg-bubble__rodape">
             <span className="msg-bubble__hora">12:00</span>
             <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 5l3 3 9-7" stroke="#4fc3f7" strokeWidth="1.5" strokeLinecap="round"/><path d="M4 5l3 3 9-7" stroke="#4fc3f7" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </div>
         </div>
       )}
-      {!texto && !variacao.midia_url && (
+      {!textoRender && !variacao.midia_url && (
         <div className="msg-wa-empty">Escreva uma mensagem para visualizar a prévia</div>
       )}
     </div>
@@ -1046,7 +1076,24 @@ function ChatPreview({ data }) {
           <audio controls src={data.variacao.midia_url} style={{ width: '100%', height: 32 }} />
         </div>
       )}
-      {data.texto_substituido && (
+      {data.variacao?.midia_url && data.variacao.tipo_mensagem === 'video' && (
+        <div className="msg-bubble msg-bubble--media">
+          <video controls src={data.variacao.midia_url} className="msg-bubble__video" />
+          {data.legenda_substituida && <p className="msg-bubble__legenda">{data.legenda_substituida}</p>}
+        </div>
+      )}
+      {data.variacao?.midia_url && data.variacao.tipo_mensagem === 'documento' && (
+        <div className="msg-bubble msg-bubble--doc">
+          <div className="msg-bubble-doc">
+            <div className="msg-bubble-doc__icon">📄</div>
+            <div>
+              <p className="msg-bubble-doc__nome">{data.variacao.midia_nome_original ?? 'documento'}</p>
+            </div>
+          </div>
+          {data.legenda_substituida && <p className="msg-bubble__legenda">{data.legenda_substituida}</p>}
+        </div>
+      )}
+      {data.texto_substituido && data.variacao?.tipo_mensagem === 'texto' && (
         <div className="msg-bubble">
           <p className="msg-bubble__texto">{data.texto_substituido}</p>
           <div className="msg-bubble__rodape">

@@ -4,7 +4,9 @@ import { IconArrowLeft, IconSpeakerphone } from '@tabler/icons-react'
 import { disparoApiError, editarCampanha, obterCampanha } from '../api/disparoService'
 import DisparoDestinatariosStep from './DisparoDestinatariosStep'
 import DisparoInstanciasStep from './DisparoInstanciasStep'
+import DisparoLimitesStep from './DisparoLimitesStep'
 import DisparoMensagensStep from './DisparoMensagensStep'
+import DisparoRevisaoStep from './DisparoRevisaoStep'
 import './disparo.css'
 import './disparoWizard.css'
 
@@ -15,8 +17,8 @@ const WIZARD_STEPS = [
   { label: 'Destinatários', id: 'destinatarios' },
   { label: 'Instâncias', id: 'instancias' },
   { label: 'Mensagens', id: 'mensagens' },
-  { label: 'Limites', id: 'limites', locked: true },
-  { label: 'Revisão', id: 'revisao', locked: true },
+  { label: 'Limites', id: 'limites' },
+  { label: 'Revisão', id: 'revisao' },
 ]
 
 // ── Step 1: Informações ───────────────────────────────────────────────────────
@@ -149,7 +151,7 @@ export default function DisparoWizardPage() {
   useEffect(() => { fetchCampanha() }, [fetchCampanha])
 
   const STATUS_LABEL = {
-    rascunho: 'Rascunho', configurando: 'Configurando', agendada: 'Agendada',
+    rascunho: 'Rascunho', configurando: 'Configurando', pronta: 'Pronta', agendada: 'Agendada',
     em_execucao: 'Em execução', pausada: 'Pausada', concluida: 'Concluída',
     cancelada: 'Cancelada', arquivada: 'Arquivada',
   }
@@ -246,8 +248,21 @@ export default function DisparoWizardPage() {
             onNext={() => setActiveStep(4)}
           />
         )}
-        {activeStep >= 4 && (
-          <LockedStep label={WIZARD_STEPS[activeStep]?.label} />
+        {activeStep === 4 && (
+          <DisparoLimitesStep
+            campanha={campanha}
+            onCampanhaUpdate={updated => setCampanha(updated)}
+            onBack={() => setActiveStep(3)}
+            onContinue={() => setActiveStep(5)}
+          />
+        )}
+        {activeStep === 5 && (
+          <DisparoRevisaoStep
+            campanha={campanha}
+            onCampanhaUpdate={updated => setCampanha(updated)}
+            onBack={() => setActiveStep(4)}
+            onGoToStep={setActiveStep}
+          />
         )}
       </div>
     </div>
