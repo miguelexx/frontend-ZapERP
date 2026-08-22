@@ -39,7 +39,9 @@ function StatusBadge({ status }) {
     ? { icon: <IconWifi size={11} />, label: 'Conectada', cls: 'inst-badge--ok' }
     : status === 'qr_code'
       ? { icon: <IconWifiOff size={11} />, label: 'Aguardando QR', cls: 'inst-badge--warn' }
-      : { icon: <IconWifiOff size={11} />, label: status ?? 'Desconectada', cls: 'inst-badge--err' }
+      : status === 'unknown' || !status
+        ? { icon: <IconWifiOff size={11} />, label: 'Status a confirmar', cls: 'inst-badge--warn' }
+        : { icon: <IconWifiOff size={11} />, label: status ?? 'Desconectada', cls: 'inst-badge--err' }
   return (
     <span className={`inst-badge ${cfg.cls}`}>
       {cfg.icon} {cfg.label}
@@ -82,32 +84,42 @@ function SkeletonRows({ cols, rows = 4 }) {
 // ── Cards de instância ────────────────────────────────────────────────────────
 
 function InstanciaCard({ inst, selected, onToggle, disabled }) {
-  const disponivel = inst.disponivel
+  const selecionavel = inst.ativo !== false && (inst.selecionavel !== false)
+  const conectada = inst.conectada === true || inst.status === 'connected'
   const jaAtribuidos = inst.destinatarios_atribuidos ?? 0
+  const podeClicar = !disabled && selecionavel
   return (
     <label
-      className={`inst-card${selected ? ' inst-card--selected' : ''}${!disponivel ? ' inst-card--unavailable' : ''}`}
-      style={{ cursor: disabled || !disponivel ? 'not-allowed' : 'pointer' }}
-      title={!disponivel ? `Indisponível (${inst.status})` : undefined}
+      className={`inst-card${selected ? ' inst-card--selected' : ''}${!selecionavel ? ' inst-card--unavailable' : ''}${selecionavel && !conectada ? ' inst-card--warn' : ''}`}
+      style={{ cursor: podeClicar ? 'pointer' : 'not-allowed' }}
+      title={!selecionavel
+        ? 'Instância inativa'
+        : (!conectada ? 'Pode selecionar — status ainda não confirma conexão. Valide antes do envio.' : undefined)}
     >
       <input
         type="checkbox"
         checked={selected}
-        onChange={() => !disabled && disponivel && onToggle(inst.id)}
-        disabled={disabled || !disponivel}
+        onChange={() => podeClicar && onToggle(inst.id)}
+        disabled={!podeClicar}
         aria-label={`Selecionar instância ${inst.nome}`}
         style={{ display: 'none' }}
       />
       <div className="inst-card__icon">
         {selected
           ? <IconCheck size={18} style={{ color: '#fff' }} />
-          : <IconServer size={18} style={{ opacity: disponivel ? 1 : 0.4 }} />
+          : <IconServer size={18} style={{ opacity: selecionavel ? 1 : 0.4 }} />
         }
       </div>
       <div className="inst-card__body">
         <span className="inst-card__nome">{inst.nome}</span>
         <span className="inst-card__phone">{inst.display_phone ?? inst.telefone_conectado ?? '—'}</span>
         <StatusBadge status={inst.status} />
+        {inst.is_default && (
+          <span className="inst-card__default">Padrão do atendimento</span>
+        )}
+        {selecionavel && !conectada && (
+          <span className="inst-card__warn-txt">Selecionável — confirme a conexão antes do envio</span>
+        )}
         {selected && jaAtribuidos > 0 && (
           <span className="inst-card__count">{jaAtribuidos} destinatário{jaAtribuidos !== 1 ? 's' : ''}</span>
         )}
@@ -358,7 +370,26 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
       ])
       const lista = dispData.instancias ?? []
       setInstancias(lista)
-      const selSet = new Set(lista.filter(i => i.selecionada).map(i => i.id))
+      let selSet = new Set(lista.filter(i => i.selecionada).map(i => i.id))
+
+      // Se ainda não há instância na campanha, pré-seleciona a padrão do atendimento
+      // (ou a única ativa), sem impedir escolher outras depois.
+      if (selSet.size === 0) {
+        const candidata = lista.find(i => i.is_default && i.ativo !== false)
+          || (lista.filter(i => i.ativo !== false).length === 1
+            ? lista.find(i => i.ativo !== false)
+            : null)
+        if (candidata?.id) {
+          try {
+            await selecionarInstancias(campanhaId, [candidata.id])
+            selSet = new Set([candidata.id])
+            setInstancias(prev => prev.map(i => (
+              i.id === candidata.id ? { ...i, selecionada: true } : i
+            )))
+          } catch (_) { /* usuário pode selecionar manualmente */ }
+        }
+      }
+
       setSelecionadas(selSet)
       setResumo(resData)
       if (resData.distribuicao_modo) setModo(resData.distribuicao_modo)
@@ -436,10 +467,10 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
   }
 
   // ── Pode avançar? ─────────────────────────────────────────────────────────
+  // Pode avançar com distribuição confirmada; conexão é revalidada no envio/revisão.
   const podeAvancar = distribuicaoConfirmada && !precisaRevisao &&
     (resumo?.sem_instancia ?? 0) === 0 &&
-    instSelecionadas.length > 0 &&
-    instSelecionadas.every(i => i.disponivel)
+    instSelecionadas.length > 0
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -460,6 +491,10 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
 
       {/* ── Seção 1: Cards de instâncias ─────────────────────────── */}
       <h4 className="inst-section-title">1. Selecione as instâncias</h4>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--ds-text-muted,#64748b)', lineHeight: 1.45 }}>
+        Você pode usar a <strong>mesma instância do atendimento</strong> (já pré-selecionada quando houver uma padrão).
+        Se quiser, marque outras instâncias ativas para distribuir o envio.
+      </p>
       {instancias.length === 0
         ? (
           <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--ds-text-muted,#64748b)' }}>
