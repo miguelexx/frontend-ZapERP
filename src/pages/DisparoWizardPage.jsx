@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { IconArrowLeft, IconPlayerPlay, IconSpeakerphone } from '@tabler/icons-react'
+import {
+  IconArrowLeft,
+  IconCheck,
+  IconChecks,
+  IconDeviceMobile,
+  IconInfoCircle,
+  IconMessage2,
+  IconPlayerPlay,
+  IconSpeakerphone,
+  IconUsers,
+  IconWaveSawTool,
+} from '@tabler/icons-react'
 import { disparoApiError, editarCampanha, obterCampanha } from '../api/disparoService'
 import DisparoDestinatariosStep from './DisparoDestinatariosStep'
 import DisparoInstanciasStep from './DisparoInstanciasStep'
@@ -18,12 +29,12 @@ const EXEC_ACCESS_STATUSES = new Set([
 // ── Wizard steps config ───────────────────────────────────────────────────────
 
 const WIZARD_STEPS = [
-  { label: 'Informações', id: 'info' },
-  { label: 'Destinatários', id: 'destinatarios' },
-  { label: 'Instâncias', id: 'instancias' },
-  { label: 'Mensagens', id: 'mensagens' },
-  { label: 'Limites', id: 'limites' },
-  { label: 'Revisão', id: 'revisao' },
+  { label: 'Informações', hint: 'Identidade', id: 'info', icon: IconInfoCircle },
+  { label: 'Destinatários', hint: 'Audiência', id: 'destinatarios', icon: IconUsers },
+  { label: 'Instâncias', hint: 'Canais', id: 'instancias', icon: IconDeviceMobile },
+  { label: 'Mensagens', hint: 'Conteúdo', id: 'mensagens', icon: IconMessage2 },
+  { label: 'Limites', hint: 'Ritmo', id: 'limites', icon: IconWaveSawTool },
+  { label: 'Revisão', hint: 'Publicação', id: 'revisao', icon: IconChecks },
 ]
 
 // ── Step 1: Informações ───────────────────────────────────────────────────────
@@ -60,7 +71,15 @@ function InfoStep({ campanha, onSaved, onNext }) {
   }
 
   return (
-    <div>
+    <div className="dw-info-step">
+      <div className="dw-step-intro">
+        <span className="dw-step-intro__index">01</span>
+        <div>
+          <p className="dw-step-intro__eyebrow">Identidade da campanha</p>
+          <h2 className="dw-step-intro__title">Comece com o essencial</h2>
+          <p className="dw-step-intro__desc">Dê um nome claro para sua equipe e registre o objetivo deste disparo.</p>
+        </div>
+      </div>
       {error && <div className="disparo-alert disparo-alert--error">{error}</div>}
       {success && (
         <div className="disparo-alert" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', marginBottom: 12 }}>
@@ -189,14 +208,20 @@ export default function DisparoWizardPage() {
 
       {/* Cabeçalho da campanha */}
       <div className="dw-campaign-header">
-        <IconSpeakerphone size={22} style={{ color: 'var(--ds-primary,#128c7e)', flexShrink: 0 }} aria-hidden />
-        <div>
+        <div className="dw-campaign-header__icon">
+          <IconSpeakerphone size={24} aria-hidden />
+        </div>
+        <div className="dw-campaign-header__copy">
+          <div className="dw-campaign-header__eyebrow">Editor de campanha</div>
           <h1 className="dw-campaign-header__name">{campanha.nome}</h1>
           {campanha.descricao && <p className="dw-campaign-header__desc">{campanha.descricao}</p>}
         </div>
-        <span className={`disparo-status disparo-status--${campanha.status}`} style={{ marginLeft: 'auto' }}>
-          {STATUS_LABEL[campanha.status] ?? campanha.status}
-        </span>
+        <div className="dw-campaign-header__meta">
+          <span className="dw-campaign-header__progress">Etapa {activeStep + 1} de {WIZARD_STEPS.length}</span>
+          <span className={`disparo-status disparo-status--${campanha.status}`}>
+            {STATUS_LABEL[campanha.status] ?? campanha.status}
+          </span>
+        </div>
       </div>
 
       {/* Banner execução */}
@@ -216,6 +241,7 @@ export default function DisparoWizardPage() {
       {/* Steps */}
       <div className="dw-steps" role="tablist" aria-label="Etapas da campanha">
         {WIZARD_STEPS.map((step, idx) => {
+          const StepIcon = step.icon
           const isActive = idx === activeStep
           const isDone = idx < activeStep
           const isLocked = step.locked
@@ -227,9 +253,12 @@ export default function DisparoWizardPage() {
               aria-selected={isActive}
             >
               <div className="dw-step__circle">
-                {isDone ? '✓' : idx + 1}
+                {isDone ? <IconCheck size={15} stroke={2.5} /> : <StepIcon size={15} stroke={1.9} />}
               </div>
-              <span className="dw-step__label">{step.label}</span>
+              <span className="dw-step__copy">
+                <span className="dw-step__label">{step.label}</span>
+                <span className="dw-step__hint">{step.hint}</span>
+              </span>
             </div>
           )
         })}

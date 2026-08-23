@@ -553,7 +553,11 @@ export default function DisparoExecucaoPage() {
           <div className="dpex-header__icon">
             <IconSpeakerphone size={22} />
           </div>
-          <div>
+          <div className="dpex-header__copy">
+            <div className="dpex-header__eyebrow">
+              <span className={`dpex-header__pulse${campanhaStatus === 'em_execucao' ? ' is-live' : ''}`} />
+              Central de operações
+            </div>
             <h1 className="dpex-header__title">{campanha?.nome ?? 'Campanha'}</h1>
             <div className="dpex-header__badges">
               <span className={`dpex-badge dpex-badge--campanha dpex-badge--${campanhaStatus}`}>

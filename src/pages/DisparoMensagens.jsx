@@ -553,6 +553,10 @@ export default function DisparoMensagens() {
             <IconSpeakerphone size={26} />
           </div>
           <div>
+            <div className="dp-hero__eyebrow">
+              <span className="dp-hero__live-dot" />
+              Central de campanhas
+            </div>
             <h1 className="dp-hero__title">Disparo de Mensagens</h1>
             <p className="dp-hero__sub">Crie e gerencie campanhas de envio em massa via WhatsApp</p>
           </div>
