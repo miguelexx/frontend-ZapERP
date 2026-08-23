@@ -35,9 +35,9 @@ const MODOS = [
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }) {
-  const cfg = status === 'connected'
+  const cfg = status === 'connected' || status === 'authenticated' || status === 'standby'
     ? { icon: <IconWifi size={11} />, label: 'Conectada', cls: 'inst-badge--ok' }
-    : status === 'qr_code'
+    : status === 'qr_code' || status === 'qrcode'
       ? { icon: <IconWifiOff size={11} />, label: 'Aguardando QR', cls: 'inst-badge--warn' }
       : status === 'unknown' || !status
         ? { icon: <IconWifiOff size={11} />, label: 'Status a confirmar', cls: 'inst-badge--warn' }
@@ -118,7 +118,9 @@ function InstanciaCard({ inst, selected, onToggle, disabled }) {
           <span className="inst-card__default">Padrão do atendimento</span>
         )}
         {selecionavel && !conectada && (
-          <span className="inst-card__warn-txt">Selecionável — confirme a conexão antes do envio</span>
+          <span className="inst-card__warn-txt">
+            Pode usar no disparo — a conexão será validada no envio
+          </span>
         )}
         {selected && jaAtribuidos > 0 && (
           <span className="inst-card__count">{jaAtribuidos} destinatário{jaAtribuidos !== 1 ? 's' : ''}</span>
@@ -571,6 +573,11 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
               {preview.erros?.length > 0 && (
                 <div className="disparo-alert disparo-alert--error">
                   {preview.erros.map((e, i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+              {preview.avisos?.length > 0 && !preview.erros?.length && (
+                <div className="disparo-alert" style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}>
+                  {preview.avisos.map((e, i) => <div key={i}>{e}</div>)}
                 </div>
               )}
               <div className="dw-stats-bar" style={{ marginBottom: 10 }}>
