@@ -190,9 +190,9 @@ function NumField({ label, hint, value, onChange, min, max, optional }) {
     <div className="lim-field">
       <label className="lim-field__label">
         {label}
-        {optional && <span className="lim-field__opt"> (opcional)</span>}
+        {optional && <span className="lim-field__opt"> opcional</span>}
       </label>
-      {hint && <span className="lim-field__hint">{hint}</span>}
+      {hint && <p className="lim-field__hint">{hint}</p>}
       <input
         type="number"
         className="lim-input"
@@ -204,6 +204,37 @@ function NumField({ label, hint, value, onChange, min, max, optional }) {
     </div>
   )
 }
+
+function SectionIntro({ icon, title, why, how }) {
+  return (
+    <div className="lim-section__header">
+      <div className="lim-section__icon" aria-hidden="true">{icon}</div>
+      <div className="lim-section__copy">
+        <h2 className="lim-section__title">{title}</h2>
+        {why && <p className="lim-section__why">{why}</p>}
+        {how && <p className="lim-section__how">{how}</p>}
+      </div>
+    </div>
+  )
+}
+
+const PERFIS_UI = [
+  {
+    id: 'conservador',
+    label: 'Conservador',
+    desc: 'Mais lento e seguro. Ideal para números novos ou listas frias.',
+  },
+  {
+    id: 'moderado',
+    label: 'Moderado',
+    desc: 'Equilíbrio entre velocidade e cuidado. Recomendado na maioria dos casos.',
+  },
+  {
+    id: 'personalizado',
+    label: 'Personalizado',
+    desc: 'Você define cada valor manualmente abaixo.',
+  },
+]
 
 function EditorSemanal({ weekly, onChange, titulo }) {
   function setDay(d, patch) {
@@ -335,10 +366,12 @@ function CardInstancia({
   const id = inst.instancia_id ?? inst.id
   const herdar = override?.herdar_global !== false
   const janelasProprias = override?.janelas_proprias === true
-  const conectada = inst.conectada !== false && inst.status === 'connected'
+  const statusOk = ['connected', 'authenticated', 'standby'].includes(String(inst.status || ''))
+  const conectada = inst.conectada === true || statusOk
+  const inativa = inst.ativo === false
 
   return (
-    <div className={`lim-inst-card${!herdar ? ' lim-inst-card--custom' : ''}${!conectada ? ' lim-inst-card--warn' : ''}`}>
+    <div className={`lim-inst-card${!herdar ? ' lim-inst-card--custom' : ''}${inativa ? ' lim-inst-card--warn' : ''}`}>
       <div className="lim-inst-card__header">
         <div className="lim-inst-card__info">
           <IconServer size={16} className="lim-inst-card__icon" />
@@ -348,26 +381,34 @@ function CardInstancia({
           </div>
         </div>
         <div className="lim-inst-card__badges">
-          {!conectada && (
+          {inativa ? (
             <span className="lim-badge lim-badge--warn">
-              <IconWifiOff size={11} /> Desconectada
+              <IconWifiOff size={11} /> Inativa
             </span>
-          )}
+          ) : !conectada ? (
+            <span className="lim-badge lim-badge--soft">Status a confirmar</span>
+          ) : null}
           {herdar ? (
-            <span className="lim-badge lim-badge--inherit">Herdar global</span>
+            <span className="lim-badge lim-badge--inherit">Usa limites globais</span>
           ) : (
-            <span className="lim-badge lim-badge--custom">Personalizado</span>
+            <span className="lim-badge lim-badge--custom">Limites próprios</span>
           )}
         </div>
-        <button type="button" className="lim-inst-card__expand" onClick={onToggleExpand}>
+        <button type="button" className="lim-inst-card__expand" onClick={onToggleExpand} aria-expanded={expandido}>
           {expandido ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
         </button>
       </div>
 
       {expandido && (
         <div className="lim-inst-card__body">
+          <p className="lim-inst-card__help">
+            Por padrão esta linha herda os limites globais. Desligue abaixo só se esta instância precisar de ritmo diferente.
+          </p>
           <div className="lim-toggle-row">
-            <span>Herdar limites globais</span>
+            <div className="lim-toggle-row__text">
+              <span className="lim-toggle-row__label">Herdar limites globais</span>
+              <span className="lim-toggle-row__hint">Recomendado — mesma velocidade para todas as linhas</span>
+            </div>
             <label className="lim-switch">
               <input
                 type="checkbox"
@@ -382,39 +423,48 @@ function CardInstancia({
             <>
               <div className="lim-grid lim-grid--3">
                 <NumField
-                  label="Limite / hora"
+                  label="Máx. por hora"
+                  hint="Teto móvel de 60 minutos nesta linha"
                   value={override.limite_por_hora ?? globais.limite_por_hora}
                   onChange={(v) => onChangeOverride(id, { limite_por_hora: v })}
                 />
                 <NumField
-                  label="Limite / dia"
+                  label="Máx. por dia"
+                  hint="No fuso horário da campanha"
                   value={override.limite_por_dia ?? globais.limite_por_dia}
                   onChange={(v) => onChangeOverride(id, { limite_por_dia: v })}
                 />
                 <NumField
-                  label="Lote"
+                  label="Tamanho do lote"
+                  hint="Quantas mensagens antes de uma pausa"
                   value={override.lote_tamanho ?? globais.lote_tamanho}
                   onChange={(v) => onChangeOverride(id, { lote_tamanho: v })}
                 />
                 <NumField
-                  label="Intervalo mín. (s)"
+                  label="Intervalo mínimo (s)"
+                  hint="Pausa mínima entre dois envios"
                   value={override.intervalo_min_sec ?? globais.intervalo_min_sec}
                   onChange={(v) => onChangeOverride(id, { intervalo_min_sec: v })}
                 />
                 <NumField
-                  label="Intervalo máx. (s)"
+                  label="Intervalo máximo (s)"
+                  hint="Pausa máxima entre dois envios"
                   value={override.intervalo_max_sec ?? globais.intervalo_max_sec}
                   onChange={(v) => onChangeOverride(id, { intervalo_max_sec: v })}
                 />
                 <NumField
-                  label="Pausa lote mín. (s)"
+                  label="Pausa do lote (mín. s)"
+                  hint="Descanso mínimo após cada lote"
                   value={override.pausa_lote_min_sec ?? globais.pausa_lote_min_sec}
                   onChange={(v) => onChangeOverride(id, { pausa_lote_min_sec: v })}
                 />
               </div>
 
               <div className="lim-toggle-row">
-                <span>Horários próprios (não herdar janela global)</span>
+                <div className="lim-toggle-row__text">
+                  <span className="lim-toggle-row__label">Horários próprios</span>
+                  <span className="lim-toggle-row__hint">Se ligado, esta linha ignora a grade semanal global</span>
+                </div>
                 <label className="lim-switch">
                   <input
                     type="checkbox"
@@ -429,7 +479,7 @@ function CardInstancia({
                 <EditorSemanal
                   weekly={weeklyInst}
                   onChange={(w) => onChangeWeekly(id, w)}
-                  titulo={`Janelas — ${inst.nome}`}
+                  titulo={`Horários só para ${inst.nome}`}
                 />
               )}
             </>
@@ -808,14 +858,29 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
   const mostrarBannerRevisao = limitesRevisao || desconectadas.length > 0 || motivosRevisao.length > 0
 
   const bloqueantes = [
-    conflitoImpeditivo && 'Conflitos impeditivos com outras campanhas.',
-    desconectadas.length > 0 && `${desconectadas.length} instância(s) desconectada(s).`,
+    conflitoImpeditivo && 'Há outra campanha em execução na mesma instância. Pause ou aguarde antes de continuar.',
+    desconectadas.length > 0 && `${desconectadas.length} instância(s) inativa(s) — reative em Configurações WhatsApp.`,
   ].filter(Boolean)
 
   if (loading) return <LimitesSkeleton />
 
   return (
     <div className="lim-root">
+      <header className="lim-page-intro">
+        <p className="lim-page-intro__eyebrow">Etapa 5 · Ritmo do envio</p>
+        <h1 className="lim-page-intro__title">Defina como e quando as mensagens saem</h1>
+        <p className="lim-page-intro__desc">
+          Aqui você controla a velocidade, os horários permitidos e as pausas de segurança.
+          Nada é enviado nesta tela — só a regra que o disparo vai respeitar depois.
+        </p>
+        <ol className="lim-page-intro__steps">
+          <li><strong>Perfil</strong> — escolha um ritmo base</li>
+          <li><strong>Limites</strong> — ajuste volumes e intervalos</li>
+          <li><strong>Horários</strong> — dias e janelas permitidos</li>
+          <li><strong>Simular</strong> — veja a previsão e continue</li>
+        </ol>
+      </header>
+
       {erro && (
         <div className="disparo-alert disparo-alert--error lim-alert">
           <IconAlertTriangle size={16} />
@@ -828,108 +893,115 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
         <div className="lim-banner-revisao">
           <IconAlertTriangle size={18} />
           <div>
-            <strong>Revisão necessária</strong>
+            <strong>Revise antes de confirmar</strong>
             <ul>
-              {limitesRevisao && <li>Os limites foram alterados após a confirmação anterior.</li>}
+              {limitesRevisao && <li>Os limites mudaram depois da última confirmação.</li>}
               {motivosRevisao.map((m, i) => <li key={i}>{m}</li>)}
               {desconectadas.map((d) => (
-                <li key={d.id}>Instância &quot;{d.nome}&quot; desconectada (status: {d.status}).</li>
+                <li key={d.id}>Instância &quot;{d.nome}&quot; está inativa (status: {d.status}).</li>
               ))}
             </ul>
           </div>
           <button type="button" className="lim-btn-ghost lim-btn--sm" onClick={carregar}>
-            <IconRefresh size={14} /> Revalidar
+            <IconRefresh size={14} /> Atualizar
           </button>
         </div>
       )}
 
       {avisos.length > 0 && (
         <div className="lim-banner-aviso">
+          <strong className="lim-banner-aviso__title">Avisos (não bloqueiam)</strong>
           {avisos.map((a, i) => <p key={i}>{a}</p>)}
         </div>
       )}
 
       {/* Perfis */}
       <section className="lim-section">
-        <div className="lim-section__header">
-          <IconShield size={18} />
-          <div>
-            <h2 className="lim-section__title">Perfil operacional</h2>
-            <p className="lim-section__sub">Escolha um ponto de partida e ajuste os valores abaixo</p>
-          </div>
-        </div>
+        <SectionIntro
+          icon={<IconShield size={18} />}
+          title="1. Perfil operacional"
+          why="Serve para preencher os números abaixo com um ritmo pronto."
+          how="Escolha Conservador ou Moderado e, se quiser, ajuste os campos na seção seguinte."
+        />
         <div className="lim-perfis">
-          {['conservador', 'moderado', 'personalizado'].map((p) => (
+          {PERFIS_UI.map((p) => (
             <button
-              key={p}
+              key={p.id}
               type="button"
-              className={`lim-perfil-btn${globais.perfil === p ? ' lim-perfil-btn--active' : ''}`}
-              onClick={() => aplicarPerfil(p)}
+              className={`lim-perfil-btn${globais.perfil === p.id ? ' lim-perfil-btn--active' : ''}`}
+              onClick={() => aplicarPerfil(p.id)}
             >
-              {p === 'conservador' ? 'Conservador' : p === 'moderado' ? 'Moderado' : 'Personalizado'}
+              <strong className="lim-perfil-btn__label">{p.label}</strong>
+              <span className="lim-perfil-btn__desc">{p.desc}</span>
             </button>
           ))}
         </div>
         <p className="lim-disclaimer">
-          Sugestão operacional — não garante proteção contra bloqueio do WhatsApp/provedor.
+          Estes perfis são sugestão operacional. Não garantem proteção contra bloqueio do WhatsApp.
         </p>
       </section>
 
       {/* Limites globais */}
       <section className="lim-section">
-        <div className="lim-section__header">
-          <IconClock size={18} />
-          <div>
-            <h2 className="lim-section__title">Limites globais</h2>
-            <p className="lim-section__sub">Valem para todas as instâncias que herdarem a configuração</p>
-          </div>
-        </div>
+        <SectionIntro
+          icon={<IconClock size={18} />}
+          title="2. Limites e intervalos"
+          why="Controlam quantas mensagens saem e o tempo entre cada envio."
+          how="Valores mais altos = campanha mais rápida (e mais risco). Valores mais baixos = mais seguro."
+        />
         <div className="lim-grid lim-grid--3">
           <NumField
-            label="Limite total"
-            hint="Vazio = sem teto global"
+            label="Limite total da campanha"
+            hint="Teto máximo de envios nesta campanha. Deixe vazio para sem teto."
             value={globais.limite_total}
             onChange={(v) => patchGlobais({ limite_total: v })}
             optional
           />
           <NumField
-            label="Limite / hora"
+            label="Máximo por hora"
+            hint="Quantas mensagens no máximo a cada 60 minutos (janela móvel)."
             value={globais.limite_por_hora}
             onChange={(v) => patchGlobais({ limite_por_hora: v })}
             min={1}
           />
           <NumField
-            label="Limite / dia"
+            label="Máximo por dia"
+            hint="Quantas mensagens no máximo em um dia, no fuso escolhido."
             value={globais.limite_por_dia}
             onChange={(v) => patchGlobais({ limite_por_dia: v })}
             min={1}
           />
           <NumField
-            label="Intervalo mín. (s)"
+            label="Intervalo mínimo (segundos)"
+            hint="Pausa mínima entre uma mensagem e a próxima."
             value={globais.intervalo_min_sec}
             onChange={(v) => patchGlobais({ intervalo_min_sec: v })}
             min={1}
           />
           <NumField
-            label="Intervalo máx. (s)"
+            label="Intervalo máximo (segundos)"
+            hint="Pausa máxima entre mensagens (o sistema sorteia entre mín. e máx.)."
             value={globais.intervalo_max_sec}
             onChange={(v) => patchGlobais({ intervalo_max_sec: v })}
             min={1}
           />
           <NumField
             label="Tamanho do lote"
+            hint="Após N envios, o sistema faz uma pausa maior (descanso)."
             value={globais.lote_tamanho}
             onChange={(v) => patchGlobais({ lote_tamanho: v })}
             min={1}
           />
           <NumField
-            label="Pausa lote mín. (s)"
+            label="Pausa do lote — mínima (s)"
+            hint="Descanso mínimo depois de cada lote."
             value={globais.pausa_lote_min_sec}
             onChange={(v) => patchGlobais({ pausa_lote_min_sec: v })}
             min={0}
           />
           <NumField
-            label="Pausa lote máx. (s)"
+            label="Pausa do lote — máxima (s)"
+            hint="Descanso máximo depois de cada lote."
             value={globais.pausa_lote_max_sec}
             onChange={(v) => patchGlobais({ pausa_lote_max_sec: v })}
             min={0}
@@ -940,13 +1012,12 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
       {/* Instâncias */}
       {instancias.length > 0 && (
         <section className="lim-section">
-          <div className="lim-section__header">
-            <IconServer size={18} />
-            <div>
-              <h2 className="lim-section__title">Limites por instância</h2>
-              <p className="lim-section__sub">{instancias.length} instância(s) na campanha</p>
-            </div>
-          </div>
+          <SectionIntro
+            icon={<IconServer size={18} />}
+            title="3. Limites por instância (opcional)"
+            why="Só use se alguma linha WhatsApp precisar de ritmo diferente da regra global."
+            how="Na maioria dos casos, deixe “Usa limites globais”. Expanda a linha para personalizar."
+          />
           <div className="lim-inst-list">
             {instancias.map((inst) => {
               const id = inst.instancia_id ?? inst.id
@@ -996,17 +1067,17 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
 
       {/* Janelas globais */}
       <section className="lim-section">
-        <div className="lim-section__header">
-          <IconCalendar size={18} />
-          <div>
-            <h2 className="lim-section__title">Janelas de envio</h2>
-            <p className="lim-section__sub">Horários permitidos para disparo (fuso abaixo)</p>
-          </div>
-        </div>
+        <SectionIntro
+          icon={<IconCalendar size={18} />}
+          title="4. Dias e horários permitidos"
+          why="O disparo só envia dentro destes dias/horários (no fuso abaixo)."
+          how="Marque os dias ativos e defina o período (ex.: 08:00 até 18:00). Fora disso a fila espera."
+        />
         <EditorSemanal weekly={weeklyGlobal} onChange={(w) => { setWeeklyGlobal(w); setSimulado(false) }} />
 
         <div className="lim-field lim-field--fuso">
           <label className="lim-field__label">Fuso horário</label>
+          <p className="lim-field__hint">Usado para “máximo por dia”, janelas e agendamento.</p>
           <select
             className="lim-select"
             value={globais.fuso_horario}
@@ -1021,13 +1092,12 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
 
       {/* Agendamento */}
       <section className="lim-section">
-        <div className="lim-section__header">
-          <IconPlayerPlay size={18} />
-          <div>
-            <h2 className="lim-section__title">Agendamento</h2>
-            <p className="lim-section__sub">Quando a campanha deve iniciar após confirmação final</p>
-          </div>
-        </div>
+        <SectionIntro
+          icon={<IconPlayerPlay size={18} />}
+          title="5. Quando começar"
+          why="Decide se a campanha inicia logo após a revisão final ou em data/hora marcada."
+          how="“Imediato” = começa quando você confirmar a revisão. “Agendar” = espera a data escolhida."
+        />
         <div className="lim-agendamento">
           <label className="lim-radio">
             <input
@@ -1036,7 +1106,10 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
               checked={globais.inicio_modo === 'imediato'}
               onChange={() => patchGlobais({ inicio_modo: 'imediato', agendado_para: null })}
             />
-            <span>Iniciar após confirmação final</span>
+            <span className="lim-radio__body">
+              <strong>Começar após a revisão final</strong>
+              <em>Recomendado para testes e campanhas prontas agora</em>
+            </span>
           </label>
           <label className="lim-radio">
             <input
@@ -1045,13 +1118,17 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
               checked={globais.inicio_modo === 'agendado'}
               onChange={() => patchGlobais({ inicio_modo: 'agendado' })}
             />
-            <span>Agendar data e hora</span>
+            <span className="lim-radio__body">
+              <strong>Agendar data e hora</strong>
+              <em>A fila só começa no horário marcado (respeitando as janelas)</em>
+            </span>
           </label>
 
           {globais.inicio_modo === 'agendado' && (
             <div className="lim-agendamento__campos">
               <div className="lim-field">
-                <label className="lim-field__label">Data e hora</label>
+                <label className="lim-field__label">Data e hora de início</label>
+                <p className="lim-field__hint">No fuso selecionado acima.</p>
                 <input
                   type="datetime-local"
                   className="lim-input"
@@ -1060,7 +1137,8 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
                 />
               </div>
               <div className="lim-field">
-                <label className="lim-field__label">Data limite <span className="lim-field__opt">(opcional)</span></label>
+                <label className="lim-field__label">Data limite <span className="lim-field__opt">opcional</span></label>
+                <p className="lim-field__hint">Após esta data a campanha para de enviar automaticamente.</p>
                 <input
                   type="datetime-local"
                   className="lim-input"
@@ -1070,7 +1148,7 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
               </div>
               {globais.agendado_para && (
                 <button type="button" className="lim-btn-ghost lim-btn--sm" onClick={handleCancelarAgendamento} disabled={saving}>
-                  Cancelar agendamento
+                  Voltar para início imediato
                 </button>
               )}
             </div>
@@ -1080,13 +1158,12 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
 
       {/* Pausas automáticas */}
       <section className="lim-section">
-        <div className="lim-section__header">
-          <IconShield size={18} />
-          <div>
-            <h2 className="lim-section__title">Pausas automáticas</h2>
-            <p className="lim-section__sub">Critérios para pausar o envio automaticamente</p>
-          </div>
-        </div>
+        <SectionIntro
+          icon={<IconShield size={18} />}
+          title="6. Pausas de segurança"
+          why="Protegem a campanha se algo der errado durante o envio."
+          how="Se a taxa de erro ou falhas seguidas passar do limite, o disparo pausa sozinho."
+        />
         <div className="lim-pausas">
           <label className="lim-check">
             <input
@@ -1094,20 +1171,23 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
               checked={globais.pausa_auto_desconexao}
               onChange={(e) => patchGlobais({ pausa_auto_desconexao: e.target.checked })}
             />
-            <span>Pausar ao detectar desconexão da instância</span>
+            <span className="lim-check__body">
+              <strong>Pausar se a instância cair</strong>
+              <em>Quando a linha WhatsApp desconectar de verdade</em>
+            </span>
           </label>
           <div className="lim-grid lim-grid--2">
             <NumField
-              label="Erros consecutivos"
-              hint="Pausa após N falhas seguidas"
+              label="Falhas seguidas para pausar"
+              hint="Ex.: 5 = pausa após 5 erros consecutivos."
               value={globais.pausa_auto_erros_consecutivos}
               onChange={(v) => patchGlobais({ pausa_auto_erros_consecutivos: v })}
               min={1}
               max={100}
             />
             <NumField
-              label="Taxa de falha (%)"
-              hint="Pausa se taxa ultrapassar"
+              label="Taxa de falha para pausar (%)"
+              hint="Ex.: 25 = pausa se 25% dos envios falharem."
               value={globais.pausa_auto_taxa_falha_pct}
               onChange={(v) => patchGlobais({ pausa_auto_taxa_falha_pct: v })}
               min={1}
@@ -1120,48 +1200,45 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
       {/* Simulação */}
       <section className="lim-section">
         <div className="lim-section__header lim-section__header--row">
-          <div className="lim-section__header">
-            <IconClock size={18} />
-            <div>
-              <h2 className="lim-section__title">Simulação de duração</h2>
-              <p className="lim-section__sub">Estimativa com base nos limites e janelas configurados</p>
-            </div>
-          </div>
+          <SectionIntro
+            icon={<IconClock size={18} />}
+            title="7. Simular duração"
+            why="Mostra uma estimativa de quanto tempo a campanha deve levar."
+            how="Salva a configuração atual e calcula início/fim aproximados. Não envia nada."
+          />
           <button
             type="button"
             className="lim-btn-primary lim-btn--sm"
             onClick={handleSimular}
             disabled={saving}
           >
-            {saving ? 'Calculando…' : 'Simular duração'}
+            {saving ? 'Calculando…' : 'Simular agora'}
           </button>
         </div>
         {simulacao ? (
           <SimulacaoResumo simulacao={simulacao} />
         ) : (
-          <p className="lim-empty">Clique em &quot;Simular duração&quot; para ver a previsão.</p>
+          <p className="lim-empty">Clique em &quot;Simular agora&quot; para ver a previsão de duração.</p>
         )}
-        <p className="lim-disclaimer">
-          Estimativa sujeita a desconexões, falhas e limites reais do provedor. Não há envio nesta etapa.
-        </p>
       </section>
 
       {/* Conflitos */}
       {conflitos.length > 0 && (
         <section className="lim-section lim-section--warn">
-          <div className="lim-section__header">
-            <IconAlertTriangle size={18} />
-            <div>
-              <h2 className="lim-section__title">Conflitos detectados</h2>
-              <p className="lim-section__sub">Outras campanhas usando as mesmas instâncias</p>
-            </div>
-          </div>
+          <SectionIntro
+            icon={<IconAlertTriangle size={18} />}
+            title="Atenção: outras campanhas na mesma linha"
+            why="Duas campanhas no mesmo WhatsApp ao mesmo tempo podem competir pela fila."
+            how={conflitoImpeditivo
+              ? 'Há conflito impeditivo — resolva antes de continuar.'
+              : 'É só um aviso; revise se faz sentido seguir em paralelo.'}
+          />
           <ul className="lim-conflitos">
             {conflitos.map((c, i) => (
               <li key={i} className={`lim-conflito lim-conflito--${c.tipo}`}>
                 <strong>{c.campanha_nome}</strong>
                 <span>Instância #{c.instancia_id}</span>
-                <span className="lim-badge lim-badge--warn">{c.tipo.replace('_', ' ')}</span>
+                <span className="lim-badge lim-badge--warn">{String(c.tipo || '').replace(/_/g, ' ')}</span>
                 {c.agendado_para && <span>Agendado: {fmtIsoLocal(c.agendado_para)}</span>}
               </li>
             ))}
@@ -1183,7 +1260,7 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
             </div>
           )}
           {limitesConfirmados && !limitesRevisao && (
-            <span className="lim-footer__ok">Limites confirmados</span>
+            <span className="lim-footer__ok">Limites confirmados — pode avançar</span>
           )}
         </div>
         <div className="dw-footer__right">
@@ -1192,6 +1269,7 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
             className="disparo-btn-secondary"
             onClick={handleSalvarRascunho}
             disabled={saving || continuando}
+            title="Guarda as regras sem confirmar a etapa"
           >
             {saving ? 'Salvando…' : 'Salvar rascunho'}
           </button>
@@ -1200,9 +1278,9 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
             className="disparo-btn-primary"
             onClick={handleContinuar}
             disabled={saving || continuando || conflitoImpeditivo || desconectadas.length > 0}
-            title={bloqueantes[0] ?? ''}
+            title={bloqueantes[0] || 'Salva, simula se preciso e confirma esta etapa'}
           >
-            {continuando ? 'Confirmando…' : 'Continuar →'}
+            {continuando ? 'Confirmando…' : 'Confirmar e continuar →'}
           </button>
         </div>
       </footer>
