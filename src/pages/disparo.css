@@ -3,6 +3,59 @@
    Segue o padrão visual premium do ZapERP
    ====================================================== */
 
+/* ──────────────────────────────────────────────────────
+   TOKEN BRIDGE — mapeia atalhos do módulo para o DS real
+   (--ds-bg, --ds-surface, --ds-text, --dispatch-*)
+   ────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  --ds-bg:             var(--ds-bg-raised,       #E8EFF6);
+  --ds-surface:        var(--ds-surface-1,        #FFFFFF);
+  --ds-surface-2:      var(--ds-surface-2,        #F2F6FB);
+  --ds-text:           var(--ds-text-primary,     #081A2B);
+  --ds-text-secondary: var(--ds-text-secondary,   #3A536A);
+  --ds-primary:        var(--ds-accent,           #00A884);
+  --ds-primary-hover:  var(--ds-accent-hover,     #008F70);
+  --ds-input-bg:       #FFFFFF;
+
+  /* dispatch tokens (usados nos steps de Limites/Revisão) */
+  --dispatch-ink:           var(--ds-text-primary,   #081A2B);
+  --dispatch-copy:          var(--ds-text-secondary,  #3A536A);
+  --dispatch-muted:         var(--ds-text-muted,      #65809A);
+  --dispatch-surface:       var(--ds-surface-1,        #FFFFFF);
+  --dispatch-surface-soft:  var(--ds-bg-raised,        #F2F6FB);
+  --dispatch-border:        var(--ds-border,            #C3D2E1);
+  --dispatch-primary:       var(--ds-accent,            #00A884);
+  --dispatch-primary-strong:var(--ds-accent-hover,      #008F70);
+  --dispatch-ring:          rgba(0,168,132,.14);
+  --dispatch-shadow:        var(--ds-shadow-md, 0 6px 18px rgba(8,26,43,.1));
+  --dispatch-shadow-soft:   var(--ds-shadow-sm, 0 2px 8px rgba(8,26,43,.07));
+}
+
+[data-theme="dark"] {
+  --ds-bg:             var(--ds-bg-raised,     #111b21);
+  --ds-surface:        var(--ds-surface-1,     #111b21);
+  --ds-surface-2:      var(--ds-surface-2,     #1a2332);
+  --ds-text:           var(--ds-text-primary,  #e9edef);
+  --ds-text-secondary: var(--ds-text-secondary,#b4b9be);
+  --ds-primary:        var(--ds-accent,        #00a884);
+  --ds-primary-hover:  var(--ds-accent-hover,  #06cf9c);
+  --ds-input-bg:       #2a3942;
+
+  /* dispatch tokens dark */
+  --dispatch-ink:           var(--ds-text-primary,   #e9edef);
+  --dispatch-copy:          var(--ds-text-secondary,  #b4b9be);
+  --dispatch-muted:         var(--ds-text-tertiary,   #8696a0);
+  --dispatch-surface:       var(--ds-surface-1,        #111b21);
+  --dispatch-surface-soft:  var(--ds-surface-2,        #1a2332);
+  --dispatch-border:        var(--ds-border,            rgba(255,255,255,.06));
+  --dispatch-primary:       var(--ds-accent,            #00a884);
+  --dispatch-primary-strong:#2bd5aa;
+  --dispatch-ring:          rgba(0,168,132,.18);
+  --dispatch-shadow:        var(--ds-shadow-md, 0 4px 14px rgba(0,0,0,.4));
+  --dispatch-shadow-soft:   var(--ds-shadow-sm, 0 2px 6px rgba(0,0,0,.3));
+}
+
 .disparo-page {
   display: flex;
   flex-direction: column;
@@ -222,14 +275,14 @@
   white-space: nowrap;
 }
 
-.disparo-status--rascunho    { background: #f1f5f9; color: #475569; }
-.disparo-status--configurando{ background: #eff6ff; color: #2563eb; }
-.disparo-status--agendada    { background: #fffbeb; color: #d97706; }
-.disparo-status--em_execucao { background: #ecfdf5; color: #059669; }
-.disparo-status--pausada     { background: #fef3c7; color: #b45309; }
-.disparo-status--concluida   { background: #f0fdf4; color: #16a34a; }
-.disparo-status--cancelada   { background: #fef2f2; color: #dc2626; }
-.disparo-status--arquivada   { background: #f9fafb; color: #9ca3af; }
+.disparo-status--rascunho    { background: rgba(100,116,139,.12); color: var(--ds-text-muted, #64748b); border: 1px solid rgba(100,116,139,.2); }
+.disparo-status--configurando{ background: rgba(59,130,246,.1); color: #60a5fa; border: 1px solid rgba(59,130,246,.2); }
+.disparo-status--agendada    { background: rgba(251,191,36,.1); color: #f59e0b; border: 1px solid rgba(251,191,36,.2); }
+.disparo-status--em_execucao { background: var(--ds-accent-soft, rgba(0,168,132,.1)); color: var(--ds-accent, #00a884); border: 1px solid rgba(0,168,132,.25); }
+.disparo-status--pausada     { background: rgba(251,146,60,.1); color: #fb923c; border: 1px solid rgba(251,146,60,.2); }
+.disparo-status--concluida   { background: var(--ds-accent-soft, rgba(0,168,132,.1)); color: var(--ds-accent, #00a884); border: 1px solid rgba(0,168,132,.25); }
+.disparo-status--cancelada   { background: rgba(220,38,38,.1); color: #f87171; border: 1px solid rgba(220,38,38,.2); }
+.disparo-status--arquivada   { background: rgba(148,163,184,.08); color: var(--ds-text-muted, #94a3b8); border: 1px solid rgba(148,163,184,.15); }
 
 /* ---------- Ações inline ---------- */
 .disparo-actions {
@@ -256,8 +309,8 @@
 }
 
 .disparo-btn-icon--danger:hover {
-  background: #fef2f2;
-  color: #dc2626;
+  background: rgba(220,38,38,.1);
+  color: #f87171;
 }
 
 /* ---------- Estado vazio ---------- */
@@ -538,9 +591,9 @@
 }
 
 .disparo-alert--error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background: rgba(220,38,38,.1);
+  color: #f87171;
+  border: 1px solid rgba(220,38,38,.25);
 }
 
 /* ---------- Responsividade mobile ---------- */
@@ -625,14 +678,14 @@
 .dp-alert {
   display: flex; align-items: center; gap: 8px;
   padding: 11px 14px;
-  background: #fef2f2; border: 1px solid #fecaca;
-  border-radius: 10px; font-size: 13px; color: #b91c1c;
+  background: rgba(220,38,38,.1); border: 1px solid rgba(220,38,38,.25);
+  border-radius: 10px; font-size: 13px; color: #f87171;
   animation: dpFadeIn .2s ease;
 }
-.dp-alert--global { background: #fef2f2; }
+.dp-alert--global { background: rgba(220,38,38,.1); }
 .dp-alert__close {
   margin-left: auto; background: none; border: none;
-  cursor: pointer; color: #b91c1c; padding: 2px; line-height: 1;
+  cursor: pointer; color: #f87171; padding: 2px; line-height: 1;
 }
 @keyframes dpFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
 
@@ -817,7 +870,7 @@
 /* Progress bar (em execução) */
 .dp-card__progress-wrap { display: flex; flex-direction: column; gap: 4px; }
 .dp-card__progress-bar {
-  height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden;
+  height: 4px; border-radius: 2px; background: var(--dispatch-border, var(--ds-border, #e2e8f0)); overflow: hidden;
 }
 .dp-card__progress-fill {
   height: 100%; background: var(--ds-primary, #128c7e);
@@ -857,7 +910,7 @@
   border-color: rgba(18,140,126,.2);
 }
 .dp-card__action-btn--primary:hover { background: var(--ds-primary, #128c7e); color: #fff; border-color: var(--ds-primary, #128c7e); }
-.dp-card__action-btn--muted:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.dp-card__action-btn--muted:hover { background: rgba(220,38,38,.1); border-color: rgba(220,38,38,.25); color: #f87171; }
 
 /* ── Estado vazio ── */
 .dp-empty {
@@ -920,16 +973,16 @@
   background: rgba(18,140,126,.1); color: var(--ds-primary, #128c7e);
   display: flex; align-items: center; justify-content: center;
 }
-.dp-modal__icon--edit { background: #eff6ff; color: #2563eb; }
-.dp-modal__icon--danger { background: #fef2f2; color: #dc2626; }
+.dp-modal__icon--edit { background: rgba(59,130,246,.12); color: #60a5fa; }
+.dp-modal__icon--danger { background: rgba(220,38,38,.1); color: #f87171; }
 .dp-modal__title { font-size: 16px; font-weight: 700; color: var(--ds-text, #111b21); margin: 0; }
 .dp-modal__sub { font-size: 13px; color: var(--ds-text-muted, #64748b); margin: 3px 0 0; }
 .dp-modal__close {
   margin-left: auto; background: none; border: none; cursor: pointer;
-  color: #94a3b8; padding: 4px; border-radius: 6px;
+  color: var(--dispatch-muted, #8696a0); padding: 4px; border-radius: 6px;
   display: flex; align-items: center; transition: background .13s, color .13s;
 }
-.dp-modal__close:hover { background: #f1f5f9; color: #374151; }
+.dp-modal__close:hover { background: var(--dispatch-surface-soft, #f1f5f9); color: var(--dispatch-ink, #111b21); }
 .dp-modal__form { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 0; }
 .dp-modal__footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 

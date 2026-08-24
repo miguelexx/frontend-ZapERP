@@ -82,7 +82,7 @@ function InfoStep({ campanha, onSaved, onNext }) {
       </div>
       {error && <div className="disparo-alert disparo-alert--error">{error}</div>}
       {success && (
-        <div className="disparo-alert" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', marginBottom: 12 }}>
+        <div className="rev-alert--success" style={{ marginBottom: 12 }}>
           Informações salvas com sucesso.
         </div>
       )}
