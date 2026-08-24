@@ -41,64 +41,89 @@
 .disparo-btn-primary {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 9px 18px;
-  background: var(--ds-primary, #128c7e);
+  gap: 7px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #128c7e 0%, #0d7a6f 100%);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: box-shadow .2s, transform .15s, background .15s;
   white-space: nowrap;
   flex-shrink: 0;
+  letter-spacing: -.01em;
+  box-shadow: 0 2px 8px rgba(18,140,126,.3), 0 1px 2px rgba(0,0,0,.08);
 }
 
-.disparo-btn-primary:hover {
-  background: var(--ds-primary-hover, #075e54);
+.disparo-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0d7a6f 0%, #0a6862 100%);
+  box-shadow: 0 4px 16px rgba(18,140,126,.4), 0 2px 4px rgba(0,0,0,.1);
+  transform: translateY(-1px);
+}
+
+.disparo-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(18,140,126,.25);
 }
 
 .disparo-btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* ---------- Cards de resumo ---------- */
+/* ---------- Cards de resumo — PREMIUM ---------- */
 .disparo-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
 
 .disparo-summary-card {
   background: var(--ds-surface, var(--wa-surface, #fff));
-  border-radius: 10px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  border: 1px solid var(--ds-border, #e8edf2);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  transition: transform .15s, box-shadow .2s;
+}
+
+.disparo-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.09);
+}
+
+.disparo-summary-card__icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 2px;
 }
 
 .disparo-summary-card__value {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 32px;
+  font-weight: 800;
   color: var(--ds-text, #111b21);
   line-height: 1;
+  letter-spacing: -.03em;
 }
 
 .disparo-summary-card__label {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--ds-text-muted, #64748b);
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: .5px;
 }
 
 .disparo-summary-card--rascunho .disparo-summary-card__value { color: #64748b; }
-.disparo-summary-card--agendada .disparo-summary-card__value { color: #f59e0b; }
+.disparo-summary-card--agendada .disparo-summary-card__value { color: #d97706; }
 .disparo-summary-card--concluida .disparo-summary-card__value { color: #16a34a; }
 .disparo-summary-card--execucao .disparo-summary-card__value { color: #128c7e; }
 
@@ -185,12 +210,12 @@
   background: var(--ds-hover, #f8fafc);
 }
 
-/* ---------- Status badge ---------- */
+/* ---------- Status badge — PREMIUM ---------- */
 .disparo-status {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 20px;
   font-size: 11.5px;
   font-weight: 600;
@@ -331,23 +356,24 @@
 }
 
 .disparo-field {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .disparo-field label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ds-text, #111b21);
-  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ds-text, #1e293b);
+  margin-bottom: 7px;
+  letter-spacing: .01em;
 }
 
 .disparo-field input,
 .disparo-field textarea {
   width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--ds-border, #e2e8f0);
-  border-radius: 7px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--ds-border, #dde3eb);
+  border-radius: 10px;
   font-size: 13px;
   background: var(--ds-input-bg, #f8fafc);
   color: var(--ds-text, #111b21);
@@ -359,7 +385,9 @@
 
 .disparo-field input:focus,
 .disparo-field textarea:focus {
+  outline: none;
   border-color: var(--ds-primary, #128c7e);
+  box-shadow: 0 0 0 3px rgba(18,140,126,.12);
 }
 
 .disparo-field__error {
@@ -377,19 +405,31 @@
 }
 
 .disparo-btn-secondary {
-  padding: 9px 18px;
-  background: none;
-  border: 1px solid var(--ds-border, #e2e8f0);
-  border-radius: 8px;
+  padding: 10px 20px;
+  background: var(--ds-surface, #fff);
+  border: 1.5px solid var(--ds-border, #dde3eb);
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  color: var(--ds-text, #111b21);
-  transition: background 0.13s;
+  color: var(--ds-text, #374151);
+  transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 
-.disparo-btn-secondary:hover {
-  background: var(--ds-hover, #f1f5f9);
+.disparo-btn-secondary:hover:not(:disabled) {
+  background: var(--ds-bg, #f8fafc);
+  border-color: #128c7e;
+  color: #128c7e;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(18,140,126,.1);
+}
+
+.disparo-btn-secondary:disabled {
+  opacity: .45;
+  cursor: not-allowed;
 }
 
 /* ---------- Wizard: steps ---------- */
