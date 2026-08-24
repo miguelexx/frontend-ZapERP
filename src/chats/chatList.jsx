@@ -406,7 +406,9 @@ export default function ChatList() {
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
-  // busca: termo debounced no pai (filtro); digitação fica no filho para não re-renderizar a lista inteira
+  // O termo imediato filtra as linhas já carregadas; o debounced limita chamadas à API.
+  // Assim a lista nunca exibe resultados sabidamente errados durante os 350 ms de espera.
+  const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchClearNonce, setSearchClearNonce] = useState(0);
   const [chatListPage, setChatListPage] = useState({
@@ -425,7 +427,11 @@ export default function ChatList() {
   const handleSearchDebounced = useCallback((t) => {
     setDebouncedSearch(t);
   }, []);
+  const handleSearchInputChange = useCallback((t) => {
+    setSearchInput(t);
+  }, []);
   const clearChatSearch = useCallback(() => {
+    setSearchInput("");
     setDebouncedSearch("");
     setSearchClearNonce((n) => n + 1);
   }, []);
@@ -608,10 +614,23 @@ export default function ChatList() {
   ].join("|");
 
   useEffect(() => {
+    const applyCachedFilterRows = (cachedRows) => {
+      if (!Array.isArray(cachedRows) || !cachedRows.length) return false;
+      const cachedList = sortChatRowsByOrder(dedupeChatRowsByStableKey(cachedRows), order);
+      setChats(cachedList);
+      if (tab === "minha_fila") setMinhaFilaList(cachedList);
+      return true;
+    };
+
     if (!filterRequestKeyRef.current) {
       filterRequestKeyRef.current = filterRequestKey;
       filterRequestBaseKeyRef.current = filterRequestBaseKey;
       filterRequestSearchRef.current = debouncedSearch;
+      if (!(useChatStore.getState().chats?.length > 0)) {
+        applyCachedFilterRows(
+          hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey)
+        );
+      }
       return;
     }
     if (filterRequestKeyRef.current === filterRequestKey) return;
@@ -628,10 +647,13 @@ export default function ChatList() {
      * background e substitui-as); o esqueleto fica reservado a mudanças reais de filtro/aba.
      */
     const preserveRowsDuringSearch = onlySearchChanged && hasRowsToPreserve;
+    const cachedNextFilterRows = !preserveRowsDuringSearch
+      ? hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey)
+      : null;
+    const hasCachedNextFilter = Array.isArray(cachedNextFilterRows) && cachedNextFilterRows.length > 0;
     filterRequestKeyRef.current = filterRequestKey;
     filterRequestBaseKeyRef.current = filterRequestBaseKey;
     filterRequestSearchRef.current = debouncedSearch;
-    setZapFilterSkeleton(!preserveRowsDuringSearch);
     setActiveListTotalCount(null);
     setChatListPage({
       hasMore: false,
@@ -642,13 +664,17 @@ export default function ChatList() {
       loading: false,
       error: "",
     });
-    if (!preserveRowsDuringSearch) {
+    if (preserveRowsDuringSearch) {
+      setZapFilterSkeleton(false);
+    } else if (hasCachedNextFilter) {
+      setZapFilterSkeleton(false);
+      applyCachedFilterRows(cachedNextFilterRows);
+    } else {
+      setZapFilterSkeleton(true);
       setChats([]);
+      if (tab === "minha_fila") setMinhaFilaList(null);
     }
-    if (tab === "minha_fila" && !preserveRowsDuringSearch) {
-      setMinhaFilaList(null);
-    }
-  }, [filterRequestKey, filterRequestBaseKey, debouncedSearch, tab, setChats]);
+  }, [filterRequestKey, filterRequestBaseKey, debouncedSearch, tab, setChats, filterScopeKey, order]);
 
   /** Hidratação antes da pintura: lista + Minha fila + filtros auxiliares (F5). */
   useLayoutEffect(() => {
@@ -1224,7 +1250,7 @@ export default function ChatList() {
         String(params.status_atendimento || "").toLowerCase() === "mensagem_disparada";
 
       const minhaFilaTab = !adminPorFuncionario && tab === "minha_fila";
-      if (!background && isMobileLayout) {
+      if (!background) {
         const cachedRows = hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey);
         if (cachedRows?.length) {
           const cachedList = sortChatRowsByOrder(dedupeChatRowsByStableKey(cachedRows), order);
@@ -1337,7 +1363,7 @@ export default function ChatList() {
       });
       if (requestId === loadRequestIdRef.current) {
         if (!background) markPushEntryReady();
-        if (isMobileLayout && list.length > 0) {
+        if (list.length > 0) {
           persistChatListRowsForFilterToSession(filterScopeKey, filterRequestKey, list);
         }
         const storeChats = useChatStore.getState().chats || [];
@@ -1478,6 +1504,11 @@ export default function ChatList() {
       }
 
       setChats((prev) => mergeChatRowsPreservingCurrent(prev || [], list, order));
+      persistChatListRowsForFilterToSession(
+        filterScopeKey,
+        filterRequestKey,
+        useChatStore.getState().chats || []
+      );
       persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
         emAtendimentoBadgeCount,
         aguardandoClienteBadgeCount,
@@ -1926,8 +1957,7 @@ export default function ChatList() {
         // ESC: fecha filtros e limpa busca
         clearAdminAtendenteFilter();
         setShowFilters(false);
-        setSearchClearNonce((n) => n + 1);
-        setDebouncedSearch("");
+        clearChatSearch();
         setStatusFilter("todos");
         setTagFilter("todas");
         setDepartamentoFilter("todos");
@@ -1948,6 +1978,7 @@ export default function ChatList() {
     adminAtendentePanelOpen,
     setAdminAtendentePanelOpen,
     clearAdminAtendenteFilter,
+    clearChatSearch,
     showNovoMenu,
     user?.atendimento_modo_simples,
   ]);
@@ -2389,6 +2420,8 @@ export default function ChatList() {
         scrollTopNoncePrevRef={scrollTopNoncePrevRef}
         searchRef={searchRef}
         searchClearNonce={searchClearNonce}
+        searchInput={searchInput}
+        onSearchInputChange={handleSearchInputChange}
         onSearchDebounced={handleSearchDebounced}
         onClearSearch={clearChatSearch}
         isMobileLayout={isMobileLayout}

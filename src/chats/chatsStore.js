@@ -24,6 +24,25 @@ function canonicalKey(c) {
   return chatRowStableKey(c)
 }
 
+let chatsByIdIndexCache = { chats: null, byId: null, indexById: null }
+
+export function getChatsByIdIndex(chats) {
+  const arr = Array.isArray(chats) ? chats : []
+  if (chatsByIdIndexCache.chats === arr && chatsByIdIndexCache.byId) return chatsByIdIndexCache
+  const byId = new Map()
+  const indexById = new Map()
+  for (let i = 0; i < arr.length; i++) {
+    const row = arr[i]
+    if (row?.id == null) continue
+    const key = String(row.id)
+    if (byId.has(key)) continue
+    byId.set(key, row)
+    indexById.set(key, i)
+  }
+  chatsByIdIndexCache = { chats: arr, byId, indexById }
+  return chatsByIdIndexCache
+}
+
 /** Debounce + teto: vários eventos socket seguidos → no máximo um GET /chats por janela */
 let chatListResyncDebounceTimer = null
 let chatListResyncMaxWaitTimer = null
@@ -232,10 +251,10 @@ export const useChatStore = create((set, get) => ({
     if (!partial?.id) return false
 
     const chats = get().chats || []
-    const idx = chats.findIndex(c => String(c.id) === String(partial.id))
+    const idx = getChatsByIdIndex(chats).indexById.get(String(partial.id))
 
     // NUNCA adicionar conversa nova via socket — evita vazamento entre setores
-    if (idx === -1) return false
+    if (idx == null) return false
 
     const next = [...chats]
     const cur = next[idx]
@@ -358,7 +377,8 @@ export const useChatStore = create((set, get) => ({
     }
 
     next[idx] = merged
-    const sorted = sortConversasByRecent(next)
+    const tsUnchanged = getChatListSortTimestampMs(cur) === getChatListSortTimestampMs(merged)
+    const sorted = tsUnchanged ? next : sortConversasByRecent(next)
     if (chatListsStoreEquivalent(chats, sorted)) return false
     set({ chats: sorted })
     return true
@@ -569,13 +589,15 @@ export const useChatStore = create((set, get) => ({
     })),
 
   clearUnread: (conversa_id) =>
-    set((state) => ({
-      chats: state.chats.map(c =>
-        String(c.id) === String(conversa_id)
-          ? { ...c, unread_count: 0 }
-          : c
-      )
-    })),
+    set((state) => {
+      const idx = getChatsByIdIndex(state.chats).indexById.get(String(conversa_id))
+      if (idx == null) return state
+      const cur = state.chats[idx]
+      if (Number(cur?.unread_count ?? 0) === 0) return state
+      const chats = state.chats.slice()
+      chats[idx] = { ...cur, unread_count: 0 }
+      return { chats }
+    }),
 
   /* =========================================
      🔥 REMOVER CHAT (opcional futuro)
@@ -598,3 +620,9 @@ export const useChatStore = create((set, get) => ({
       chatListOptimisticMutationNonce: 0,
     })
 }))
+
+export function getChatByIdFromStore(id, chats) {
+  if (id == null || id === "") return null
+  const arr = chats ?? useChatStore.getState().chats
+  return getChatsByIdIndex(arr).byId.get(String(id)) ?? null
+}

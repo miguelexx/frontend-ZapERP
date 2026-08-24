@@ -10,14 +10,15 @@ function useDebounce(value, delay = 250) {
 }
 
 /**
- * Busca isolada da lista: digitação não re-renderiza o ChatList inteiro;
- * o termo debounced sobe para filtro local via onDebounced.
+ * A mudança imediata filtra as linhas visíveis; o valor debounced dispara a API.
  */
 export const ChatListSearchBox = memo(
-  forwardRef(function ChatListSearchBox({ onDebounced, clearNonce, className, placeholder }, ref) {
+  forwardRef(function ChatListSearchBox({ onChangeValue, onDebounced, clearNonce, className, placeholder }, ref) {
     const [value, setValue] = useState("");
     const debounced = useDebounce(value, 350);
+    const onChangeValueRef = useRef(onChangeValue);
     const onDebouncedRef = useRef(onDebounced);
+    onChangeValueRef.current = onChangeValue;
     onDebouncedRef.current = onDebounced;
     useEffect(() => {
       onDebouncedRef.current(debounced);
@@ -31,7 +32,11 @@ export const ChatListSearchBox = memo(
       <input
         ref={ref}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          const nextValue = e.target.value;
+          setValue(nextValue);
+          onChangeValueRef.current?.(nextValue);
+        }}
         placeholder={placeholder}
         className={className}
         autoComplete="off"

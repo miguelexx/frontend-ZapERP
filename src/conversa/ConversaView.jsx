@@ -141,7 +141,7 @@ import PendingMediaPreview from "./components/PendingMediaPreview";
 import ConversaHeader from "./components/ConversaHeader";
 import ConversaMessageSearchPanel from "./components/ConversaMessageSearchPanel";
 
-import { useChatStore } from "../chats/chatsStore";
+import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore";
 import { chatRowListStoreKey } from "../chats/chatListStoreCompare";
 import { useWhatsappInstancesStore } from "../chats/whatsappInstancesStore";
 import {
@@ -672,7 +672,7 @@ function ConversaViewBody() {
 
   // Status ticks da ultima_mensagem não devem re-renderizar a conversa aberta (evita pulo).
   const fromChat = useChatStore(
-    (s) => (Array.isArray(s.chats) ? (s.chats.find((c) => String(c?.id) === String(conversaId)) ?? null) : null),
+    (s) => getChatByIdFromStore(conversaId, s.chats),
     (a, b) => chatRowListStoreKey(a) === chatRowListStoreKey(b)
   );
 

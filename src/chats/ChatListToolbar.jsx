@@ -16,6 +16,9 @@ function isAppAdmin(user) {
 function ChatListToolbar({
   searchRef,
   searchClearNonce,
+  searchInput,
+  searchPending,
+  onSearchInputChange,
   onSearchDebounced,
   tab,
   user,
@@ -74,10 +77,13 @@ function ChatListToolbar({
       ? Number(activeFilterTotalCount)
       : null;
   const displayedTotalForHint = totalForHint != null ? Math.max(totalForHint, filteredCount) : null;
+  const searchActive = Boolean(String(searchInput || "").trim());
   const hintText = hintLoading
     ? "Carregando…"
-    : listRefreshing
+    : listRefreshing && !searchPending
       ? "Atualizando…"
+      : searchActive && searchPending
+        ? `${filteredCount} ${filteredCount === 1 ? "resultado" : "resultados"}`
       : adminPorFuncionarioAtivo
         ? `${filteredCount} conversas`
         : displayedTotalForHint != null
@@ -103,6 +109,7 @@ function ChatListToolbar({
             <ChatListSearchBox
               ref={searchRef}
               clearNonce={searchClearNonce}
+              onChangeValue={onSearchInputChange}
               onDebounced={onSearchDebounced}
               placeholder="Buscar por nome ou telefone"
               className="chat-list-search-input"
@@ -321,6 +328,8 @@ function toolbarPropsAreEqual(prev, next) {
   if (prev.mensagensDisparadasCount !== next.mensagensDisparadasCount) return false;
   if (prev.aguardandoFuncionarioVisualState !== next.aguardandoFuncionarioVisualState) return false;
   if (prev.searchClearNonce !== next.searchClearNonce) return false;
+  if (prev.searchInput !== next.searchInput) return false;
+  if (prev.searchPending !== next.searchPending) return false;
   if (prev.adminAtendenteFilterId !== next.adminAtendenteFilterId) return false;
   if (prev.adminAtendentePanelOpen !== next.adminAtendentePanelOpen) return false;
   if (prev.user?.id !== next.user?.id) return false;
@@ -335,6 +344,7 @@ function toolbarPropsAreEqual(prev, next) {
   if (prev.suporteBusy !== next.suporteBusy) return false;
   if (prev.searchRef !== next.searchRef) return false;
   if (prev.onSearchDebounced !== next.onSearchDebounced) return false;
+  if (prev.onSearchInputChange !== next.onSearchInputChange) return false;
   if (prev.onTabMinhaFila !== next.onTabMinhaFila) return false;
   if (prev.onTabTodas !== next.onTabTodas) return false;
   if (prev.onTabAguardandoAtendente !== next.onTabAguardandoAtendente) return false;

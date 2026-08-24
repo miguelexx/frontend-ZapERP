@@ -12,7 +12,7 @@ import {
 } from "./conversaService"
 import { getSocket, leaveConversa, joinConversaIfNeeded } from "../socket/socket"
 import { pickHigherStatus } from "../socket/statusMensagemBatch"
-import { useChatStore } from "../chats/chatsStore"
+import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore"
 import { buildPatchAguardandoPagamentoOptimista } from "../utils/pagamentoPrazoFormat"
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
 import { normalizeMensagemStatusKey } from "../chats/chatListStoreCompare"
@@ -71,10 +71,37 @@ function mensagemStatusPatchChanges(cur, merged, partial) {
 
 function mensagensBelongToConversa(mensagens, conversaId) {
   const cid = String(conversaId)
-  return (mensagens || []).every((m) => {
+  const list = mensagens || []
+  if (!list.length) return false
+  for (const m of list) {
     const mid = m?.conversa_id
-    return mid != null && String(mid) === cid
+    if (mid == null || mid === "") continue
+    if (String(mid) !== cid) return false
+  }
+  return true
+}
+
+function stampMensagensConversaId(mensagens, conversaId) {
+  if (conversaId == null || !mensagens?.length) return mensagens || []
+  let changed = false
+  const next = mensagens.map((m) => {
+    if (!m || m.conversa_id != null) return m
+    changed = true
+    return { ...m, conversa_id: conversaId }
   })
+  return changed ? next : mensagens
+}
+
+function mensagensListIdentityEqual(a, b) {
+  if (a === b) return true
+  if (!a?.length && !b?.length) return true
+  if (!a || !b || a.length !== b.length) return false
+  const lastA = a[a.length - 1]
+  const lastB = b[b.length - 1]
+  if (lastA === lastB) return true
+  const idA = lastA?.id ?? lastA?.tempId ?? lastA?.client_temp_id
+  const idB = lastB?.id ?? lastB?.tempId ?? lastB?.client_temp_id
+  return idA != null && idB != null && String(idA) === String(idB)
 }
 
 function canReuseClientStateForConversa(state, normalizedId) {
@@ -147,9 +174,10 @@ export function clearConversaSessionCaches() {
 
 function writeConversaMensagensCache(conversaId, snapshot) {
   if (conversaId == null || !snapshot?.mensagens?.length) return
-  if (!mensagensBelongToConversa(snapshot.mensagens, conversaId)) return
+  const mensagens = stampMensagensConversaId(snapshot.mensagens, conversaId)
+  if (!mensagensBelongToConversa(mensagens, conversaId)) return
   conversaMensagensCache.set(String(conversaId), {
-    mensagens: snapshot.mensagens,
+    mensagens,
     conversa: snapshot.conversa,
     cursor: snapshot.cursor ?? null,
     cursorId: snapshot.cursorId ?? null,
@@ -262,8 +290,7 @@ function resolveMensagensBloqueadasForViewer(conversaLike, apiSaysBlocked) {
 
 function pickConversaShellFromChatList(normalizedId) {
   try {
-    const chats = useChatStore.getState?.().chats || []
-    const fromList = chats.find?.((c) => String(c?.id) === String(normalizedId))
+    const fromList = getChatByIdFromStore(normalizedId)
     if (fromList) return { ...fromList, id: normalizedId }
   } catch (_) {}
   return { id: normalizedId }
@@ -275,6 +302,16 @@ function scheduleMicrotaskSafe(fn) {
     return
   }
   Promise.resolve().then(fn)
+}
+
+function scheduleAfterPaint(fn) {
+  if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+    scheduleMicrotaskSafe(fn)
+    return
+  }
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(fn)
+  })
 }
 
 function shallowObjectChanged(prev, next) {
@@ -692,8 +729,7 @@ export const useConversaStore = create((set, get) => {
         }
 
         try {
-          const chats = useChatStore.getState?.().chats || []
-          const fromList = chats.find?.((c) => String(c.id) === String(normalizedId))
+          const fromList = getChatByIdFromStore(normalizedId)
           if (fromList) {
             const merged = { ...conversa }
             if (!merged.contato_nome && fromList.contato_nome) merged.contato_nome = fromList.contato_nome
@@ -734,9 +770,11 @@ export const useConversaStore = create((set, get) => {
         takeAndApplyAnexarBatch()
         const currentClientMessages = get().mensagens || []
         const clientSnapshotBase =
-          mensagensSnapshotParaMerge.length > 0
-            ? get()._mergeMensagensFromApi(mensagensSnapshotParaMerge, currentClientMessages, normalizedId)
-            : currentClientMessages
+          mensagensSnapshotParaMerge.length === 0
+            ? currentClientMessages
+            : mensagensListIdentityEqual(mensagensSnapshotParaMerge, currentClientMessages)
+              ? currentClientMessages
+              : get()._mergeMensagensFromApi(mensagensSnapshotParaMerge, currentClientMessages, normalizedId)
         const clientSnapshot = filterMensagensForConversa(clientSnapshotBase, normalizedId)
         const blockedViewer = !!conversa?.mensagens_bloqueadas
         let mensagens = blockedViewer ? [] : get()._mergeMensagensFromApi(clientSnapshot, apiMensagens, normalizedId)
@@ -771,18 +809,24 @@ export const useConversaStore = create((set, get) => {
         if (!isEmpresaModoSimplesAtivoCliente()) {
           useChatStore.getState().clearUnread(normalizedId)
         }
-        if (
+        const chatListPatch =
           conversa?.status_atendimento != null ||
           conversa?.status_atendimento_real != null ||
           conversa?.aguardando_cliente_desde !== undefined ||
           conversa?.exibir_badge_aberta !== undefined
-        ) {
-          useChatStore.getState().updateChat({
-            id: normalizedId,
-            status_atendimento: conversa?.status_atendimento,
-            status_atendimento_real: conversa?.status_atendimento_real,
-            aguardando_cliente_desde: conversa?.aguardando_cliente_desde,
-            exibir_badge_aberta: conversa?.exibir_badge_aberta,
+            ? {
+                id: normalizedId,
+                status_atendimento: conversa?.status_atendimento,
+                status_atendimento_real: conversa?.status_atendimento_real,
+                aguardando_cliente_desde: conversa?.aguardando_cliente_desde,
+                exibir_badge_aberta: conversa?.exibir_badge_aberta,
+              }
+            : null
+        if (chatListPatch) {
+          scheduleAfterPaint(() => {
+            if (generation !== carregarConversaGeneration) return
+            if (String(get().selectedId) !== String(normalizedId)) return
+            useChatStore.getState().updateChat(chatListPatch)
           })
         }
 
@@ -886,8 +930,7 @@ export const useConversaStore = create((set, get) => {
         let merged = conversa
         try {
           const current = get().conversa
-          const chats = useChatStore.getState?.().chats || []
-          const fromList = chats.find?.((c) => String(c.id) === String(id))
+          const fromList = getChatByIdFromStore(id)
           const sources = [conversa, current, fromList].filter(Boolean)
           if (sources.length > 1) {
             merged = { ...conversa }
@@ -1478,7 +1521,7 @@ export const useConversaStore = create((set, get) => {
     assumirConversa: async (conversaId) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
-      const row = (chatStore.chats || []).find((c) => String(c.id) === String(conversaId))
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
       const me = getCurrentUserFromStorage()
@@ -1535,7 +1578,7 @@ export const useConversaStore = create((set, get) => {
     encerrarConversa: async (conversaId) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
-      const row = (chatStore.chats || []).find((c) => String(c.id) === String(conversaId))
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
       const currentTags = Array.isArray(src?.tags) ? src.tags : Array.isArray(get().tags) ? get().tags : undefined
@@ -1601,7 +1644,7 @@ export const useConversaStore = create((set, get) => {
     reabrirConversa: async (conversaId) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
-      const row = (chatStore.chats || []).find((c) => String(c.id) === String(conversaId))
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
       const me = getCurrentUserFromStorage()
@@ -1666,8 +1709,7 @@ export const useConversaStore = create((set, get) => {
     marcarAguardandoClienteConversa: async (conversaId) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
-      const chats = chatStore.chats || []
-      const row = chats.find((c) => String(c.id) === String(conversaId))
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
       const optimistic = {
@@ -1711,8 +1753,7 @@ export const useConversaStore = create((set, get) => {
       withMessagesScrollPreserved(async () => {
       const optimistic = buildPatchAguardandoPagamentoOptimista(conversaId, prazoOpts)
       const chatStore = useChatStore.getState()
-      const chats = chatStore.chats || []
-      const row = chats.find((c) => String(c.id) === String(conversaId))
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const revertStatus = {
         status_atendimento: row?.status_atendimento ?? openConv?.status_atendimento,
@@ -1750,8 +1791,7 @@ export const useConversaStore = create((set, get) => {
     retomarAtendimentoConversa: async (conversaId) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
-      const chats = chatStore.chats || []
-      const row = chats.find((c) => String(c.id) === String(conversaId))
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
       const st = getStatusAtendimentoEffective(src)

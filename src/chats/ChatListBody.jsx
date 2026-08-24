@@ -31,6 +31,8 @@ function ChatListBody({
   scrollTopNoncePrevRef,
   searchRef,
   searchClearNonce,
+  searchInput,
+  onSearchInputChange,
   onSearchDebounced,
   onClearSearch,
   isMobileLayout,
@@ -109,7 +111,7 @@ function ChatListBody({
   const { chatsFiltrados } = useChatListFilters({
     chats,
     minhaFilaList,
-    debouncedSearch,
+    debouncedSearch: searchInput,
     statusFilter,
     tagFilter,
     departamentoFilter,
@@ -368,6 +370,9 @@ function ChatListBody({
       <ChatListToolbar
         searchRef={searchRef}
         searchClearNonce={searchClearNonce}
+        searchInput={searchInput}
+        searchPending={String(searchInput || "").trim() !== String(debouncedSearch || "").trim()}
+        onSearchInputChange={onSearchInputChange}
         onSearchDebounced={onSearchDebounced}
         tab={tab}
         user={user}
@@ -442,7 +447,7 @@ function ChatListBody({
         onToggleMenu={openMenu}
         pendentesFuncionarioSet={pendentesFuncionarioSet}
         onNovoContato={onNovoContato}
-        searchAtivo={Boolean(String(debouncedSearch || "").trim())}
+        searchAtivo={Boolean(String(searchInput || "").trim())}
         menuIsOpen={!!openConversationId}
         menuAnchorRect={anchorRect}
         menuActions={menuActions}

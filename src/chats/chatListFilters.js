@@ -25,14 +25,28 @@ export function foldAccents(v) {
     .trim();
 }
 
+/** Espelha search_name_key(text) do banco: pontuação delimita palavras. */
+export function normalizeNameSearchKey(v) {
+  return foldAccents(v).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/** Busca no começo do nome ou de uma palavra, nunca no meio dela. */
+export function nameMatchesWordPrefix(value, rawTerm) {
+  const nameKey = normalizeNameSearchKey(value);
+  const termKey = normalizeNameSearchKey(rawTerm);
+  if (!nameKey || !termKey) return false;
+  return nameKey.startsWith(termKey) || nameKey.includes(` ${termKey}`);
+}
+
 /**
- * Verdadeiro se o nome OU o telefone da linha contém o termo (sem acento / sem caixa).
+ * Verdadeiro se o nome começa pelo termo, uma palavra do nome começa pelo termo,
+ * ou o telefone contém a sequência numérica (sem acento / sem caixa).
  * Cobre os mesmos campos que a busca do backend (RPC nome/pushname/nome_contato_cache/
  * nome_grupo + telefone do cliente), inclusive clientes SEM conversa.
  */
-export function chatRowMatchesSearch(c, foldedTerm, termDigits) {
-  if (!foldedTerm && !termDigits) return true;
-  if (foldedTerm) {
+export function chatRowMatchesSearch(c, rawTerm, termDigits) {
+  if (!rawTerm && !termDigits) return true;
+  if (rawTerm) {
     const nomeCampos = [
       c?.contato_nome,
       c?.nome_contato_cache,
@@ -46,7 +60,7 @@ export function chatRowMatchesSearch(c, foldedTerm, termDigits) {
       c?.nome,
     ];
     for (const campo of nomeCampos) {
-      if (campo && foldAccents(campo).includes(foldedTerm)) return true;
+      if (campo && nameMatchesWordPrefix(campo, rawTerm)) return true;
     }
   }
   if (termDigits) {
@@ -432,10 +446,9 @@ export function computeChatsFiltrados({
   // Roda mesmo durante a busca (skipClientSearch é ignorado quando há termo) para que
   // recentes sem relação — remanescentes na store durante o fetch — não vazem na lista.
   const termRaw = String(debouncedSearch || "").trim();
-  const foldedTerm = foldAccents(termRaw);
   const termDigits = digitsOnly(termRaw);
   if (termRaw && (!skipClientSearch || searchBypassesTabFilters)) {
-    list = list.filter((c) => chatRowMatchesSearch(c, foldedTerm, termDigits));
+    list = list.filter((c) => chatRowMatchesSearch(c, termRaw, termDigits));
   }
 
   // Camada adicional: filtro de pendência (backend) — intersecta com filtros já aplicados
@@ -558,14 +571,10 @@ function canReuseFilteredChatList(cache, params) {
     storeEquivalent = chatListsStoreEquivalent(cache.chats, params.chats);
   }
   if (!storeEquivalent) return false;
-  // Mesmo conteúdo por linha, mas ordem de sort pode ter mudado (timestamps atualizados em tempo real).
-  // `cache.chats` é imutável dentro desta entrada de cache, logo o seu sort-order-key é invariante:
-  // usamos o valor memoizado (cache.sortOrderKey) em vez de reordenar 1040 itens a cada verificação.
-  // Este caminho roda em cada tick de entrega/leitura (status não entra no chatRowListStoreKey, então
-  // storeEquivalent dá true) — cortar 1 dos 2 sorts reduz o trabalho na main thread pela metade.
-  const cachedSortKey =
-    cache.sortOrderKey != null ? cache.sortOrderKey : chatListSortOrderKey(cache.chats);
-  return cachedSortKey === chatListSortOrderKey(params.chats);
+  // storeEquivalent já garante a mesma ordem de ids e os timestamps de sort
+  // (estão no chatRowListStoreKey). Reordenar a lista só para comparar era
+  // trabalho duplicado em cada tick de status/leitura.
+  return true;
 }
 
 /**

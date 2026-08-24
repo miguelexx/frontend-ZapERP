@@ -10,6 +10,9 @@
 
 const SIDEBAR_TTL_MS = 2 * 60 * 1000;
 const FILTER_ROWS_TTL_MS = 45 * 1000;
+const FILTER_ROWS_MEMORY_TTL_MS = 15 * 60 * 1000;
+const FILTER_ROWS_MEMORY_MAX = 24;
+const filterRowsMemoryCache = new Map();
 
 const STORAGE_PREFIX = "zap_erp_chat_sidebar_v1";
 const FILTER_ROWS_STORAGE_PREFIX = "zap_erp_chat_rows_by_filter_v1";
@@ -17,7 +20,44 @@ const FILTER_ROWS_STORAGE_PREFIX = "zap_erp_chat_rows_by_filter_v1";
 /** Cabe várias páginas após "Carregar mais" (antes 120 truncava o snapshot). */
 const MAX_CHATS = 400;
 
+function filterRowsMemoryKey(scopeKey, filterKey) {
+  return `${scopeKey}::${filterKey}`;
+}
 
+function readFilterRowsMemory(scopeKey, filterKey) {
+  const key = filterRowsMemoryKey(scopeKey, filterKey);
+  const entry = filterRowsMemoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - (entry.t || 0) > FILTER_ROWS_MEMORY_TTL_MS) {
+    filterRowsMemoryCache.delete(key);
+    return null;
+  }
+  if (!entry.rows?.length) return null;
+  return entry.rows.slice();
+}
+
+function writeFilterRowsMemory(scopeKey, filterKey, rows) {
+  if (!scopeKey || !filterKey || !rows?.length) return;
+  const key = filterRowsMemoryKey(scopeKey, filterKey);
+  filterRowsMemoryCache.delete(key);
+  filterRowsMemoryCache.set(key, { t: Date.now(), rows });
+  while (filterRowsMemoryCache.size > FILTER_ROWS_MEMORY_MAX) {
+    const oldest = filterRowsMemoryCache.keys().next().value;
+    if (oldest == null) break;
+    filterRowsMemoryCache.delete(oldest);
+  }
+}
+
+function clearFilterRowsMemory(scopeKey) {
+  if (!scopeKey) {
+    filterRowsMemoryCache.clear();
+    return;
+  }
+  const prefix = `${scopeKey}::`;
+  for (const key of [...filterRowsMemoryCache.keys()]) {
+    if (key.startsWith(prefix)) filterRowsMemoryCache.delete(key);
+  }
+}
 
 function storageKey(scopeKey) {
 
@@ -298,8 +338,11 @@ export function hydrateChatListSidebarFromSession(scopeKey) {
 }
 
 export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
+  if (!scopeKey || !filterKey) return null;
+  const fromMemory = readFilterRowsMemory(scopeKey, filterKey);
+  if (fromMemory?.length) return fromMemory;
 
-  if (typeof sessionStorage === "undefined" || !scopeKey || !filterKey) return null;
+  if (typeof sessionStorage === "undefined") return null;
 
   try {
 
@@ -321,6 +364,8 @@ export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
 
     const rows = Array.isArray(parsed.rows) ? parsed.rows.slice(0, MAX_CHATS) : [];
 
+    if (rows.length) writeFilterRowsMemory(scopeKey, filterKey, rows);
+
     return rows.length ? rows : null;
 
   } catch {
@@ -332,12 +377,14 @@ export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
 }
 
 export function persistChatListRowsForFilterToSession(scopeKey, filterKey, rows) {
-
-  if (typeof sessionStorage === "undefined" || !scopeKey || !filterKey) return;
+  if (!scopeKey || !filterKey) return;
 
   const slim = slimList(rows);
 
   if (!slim.length) return;
+  writeFilterRowsMemory(scopeKey, filterKey, slim);
+
+  if (typeof sessionStorage === "undefined") return;
 
   try {
 
@@ -358,6 +405,7 @@ export function persistChatListRowsForFilterToSession(scopeKey, filterKey, rows)
 }
 
 export function clearChatListRowsFilterSessionCache(scopeKey) {
+  clearFilterRowsMemory(scopeKey);
 
   if (typeof sessionStorage === "undefined") return;
 
