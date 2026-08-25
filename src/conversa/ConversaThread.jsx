@@ -342,7 +342,7 @@ function ConversaThread({
                 className="wa-btn wa-btn-secondary"
                 onClick={onContactOldSync}
                 disabled={contactOldSyncBusy}
-                title="Busca no WhatsApp conectado o histórico antigo deste contato e salva no sistema"
+                title="Importa as mensagens que a UltraMSG armazenou desde a conexão do WhatsApp (histórico anterior à conexão fica apenas no celular)"
               >
                 {contactOldSyncBusy ? "Carregando..." : "Buscar histórico no WhatsApp"}
               </button>
@@ -395,7 +395,7 @@ function ConversaThread({
           ) : !hasMore ? (
             <p className="wa-loadOlderEnd" role="status">
               {showContactOldSyncCta
-                ? "Todas as mensagens salvas foram carregadas. Use “Buscar histórico no WhatsApp” para importar mensagens anteriores à conexão."
+                ? "Todas as mensagens salvas foram carregadas. “Buscar histórico no WhatsApp” importa o que a UltraMSG tem armazenado desde a conexão — conversas mais antigas ficam apenas no celular."
                 : "Todas as mensagens salvas foram carregadas."}
             </p>
           ) : null}

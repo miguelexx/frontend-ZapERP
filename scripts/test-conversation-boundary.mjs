@@ -120,17 +120,20 @@ flushStatusMensagemBatch(() => {
 assert(applied === 0, "status socket apenas com chat_id ambiguo nao deve ser aplicado");
 
 // 5) Socket/status com conversa_id real continua funcionando.
+// Contrato real (ver socket.js applyStatusMensagemEvent): `apply` recebe um ARRAY de eventos.
 resetStatusMensagemBatch();
 enqueueStatusMensagemEvent(
   { conversa_id: CONV_A, mensagem_id: 1001, status: "read", whatsapp_id: "wa-a" },
-  (evt) => {
-    assert(String(evt.conversa_id) === String(CONV_A), "status deve manter conversa_id real");
+  (evts) => {
+    assert(Array.isArray(evts) && evts.length === 1, "apply deve receber um array de eventos");
+    assert(String(evts[0].conversa_id) === String(CONV_A), "status deve manter conversa_id real");
     applied += 1;
   },
   () => false
 );
-flushStatusMensagemBatch((evt) => {
-  assert(String(evt.conversa_id) === String(CONV_A), "flush deve manter conversa_id real");
+flushStatusMensagemBatch((evts) => {
+  assert(Array.isArray(evts) && evts.length === 1, "flush deve chamar apply com um array de eventos");
+  assert(String(evts[0].conversa_id) === String(CONV_A), "flush deve manter conversa_id real");
   applied += 1;
 });
 assert(applied === 1, `status com conversa_id deve aplicar uma vez, aplicou ${applied}`);
