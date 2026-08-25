@@ -12,6 +12,7 @@
 - Debounce: busca; resync da lista 180/700ms; `status_mensagem` batch ~75ms com **um `set()`** na thread (`patchMensagensBatch`).
 - Lista: índice `Map` por id; `unreadTotal` na store (título da aba sem percorrer `chats`); layout key da lista = ids na ordem (preview fica no compare da row).
 - Thread: rows de timeline reutilizam o objeto quando a mensagem de origem não mudou (WeakMap).
+- Abertura da conversa: máscara até `onOpenSnapReady` (settle do virtualizer); header sticky da lista (`fromChat`) para não recarregar foto; `.wa-bubble` sem fade global (só `.zap-message-enter` em mensagem nova).
 - Cache: sessionStorage da sidebar; Map de mensagens por conversa.
 - Boot mobile staggered (não disparar todos os GETs no primeiro paint).
 - Recuperação de preload Vite (`runtime`) para chunk 404 após deploy.

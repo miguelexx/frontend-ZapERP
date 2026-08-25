@@ -187,6 +187,7 @@ function DashboardOverview({ overview, loading, loadErr, rangeDays, onRefresh })
     conversas_por_hora = [],
     periodo,
     instancia,
+    horario_comercial = null,
     auditoria = {},
   } = overview
 
@@ -194,19 +195,25 @@ function DashboardOverview({ overview, loading, loadErr, rangeDays, onRefresh })
   const simpleMode = kpis.atendimento_modo_simples === true
   const slaContaAutomacao = kpis.sla_conta_automacao === true
   const ticketsAbertos = kpis.tickets_abertos ?? ((kpis.abertas || 0) + (kpis.em_atendimento || 0))
+  const horarioComercialAtivo = kpis.sla_horario_comercial_ativo === true && horario_comercial?.ativo === true
+  // Texto do horário/dias realmente usados no cálculo de tempo de resposta.
+  const janelasTexto = (horario_comercial?.janelas || []).map((j) => `${j.inicio}–${j.fim}`).join(' e ')
+  const respostaContagemHint = horarioComercialAtivo
+    ? `Conta só no horário comercial configurado${janelasTexto ? ` (${janelasTexto})` : ''}, apenas em dias úteis.`
+    : '⚠ Horário comercial DESLIGADO na configuração de SLA: conta 24h corridas (noites e fins de semana) — por isso o tempo fica inflado. Ative em SLA → Configuração.'
 
   return (
     <div className="dash-stack">
       <InfoStrip
         icon={Activity}
         title="Leitura do período"
-        text={`KPIs e gráficos abaixo consideram ${periodoLabel}, no fuso ${periodo?.timezone || 'America/Sao_Paulo'}, e a instância ${instancia?.nome || 'WhatsApp principal'}. Indicadores sem base suficiente aparecem sem número calculado.`}
+        text={`KPIs e gráficos abaixo consideram ${periodoLabel}, no fuso ${periodo?.timezone || 'America/Sao_Paulo'}, e a instância ${instancia?.nome || 'WhatsApp principal'}. ${horarioComercialAtivo ? (horario_comercial?.resumo || 'Tempo de resposta contado no horário comercial configurado.') : 'ATENÇÃO: o horário comercial está desligado na configuração de SLA — o tempo de resposta conta 24h corridas, incluindo noites e fins de semana. Ative em SLA → Configuração para refletir só o expediente.'}`}
       />
 
       <section className="dash-kpi-grid dash-kpi-grid--overview" aria-label="Indicadores principais">
         <MetricCard icon={Inbox} label="Clientes com conversa hoje" value={kpis.atendimentos_hoje ?? 0} hint="Clientes distintos com ao menos uma mensagem real recebida ou enviada hoje. Grupos não entram nesta contagem." />
-        <MetricCard icon={TimerReset} label="Tempo médio de resposta" value={formatMin(kpis.tempo_medio_resposta_min)} tone="blue" hint={`Média de todas as esperas respondidas no período até a ${slaContaAutomacao ? 'resposta válida seguinte; a configuração atual inclui automações' : 'resposta humana seguinte'}, contando somente das 07:00 às 18:00, exceto o almoço (12:00–14:00).`} />
-        <MetricCard icon={Clock} label="Tempo médio 1ª resposta" value={formatMin(kpis.tempo_primeira_resposta_min)} tone="blue" hint="Em cada cliente, considera somente a primeira espera do período e os minutos entre 07:00 e 18:00, exceto o almoço (12:00–14:00)." />
+        <MetricCard icon={TimerReset} label="Tempo médio de resposta" value={formatMin(kpis.tempo_medio_resposta_min)} tone="blue" hint={`Tempo entre a mensagem do cliente e a resposta da atendente, em cada resposta do atendimento (não só a 1ª). ${respostaContagemHint}`} />
+        <MetricCard icon={Clock} label="Tempo médio 1ª resposta" value={formatMin(kpis.tempo_primeira_resposta_min)} tone="blue" hint={`Só a primeira resposta de cada conversa (inclui o tempo até o humano assumir após o bot). ${respostaContagemHint}`} />
         <MetricCard icon={ShieldCheck} label="SLA das respostas" value={kpis.sla_percent != null ? `${kpis.sla_percent}%` : 'Sem dados'} tone="green" hint={`Percentual dos ciclos respondidos dentro da meta${slaContaAutomacao ? ', incluindo automações conforme a configuração atual' : ''}.`} />
         <MetricCard icon={Users} label="Atendente destaque" value={kpis.atendente_mais_produtivo || 'Sem dados'} tone="muted" hint="Maior volume de conversas atribuídas." />
         {simpleMode ? (

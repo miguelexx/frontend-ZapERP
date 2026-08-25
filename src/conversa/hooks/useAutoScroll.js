@@ -133,6 +133,7 @@ export function useAutoScroll({
   suppressAutoScrollRef,
   userScrollLockRef,
   cancelOpenSnapPendingRef,
+  onOpenSnapReady,
 }) {
   const prevConversaIdRef = useRef(null);
   const prevLastKeyRef = useRef(null);
@@ -142,12 +143,22 @@ export function useAutoScroll({
   const prevSnapConversaKeyRef = useRef(null);
   const openSnapInProgressRef = useRef(false);
   const openSnapUserCancelledRef = useRef(false);
+  const onOpenSnapReadyRef = useRef(onOpenSnapReady);
+  onOpenSnapReadyRef.current = onOpenSnapReady;
   /*
    * Boolean (há mensagens?) em vez do count bruto: o merge cache→API muda o número de
    * itens e, com deps em mensagensCount, o cleanup cancelava o settle a meio sem
    * reiniciar o snap (pending já limpo) — conversa abria no sítio errado.
    */
   const hasMessages = mensagensCount > 0;
+
+  function notifyOpenSnapReady() {
+    try {
+      onOpenSnapReadyRef.current?.();
+    } catch {
+      /* ignore */
+    }
+  }
 
   function isUserScrollLocked() {
     return userScrollLockRef?.current === true;
@@ -270,12 +281,18 @@ export function useAutoScroll({
       (becameReady && hasMessages);
 
     if (!shouldSnapLatest) return;
-    if (!hasMessages) return;
+    if (!hasMessages) {
+      pendingJumpToBottomRef.current = false;
+      anchorLatestUntilMsgsRef.current = false;
+      notifyOpenSnapReady();
+      return;
+    }
 
     const userReadingHistory = isUserScrollLocked();
 
     if (userReadingHistory) {
       cancelOpenSnapPending();
+      notifyOpenSnapReady();
       return;
     }
 
@@ -300,6 +317,7 @@ export function useAutoScroll({
       if (finished || cancelled) return;
       finished = true;
       openSnapInProgressRef.current = false;
+      notifyOpenSnapReady();
     };
 
     const guard = snapGuardOpts();
@@ -308,6 +326,8 @@ export function useAutoScroll({
       if (force && openSnapUserCancelledRef.current) return;
       if (!force && !shouldStickToBottomRef.current) return;
       const c = messagesContainerRef?.current;
+      /* 48px: fallbacks pós-máscara não devem puxar por 1 linha de remediação. */
+      if (force && c && isNearBottom(c, 48)) return;
       snapThreadToBottom(c, virtualListRef, { followUpFrame: false, ...guard });
     };
 

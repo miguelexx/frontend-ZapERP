@@ -3702,27 +3702,9 @@ html:not([data-theme="dark"]) .wa-bubble-out {
   box-shadow:0 0 0 2px rgba(37,211,102,0.35);
 }
 
-/* =========================================================
-   ANIMAÇÃO DE ENTRADA
-========================================================= */
-
-.wa-bubble{
-
-  animation:wa-messageFade .12s ease-out;
-}
-
-@keyframes wa-messageFade{
-
-  from{
-    opacity:0;
-    transform:translateY(3px);
-  }
-
-  to{
-    opacity:1;
-    transform:translateY(0);
-  }
-}
+/* Entrada de bolha nova: só `.zap-message-enter` em zap-animations.css.
+   Nunca animar `.wa-bubble` no mount — ao sair de `--opening` o override
+   `animation:none` caía e TODAS as bolhas recomeçavam o fade (pulo ao entrar). */
 
 
 /* =========================================

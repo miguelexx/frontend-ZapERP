@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
-import CrmLayout from "./CrmLayout";
 import api from "../api/http";
 
 /**
- * Ponto de entrada do CRM no ZapERP.
+ * Ponto de entrada do CRM no ZapERP → CRM Avançado (externo, via SSO).
  *
- * Quando a integração com o CRM Avançado está configurada (o backend
- * responde a URL de SSO), redireciona o navegador para lá. Se não estiver
- * configurada (backend responde 503), cai de volta no CRM interno do
- * ZapERP — assim esta mudança é 100% não-destrutiva: sem CRM_AVANCADO_URL
- * definido, o comportamento é exatamente o de antes.
+ * O ZapERP não tem mais CRM interno (foi removido). Este componente só decide
+ * entre: abrir o CRM Avançado (quando a integração está configurada) ou mostrar
+ * um estado limpo de "indisponível". NUNCA cai no antigo CRM interno — os
+ * endpoints dele não existem mais no backend (davam 404 em cascata).
+ *
+ * Respostas de GET /api/crm/abrir-avancado:
+ *   - 200 { url }  → redireciona o navegador para o CRM Avançado
+ *   - 503          → integração não configurada neste ambiente (faltam
+ *                    CRM_AVANCADO_URL / ZAP_SSO_SECRET no backend)
+ *   - outro erro   → falha transitória; oferece tentar de novo
  */
 export default function CrmAvancadoRedirect() {
-  const [fallback, setFallback] = useState(false);
-  const [erro, setErro] = useState(null);
+  const [estado, setEstado] = useState("carregando"); // carregando | indisponivel | erro
 
   useEffect(() => {
     let ativo = true;
@@ -25,16 +28,16 @@ export default function CrmAvancadoRedirect() {
         if (data && data.url) {
           window.location.replace(data.url);
         } else {
-          setFallback(true);
+          setEstado("indisponivel");
         }
       })
       .catch((e) => {
         if (!ativo) return;
-        // 503 = integração desativada neste ambiente → usa o CRM interno.
+        // 503 = integração desativada neste ambiente.
         if (e && e.response && e.response.status === 503) {
-          setFallback(true);
+          setEstado("indisponivel");
         } else {
-          setErro("Não foi possível abrir o CRM Avançado. Tente novamente.");
+          setEstado("erro");
         }
       });
 
@@ -43,22 +46,73 @@ export default function CrmAvancadoRedirect() {
     };
   }, []);
 
-  if (fallback) {
-    // Renderiza o CRM interno original (com seu <Outlet/> e sub-rotas).
-    return <CrmLayout />;
-  }
+  const wrap = {
+    minHeight: "60vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  };
+  const card = {
+    maxWidth: 460,
+    textAlign: "center",
+    background: "var(--surface, #ffffff)",
+    border: "1px solid var(--border, #e2e8f0)",
+    borderRadius: 16,
+    padding: "32px 28px",
+    color: "var(--text, #1e293b)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  };
 
-  if (erro) {
+  if (estado === "carregando") {
     return (
-      <div style={{ padding: 24, color: "#b91c1c" }} role="alert">
-        {erro}
+      <div style={wrap} aria-busy="true">
+        <div style={{ color: "var(--text-muted, #475569)" }}>Abrindo o CRM Avançado…</div>
       </div>
     );
   }
 
+  if (estado === "erro") {
+    return (
+      <div style={wrap}>
+        <div style={card} role="alert">
+          <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Não foi possível abrir o CRM Avançado</h2>
+          <p style={{ margin: "0 0 20px", color: "var(--text-muted, #64748b)", fontSize: 14 }}>
+            Ocorreu uma falha temporária ao contatar o CRM. Tente novamente.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              background: "var(--primary, #16a34a)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Tentar de novo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // indisponivel
   return (
-    <div style={{ padding: 24, color: "#475569" }} aria-busy="true">
-      Abrindo o CRM Avançado…
+    <div style={wrap}>
+      <div style={card}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🗂️</div>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>CRM Avançado não disponível</h2>
+        <p style={{ margin: 0, color: "var(--text-muted, #64748b)", fontSize: 14, lineHeight: 1.5 }}>
+          A integração com o CRM Avançado não está ativa para este ambiente.
+          Fale com o administrador para habilitá-la.
+        </p>
+      </div>
     </div>
   );
 }

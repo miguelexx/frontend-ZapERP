@@ -437,6 +437,8 @@ function ConversaViewBody() {
   const [threadOpening, setThreadOpening] = useState(false);
   /** Garante máscara no 1º frame da troca (setState no render), não só no useLayoutEffect pós-paint. */
   const threadOpeningForIdRef = useRef(null);
+  const threadOpeningRef = useRef(false);
+  threadOpeningRef.current = threadOpening;
   const sendingCountRef = useRef(0);
   const setSendingTracked = useCallback((active) => {
     if (active) {
@@ -564,6 +566,7 @@ function ConversaViewBody() {
   const sendCrmRef = useRef(null);
   const zapSeenMsgKeysRef = useRef(new Set());
   const zapMsgsInitialPassRef = useRef(true);
+  const zapPassConversaIdRef = useRef(null);
 
   const focusMessageInput = useCallback(({ force = false } = {}) => {
     composerRef.current?.focusInput?.({ force });
@@ -644,6 +647,17 @@ function ConversaViewBody() {
     } else if (threadOpening) {
       setThreadOpening(false);
     }
+  }
+
+  /*
+   * Reset no MESMO render da troca de conversa. O useLayoutEffect rodava depois do paint:
+   * o 1º frame herdava isInitialPass=false da conversa anterior e as 2 últimas bolhas
+   * animavam (parecia pulo ao entrar).
+   */
+  if (conversaId !== zapPassConversaIdRef.current) {
+    zapPassConversaIdRef.current = conversaId;
+    zapSeenMsgKeysRef.current = new Set();
+    zapMsgsInitialPassRef.current = true;
   }
 
   useEffect(() => {
@@ -756,12 +770,12 @@ function ConversaViewBody() {
   }, [replyTo, nome, fromChat, conversa]);
 
   const rawAvatarUrl = isGroup
-    ? (conversa?.foto_grupo ?? fromChat?.foto_grupo ?? null)
+    ? (fromChat?.foto_grupo ?? conversa?.foto_grupo ?? null)
     : (
-        conversa?.foto_perfil ??
-        conversa?.foto_perfil_contato_cache ??
         fromChat?.foto_perfil ??
         fromChat?.foto_perfil_contato_cache ??
+        conversa?.foto_perfil ??
+        conversa?.foto_perfil_contato_cache ??
         conversa?.cliente?.foto_perfil ??
         conversa?.clientes?.foto_perfil ??
         null
@@ -844,7 +858,7 @@ function ConversaViewBody() {
 
   useEffect(() => {
     setAvatarImgError(false);
-  }, [avatarUrl]);
+  }, [conversaId, avatarUrl]);
 
   const selectedTagIds = useMemo(
     () => (Array.isArray(tags) ? tags.map((t) => String(t?.id)) : []),
@@ -924,6 +938,8 @@ function ConversaViewBody() {
   const snapIfStickBottom = useCallback(() => {
     const c = messagesContainerRef.current;
     if (!c || loadingMore || userScrollLockRef.current) return;
+    /* Abertura: o snap é só do useAutoScroll. ResizeObserver a competir = pulo ao revelar. */
+    if (threadOpeningRef.current) return;
     if (!shouldStickToBottomRef.current) return;
     const list = useConversaStore.getState().mensagens || [];
     const last = list.length ? list[list.length - 1] : null;
@@ -1208,12 +1224,8 @@ function ConversaViewBody() {
     suppressAutoScrollRef,
     userScrollLockRef,
     cancelOpenSnapPendingRef,
+    onOpenSnapReady: () => setThreadOpening(false),
   });
-
-  useLayoutEffect(() => {
-    zapSeenMsgKeysRef.current = new Set();
-    zapMsgsInitialPassRef.current = true;
-  }, [conversaId]);
 
   useLayoutEffect(() => {
     if (loading || !conversaId) return;
@@ -3550,23 +3562,12 @@ function ConversaViewBody() {
   useLayoutEffect(() => {
     if (!threadOpening || !openingThreadKey) return undefined;
     /*
-     * Fallback: se o snap/layout falhar, não deixar a lista invisível para sempre.
-     * A identidade da conversa já liga a máscara no render; aqui só o timeout de segurança.
+     * A máscara só cai quando o snap de abertura assenta (onOpenSnapReady).
+     * Este timeout evita thread invisível se o snap não disparar.
      */
     const fallback = window.setTimeout(() => setThreadOpening(false), 1000);
     return () => window.clearTimeout(fallback);
   }, [threadOpening, openingThreadKey]);
-
-  useLayoutEffect(() => {
-    if (!threadOpening || loading || !openingThreadKey) return undefined;
-    /*
-     * useAutoScroll (declarado acima) já aplicou o snap neste ciclo de layout.
-     * Com loading=false a conversa está pronta (com mensagens ou vazia): liberamos a
-     * máscara no mesmo frame, antes do paint — sem blink nem frame no topo.
-     */
-    setThreadOpening(false);
-    return undefined;
-  }, [threadOpening, loading, openingThreadKey]);
 
   useEffect(() => {
     if (!import.meta?.env?.DEV) return;
