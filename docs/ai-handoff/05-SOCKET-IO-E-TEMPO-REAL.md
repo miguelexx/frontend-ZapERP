@@ -41,7 +41,7 @@ Antes de adicionar listener: busque o nome no backend. Não registre listener de
 4. Notify desktop se inbound e conversa não focada
 5. Se aberta, `marcar_conversa_lida`
 
-`status_mensagem` é **batchado** (`statusMensagemBatch.js`) para não re-renderizar a thread a cada ACK.
+`status_mensagem` é **batchado** (`statusMensagemBatch.js`, ~75ms). O flush entrega a fila de uma vez; a thread aplica com `patchMensagensBatch` (um `set()`). Preview da lista usa `getChatByIdFromStore`.
 
 ## Bridges fora de `socket.js`
 

@@ -188,6 +188,23 @@ function getUserDepartamentoIdSet(user) {
   return set;
 }
 
+const timelineMsgRowCache = new WeakMap();
+
+function getOrCreateTimelineMsgRow(msg, showRemetente, reaction) {
+  const cached = timelineMsgRowCache.get(msg);
+  if (
+    cached &&
+    cached.__showRemetente === showRemetente &&
+    cached.__reaction === reaction &&
+    !cached.__captionBundleTop &&
+    !cached.__captionBundleFollow
+  ) {
+    return cached;
+  }
+  const row = { ...msg, __type: "msg", __showRemetente: showRemetente, __reaction: reaction };
+  timelineMsgRowCache.set(msg, row);
+  return row;
+}
 
 function ConversaViewBody() {
   const {
@@ -3479,7 +3496,7 @@ function ConversaViewBody() {
 
       const reaction = reactionsByMsgId[String(msg.id)];
 
-      out.push({ ...msg, __type: "msg", __showRemetente: showRemetente, __reaction: reaction });
+      out.push(getOrCreateTimelineMsgRow(msg, showRemetente, reaction));
     }
 
     /* Foto/vídeo seguido de texto curto (legenda enviada em mensagem separada): une visualmente. */

@@ -232,6 +232,7 @@ const ChatListRows = memo(function ChatListRows({
   );
 }, (prev, next) => {
   return (
+  prev.chatsFiltrados === next.chatsFiltrados &&
   prev.chatsLayoutKey === next.chatsLayoutKey &&
   prev.isMobileLayout === next.isMobileLayout &&
   prev.scrollRef === next.scrollRef &&

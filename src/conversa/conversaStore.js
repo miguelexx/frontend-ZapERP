@@ -134,6 +134,98 @@ function normalizeConversaId(id) {
   return s
 }
 
+const STATUS_ONLY_PATCH_KEYS = ["status", "status_mensagem", "whatsapp_id", "em_retry"]
+
+function isStatusOnlyPatch(partial) {
+  if (!partial || typeof partial !== "object") return false
+  const keys = Object.keys(partial)
+  if (keys.length === 0) return false
+  return keys.every((k) => STATUS_ONLY_PATCH_KEYS.includes(k))
+}
+
+/**
+ * Aplica um patch numa lista de mensagens sem set().
+ * @returns {{ list: any[], changed: boolean, needsSort: boolean }}
+ */
+function applyMensagemPatchToList(list, mensagemId, partial, opts, currentConversaId) {
+  const empty = { list, changed: false, needsSort: false }
+  if (!partial || Object.keys(partial).length === 0) return empty
+  const hasIdentifier = (mensagemId != null && mensagemId !== "") || partial?.whatsapp_id || partial?.tempId
+  const hasStatus = partial?.status_mensagem != null || partial?.status != null
+  if (!hasIdentifier && !hasStatus) return empty
+
+  const optsConversaId = normalizeConversaId(opts?.conversa_id)
+  if (optsConversaId != null) {
+    if (currentConversaId == null || String(optsConversaId) !== String(currentConversaId)) {
+      return empty
+    }
+  }
+
+  const convId = optsConversaId ?? currentConversaId
+  const waId = opts?.whatsapp_id ?? partial?.whatsapp_id
+  const indices = new Set()
+  list.forEach((m, i) => {
+    if (!convId || m.conversa_id == null || String(m.conversa_id) !== String(convId)) return
+    if (mensagemId != null && mensagemId !== "" && String(m.id) === String(mensagemId)) indices.add(i)
+    else if (waId && String(m.whatsapp_id) === String(waId)) indices.add(i)
+    else if (partial?.tempId && String(m.tempId) === String(partial.tempId)) indices.add(i)
+  })
+
+  if (indices.size === 0 && hasStatus && convId && list.length > 0) {
+    const now = Date.now()
+    const recentMs = 60_000
+    let fallbackIdx = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i]
+      if (!isOutgoingLike(m)) continue
+      const ts = toMillis(m?.criado_em)
+      if (!Number.isFinite(ts) || now - ts > recentMs) break
+      const hasMatch =
+        (waId && String(m.whatsapp_id) === String(waId)) ||
+        (mensagemId != null && mensagemId !== "" && String(m.id) === String(mensagemId))
+      if (hasMatch) {
+        fallbackIdx = i
+        break
+      }
+    }
+    if (fallbackIdx >= 0) indices.add(fallbackIdx)
+  }
+
+  if (indices.size === 0) return empty
+  const next = [...list]
+  let changed = false
+  indices.forEach((i) => {
+    const cur = next[i]
+    if (cur?.apagada_para_todos) {
+      const allow = {}
+      if (partial.status != null) allow.status = partial.status
+      if (partial.status_mensagem != null) allow.status_mensagem = partial.status_mensagem
+      if (Object.keys(allow).length === 0) return
+      const merged = preserveLocalMediaFields(cur, { ...cur, ...allow })
+      if (!mensagemStatusPatchChanges(cur, merged, allow)) return
+      next[i] = merged
+      changed = true
+      return
+    }
+    let merged = preserveLocalMediaFields(cur, { ...cur, ...partial })
+    if (partial.status != null || partial.status_mensagem != null) {
+      const higher = pickHigherStatus(
+        cur.status_mensagem ?? cur.status,
+        partial.status_mensagem ?? partial.status
+      )
+      if (higher != null) {
+        merged = { ...merged, status: higher, status_mensagem: higher }
+      }
+    }
+    merged = clearStaleOutboundWaitFlags(merged)
+    if (!mensagemStatusPatchChanges(cur, merged, partial)) return
+    next[i] = merged
+    changed = true
+  })
+  if (!changed) return empty
+  return { list: next, changed: true, needsSort: !isStatusOnlyPatch(partial) }
+}
+
 const conversaMensagensCache = new Map()
 const CONVERSA_MENSAGENS_CACHE_MAX = 48
 const CONVERSA_MENSAGENS_CACHE_TTL_MS = 20 * 60 * 1000
@@ -1255,91 +1347,48 @@ export const useConversaStore = create((set, get) => {
       const hasStatus = partial?.status_mensagem != null || partial?.status != null
       if (!hasIdentifier && !hasStatus) return
       if (!partial || (Object.keys(partial).length === 0)) return
-      const { whatsapp_id: optsWhatsappId } = opts
-      const optsConversaId = normalizeConversaId(opts?.conversa_id)
       set((state) => {
-        const list = state.mensagens || []
-        const convId = optsConversaId ?? normalizeConversaId(state.conversa?.id ?? state.selectedId)
-        if (optsConversaId != null) {
-          const currentConversaId = normalizeConversaId(state.conversa?.id ?? state.selectedId)
-          if (currentConversaId == null || String(optsConversaId) !== String(currentConversaId)) {
-            return state
+        const currentConversaId = normalizeConversaId(state.conversa?.id ?? state.selectedId)
+        const result = applyMensagemPatchToList(state.mensagens || [], mensagemId, partial, opts, currentConversaId)
+        if (!result.changed) return state
+        return {
+          mensagens: result.needsSort ? sortMensagensChronological(result.list) : result.list,
+        }
+      })
+    },
+
+    /** Vários patches de status/conteúdo em um único set() — usado pelo flush do socket. */
+    patchMensagensBatch: (items) => {
+      if (!Array.isArray(items) || items.length === 0) return
+      if (items.length === 1) {
+        const it = items[0]
+        get().patchMensagem(it.mensagemId, it.partial, it.opts || {})
+        return
+      }
+      set((state) => {
+        const currentConversaId = normalizeConversaId(state.conversa?.id ?? state.selectedId)
+        let list = state.mensagens || []
+        let anyChanged = false
+        let anyNeedsSort = false
+        for (const it of items) {
+          if (!it?.partial) continue
+          const result = applyMensagemPatchToList(
+            list,
+            it.mensagemId,
+            it.partial,
+            it.opts || {},
+            currentConversaId
+          )
+          if (result.changed) {
+            list = result.list
+            anyChanged = true
+            if (result.needsSort) anyNeedsSort = true
           }
         }
-        const waId = optsWhatsappId ?? partial?.whatsapp_id
-
-        const indices = new Set()
-        list.forEach((m, i) => {
-          if (!convId || m.conversa_id == null || String(m.conversa_id) !== String(convId)) return
-          if (mensagemId != null && mensagemId !== "" && String(m.id) === String(mensagemId)) indices.add(i)
-          else if (waId && String(m.whatsapp_id) === String(waId)) indices.add(i)
-          else if (partial?.tempId && String(m.tempId) === String(partial.tempId)) indices.add(i)
-        })
-
-        if (indices.size === 0 && hasStatus && convId && list.length > 0) {
-          const now = Date.now()
-          const recentMs = 60_000
-          let fallbackIdx = -1
-          for (let i = list.length - 1; i >= 0; i--) {
-            const m = list[i]
-            if (!isOutgoingLike(m)) continue
-            const ts = toMillis(m?.criado_em)
-            if (!Number.isFinite(ts) || now - ts > recentMs) break
-            const hasMatch =
-              (waId && String(m.whatsapp_id) === String(waId)) ||
-              (mensagemId != null && mensagemId !== "" && String(m.id) === String(mensagemId))
-            if (hasMatch) {
-              fallbackIdx = i
-              break
-            }
-          }
-          if (fallbackIdx >= 0) indices.add(fallbackIdx)
+        if (!anyChanged) return state
+        return {
+          mensagens: anyNeedsSort ? sortMensagensChronological(list) : list,
         }
-
-        if (indices.size === 0) return state
-        const next = [...list]
-        let changed = false
-        indices.forEach((i) => {
-          const cur = next[i]
-          if (cur?.apagada_para_todos) {
-            const allow = {}
-            if (partial.status != null) allow.status = partial.status
-            if (partial.status_mensagem != null) allow.status_mensagem = partial.status_mensagem
-            if (Object.keys(allow).length === 0) return
-            const merged = preserveLocalMediaFields(cur, { ...cur, ...allow })
-            if (!mensagemStatusPatchChanges(cur, merged, allow)) return
-            next[i] = merged
-            changed = true
-            return
-          }
-          let merged = preserveLocalMediaFields(cur, { ...cur, ...partial })
-          if (partial.status != null || partial.status_mensagem != null) {
-            const higher = pickHigherStatus(
-              cur.status_mensagem ?? cur.status,
-              partial.status_mensagem ?? partial.status
-            )
-            if (higher != null) {
-              merged = { ...merged, status: higher, status_mensagem: higher }
-            }
-          }
-          merged = clearStaleOutboundWaitFlags(merged)
-          if (!mensagemStatusPatchChanges(cur, merged, partial)) return
-          next[i] = merged
-          changed = true
-        })
-        if (!changed) return state
-        // Status/ticks (sent→delivered→read): atualiza in-place sem reordenar — o sort
-        // em mensagens com o mesmo criado_em pode trocar índices e gerar “pulo” na lista.
-        const statusOnlyKeys = ["status", "status_mensagem", "whatsapp_id", "em_retry"]
-        const isStatusOnlyPatch = Object.keys(partial).every((k) => statusOnlyKeys.includes(k))
-        if (isStatusOnlyPatch) {
-          return { mensagens: next }
-        }
-        // Reordena após o patch: se a mensagem reconciliada (ex.: tempId -> id/criado_em real do
-        // servidor) tiver entrado na lista antes de outra mensagem mais antiga ainda não chegada
-        // nesta aba, o índice antigo ficaria fora de ordem sem isto (mesma função já usada no
-        // fluxo de anexar mensagens).
-        return { mensagens: sortMensagensChronological(next) }
       })
     },
 

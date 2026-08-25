@@ -1,6 +1,23 @@
 # Checklist para a próxima IA (frontend)
 
-> 2026-08-23. Use com o [índice-mestre](../../../docs/ai-handoff/00-LEIA-PRIMEIRO.md) — não carregue a série inteira.
+> 2026-08-23. Atualizado 2026-08-24 — adicionados protocolos de declaração pré-ação e mandato de documentação.
+
+## Declaração pré-ação (obrigatório antes de escrever qualquer código)
+
+Antes de tocar em qualquer arquivo, declare explicitamente:
+
+- [ ] **Componentes, stores e serviços afetados** — listar o que será lido e/ou editado
+- [ ] **Impacto em caminho quente** — altera lista de conversas? thread? composer? socket? auth? CSS mobile?
+- [ ] **Testes existentes relevantes** — quais suites Jest/Playwright cobrem o módulo
+- [ ] **Risco mobile** — a mudança pode quebrar o teclado/scroll em iOS ou Android?
+
+Não prosseguir sem esta declaração.
+
+## Mandato de documentação (obrigatório ao terminar)
+
+- [ ] Se encontrou algo relevante não documentado → adicionar ao doc correspondente em `docs/ai-handoff/` antes de encerrar
+- [ ] Se um item está marcado **PENDENTE DE VALIDAÇÃO** e você validou no browser → atualizar o status
+- [ ] Nunca encerrar a sessão com conhecimento novo não registrado
 
 ## Antes de qualquer alteração
 
@@ -8,6 +25,7 @@
 - [ ] `git status --short` e não descartar mudanças do usuário.
 - [ ] Abrir o arquivo real em `frontend/src` (não `dist/`, não `_ANTIGOS`).
 - [ ] Declarar impacto: lista, thread, socket, auth, rota, CSS mobile.
+- [ ] Para PENDENTE DE VALIDAÇÃO relevante: validar no browser antes de assumir.
 
 ## Caminho quente (lista / thread / composer)
 

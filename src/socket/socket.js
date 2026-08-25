@@ -1,5 +1,5 @@
 import { io } from "socket.io-client"
-import { useChatStore } from "../chats/chatsStore"
+import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore"
 import {
   normalizeMensagemStatusKey,
   ultimaMensagemRefsEqual,
@@ -62,8 +62,7 @@ function updateDocumentTitleFromChats() {
   if (documentTitleRaf != null) return
   documentTitleRaf = requestAnimationFrame(() => {
     documentTitleRaf = null
-    const chats = useChatStore.getState().chats || []
-    const total = chats.reduce((acc, c) => acc + (Number(c.unread_count) || 0), 0)
+    const total = Number(useChatStore.getState().unreadTotal) || 0
     applyDocumentTitle(total)
   })
 }
@@ -740,56 +739,62 @@ export function joinConversaIfNeeded(id) {
   socket.emit("join_conversa", id)
 }
 
-/** Aplica um evento status_mensagem normalizado (conversa aberta + lista). */
-function applyStatusMensagemEvent(evt) {
-  const { mensagem_id, conversa_id, status: s, whatsapp_id, em_retry } = evt
+/** Aplica um ou mais eventos status_mensagem (conversa aberta + preview da lista). */
+function applyStatusMensagemEvent(events) {
+  const list = Array.isArray(events) ? events : events ? [events] : []
+  if (list.length === 0) return
 
   const convStore = useConversaStore.getState()
-  const partial = { status_mensagem: s, status: s }
-  if (whatsapp_id) partial.whatsapp_id = whatsapp_id
-  if (em_retry != null) partial.em_retry = em_retry
-
   const selectedId = convStore.selectedId
-  const isConversaAberta = selectedId != null
-  const conversaIdMatch = conversa_id && String(conversa_id) === String(selectedId)
-  if (isConversaAberta && conversaIdMatch) {
-    convStore.patchMensagem(mensagem_id, partial, {
-      conversa_id,
-      whatsapp_id,
-    })
+  const threadPatches = []
+
+  for (const evt of list) {
+    if (!evt) continue
+    const { mensagem_id, conversa_id, status: s, whatsapp_id, em_retry } = evt
+    const partial = { status_mensagem: s, status: s }
+    if (whatsapp_id) partial.whatsapp_id = whatsapp_id
+    if (em_retry != null) partial.em_retry = em_retry
+
+    if (selectedId != null && conversa_id && String(conversa_id) === String(selectedId)) {
+      threadPatches.push({
+        mensagemId: mensagem_id,
+        partial,
+        opts: { conversa_id, whatsapp_id },
+      })
+    }
+
+    if (!conversa_id) continue
+    const cur = getChatByIdFromStore(conversa_id)
+    if (!cur) continue
+    const u = cur?.ultima_mensagem
+    const msgs = cur?.mensagens || cur?.messages || []
+    const lastFromArray = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null
+    const matchById = (m) => mensagem_id && String(m?.id) === String(mensagem_id)
+    const matchByWa = (m) => whatsapp_id && String(m?.whatsapp_id) === String(whatsapp_id)
+    const match = (m) => m && (matchById(m) || matchByWa(m))
+
+    let targetMsg = null
+    if (u && match(u)) targetMsg = u
+    else if (lastFromArray && match(lastFromArray)) targetMsg = lastFromArray
+    if (!targetMsg) continue
+
+    const nextUm = { ...targetMsg, status_mensagem: s, status: s }
+    if (whatsapp_id) nextUm.whatsapp_id = whatsapp_id
+    if (em_retry != null) nextUm.em_retry = em_retry
+    if (
+      ultimaMensagemRefsEqual(targetMsg, nextUm) &&
+      normalizeMensagemStatusKey(targetMsg) === normalizeMensagemStatusKey(nextUm)
+    ) {
+      continue
+    }
+    useChatStore.getState().setUltimaMensagem(conversa_id, nextUm)
   }
 
-  if (conversa_id) {
-    const chatStore = useChatStore.getState()
-    const chats = chatStore.chats || []
-    const idx = chats.findIndex((c) => String(c.id) === String(conversa_id))
-    if (idx >= 0) {
-      const cur = chats[idx]
-      const u = cur?.ultima_mensagem
-      const msgs = cur?.mensagens || cur?.messages || []
-      const lastFromArray = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null
-      const matchById = (m) => mensagem_id && String(m?.id) === String(mensagem_id)
-      const matchByWa = (m) => whatsapp_id && String(m?.whatsapp_id) === String(whatsapp_id)
-      const match = (m) => m && (matchById(m) || matchByWa(m))
-
-      let targetMsg = null
-      if (u && match(u)) targetMsg = u
-      else if (lastFromArray && match(lastFromArray)) targetMsg = lastFromArray
-
-      if (targetMsg) {
-        const nextUm = { ...targetMsg, status_mensagem: s, status: s }
-        if (whatsapp_id) nextUm.whatsapp_id = whatsapp_id
-        if (em_retry != null) nextUm.em_retry = em_retry
-        if (
-          !(
-            ultimaMensagemRefsEqual(targetMsg, nextUm) &&
-            normalizeMensagemStatusKey(targetMsg) === normalizeMensagemStatusKey(nextUm)
-          )
-        ) {
-          chatStore.setUltimaMensagem(conversa_id, nextUm)
-        }
-      }
-    }
+  if (threadPatches.length === 1) {
+    const p = threadPatches[0]
+    convStore.patchMensagem(p.mensagemId, p.partial, p.opts)
+  } else if (threadPatches.length > 1) {
+    convStore.patchMensagensBatch(threadPatches)
   }
 }
 

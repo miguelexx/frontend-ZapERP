@@ -64,11 +64,7 @@ export default function Atendimento() {
   const prevSelectedRef = useRef(null);
   const mobileHistoryArmedRef = useRef(false);
 
-  const unreadTitleTotal = useChatStore((s) => {
-    let total = 0
-    for (const c of s.chats || []) total += Number(c.unread_count) || 0
-    return total
-  }, (a, b) => a === b);
+  const unreadTitleTotal = useChatStore((s) => Number(s.unreadTotal) || 0);
 
   useEffect(() => {
     applyDocumentTitle(unreadTitleTotal);

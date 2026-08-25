@@ -205,8 +205,8 @@ function DashboardOverview({ overview, loading, loadErr, rangeDays, onRefresh })
 
       <section className="dash-kpi-grid dash-kpi-grid--overview" aria-label="Indicadores principais">
         <MetricCard icon={Inbox} label="Clientes com conversa hoje" value={kpis.atendimentos_hoje ?? 0} hint="Clientes distintos com ao menos uma mensagem real recebida ou enviada hoje. Grupos não entram nesta contagem." />
-        <MetricCard icon={TimerReset} label="Tempo médio de resposta" value={formatMin(kpis.tempo_medio_resposta_min)} tone="blue" hint={`Média de todas as esperas respondidas no período até a ${slaContaAutomacao ? 'resposta válida seguinte; a configuração atual inclui automações' : 'resposta humana seguinte'}, contando somente das 07:00 às 18:00.`} />
-        <MetricCard icon={Clock} label="Tempo médio 1ª resposta" value={formatMin(kpis.tempo_primeira_resposta_min)} tone="blue" hint="Em cada cliente, considera somente a primeira espera do período e os minutos entre 07:00 e 18:00." />
+        <MetricCard icon={TimerReset} label="Tempo médio de resposta" value={formatMin(kpis.tempo_medio_resposta_min)} tone="blue" hint={`Média de todas as esperas respondidas no período até a ${slaContaAutomacao ? 'resposta válida seguinte; a configuração atual inclui automações' : 'resposta humana seguinte'}, contando somente das 07:00 às 18:00, exceto o almoço (12:00–14:00).`} />
+        <MetricCard icon={Clock} label="Tempo médio 1ª resposta" value={formatMin(kpis.tempo_primeira_resposta_min)} tone="blue" hint="Em cada cliente, considera somente a primeira espera do período e os minutos entre 07:00 e 18:00, exceto o almoço (12:00–14:00)." />
         <MetricCard icon={ShieldCheck} label="SLA das respostas" value={kpis.sla_percent != null ? `${kpis.sla_percent}%` : 'Sem dados'} tone="green" hint={`Percentual dos ciclos respondidos dentro da meta${slaContaAutomacao ? ', incluindo automações conforme a configuração atual' : ''}.`} />
         <MetricCard icon={Users} label="Atendente destaque" value={kpis.atendente_mais_produtivo || 'Sem dados'} tone="muted" hint="Maior volume de conversas atribuídas." />
         {simpleMode ? (
@@ -217,7 +217,7 @@ function DashboardOverview({ overview, loading, loadErr, rangeDays, onRefresh })
         ) : (
           <>
             <MetricCard icon={AlertTriangle} label="Tickets abertos agora" value={ticketsAbertos} tone="amber" hint="Fotografia atual: abertas, em atendimento e aguardando cliente; independe do período." />
-            <MetricCard icon={Target} label="Taxa de conversão" value={kpis.taxa_conversao_percent != null ? `${kpis.taxa_conversao_percent}%` : 'Sem dados'} tone="green" hint="Exibida só quando houver cálculo confiável." />
+            <MetricCard icon={Target} label="Taxa de conversão" value={kpis.taxa_conversao_percent != null ? `${kpis.taxa_conversao_percent}%` : 'Sem dados'} tone="green" hint="Leads ganhos ÷ leads decididos (ganhos + perdidos) no período, pelo CRM. Exibida só com base suficiente." />
           </>
         )}
       </section>
@@ -736,8 +736,8 @@ function DashboardSLA({ navigate }) {
           />
 
           <section className="dash-sla-focus-grid" aria-label="Indicadores essenciais do SLA">
-            <MetricCard icon={TimerReset} label="Resposta média" value={formatMin(resumo.tempo_medio_resposta_min)} tone="blue" hint={`Média de todas as esperas respondidas até a ${contaAutomacao ? 'resposta válida seguinte' : 'resposta humana seguinte'}, contando somente das 07:00 às 18:00.`} />
-            <MetricCard icon={Clock} label="Primeira resposta média" value={formatMin(resumo.tempo_medio_primeira_resposta_min)} tone="blue" hint="Primeira espera de cada cliente no período, contando somente das 07:00 às 18:00." />
+            <MetricCard icon={TimerReset} label="Resposta média" value={formatMin(resumo.tempo_medio_resposta_min)} tone="blue" hint={`Média de todas as esperas respondidas até a ${contaAutomacao ? 'resposta válida seguinte' : 'resposta humana seguinte'}, contando somente das 07:00 às 18:00, exceto o almoço (12:00–14:00).`} />
+            <MetricCard icon={Clock} label="Primeira resposta média" value={formatMin(resumo.tempo_medio_primeira_resposta_min)} tone="blue" hint="Primeira espera de cada cliente no período, contando somente das 07:00 às 18:00, exceto o almoço (12:00–14:00)." />
             <MetricCard icon={MessageSquareText} label="Ciclos respondidos" value={ciclosInfo.respondidos ?? resumo.total_analisadas ?? 0} tone="green" hint="Cada nova sequência do cliente conta uma vez, mesmo na mesma conversa." />
             <MetricCard icon={AlertTriangle} label="Aguardando resposta" value={ciclosInfo.sem_resposta ?? resumo.sem_resposta ?? 0} tone="amber" hint={`Ciclos que ainda não receberam ${contaAutomacao ? 'uma resposta válida' : 'resposta humana'}.`} />
             <MetricCard icon={XCircle} label="Acima da meta" value={resumo.fora_sla ?? 0} tone="red" hint={`Respostas que ultrapassaram ${limiteMin} minutos.`} />
@@ -746,7 +746,7 @@ function DashboardSLA({ navigate }) {
           <InfoStrip
             icon={ShieldCheck}
             title="Cálculo transparente"
-            text={`Cada ciclo começa na primeira mensagem de uma sequência do cliente e termina na primeira resposta válida. Mensagens seguidas do cliente contam uma vez. ${contaAutomacao ? 'A configuração atual permite que bot/automações encerrem o prazo.' : 'Bot e automações não encerram o prazo.'} Os minutos contam todos os dias somente das 07:00 às 18:00, no fuso America/Sao_Paulo.`}
+            text={`Cada ciclo começa na primeira mensagem de uma sequência do cliente e termina na primeira resposta válida. Mensagens seguidas do cliente contam uma vez. ${contaAutomacao ? 'A configuração atual permite que bot/automações encerrem o prazo.' : 'Bot e automações não encerram o prazo.'} Os minutos contam todos os dias das 07:00 às 12:00 e das 14:00 às 18:00 (almoço excluído), no fuso America/Sao_Paulo.`}
           />
 
           {(data.criticas_sem_resposta || []).length > 0 ? (
@@ -1089,7 +1089,7 @@ function SlaConfigPanel({ draft, setDraft, onSave, saving, horarioInfo, departam
           </label>
           <div className="dash-sla-check" role="note">
             <Clock size={18} aria-hidden="true" />
-            <span>Contagem fixa: todos os dias, das 07:00 às 18:00</span>
+            <span>Contagem fixa: todos os dias, das 07:00 às 12:00 e das 14:00 às 18:00 (almoço excluído)</span>
           </div>
           <label className="dash-sla-check">
             <input type="checkbox" checked={draft.sla_contar_bot_como_resposta} onChange={(e) => setDraft((d) => ({ ...d, sla_contar_bot_como_resposta: e.target.checked }))} />

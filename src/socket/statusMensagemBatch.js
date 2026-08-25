@@ -122,7 +122,7 @@ function scheduleFlush(apply) {
 /**
  * Enfileira status; sem chave confiável aplica na hora (comportamento legado).
  * @param {any} payload
- * @param {(evt: ReturnType<typeof normalizeStatusMensagemFromPayload>) => void} apply
+ * @param {(evts: ReturnType<typeof normalizeStatusMensagemFromPayload>[]) => void} apply
  * @param {(payload: any) => boolean} shouldIgnore
  */
 export function enqueueStatusMensagemEvent(payload, apply, shouldIgnore) {
@@ -133,7 +133,7 @@ export function enqueueStatusMensagemEvent(payload, apply, shouldIgnore) {
 
   const key = getQueueKey(evt);
   if (!key) {
-    apply(evt);
+    apply([evt]);
     return;
   }
 
@@ -151,9 +151,7 @@ export function flushStatusMensagemBatch(apply) {
   if (queue.size === 0 || typeof apply !== "function") return;
   const items = [...queue.values()];
   queue.clear();
-  for (const evt of items) {
-    apply(evt);
-  }
+  apply(items);
 }
 
 /** Limpa fila e timer (ex.: re-init / disconnect após flush). */

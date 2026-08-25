@@ -17,7 +17,6 @@ import {
 } from "./conversationActionsService";
 import { initZapDomEnhancements } from "./zapDomEnhancements";
 import { CHAT_LIST_VIRTUAL_THRESHOLD } from "./ChatListRows";
-import { chatRowListStoreKey } from "./chatListStoreCompare";
 import ChatListToolbar from "./ChatListToolbar";
 import ChatListRowsPane from "./ChatListRowsPane";
 
@@ -168,7 +167,7 @@ function ChatListBody({
 
   const filteredCount = chatsFiltrados.length;
   const chatsFiltradosLayoutKey = useMemo(
-    () => chatsFiltrados.map((c) => chatRowListStoreKey(c)).join("\n"),
+    () => chatsFiltrados.map((c) => String(c?.id ?? "")).join("\n"),
     [chatsFiltrados]
   );
 
