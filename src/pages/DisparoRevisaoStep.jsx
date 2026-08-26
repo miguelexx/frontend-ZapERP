@@ -15,10 +15,8 @@ import {
   IconLock,
   IconMessage2,
   IconPlayerPlay,
-  IconShieldCheck,
   IconSpeakerphone,
   IconUsers,
-  IconX,
 } from '@tabler/icons-react'
 import {
   confirmarCampanha,
@@ -222,110 +220,6 @@ function PreviaBubble({ item }) {
   )
 }
 
-function ConfirmarModal({
-  campanha,
-  revisao,
-  avisos,
-  confirmacaoTexto,
-  onConfirmacaoChange,
-  onClose,
-  onConfirm,
-  confirming,
-  erro,
-}) {
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape' && !confirming) onClose() }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [onClose, confirming])
-
-  const totalDest = revisao?.destinatarios?.total ?? 0
-  const instCount = revisao?.instancias?.length ?? 0
-  const inicio = revisao?.inicio
-
-  return (
-    <div
-      className="rev-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => { if (e.target === e.currentTarget && !confirming) onClose() }}
-    >
-      <div className="rev-modal">
-        <div className="rev-modal__header">
-          <div className="rev-modal__icon">
-            <IconShieldCheck size={22} />
-          </div>
-          <div>
-            <h2 className="rev-modal__title">Confirmar campanha</h2>
-            <p className="rev-modal__sub">Revise os dados antes de congelar a configuração.</p>
-          </div>
-          <button type="button" className="rev-modal__close" onClick={onClose} disabled={confirming} aria-label="Fechar">
-            <IconX size={16} />
-          </button>
-        </div>
-
-        <div className="rev-modal__body">
-          {erro && <div className="disparo-alert disparo-alert--error">{erro}</div>}
-
-          <dl className="rev-modal__resumo">
-            <div><dt>Campanha</dt><dd>{campanha?.nome}</dd></div>
-            <div><dt>Destinatários</dt><dd>{totalDest}</dd></div>
-            <div><dt>Instâncias</dt><dd>{instCount}</dd></div>
-            <div>
-              <dt>Início</dt>
-              <dd>
-                {inicio?.modo === 'agendado'
-                  ? `Agendado: ${fmtIsoLocal(inicio.agendado_para)} (${inicio.fuso || 'UTC'})`
-                  : 'Imediato após execução (Etapa 7)'}
-              </dd>
-            </div>
-          </dl>
-
-          {avisos?.length > 0 && (
-            <div className="rev-modal__avisos">
-              <strong>Avisos pendentes de ciência:</strong>
-              <ul>
-                {avisos.map((a) => (
-                  <li key={a.codigo}>{a.titulo}: {a.detalhe}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="rev-field">
-            <label htmlFor="rev-confirm-text">
-              Digite <strong>{campanha?.nome}</strong> ou <strong>CONFIRMAR</strong> para confirmar
-            </label>
-            <input
-              id="rev-confirm-text"
-              type="text"
-              className="rev-input"
-              value={confirmacaoTexto}
-              onChange={(e) => onConfirmacaoChange(e.target.value)}
-              disabled={confirming}
-              autoComplete="off"
-            />
-          </div>
-        </div>
-
-        <div className="rev-modal__footer">
-          <button type="button" className="disparo-btn-secondary" onClick={onClose} disabled={confirming}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="disparo-btn-primary"
-            onClick={onConfirm}
-            disabled={confirming || !confirmacaoTexto.trim()}
-          >
-            {confirming ? 'Confirmando…' : 'Confirmar campanha'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function VoltarEdicaoDialog({ onCancel, onConfirm, loading }) {
   return (
     <div className="rev-modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget && !loading) onCancel() }}>
@@ -365,8 +259,6 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
   const [revisao, setRevisao] = useState(null)
   const [historico, setHistorico] = useState([])
 
-  const [autorizacaoAceita, setAutorizacaoAceita] = useState(false)
-  const [cienciaAvisos, setCienciaAvisos] = useState(false)
   const [checklistValidacao, setChecklistValidacao] = useState(null)
 
   const [previa, setPrevia] = useState(null)
@@ -378,15 +270,11 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
   const [exportando, setExportando] = useState('')
   const [voltandoEdicao, setVoltandoEdicao] = useState(false)
   const [showVoltarDialog, setShowVoltarDialog] = useState(false)
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [confirmacaoTexto, setConfirmacaoTexto] = useState('')
   const [confirmando, setConfirmando] = useState(false)
-  const [confirmErro, setConfirmErro] = useState('')
 
   const checklist = checklistValidacao?.checklist ?? revisao?.checklist
   const bloqueado = revisao?.bloqueado === true
   const podeVoltarEdicao = revisao?.pode_voltar_edicao === true
-  const temAvisos = (checklist?.avisos?.length ?? 0) > 0
   const temBloqueios = (checklist?.bloqueios?.length ?? 0) > 0
 
   const opcoesInstancias = useMemo(
@@ -409,7 +297,6 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
       ])
       setRevisao(rev)
       setHistorico(hist?.revisoes || [])
-      setAutorizacaoAceita(Boolean(rev?.campanha?.autorizacao_aceita_em))
     } catch (err) {
       setErro(disparoApiError(err))
     } finally {
@@ -443,14 +330,14 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
     let cancelled = false
     ;(async () => {
       try {
-        const data = await validarRevisao(campanhaId, { autorizacao_aceita: autorizacaoAceita })
+        const data = await validarRevisao(campanhaId, { autorizacao_aceita: true })
         if (!cancelled) setChecklistValidacao(data)
       } catch {
         /* silencioso — checklist base permanece */
       }
     })()
     return () => { cancelled = true }
-  }, [autorizacaoAceita, campanhaId, revisao, bloqueado])
+  }, [campanhaId, revisao, bloqueado])
 
   function handleCorrigir(etapa) {
     const step = ETAPA_TO_STEP[etapa]
@@ -503,23 +390,16 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
     }
   }
 
-  function abrirConfirmModal() {
-    setConfirmacaoTexto('')
-    setConfirmErro('')
-    setShowConfirmModal(true)
-  }
-
   async function handleConfirmarCampanha() {
     if (confirmando) return
     setConfirmando(true)
-    setConfirmErro('')
+    setErro('')
     try {
       const result = await confirmarCampanha(campanhaId, {
         autorizacao_aceita: true,
-        ciencia_avisos: temAvisos ? cienciaAvisos : true,
-        confirmacao_texto: confirmacaoTexto.trim(),
+        ciencia_avisos: true,
+        confirmacao_texto: 'CONFIRMAR',
       })
-      setShowConfirmModal(false)
       const novoStatus = result.status || 'pronta'
       setSucesso(
         result.idempotente
@@ -534,17 +414,13 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
       })
       await carregarRevisao()
     } catch (err) {
-      setConfirmErro(disparoApiError(err))
+      setErro(disparoApiError(err))
     } finally {
       setConfirmando(false)
     }
   }
 
-  const podeConfirmar =
-    !bloqueado &&
-    !temBloqueios &&
-    autorizacaoAceita &&
-    (!temAvisos || cienciaAvisos)
+  const podeConfirmar = !bloqueado && !temBloqueios
 
   const conflitos = revisao?.planejamento?.conflitos?.conflitos || []
 
@@ -835,31 +711,6 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
         </section>
       )}
 
-      {/* Declarações */}
-      {!bloqueado && (
-        <section className="rev-section rev-section--decl">
-          <label className="rev-check">
-            <input
-              type="checkbox"
-              checked={autorizacaoAceita}
-              onChange={(e) => setAutorizacaoAceita(e.target.checked)}
-            />
-            <span>{revisao?.declaracao_texto || 'Declaração de autorização.'}</span>
-          </label>
-
-          {temAvisos && (
-            <label className="rev-check rev-check--warn">
-              <input
-                type="checkbox"
-                checked={cienciaAvisos}
-                onChange={(e) => setCienciaAvisos(e.target.checked)}
-              />
-              <span>Declaro ciência dos avisos listados acima e assumo a responsabilidade pelos riscos indicados.</span>
-            </label>
-          )}
-        </section>
-      )}
-
       {/* Histórico */}
       <section className="rev-section">
         <div className="rev-section__header rev-section__header--row">
@@ -955,44 +806,34 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
             <button
               type="button"
               className="disparo-btn-primary"
-              onClick={abrirConfirmModal}
-              disabled={!podeConfirmar}
+              onClick={handleConfirmarCampanha}
+              disabled={!podeConfirmar || confirmando}
               title={
-                !autorizacaoAceita
-                  ? 'Aceite a declaração de autorização'
-                  : temAvisos && !cienciaAvisos
-                    ? 'Marque ciência dos avisos'
-                    : temBloqueios
-                      ? 'Existem bloqueios pendentes'
-                      : 'Confirmar campanha'
+                temBloqueios
+                  ? 'Existem bloqueios pendentes'
+                  : 'Confirmar e ir para o envio'
               }
             >
               <IconCheck size={14} />
-              Confirmar campanha
+              {confirmando ? 'Confirmando…' : 'Confirmar e ir para o envio'}
             </button>
           )}
         </div>
       </footer>
+
+      {!bloqueado && (
+        <p className="rev-footer__legal">
+          Ao confirmar, você declara que os destinatários possuem autorização ou
+          relação legítima para receber esta comunicação (LGPD). A campanha é
+          congelada e fica pronta para envio — nenhuma mensagem é enviada nesta etapa.
+        </p>
+      )}
 
       {showVoltarDialog && (
         <VoltarEdicaoDialog
           onCancel={() => setShowVoltarDialog(false)}
           onConfirm={handleVoltarEdicao}
           loading={voltandoEdicao}
-        />
-      )}
-
-      {showConfirmModal && (
-        <ConfirmarModal
-          campanha={campanha}
-          revisao={revisao}
-          avisos={checklist?.avisos}
-          confirmacaoTexto={confirmacaoTexto}
-          onConfirmacaoChange={setConfirmacaoTexto}
-          onClose={() => !confirmando && setShowConfirmModal(false)}
-          onConfirm={handleConfirmarCampanha}
-          confirming={confirmando}
-          erro={confirmErro}
         />
       )}
     </div>

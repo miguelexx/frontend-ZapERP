@@ -771,8 +771,10 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
     }
   }
 
-  async function handleSalvarRascunho() {
-    await salvarTudo()
+  async function handleVoltar() {
+    // Guarda as regras sem exigir clique, para não perder trabalho ao voltar.
+    try { await salvarTudo({ silencioso: true }) } catch (_) { /* segue para trás mesmo assim */ }
+    onBack?.()
   }
 
   async function handleSimular() {
@@ -1249,9 +1251,12 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
       {/* Footer */}
       <footer className="dw-footer lim-footer">
         <div className="dw-footer__left">
-          <button type="button" className="disparo-btn-secondary" onClick={onBack}>
+          <button type="button" className="disparo-btn-secondary" onClick={handleVoltar} disabled={saving || continuando}>
             Voltar
           </button>
+          <span className="dw-autosave-hint">
+            {saving ? 'Salvando…' : 'Salvamento automático'}
+          </span>
         </div>
         <div className="lim-footer__center">
           {bloqueantes.length > 0 && (
@@ -1266,21 +1271,12 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
         <div className="dw-footer__right">
           <button
             type="button"
-            className="disparo-btn-secondary"
-            onClick={handleSalvarRascunho}
-            disabled={saving || continuando}
-            title="Guarda as regras sem confirmar a etapa"
-          >
-            {saving ? 'Salvando…' : 'Salvar rascunho'}
-          </button>
-          <button
-            type="button"
             className="disparo-btn-primary"
             onClick={handleContinuar}
             disabled={saving || continuando || conflitoImpeditivo || desconectadas.length > 0}
             title={bloqueantes[0] || 'Salva, simula se preciso e confirma esta etapa'}
           >
-            {continuando ? 'Confirmando…' : 'Confirmar e continuar →'}
+            {continuando ? 'Confirmando…' : 'Continuar →'}
           </button>
         </div>
       </footer>

@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import api from "../api/http";
 import { postLeadFromConversa } from "../api/crmService";
 import { useNotificationStore } from "../notifications/notificationStore";
 
@@ -43,7 +43,7 @@ function getApiError(e) {
   const code = data?.code;
   const msg = data?.error || e?.message;
   if (status === 403 && (code === "CRM_DISABLED" || String(msg || "").includes("CRM"))) {
-    return "O CRM está desativado para esta empresa. Peça ao administrador para ativar em Configurações.";
+    return "O CRM Avançado não está configurado neste ambiente. Fale com o administrador.";
   }
   return msg || "Não foi possível enviar ao CRM.";
 }
@@ -52,13 +52,11 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   { conversaId, hideToolbarButton = false, isGroup = false, crmEnabled = true },
   ref
 ) {
-  const navigate = useNavigate();
   const showToast = useNotificationStore((s) => s.showToast);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [observacoes, setObservacoes] = useState("");
-  const [criarNotaResumo, setCriarNotaResumo] = useState(true);
   const [successFlash, setSuccessFlash] = useState(false);
   const successTimerRef = useRef(null);
 
@@ -83,25 +81,41 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     [conversaId, isGroup, crmEnabled, openModal]
   );
 
-  const leadNavigate = useCallback(
-    (leadId) => {
-      if (leadId == null) return;
-      navigate(`/crm/leads/${leadId}`);
+  // "Abrir no CRM": hand-off SSO para o CRM Avançado (externo). Não navega para
+  // rotas internas /crm/* — elas não existem mais (o CRM interno foi removido).
+  // Com crmLeadId (UUID interno do CRM devolvido pelo sync), abre direto no lead
+  // via ?redirect=/leads/<id>; sem ele, cai na home do CRM.
+  const abrirCrmAvancado = useCallback(
+    async (crmLeadId) => {
+      try {
+        const params =
+          crmLeadId != null && String(crmLeadId).trim()
+            ? { redirect: `/leads/${String(crmLeadId).trim()}` }
+            : undefined;
+        const { data } = await api.get("/api/crm/abrir-avancado", { params });
+        if (data && data.url) {
+          window.location.href = data.url;
+        } else {
+          showToast({ type: "error", title: "CRM indisponível", message: "Não foi possível abrir o CRM Avançado." });
+        }
+      } catch (err) {
+        showToast({ type: "error", title: "CRM indisponível", message: getApiError(err) });
+      }
     },
-    [navigate]
+    [showToast]
   );
 
   const showSuccessToast = useCallback(
-    (title, message, leadId, tone = "success") => {
+    (title, message, crmLeadId, tone = "success") => {
       showToast({
         type: tone,
         title,
         message,
-        actionLabel: leadId != null ? "Abrir no CRM" : undefined,
-        onAction: leadId != null ? () => leadNavigate(leadId) : undefined,
+        actionLabel: "Abrir no CRM",
+        onAction: () => abrirCrmAvancado(crmLeadId),
       });
     },
-    [leadNavigate, showToast]
+    [abrirCrmAvancado, showToast]
   );
 
   async function handleSubmit(e) {
@@ -109,18 +123,16 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     if (!conversaId || loading || crmEnabled === false) return;
     setLoading(true);
     try {
-      const body = {
-        ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
-        criar_nota_com_resumo: criarNotaResumo,
-      };
+      const body = observacoes.trim() ? { observacoes: observacoes.trim() } : {};
       const { status, data } = await postLeadFromConversa(Number(conversaId), body);
-      const leadId = data?.lead?.id != null ? Number(data.lead.id) : null;
-      const fc = data?.from_conversa || {};
+      const dup = data?.from_conversa?.duplicate === true;
+      // id interno do CRM (UUID) devolvido pelo sync — usado para abrir direto no lead.
+      const crmLeadId = data?.lead?.id != null ? String(data.lead.id) : null;
 
       setModalOpen(false);
       setObservacoes("");
 
-      if (status === 201) {
+      if (status === 200 || status === 201) {
         if (successTimerRef.current) clearTimeout(successTimerRef.current);
         setSuccessFlash(true);
         successTimerRef.current = setTimeout(() => {
@@ -128,37 +140,23 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
           successTimerRef.current = null;
         }, 1400);
         showSuccessToast(
-          "Enviado ao CRM",
-          fc.tags_sincronizadas != null
-            ? `Lead criado. Tags sincronizadas: ${fc.tags_sincronizadas}.`
-            : "Lead criado a partir desta conversa.",
-          leadId,
-          "success"
-        );
-        return;
-      }
-
-      if (status === 200) {
-        const dup = fc.duplicate === true;
-        showSuccessToast(
-          dup ? "Já estava no CRM — atualizado" : "CRM atualizado",
-          dup
-            ? "O lead existente foi sincronizado (tags e última interação)."
-            : "Dados do lead foram atualizados.",
-          leadId,
-          "info"
+          status === 201 && !dup ? "Enviado ao CRM" : "CRM atualizado",
+          status === 201 && !dup
+            ? "O contato virou lead no CRM Avançado."
+            : "O lead foi sincronizado com os dados desta conversa.",
+          crmLeadId,
+          status === 201 && !dup ? "success" : "info"
         );
         return;
       }
 
       if (status === 409) {
-        const msg = data?.error || "Já existe um lead para esta conversa.";
         showToast({
           type: "warning",
           title: "Lead já vinculado",
-          message: msg,
-          actionLabel: leadId != null ? `Abrir lead #${leadId}` : undefined,
-          onAction: leadId != null ? () => leadNavigate(leadId) : undefined,
+          message: data?.error || "Já existe um lead para esta conversa.",
+          actionLabel: "Abrir no CRM",
+          onAction: () => abrirCrmAvancado(crmLeadId),
         });
         return;
       }
@@ -212,8 +210,8 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
           </div>
           <form className="wa-modal-body" onSubmit={handleSubmit}>
             <p className="wa-crmSend-hint">
-              O contato passa a ser lead no funil. As tags da conversa são copiadas por predefinição; pode acrescentar uma nota
-              para a equipa comercial.
+              O contato vira lead no CRM Avançado, com os dados do cliente (nome, telefone, e-mail e empresa) já preenchidos.
+              Pode acrescentar uma nota para a equipa comercial.
             </p>
             <label className="wa-crmSend-label" htmlFor="wa-crmSend-obs">
               Nota para o comercial (opcional)
@@ -227,15 +225,6 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               placeholder="Contexto, próximos passos, objeções…"
               disabled={loading}
             />
-            <label className="wa-crmSend-check">
-              <input
-                type="checkbox"
-                checked={criarNotaResumo}
-                onChange={(e) => setCriarNotaResumo(e.target.checked)}
-                disabled={loading}
-              />
-              Incluir resumo das mensagens na nota interna
-            </label>
             <div className="wa-modal-row wa-modal-row--actions" style={{ marginTop: 12 }}>
               <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
                 Cancelar

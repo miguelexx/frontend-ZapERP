@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   IconArrowLeft,
@@ -44,30 +44,55 @@ function InfoStep({ campanha, onSaved, onNext }) {
   const [descricao, setDescricao] = useState(campanha?.descricao ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [savedTick, setSavedTick] = useState(false)
+  const autosaveRef = useRef(null)
+  const lastSavedRef = useRef({ nome: campanha?.nome ?? '', descricao: campanha?.descricao ?? '' })
 
   useEffect(() => {
     setNome(campanha?.nome ?? '')
     setDescricao(campanha?.descricao ?? '')
+    lastSavedRef.current = { nome: campanha?.nome ?? '', descricao: campanha?.descricao ?? '' }
   }, [campanha?.id])
 
   const canEdit = campanha?.status === 'rascunho' || campanha?.status === 'configurando'
 
-  async function handleSave(e) {
-    e.preventDefault()
+  // Salva sem exigir clique; retorna true se salvou (ou nada mudou), false se falhou.
+  const persist = useCallback(async () => {
     const nomeTrimmed = nome.trim()
-    if (!nomeTrimmed) { setError('O nome é obrigatório.'); return }
-    setSaving(true); setError(''); setSuccess(false)
+    const descTrimmed = descricao.trim()
+    if (!nomeTrimmed) return false
+    if (nomeTrimmed === lastSavedRef.current.nome && descTrimmed === lastSavedRef.current.descricao) {
+      return true
+    }
+    setSaving(true); setError('')
     try {
-      const updated = await editarCampanha(campanha.id, { nome: nomeTrimmed, descricao: descricao.trim() })
+      const updated = await editarCampanha(campanha.id, { nome: nomeTrimmed, descricao: descTrimmed })
+      lastSavedRef.current = { nome: nomeTrimmed, descricao: descTrimmed }
       onSaved?.(updated)
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 2500)
+      setSavedTick(true)
+      setTimeout(() => setSavedTick(false), 2000)
+      return true
     } catch (err) {
       setError(disparoApiError(err))
+      return false
     } finally {
       setSaving(false)
     }
+  }, [nome, descricao, campanha?.id, onSaved])
+
+  // Auto-salvar (debounce) enquanto o usuário digita.
+  useEffect(() => {
+    if (!canEdit) return
+    clearTimeout(autosaveRef.current)
+    autosaveRef.current = setTimeout(() => { persist() }, 1200)
+    return () => clearTimeout(autosaveRef.current)
+  }, [nome, descricao, canEdit, persist])
+
+  async function handleAvancar() {
+    if (!nome.trim()) { setError('Dê um nome para a campanha antes de continuar.'); return }
+    clearTimeout(autosaveRef.current)
+    const ok = await persist()
+    if (ok) onNext?.()
   }
 
   return (
@@ -77,61 +102,57 @@ function InfoStep({ campanha, onSaved, onNext }) {
         <div>
           <p className="dw-step-intro__eyebrow">Identidade da campanha</p>
           <h2 className="dw-step-intro__title">Comece com o essencial</h2>
-          <p className="dw-step-intro__desc">Dê um nome claro para sua equipe e registre o objetivo deste disparo.</p>
+          <p className="dw-step-intro__desc">Dê um nome claro para sua equipe e registre o objetivo deste disparo. Salvamos automaticamente enquanto você digita.</p>
         </div>
       </div>
       {error && <div className="disparo-alert disparo-alert--error">{error}</div>}
-      {success && (
-        <div className="rev-alert--success" style={{ marginBottom: 12 }}>
-          Informações salvas com sucesso.
-        </div>
-      )}
 
-      <form onSubmit={handleSave} noValidate>
-        <div className="disparo-field">
-          <label htmlFor="wiz-nome">Nome da campanha *</label>
-          <input
-            id="wiz-nome"
-            type="text"
-            maxLength={180}
-            value={nome}
-            onChange={e => setNome(e.target.value)}
-            disabled={saving || !canEdit}
-            placeholder="Ex: Promoção de outubro"
-          />
-        </div>
-        <div className="disparo-field">
-          <label htmlFor="wiz-desc">Descrição (opcional)</label>
-          <textarea
-            id="wiz-desc"
-            rows={3}
-            maxLength={5000}
-            value={descricao}
-            onChange={e => setDescricao(e.target.value)}
-            disabled={saving || !canEdit}
-            placeholder="Objetivo desta campanha…"
-          />
-        </div>
+      <div className="disparo-field">
+        <label htmlFor="wiz-nome">Nome da campanha *</label>
+        <input
+          id="wiz-nome"
+          type="text"
+          maxLength={180}
+          value={nome}
+          onChange={e => setNome(e.target.value)}
+          onBlur={() => canEdit && persist()}
+          disabled={!canEdit}
+          placeholder="Ex: Promoção de outubro"
+        />
+      </div>
+      <div className="disparo-field">
+        <label htmlFor="wiz-desc">Descrição (opcional)</label>
+        <textarea
+          id="wiz-desc"
+          rows={3}
+          maxLength={5000}
+          value={descricao}
+          onChange={e => setDescricao(e.target.value)}
+          onBlur={() => canEdit && persist()}
+          disabled={!canEdit}
+          placeholder="Objetivo desta campanha…"
+        />
+      </div>
 
-        <div className="dw-footer">
-          <div className="dw-footer__left">
-            {canEdit && (
-              <button type="submit" className="disparo-btn-secondary" disabled={saving}>
-                {saving ? 'Salvando…' : 'Salvar rascunho'}
-              </button>
-            )}
-          </div>
-          <div className="dw-footer__right">
-            <button
-              type="button"
-              className="disparo-btn-primary"
-              onClick={onNext}
-            >
-              Destinatários →
-            </button>
-          </div>
+      <div className="dw-footer">
+        <div className="dw-footer__left">
+          {canEdit && (
+            <span className="dw-autosave-hint">
+              {saving ? 'Salvando…' : savedTick ? '✓ Salvo' : 'Salvamento automático'}
+            </span>
+          )}
         </div>
-      </form>
+        <div className="dw-footer__right">
+          <button
+            type="button"
+            className="disparo-btn-primary"
+            onClick={handleAvancar}
+            disabled={saving}
+          >
+            Destinatários →
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
