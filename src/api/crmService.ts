@@ -198,6 +198,41 @@ export async function postLeadFromConversa(conversaId: number, body?: Record<str
   return { status: res.status, data: res.data };
 }
 
+/** Uma etapa (coluna do funil) do CRM Avançado, para os botões de "Enviar ao CRM". */
+export interface CrmEtapaBotao {
+  id: string | null;
+  nome: string;
+  ordem: number;
+  tipo: string | null;
+  cor: string | null;
+}
+
+export interface CrmEtapasResponse {
+  etapas: CrmEtapaBotao[];
+  disponivel: boolean;
+  pipeline_nome: string | null;
+}
+
+/**
+ * Lista as etapas do funil do CRM Avançado da empresa (para escolher em qual
+ * etapa o lead entra). Nunca lança por CRM indisponível: quando o endpoint do
+ * CRM ainda não existe, devolve `{ etapas: [], disponivel: false }`.
+ */
+export async function getCrmEtapas(): Promise<CrmEtapasResponse> {
+  const res = await api.get<CrmEtapasResponse>(`${CRM}/etapas`, {
+    validateStatus: (s) => s === 200 || s === 403,
+    skipGlobal403Toast: true,
+  } as Parameters<typeof api.get>[1] & { skipGlobal403Toast?: boolean });
+  if (res.status === 403 || !res.data) {
+    return { etapas: [], disponivel: false, pipeline_nome: null };
+  }
+  return {
+    etapas: Array.isArray(res.data.etapas) ? res.data.etapas : [],
+    disponivel: res.data.disponivel === true,
+    pipeline_nome: res.data.pipeline_nome ?? null,
+  };
+}
+
 /** @deprecated Preferir `postLeadFromConversa` para tratar 409. */
 export async function createLeadFromConversa(conversaId: number, body?: Record<string, unknown>) {
   const { status, data } = await postLeadFromConversa(conversaId, body);

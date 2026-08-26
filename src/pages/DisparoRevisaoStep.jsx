@@ -823,9 +823,10 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
 
       {!bloqueado && (
         <p className="rev-footer__legal">
-          Ao confirmar, você declara que os destinatários possuem autorização ou
-          relação legítima para receber esta comunicação (LGPD). A campanha é
-          congelada e fica pronta para envio — nenhuma mensagem é enviada nesta etapa.
+          {revisao?.declaracao_texto
+            ? `Ao confirmar: ${revisao.declaracao_texto}`
+            : 'Ao confirmar, você declara que os destinatários possuem autorização ou relação legítima para receber esta comunicação (LGPD).'}
+          {' '}A campanha é congelada e fica pronta para envio — nenhuma mensagem é enviada nesta etapa.
         </p>
       )}
 

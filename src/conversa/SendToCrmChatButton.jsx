@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import api from "../api/http";
-import { postLeadFromConversa } from "../api/crmService";
+import { getCrmEtapas, postLeadFromConversa } from "../api/crmService";
 import { useNotificationStore } from "../notifications/notificationStore";
 
 export function IconFunnelSend() {
@@ -56,8 +56,11 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
 
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendingKey, setSendingKey] = useState(null); // qual etapa está sendo enviada
   const [observacoes, setObservacoes] = useState("");
   const [successFlash, setSuccessFlash] = useState(false);
+  const [etapas, setEtapas] = useState([]);
+  const [etapasLoading, setEtapasLoading] = useState(false);
   const successTimerRef = useRef(null);
 
   useEffect(() => {
@@ -69,6 +72,27 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   const openModal = useCallback(() => {
     setModalOpen(true);
   }, []);
+
+  // Ao abrir o modal, busca as etapas do funil do CRM Avançado. Se o CRM ainda
+  // não expõe as etapas, cai no envio simples (sem botões de etapa) — sem erro.
+  useEffect(() => {
+    if (!modalOpen) return;
+    let cancelled = false;
+    setEtapasLoading(true);
+    getCrmEtapas()
+      .then((res) => {
+        if (!cancelled) setEtapas(Array.isArray(res?.etapas) ? res.etapas : []);
+      })
+      .catch(() => {
+        if (!cancelled) setEtapas([]);
+      })
+      .finally(() => {
+        if (!cancelled) setEtapasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modalOpen]);
 
   useImperativeHandle(
     ref,
@@ -118,12 +142,18 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     [abrirCrmAvancado, showToast]
   );
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e, etapa = null) {
     e?.preventDefault?.();
     if (!conversaId || loading || crmEnabled === false) return;
     setLoading(true);
+    setSendingKey(etapa ? String(etapa.id ?? etapa.nome) : "__simple__");
     try {
-      const body = observacoes.trim() ? { observacoes: observacoes.trim() } : {};
+      const body = {};
+      if (observacoes.trim()) body.observacoes = observacoes.trim();
+      if (etapa) {
+        if (etapa.id != null) body.etapa_id = etapa.id;
+        if (etapa.nome) body.etapa_nome = etapa.nome;
+      }
       const { status, data } = await postLeadFromConversa(Number(conversaId), body);
       const dup = data?.from_conversa?.duplicate === true;
       // id interno do CRM (UUID) devolvido pelo sync — usado para abrir direto no lead.
@@ -139,11 +169,12 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
           setSuccessFlash(false);
           successTimerRef.current = null;
         }, 1400);
+        const emEtapa = etapa?.nome ? ` na etapa “${etapa.nome}”` : "";
         showSuccessToast(
           status === 201 && !dup ? "Enviado ao CRM" : "CRM atualizado",
           status === 201 && !dup
-            ? "O contato virou lead no CRM Avançado."
-            : "O lead foi sincronizado com os dados desta conversa.",
+            ? `O contato virou lead no CRM Avançado${emEtapa}.`
+            : `O lead foi sincronizado com os dados desta conversa${emEtapa}.`,
           crmLeadId,
           status === 201 && !dup ? "success" : "info"
         );
@@ -168,6 +199,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
       });
     } finally {
       setLoading(false);
+      setSendingKey(null);
     }
   }
 
@@ -208,7 +240,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               ✕
             </button>
           </div>
-          <form className="wa-modal-body" onSubmit={handleSubmit}>
+          <form className="wa-modal-body" onSubmit={(e) => handleSubmit(e, null)}>
             <p className="wa-crmSend-hint">
               O contato vira lead no CRM Avançado, com os dados do cliente (nome, telefone, e-mail e empresa) já preenchidos.
               Pode acrescentar uma nota para a equipa comercial.
@@ -225,14 +257,50 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               placeholder="Contexto, próximos passos, objeções…"
               disabled={loading}
             />
-            <div className="wa-modal-row wa-modal-row--actions" style={{ marginTop: 12 }}>
-              <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
-                Cancelar
-              </button>
-              <button type="submit" className="wa-btn-primary" disabled={loading} aria-busy={loading}>
-                {loading ? "A enviar…" : "Confirmar envio"}
-              </button>
-            </div>
+
+            {etapasLoading ? (
+              <p className="wa-crmSend-etapasLoading">Carregando etapas do CRM…</p>
+            ) : etapas.length > 0 ? (
+              <>
+                <div className="wa-crmSend-etapasLabel">Enviar para qual etapa?</div>
+                <div className="wa-crmSend-etapas">
+                  {etapas.map((etapa) => {
+                    const key = String(etapa.id ?? etapa.nome);
+                    const isSending = loading && sendingKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className="wa-crmSend-etapaBtn"
+                        onClick={(e) => handleSubmit(e, etapa)}
+                        disabled={loading}
+                        aria-busy={isSending}
+                        title={`Enviar para "${etapa.nome}"`}
+                        style={etapa.cor ? { "--wa-crmEtapa-color": etapa.cor } : undefined}
+                      >
+                        <span className="wa-crmSend-etapaBtn-dot" aria-hidden />
+                        <span className="wa-crmSend-etapaBtn-nome">{etapa.nome}</span>
+                        {isSending ? <IconSpinnerMini /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="wa-modal-row wa-modal-row--actions" style={{ marginTop: 12 }}>
+                  <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="wa-modal-row wa-modal-row--actions" style={{ marginTop: 12 }}>
+                <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
+                  Cancelar
+                </button>
+                <button type="submit" className="wa-btn-primary" disabled={loading} aria-busy={loading}>
+                  {loading ? "A enviar…" : "Confirmar envio"}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>,

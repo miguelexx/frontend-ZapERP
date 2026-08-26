@@ -938,6 +938,7 @@
 .msg-var-inserir-btn { background:none; border:1px solid var(--ds-border,#e2e8f0); border-radius:6px; padding:3px 8px; font-size:11px; font-weight:600; color:var(--ds-primary,#128c7e); cursor:pointer; white-space:nowrap; transition:all .13s; }
 .msg-var-inserir-btn:hover { background:var(--ds-primary,#128c7e); color:#fff; border-color:var(--ds-primary,#128c7e); }
 .msg-vars-ok { display:flex; align-items:center; gap:8px; padding:12px 14px; background:var(--ds-accent-soft,rgba(0,168,132,.1)); border:1px solid var(--ds-accent,rgba(0,168,132,.25)); border-radius:10px; font-size:13px; color:var(--ds-accent,#00a884); font-weight:600; }
+.msg-vars-hint { margin:6px 2px 0; font-size:12px; color:var(--ds-text-muted,#64748b); }
 
 /* Distribuição */
 .msg-distrib-area { display:flex; flex-direction:column; gap:12px; padding:12px; overflow-y:auto; flex:1; }

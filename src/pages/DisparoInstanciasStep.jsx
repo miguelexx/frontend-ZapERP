@@ -442,22 +442,6 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
     } catch (e) { setError(disparoApiError(e)) } finally { setPreviewLoading(false) }
   }
 
-  // ── Confirmar ─────────────────────────────────────────────────────────────
-  async function handleConfirmar() {
-    if (!preview || preview.erros?.length) { setError('Corrija os erros antes de confirmar.'); return }
-    setConfirmando(true); setError('')
-    try {
-      const configuracoes = instSelecionadas.map(inst => ({
-        instancia_id: inst.id,
-        quantidade: Number(config[inst.id]?.quantidade) || 0,
-        percentual: Number(config[inst.id]?.percentual) || 0,
-      }))
-      await confirmarDistribuicao(campanhaId, { modo, configuracoes, preservar_existentes: preservar })
-      await carregarDados()
-      setPreview(null)
-    } catch (e) { setError(disparoApiError(e)) } finally { setConfirmando(false) }
-  }
-
   // ── Recalcular ────────────────────────────────────────────────────────────
   async function handleRecalcular() {
     setError('')
@@ -466,6 +450,33 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
       await carregarDados()
       setPreview(null); setConfirmRecalcular(false)
     } catch (e) { setError(disparoApiError(e)) }
+  }
+
+  // ── Botão único do rodapé: confirma a distribuição (se preciso) e avança ────
+  async function handleContinuar() {
+    if (!instSelecionadas.length) { setError('Selecione ao menos uma instância.'); return }
+    // Já está tudo pronto → só avança.
+    if (distribuicaoConfirmada && !precisaRevisao && (resumo?.sem_instancia ?? 0) === 0) {
+      onNext?.(); return
+    }
+    // Modo manual exige atribuição completa feita à mão.
+    if (modo === 'manual') {
+      setError('No modo manual, atribua todos os destinatários a uma instância antes de continuar.')
+      return
+    }
+    // Confirma a distribuição automaticamente e avança.
+    setConfirmando(true); setError('')
+    try {
+      const configuracoes = instSelecionadas.map(inst => ({
+        instancia_id: inst.id,
+        quantidade: Number(config[inst.id]?.quantidade) || 0,
+        percentual: Number(config[inst.id]?.percentual) || 0,
+      }))
+      await confirmarDistribuicao(campanhaId, { modo, configuracoes, preservar_existentes: preservar })
+      setPreview(null)
+      onNext?.()
+    } catch (e) { setError(disparoApiError(e)); carregarDados() }
+    finally { setConfirmando(false) }
   }
 
   // ── Pode avançar? ─────────────────────────────────────────────────────────
@@ -607,11 +618,9 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
               </table>
 
               {!preview.erros?.length && (preview.plano?.nao_atribuidos ?? 0) === 0 && modo !== 'manual' && (
-                <div style={{ marginTop: 14, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button className="disparo-btn-primary" onClick={handleConfirmar} disabled={confirmando}>
-                    {confirmando ? 'Confirmando…' : '✓ Confirmar distribuição'}
-                  </button>
-                </div>
+                <p style={{ marginTop: 12, fontSize: 12, color: 'var(--ds-text-muted,#64748b)', textAlign: 'right' }}>
+                  Tudo certo. Clique em <strong>Mensagens →</strong> para aplicar esta distribuição e avançar.
+                </p>
               )}
             </div>
           )}
@@ -671,23 +680,29 @@ export default function DisparoInstanciasStep({ campanhaId, totalDestinatarios, 
         <div className="dw-footer__right">
           <button
             className="disparo-btn-primary"
-            disabled={!podeAvancar}
-            onClick={onNext}
-            title={!podeAvancar ? 'Confirme a distribuição antes de continuar.' : undefined}
+            disabled={instSelecionadas.length === 0 || confirmando || (modo === 'manual' && !podeAvancar)}
+            onClick={handleContinuar}
+            title={
+              instSelecionadas.length === 0
+                ? 'Selecione ao menos uma instância.'
+                : modo === 'manual'
+                  ? 'Atribua todos os destinatários antes de continuar.'
+                  : 'Aplica a distribuição e avança.'
+            }
           >
-            Mensagens →
+            {confirmando ? 'Aplicando…' : 'Mensagens →'}
           </button>
         </div>
       </div>
-      {!podeAvancar && distribuicaoConfirmada && (resumo?.sem_instancia ?? 0) > 0 && (
+      {modo === 'manual' && !podeAvancar && distribuicaoConfirmada && (resumo?.sem_instancia ?? 0) > 0 && (
         <p style={{ fontSize: 12, color: '#dc2626', textAlign: 'right', marginTop: 4 }}>
           <IconAlertTriangle size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
           Existem {resumo.sem_instancia} destinatário{resumo.sem_instancia !== 1 ? 's' : ''} sem instância atribuída.
         </p>
       )}
-      {!podeAvancar && !distribuicaoConfirmada && instSelecionadas.length > 0 && (
+      {modo !== 'manual' && instSelecionadas.length > 0 && (
         <p style={{ fontSize: 12, color: 'var(--ds-text-muted,#64748b)', textAlign: 'right', marginTop: 4 }}>
-          Calcule a prévia e confirme a distribuição para avançar.
+          A prévia é opcional. Ao continuar, a distribuição <strong>{MODOS.find(m => m.id === modo)?.label ?? modo}</strong> é aplicada automaticamente.
         </p>
       )}
     </div>

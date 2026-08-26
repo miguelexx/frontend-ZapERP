@@ -278,15 +278,6 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
     }, 0)
   }
 
-  async function salvarPadroes() {
-    try {
-      setSalvando(true)
-      await salvarValoresPadrao(campanhaId, valoresPadrao)
-      await carregar()
-    } catch (e) { setErro(disparoApiError(e)) }
-    finally { setSalvando(false) }
-  }
-
   // ── Preview ───────────────────────────────────────────────────────────────
 
   async function carregarPreview(destId) {
@@ -317,7 +308,8 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
   async function handleConfirmar() {
     const ausentes = variacoes.filter(v => v.ativa).flatMap(v => varsAusentes(getEditorial(v), valoresPadrao))
     if ([...new Set(ausentes)].length) {
-      return setErro(`Variáveis sem valor padrão: ${[...new Set(ausentes)].join(', ')}. Configure os padrões antes de confirmar.`)
+      setErro(`Variáveis sem valor padrão: ${[...new Set(ausentes)].join(', ')}. Configure os padrões antes de confirmar.`)
+      return false
     }
     try {
       setConfirmando(true)
@@ -328,8 +320,37 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
       setConfirmado(true)
       setRevisao(false)
       await carregar()
-    } catch (e) { setErro(disparoApiError(e)) }
+      return true
+    } catch (e) { setErro(disparoApiError(e)); return false }
     finally { setConfirmando(false) }
+  }
+
+  // Salva os valores padrão sem exigir clique (autosave ao sair do campo).
+  async function salvarPadroesSilent() {
+    try { await salvarValoresPadrao(campanhaId, valoresPadrao) }
+    catch (e) { setErro(disparoApiError(e)) }
+  }
+
+  // Botão único do rodapé: confirma a distribuição (se preciso) e avança.
+  async function handleContinuar() {
+    if (!ativas.length) { setErro('Crie pelo menos uma variação ativa.'); return }
+    const ausentes = ativas.flatMap(v => varsAusentes(getEditorial(v), valoresPadrao))
+    if ([...new Set(ausentes)].length) {
+      setPainelDir('variaveis')
+      setErro(`Variáveis sem valor padrão: ${[...new Set(ausentes)].join(', ')}. Preencha antes de continuar.`)
+      return
+    }
+    if (modoDistrib === 'percentual' &&
+        Math.abs(ativas.reduce((s, v) => s + Number(configPerc[v.id] ?? 0), 0) - 100) > 0.01) {
+      setPainelDir('distribuicao')
+      setErro('A soma dos percentuais precisa ser 100% antes de continuar.')
+      return
+    }
+    if (!confirmado || revisao) {
+      const ok = await handleConfirmar()
+      if (!ok) return
+    }
+    onNext?.()
   }
 
   async function handleRecalcular() {
@@ -353,8 +374,6 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
   const bloqueantes = [
     !ativas.length        && 'Crie pelo menos uma variação ativa.',
     !todasVarsOk          && `Variáveis sem padrão: ${[...new Set(totalAusentes)].join(', ')}.`,
-    !confirmado           && 'Confirme a distribuição das variações.',
-    revisao               && 'A distribuição precisa ser revisada (houve alterações).',
   ].filter(Boolean)
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -682,6 +701,7 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
                           placeholder={`Padrão para ${cv.chave}…`}
                           value={valoresPadrao[cv.chave] ?? ''}
                           onChange={e => setValoresPadrao(p => ({ ...p, [cv.chave]: e.target.value }))}
+                          onBlur={salvarPadroesSilent}
                           maxLength={200}
                         />
                       </div>
@@ -691,13 +711,9 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
               </div>
 
               {(catalogo?.variaveis ?? []).some(cv => !cv.sistema && cv.sem_valor > 0) && (
-                <button
-                  className="msg-btn-primary msg-btn--full"
-                  onClick={salvarPadroes}
-                  disabled={salvando}
-                >
-                  {salvando ? 'Salvando…' : '💾 Salvar valores padrão'}
-                </button>
+                <p className="msg-vars-hint">
+                  Os valores padrão são salvos automaticamente ao sair do campo.
+                </p>
               )}
 
               {!(catalogo?.variaveis ?? []).some(cv => !cv.sistema && cv.sem_valor > 0) && (
@@ -759,18 +775,10 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
                   onClick={calcularPlano}
                   disabled={calculando || !ativas.length}
                 >
-                  {calculando ? 'Calculando…' : '🔍 Calcular prévia'}
+                  {calculando ? 'Calculando…' : '🔍 Calcular prévia (opcional)'}
                 </button>
 
-                {!confirmado ? (
-                  <button
-                    className="msg-btn-primary"
-                    onClick={handleConfirmar}
-                    disabled={confirmando || !ativas.length || (modoDistrib === 'percentual' && Math.abs(ativas.reduce((s, v) => s + Number(configPerc[v.id] ?? 0), 0) - 100) > 0.01)}
-                  >
-                    {confirmando ? 'Confirmando…' : '✅ Confirmar distribuição'}
-                  </button>
-                ) : (
+                {confirmado && !revisao && (
                   <div className="msg-confirmado">
                     <div className="msg-confirmado__info">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/><circle cx="12" cy="12" r="10"/></svg>
@@ -780,6 +788,11 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
                   </div>
                 )}
               </div>
+              {!confirmado && (
+                <p className="msg-section-sub" style={{ marginTop: 8 }}>
+                  Não precisa confirmar aqui — ao clicar em <strong>Continuar</strong>, a distribuição é aplicada automaticamente.
+                </p>
+              )}
 
               {/* Mini resumo */}
               {resumo && <MiniResumo resumo={resumo} />}
@@ -804,17 +817,16 @@ export default function DisparoMensagensStep({ campanhaId, totalDestinatarios, o
         </div>
 
         <div className="msg-footer__right">
-          <button className="msg-btn-ghost" onClick={carregar} disabled={salvando}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            Salvar rascunho
-          </button>
+          <span className="dw-autosave-hint">
+            {salvando || confirmando ? 'Salvando…' : 'Salvamento automático'}
+          </span>
           <button
             className="msg-btn-primary"
-            onClick={() => { if (!bloqueantes.length) onNext?.() }}
-            disabled={bloqueantes.length > 0}
-            title={bloqueantes[0] ?? ''}
+            onClick={handleContinuar}
+            disabled={bloqueantes.length > 0 || confirmando}
+            title={bloqueantes[0] ?? 'Confirma a distribuição e avança'}
           >
-            Continuar
+            {confirmando ? 'Confirmando…' : 'Continuar'}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
