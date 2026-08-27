@@ -149,6 +149,123 @@ async function installFakeAudioRecorder(page) {
   });
 }
 
+test("composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos", async ({ page }, testInfo) => {
+  let savedRepliesRequests = 0;
+  await installAuditSession(page);
+
+  await page.route(`${API}/**`, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+
+    if (path.startsWith("/socket.io")) {
+      await route.abort();
+      return;
+    }
+    if (path === "/usuarios/me") {
+      await route.fulfill({ json: { id: 1, perfil: "admin", role: "admin" } });
+      return;
+    }
+    if (path === "/usuarios/me/permissoes") {
+      await route.fulfill({ json: { permissoes: [] } });
+      return;
+    }
+    if (path === "/config/empresa") {
+      await route.fulfill({ json: { id: 1, nome: "ZapERP Auditoria" } });
+      return;
+    }
+    if (path === "/chats/whatsapp-instances") {
+      await route.fulfill({ json: { instances: [], active_count: 0 } });
+      return;
+    }
+    if (path === "/tags" || path === "/dashboard/departamentos") {
+      await route.fulfill({ json: [] });
+      return;
+    }
+    if (path === "/chats/counts") {
+      await route.fulfill({ json: { todas: 2, minha_fila: 2, em_atendimento: 2 } });
+      return;
+    }
+    if (path === "/chats" && request.method() === "GET") {
+      await route.fulfill({ json: chats });
+      return;
+    }
+    const detailMatch = path.match(/^\/chats\/(\d+)$/);
+    if (detailMatch && request.method() === "GET") {
+      await route.fulfill({ json: conversationPayload(detailMatch[1]) });
+      return;
+    }
+    if (path === "/dashboard/respostas-salvas") {
+      savedRepliesRequests += 1;
+      await route.fulfill({
+        json: [{ id: 501, titulo: "Boas-vindas", texto: "Olá, como posso ajudar?" }],
+      });
+      return;
+    }
+    await route.fulfill({ json: {} });
+  });
+
+  await page.goto("/atendimento");
+  const firstRow = page.locator(".chat-list-row").filter({ hasText: "Contato Auditoria" });
+  await expect(firstRow).toBeVisible({ timeout: 30_000 });
+  if (testInfo.project.name.includes("mobile")) await firstRow.tap();
+  else await firstRow.click();
+
+  const composer = page.locator(".wa-input");
+  await expect(composer).toBeVisible();
+  expect(savedRepliesRequests).toBe(0);
+
+  await composer.fill("linha um");
+  await composer.press("Shift+Enter");
+  await composer.type("linha dois");
+  await expect(composer).toHaveValue("Linha um\nlinha dois");
+
+  await page.getByRole("button", { name: "Anexos e mais" }).click();
+  await page.getByRole("menuitem", { name: "Respostas salvas" }).click();
+  await expect.poll(() => savedRepliesRequests).toBe(1);
+  await page.getByRole("option", { name: /Boas-vindas/ }).click();
+  await expect(composer).toHaveValue("Linha um\nlinha doisOlá, como posso ajudar?");
+
+  if (!testInfo.project.name.includes("mobile")) {
+    await page.getByRole("button", { name: "Emojis" }).click();
+    await expect(page.getByRole("dialog", { name: "Selecionar emoji" })).toBeVisible();
+    await page.getByRole("listitem", { name: "Emoji 😀" }).click();
+    await expect(composer).toHaveValue(/😀/);
+  }
+
+  await page.getByRole("button", { name: "Figurinhas" }).click();
+  await expect(page.getByRole("dialog", { name: "Figurinhas" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Criar figurinha" })).toBeVisible();
+  await page.getByRole("button", { name: "Figurinhas" }).click();
+
+  const previewInput = page.locator('input[accept^=".pdf,.doc,.docx,image"]');
+  await previewInput.setInputFiles({
+    name: "auditoria.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nkwAAAAASUVORK5CYII=", "base64"),
+  });
+  await expect(page.locator(".wa-mediaPreview")).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar envio" }).click();
+  await expect(page.locator(".wa-mediaPreview")).toBeHidden();
+
+  await previewInput.setInputFiles({
+    name: "auditoria.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 109, 112, 52, 50]),
+  });
+  await expect(page.getByRole("dialog", { name: "Pré-visualizar vídeo antes de enviar" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar envio" }).click();
+
+  await previewInput.setInputFiles({
+    name: "auditoria.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n%%EOF\n"),
+  });
+  await expect(page.getByRole("dialog", { name: "Revisar arquivo antes de enviar" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar envio" }).click();
+  await expect(page.getByRole("dialog", { name: "Revisar arquivo antes de enviar" })).toBeHidden();
+});
+
 test("mensagens consecutivas entram na fila sem duplo envio", async ({ page }, testInfo) => {
   const postedTexts = [];
   let nextMessageId = 1000;

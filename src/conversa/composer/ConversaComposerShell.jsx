@@ -1,6 +1,8 @@
 import {
   forwardRef,
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -16,11 +18,7 @@ import {
   safeString,
 } from "./utils/composerUtils";
 import { composerPropsAreEqual } from "./utils/composerPropsAreEqual";
-import CameraCapture from "./components/CameraCapture";
-import EmojiPicker from "./components/EmojiPicker";
 import ReplyBar from "./components/ReplyBar";
-import SavedRepliesPanel from "./components/SavedRepliesPanel";
-import StickerPicker from "./components/StickerPicker";
 import ComposerFooter from "./components/ComposerFooter";
 import { useComposerDraft } from "./hooks/useComposerDraft";
 import { useTypingEmitter } from "./hooks/useTypingEmitter";
@@ -31,6 +29,11 @@ import { useStickerPicker } from "./hooks/useStickerPicker";
 import { useComposerAutocorrect } from "./hooks/useComposerAutocorrect";
 import { useVoiceRecording } from "./hooks/useVoiceRecording";
 import { getComposerEnterIntent } from "./utils/composerKeyboard";
+
+const CameraCapture = lazy(() => import("./components/CameraCapture"));
+const EmojiPicker = lazy(() => import("./components/EmojiPicker"));
+const SavedRepliesPanel = lazy(() => import("./components/SavedRepliesPanel"));
+const StickerPicker = lazy(() => import("./components/StickerPicker"));
 
 /**
  * Área de digitação (composer) — estado de texto isolado para não re-renderizar o thread a cada tecla.
@@ -602,17 +605,21 @@ const ConversaComposer = forwardRef(function ConversaComposer(
           </svg>
         </button>
       ) : null}
-      <SavedRepliesPanel
-        open={savedRepliesOpen}
-        isRecording={isRecording}
-        panelRef={savedRepliesPanelRef}
-        loading={savedRepliesLoading}
-        error={savedRepliesError}
-        replies={filteredSavedReplies}
-        allReplies={savedRepliesList}
-        activeIndex={savedRepliesIndex}
-        onInsert={insertSavedReply}
-      />
+      {savedRepliesOpen && !isRecording ? (
+        <Suspense fallback={null}>
+          <SavedRepliesPanel
+            open={savedRepliesOpen}
+            isRecording={isRecording}
+            panelRef={savedRepliesPanelRef}
+            loading={savedRepliesLoading}
+            error={savedRepliesError}
+            replies={filteredSavedReplies}
+            allReplies={savedRepliesList}
+            activeIndex={savedRepliesIndex}
+            onInsert={insertSavedReply}
+          />
+        </Suspense>
+      ) : null}
       <ReplyBar
         preview={replyBarPreview}
         isRecording={isRecording}
@@ -668,42 +675,54 @@ const ConversaComposer = forwardRef(function ConversaComposer(
       />
       </div>
 
-      <CameraCapture
-        open={cameraCaptureOpen}
-        videoRef={cameraVideoRef}
-        canvasRef={cameraCanvasRef}
-        starting={cameraCaptureStarting}
-        error={cameraCaptureError}
-        onClose={closeCameraCapture}
-        onCapture={handleCaptureCameraPhoto}
-      />
+      {cameraCaptureOpen ? (
+        <Suspense fallback={null}>
+          <CameraCapture
+            open={cameraCaptureOpen}
+            videoRef={cameraVideoRef}
+            canvasRef={cameraCanvasRef}
+            starting={cameraCaptureStarting}
+            error={cameraCaptureError}
+            onClose={closeCameraCapture}
+            onCapture={handleCaptureCameraPhoto}
+          />
+        </Suspense>
+      ) : null}
 
-      <StickerPicker
-        open={stickerOpen}
-        isRecording={isRecording}
-        panelRef={stickerPanelRef}
-        searchRef={stickerSearchRef}
-        inputRef={stickerInputRef}
-        query={stickerQuery}
-        stickers={filteredRecentStickers}
-        onQueryChange={setStickerQuery}
-        onSendStickerFile={onSendStickerFile}
-        showToast={showToast}
-      />
+      {stickerOpen && !isRecording ? (
+        <Suspense fallback={null}>
+          <StickerPicker
+            open={stickerOpen}
+            isRecording={isRecording}
+            panelRef={stickerPanelRef}
+            searchRef={stickerSearchRef}
+            inputRef={stickerInputRef}
+            query={stickerQuery}
+            stickers={filteredRecentStickers}
+            onQueryChange={setStickerQuery}
+            onSendStickerFile={onSendStickerFile}
+            showToast={showToast}
+          />
+        </Suspense>
+      ) : null}
 
-      <EmojiPicker
-        open={emojiOpen}
-        isRecording={isRecording}
-        panelRef={emojiPanelRef}
-        searchRef={emojiSearchRef}
-        query={emojiQuery}
-        onQueryChange={setEmojiQuery}
-        onClose={() => {
-          setEmojiOpen(false);
-          setEmojiQuery("");
-        }}
-        onInsert={insertEmoji}
-      />
+      {emojiOpen && !isRecording ? (
+        <Suspense fallback={null}>
+          <EmojiPicker
+            open={emojiOpen}
+            isRecording={isRecording}
+            panelRef={emojiPanelRef}
+            searchRef={emojiSearchRef}
+            query={emojiQuery}
+            onQueryChange={setEmojiQuery}
+            onClose={() => {
+              setEmojiOpen(false);
+              setEmojiQuery("");
+            }}
+            onInsert={insertEmoji}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 });

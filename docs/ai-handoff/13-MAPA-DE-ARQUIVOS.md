@@ -43,7 +43,11 @@
 | `conversa/ConversaView.jsx` | shell da conversa |
 | `conversa/ConversaThread.jsx` | virtual vs static |
 | `conversa/ConversaMessageVirtualList.jsx` | TanStack Virtual |
-| `conversa/ConversaComposer.jsx` | envio |
+| `conversa/ConversaComposer.jsx` | fachada compatível do envio |
+| `conversa/composer/ConversaComposerShell.jsx` | orquestração do Composer e interface com a View |
+| `conversa/composer/components/*` | texto/ações, anexos, câmera, pickers, respostas e áudio |
+| `conversa/composer/hooks/*` | ciclos de vida de draft, typing, respostas, mídia, autocorreção e gravação |
+| `conversa/composer/utils/*` | helpers puros, teclado, áudio e comparação de props |
 | `conversa/conversaService.js` | HTTP mensagens/ações |
 | `conversa/offlineOutbox.js` | texto offline |
 | `conversa/pendingMessageWatchdog.js` | pending longo |
@@ -72,7 +76,7 @@ CRM: `crm/CrmAvancadoRedirect.jsx` + `crm/pages/*`. Dashboard: `dashboard/Dashbo
 
 ## Testes
 
-`frontend/scripts/test-*.mjs` (merge áudio/mídia, outbox, ordem realtime, mic). Playwright: `frontend/playwright.config.js` + specs de smoke/áudio.
+`frontend/scripts/test-*.mjs` (inclui `test-conversa-composer.mjs`, merge áudio/mídia, outbox, ordem realtime e mic). Playwright: `frontend/playwright.config.js` + specs de atendimento mock, smoke e áudio.
 
 ## Onde **não** procurar verdade
 

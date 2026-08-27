@@ -646,28 +646,45 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     setCliNome(nomeTrim);
     setNomeContatoBase(nomeTrim);
     applyNomeContatoPatch(nomeTrim);
-    try {
-      const data = await atualizarNomeContatoConversa(conversa.id, nomeTrim);
-      const nomeOk = String(data?.conversa?.nome_contato_cache || data?.conversa?.contato_nome || nomeTrim).trim();
-      setCliNome(nomeOk);
-      setNomeContatoBase(nomeOk);
-      applyNomeContatoPatch(nomeOk);
-      if (clienteId && data?.cliente) {
-        setCliente(data.cliente);
-        const parsed = parseNextContactFromObservacoes(data.cliente?.observacoes != null ? String(data.cliente.observacoes) : "");
+    const confirmarNomeSalvo = (nomeOk, clienteRow = null) => {
+      const finalNome = String(nomeOk || nomeTrim).trim();
+      setCliNome(finalNome);
+      setNomeContatoBase(finalNome);
+      applyNomeContatoPatch(finalNome);
+      if (clienteRow) {
+        setCliente(clienteRow);
+        const parsed = parseNextContactFromObservacoes(
+          clienteRow?.observacoes != null ? String(clienteRow.observacoes) : ""
+        );
         setClienteBase((prev) => ({
           ...prev,
-          nome: nomeOk,
-          email: data.cliente?.email != null ? String(data.cliente.email) : prev.email,
-          empresa: data.cliente?.empresa != null ? String(data.cliente.empresa) : prev.empresa,
+          nome: finalNome,
+          email: clienteRow?.email != null ? String(clienteRow.email) : prev.email,
+          empresa: clienteRow?.empresa != null ? String(clienteRow.empresa) : prev.empresa,
           observacoes: parsed.text || prev.observacoes,
         }));
       } else {
-        setClienteBase((prev) => ({ ...prev, nome: nomeOk }));
+        setClienteBase((prev) => ({ ...prev, nome: finalNome }));
       }
       showToast?.({ type: "success", title: "Nome atualizado", message: "O nome do contato foi salvo." });
       return true;
+    };
+
+    try {
+      const data = await atualizarNomeContatoConversa(conversa.id, nomeTrim);
+      const nomeOk = String(data?.conversa?.nome_contato_cache || data?.conversa?.contato_nome || nomeTrim).trim();
+      return confirmarNomeSalvo(nomeOk, data?.cliente || null);
     } catch (e) {
+      const status = Number(e?.response?.status) || 0;
+      if (status !== 400 && status !== 403 && status !== 404 && clienteId) {
+        try {
+          const updated = await cfg.atualizarCliente(clienteId, { nome: nomeTrim });
+          const clienteRow = updated?.id ? updated : { ...(updated || {}), id: clienteId, nome: nomeTrim };
+          return confirmarNomeSalvo(nomeTrim, clienteRow);
+        } catch (fallbackErr) {
+          console.error("Erro ao salvar nome do contato (fallback cliente):", fallbackErr);
+        }
+      }
       console.error("Erro ao salvar nome do contato:", e);
       if (prevNome) applyNomeContatoPatch(prevNome);
       setNomeContatoBase(prevNome);
