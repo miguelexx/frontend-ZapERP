@@ -49,8 +49,9 @@ function clearRecorderHandlers(recorder, { preserveOnStop = false } = {}) {
       clearHandlersNow(recorder);
       return;
     }
-    // Mantém onstop para o envio; limpa o restante agora e o onstop após o handler terminar.
-    recorder.ondataavailable = null;
+    // No fluxo de envio, `requestData()` ainda pode entregar o chunk final antes ou
+    // durante o `stop`. Mantém também ondataavailable até o onstop terminar; limpar
+    // aqui fazia gravações curtas chegarem ao onstop com o buffer vazio.
     recorder.onerror = null;
     if (typeof recorder.onstop !== "function") {
       recorder.onstop = null;

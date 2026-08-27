@@ -1,5 +1,5 @@
 import "./conversa.css";
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { salvarObservacao, vincularClienteConversa, atualizarNomeContatoConversa } from "./conversaService";
 import { useConversaStore } from "./conversaStore";
 import { useChatStore } from "../chats/chatsStore";
@@ -129,6 +129,7 @@ function dedupeTagsSidebar(tags) {
 export default function SidebarCliente({ open, onClose, conversa, tags, tempoSemResponder, onObservacaoSaved, isGroup }) {
   const user = useAuthStore((s) => s.user);
   const showToast = useNotificationStore((s) => s.showToast);
+  const panelRef = useRef(null);
   const [observacao, setObservacao] = useState("");
   const [obsBase, setObsBase] = useState("");
   const [savingObs, setSavingObs] = useState(false);
@@ -140,6 +141,35 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     setObservacao(valor);
     setObsBase(valor);
   }, [open, conversa?.id, conversa?.observacao, isGroup]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeIfOutside = (event) => {
+      const panel = panelRef.current;
+      const target = event?.target;
+      if (!panel || !(target instanceof Node)) return;
+      if (panel.contains(target)) return;
+      if (typeof target.closest === "function" && target.closest(".wa-sideCliente")) return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLInputElement &&
+        panel.contains(active) &&
+        (active.type === "date" || active.type === "time")
+      ) {
+        return;
+      }
+      onClose?.();
+    };
+    const timer = window.setTimeout(() => {
+      document.addEventListener("mousedown", closeIfOutside);
+      document.addEventListener("touchstart", closeIfOutside, { passive: true });
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", closeIfOutside);
+      document.removeEventListener("touchstart", closeIfOutside);
+    };
+  }, [open, onClose]);
 
   const clienteId = useMemo(() => {
     const id = conversa?.cliente_id ?? conversa?.cliente?.id ?? null;
@@ -180,10 +210,13 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   });
   const [nomeContatoBase, setNomeContatoBase] = useState("");
   const [savingNomeContato, setSavingNomeContato] = useState(false);
+  const skipClienteHydrateRef = useRef(false);
 
   const hydrateFromCliente = useCallback((c) => {
+    if (skipClienteHydrateRef.current) return;
     const fromCliente = c?.nome != null ? String(c.nome).trim() : "";
-    const fromConversa = String(getDisplayName(conversa) || "").trim();
+    const liveConv = useConversaStore.getState().conversa;
+    const fromConversa = String(getDisplayName(liveConv) || getDisplayName(conversa) || "").trim();
     const nome = fromCliente || (fromConversa && fromConversa !== "Contato" ? fromConversa : "");
     const email = c?.email != null ? String(c.email) : "";
     const empresa = c?.empresa != null ? String(c.empresa) : "";
@@ -210,7 +243,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       nextNote: meta.note || "",
     });
     setNomeContatoBase(nome);
-  }, [conversa]);
+  }, [conversa?.id]);
 
   const loadCliente = useCallback(async () => {
     if (!open || isGroup) return;
@@ -246,7 +279,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     } finally {
       setClienteLoading(false);
     }
-  }, [open, isGroup, clienteId, conversa, hydrateFromCliente]);
+  }, [open, isGroup, clienteId, conversa?.id, conversa?.cliente_telefone, conversa?.telefone, conversa?.cliente?.telefone, hydrateFromCliente]);
 
   useEffect(() => {
     loadCliente();
@@ -448,12 +481,20 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   const applyNomeContatoPatch = useCallback(
     (nomeTrim) => {
       if (!conversa?.id || !nomeTrim) return;
+      const openConv = useConversaStore.getState().conversa;
+      const sameOpen = openConv && String(openConv.id) === String(conversa.id);
       const patch = {
         id: conversa.id,
         contato_nome: nomeTrim,
         nome_contato_cache: nomeTrim,
         cliente_nome: nomeTrim,
       };
+      if (sameOpen && openConv?.cliente) {
+        patch.cliente = { ...openConv.cliente, nome: nomeTrim };
+      }
+      if (sameOpen && openConv?.clientes) {
+        patch.clientes = { ...openConv.clientes, nome: nomeTrim };
+      }
       useConversaStore.getState().patchConversa(patch);
       useChatStore.getState().updateChat(patch);
     },
@@ -599,7 +640,12 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       showToast?.({ type: "error", title: "Nome obrigatório", message: "Informe o nome do contato." });
       return false;
     }
+    const prevNome = String(nomeContatoBase || "").trim();
     setSavingNomeContato(true);
+    skipClienteHydrateRef.current = true;
+    setCliNome(nomeTrim);
+    setNomeContatoBase(nomeTrim);
+    applyNomeContatoPatch(nomeTrim);
     try {
       const data = await atualizarNomeContatoConversa(conversa.id, nomeTrim);
       const nomeOk = String(data?.conversa?.nome_contato_cache || data?.conversa?.contato_nome || nomeTrim).trim();
@@ -608,7 +654,14 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       applyNomeContatoPatch(nomeOk);
       if (clienteId && data?.cliente) {
         setCliente(data.cliente);
-        hydrateFromCliente(data.cliente);
+        const parsed = parseNextContactFromObservacoes(data.cliente?.observacoes != null ? String(data.cliente.observacoes) : "");
+        setClienteBase((prev) => ({
+          ...prev,
+          nome: nomeOk,
+          email: data.cliente?.email != null ? String(data.cliente.email) : prev.email,
+          empresa: data.cliente?.empresa != null ? String(data.cliente.empresa) : prev.empresa,
+          observacoes: parsed.text || prev.observacoes,
+        }));
       } else {
         setClienteBase((prev) => ({ ...prev, nome: nomeOk }));
       }
@@ -616,6 +669,9 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       return true;
     } catch (e) {
       console.error("Erro ao salvar nome do contato:", e);
+      if (prevNome) applyNomeContatoPatch(prevNome);
+      setNomeContatoBase(prevNome);
+      setCliNome(nomeTrim);
       showToast?.({
         type: "error",
         title: "Falha ao salvar nome",
@@ -623,6 +679,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       });
       return false;
     } finally {
+      skipClienteHydrateRef.current = false;
       setSavingNomeContato(false);
     }
   }, [
@@ -631,9 +688,9 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     canEdit,
     cliNome,
     clienteId,
+    nomeContatoBase,
     showToast,
     applyNomeContatoPatch,
-    hydrateFromCliente,
   ]);
 
   const hasNomeContatoChanges = useMemo(() => {
@@ -704,10 +761,21 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       setCliente(updated || { ...(cliente || {}), ...payload, id: clienteId });
       hydrateFromCliente(updated || { ...(cliente || {}), ...payload, id: clienteId });
       const nomeTrim = String(cliNome || "").trim();
-      if (nomeTrim) {
-        await atualizarNomeContatoConversa(conversa.id, nomeTrim);
+      if (nomeTrim && String(nomeTrim) !== String(nomeContatoBase || "").trim()) {
         applyNomeContatoPatch(nomeTrim);
-        setNomeContatoBase(nomeTrim);
+        try {
+          const dataNome = await atualizarNomeContatoConversa(conversa.id, nomeTrim);
+          const nomeOk = String(dataNome?.conversa?.contato_nome || dataNome?.conversa?.nome_contato_cache || nomeTrim).trim();
+          applyNomeContatoPatch(nomeOk);
+          setNomeContatoBase(nomeOk);
+          setCliNome(nomeOk);
+        } catch (nomeErr) {
+          console.error("Erro ao sincronizar nome do contato após salvar cliente:", nomeErr);
+          applyNomeContatoPatch(nomeTrim);
+          setNomeContatoBase(nomeTrim);
+        }
+      } else if (nomeTrim) {
+        applyNomeContatoPatch(nomeTrim);
       }
       showToast?.({ type: "success", title: "Cliente salvo", message: "Dados do cliente atualizados com sucesso." });
       const after = {
@@ -762,7 +830,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     user?.id,
     user?.nome,
     user?.email,
-    conversa?.id,
+    nomeContatoBase,
     applyNomeContatoPatch,
   ]);
 
@@ -827,7 +895,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
 
   if (isGroup) {
     return (
-      <div className="wa-sideCliente" role="complementary" aria-label="Detalhes do grupo">
+      <div ref={panelRef} className="wa-sideCliente" role="complementary" aria-label="Detalhes do grupo">
         <div className="wa-sideCliente-head">
           <div className="wa-sideCliente-titleBlock">
             <span className="wa-sideCliente-title">Conversa de grupo</span>
@@ -868,7 +936,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   }
 
   return (
-    <div className="wa-sideCliente" role="complementary" aria-label="Detalhes do cliente">
+    <div ref={panelRef} className="wa-sideCliente" role="complementary" aria-label="Detalhes do cliente">
       <div className="wa-sideCliente-head">
         <div className="wa-sideCliente-titleBlock">
           <span className="wa-sideCliente-title">Detalhes do cliente</span>
@@ -887,7 +955,7 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       <div className="wa-sideCliente-body">
         <section className="wa-sideCliente-hero" aria-label="Resumo do cliente">
           <div className="wa-sideCliente-avatar">
-            <span className="wa-sideCliente-avatarFallback" aria-hidden="true">{initials(clienteNome)}</span>
+            <span className="wa-sideCliente-avatarFallback" aria-hidden="true">{initials(cliNome || clienteNome)}</span>
             {fotoPerfil && !avatarImgError ? (
               <img
                 className="wa-sideCliente-avatarImg"

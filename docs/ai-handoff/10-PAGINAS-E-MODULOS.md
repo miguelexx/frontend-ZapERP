@@ -20,6 +20,8 @@ Rota: `config_acessar` **ou** só respostas salvas. Tabs via `?tab=`: geral, usu
 
 `chatbot_acessar`. Tabs `?tab=`: chatbot, respostas, ia, automacoes, alertas, logs. `iaService.js`. Redirects: `/chatbot` → `/ia`; `/configuracoes/chatbot` → `/ia?tab=chatbot`.
 
+Atualizado em 2026-08-27: `pages/IA.jsx` é uma fachada de 1 linha para `ia/IaShell.jsx`. As seções vivem em `ia/{triagem,respostas,configuracoes,automacoes,alertas,logs,preview,gestores}` e são carregadas sob demanda. Defaults, normalização, cache por empresa e payloads ficam em `ia/shared`, `ia/triagem/triagemPayload.js` e `ia/alertas/alertaPayload.js`. Relatório e testes: `docs/OTIMIZACAO_FRONTEND_IA.md` e `e2e/ia-local-mock.spec.js`.
+
 ## Permissões — `pages/Permissoes.jsx` + `SecaoPermissoes.jsx`
 
 `usuarios_acessar`. Catálogo + GET/PUT por usuário. `?usuario=`.

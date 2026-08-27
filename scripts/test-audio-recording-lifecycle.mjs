@@ -110,7 +110,14 @@ invalidateMicStream();
 {
   const stream = fakeStream();
   let onStopCalls = 0;
+  let finalChunks = 0;
   const rec = fakeRecorder({ stream });
+  rec.ondataavailable = () => {
+    finalChunks += 1;
+  };
+  rec.requestData = function requestData() {
+    this.ondataavailable?.({ data: { size: 2048 } });
+  };
   rec.onstop = () => {
     onStopCalls += 1;
   };
@@ -122,6 +129,7 @@ invalidateMicStream();
     preserveOnStop: true,
     releaseMic: true,
   });
+  assert.equal(finalChunks, 1, "chunk final de requestData não pode ser descartado antes do onstop");
   assert.equal(onStopCalls, 1, "onstop de envio deve rodar");
   assert.equal(rec.onstop, null, "handlers limpos após onstop síncrono");
   assert.equal(areMicAudioTracksEnded(stream), true);

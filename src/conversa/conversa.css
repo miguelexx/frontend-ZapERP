@@ -1743,6 +1743,20 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-danger {
   display: none;
 }
 
+/* Desktop: clicar fora de "Detalhes do cliente" fecha o painel (no mobile o overlay já existe). */
+.wa-floatingSheet-backdrop--cliente {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 21;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Painéis flutuantes — flat, sombra leve, entrada suave */
 .wa-tagsPanel {
   position: absolute;

@@ -124,7 +124,9 @@ async function installApi(page, estadoMidia, { proxySempreFalha = false } = {}) 
 }
 
 async function abrirConversaComAudio(page, testInfo) {
-  await page.goto("/atendimento");
+  // Em SPA, o DOMContentLoaded é o marco determinístico; esperar `load` acopla o
+  // teste a recursos de mídia/manifest que não participam desta asserção.
+  await page.goto("/atendimento", { waitUntil: "domcontentloaded" });
   const rows = page.locator(".chat-list-row");
   await expect(rows.first()).toBeVisible({ timeout: 30_000 });
   if (testInfo.project.name.includes("mobile")) await rows.first().tap();

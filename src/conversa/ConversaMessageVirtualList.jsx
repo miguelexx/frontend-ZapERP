@@ -302,8 +302,21 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
       /*
        * Uma página com dezenas de mídias pode emitir várias notificações no mesmo
        * frame. Consolidá-las evita snaps/reflows repetidos disputando o scroll.
-       */
+      */
       contentResizePendingRef.current = true;
+      const scrollEl = scrollRef?.current;
+      const distanceToBottom = scrollEl
+        ? Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight - scrollEl.scrollTop)
+        : Number.POSITIVE_INFINITY;
+      // Scrolls programáticos de abertura/envio também disparam `scroll`. Perto do
+      // rodapé não devemos reter a remedição por 80/180 ms: isso deixa o espaço da
+      // nova altura visível. Longe do fim, continuamos adiando para não disputar com
+      // a leitura manual do histórico.
+      if (distanceToBottom <= 120 && !contentResizeFrameRef.current) {
+        contentResizePendingRef.current = false;
+        onVirtualContentResize();
+        return;
+      }
       if (isScrollingRef.current || contentResizeFrameRef.current) return;
       contentResizeFrameRef.current = requestAnimationFrame(() => {
         contentResizeFrameRef.current = 0;

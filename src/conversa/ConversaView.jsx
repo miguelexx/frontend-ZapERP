@@ -577,7 +577,8 @@ function ConversaViewBody() {
   /**
    * Quando o textarea ganha uma linha, a viewport das mensagens encolhe. Como o thread
    * desliga o scroll anchoring nativo, preservamos explicitamente a âncora inferior antes
-   * do paint. Ao limpar/enviar, useAutoScroll continua sendo a única rotina de snap.
+   * do paint. Ao limpar/enviar, a viewport cresce; reancoramos aqui também para não
+   * expor um espaço temporário no rodapé até o efeito de auto-scroll seguinte.
    */
   const handleComposerTextMetrics = useCallback(({ height, threadKey, cleared } = {}) => {
     const nextThreadKey = threadKey == null ? null : String(threadKey);
@@ -590,8 +591,10 @@ function ConversaViewBody() {
     }
 
     composerTextareaHeightRef.current = { threadKey: nextThreadKey, height: nextHeight };
-    if (cleared || nextHeight <= previous.height) return;
     if (userScrollLockRef.current || !shouldStickToBottomRef.current) return;
+
+    const heightChanged = nextHeight !== previous.height;
+    if (!heightChanged && !cleared) return;
 
     const container = messagesContainerRef.current;
     if (!container) return;

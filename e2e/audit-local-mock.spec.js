@@ -275,6 +275,7 @@ test("áudios consecutivos aparecem imediatamente e mantêm upload FIFO", async 
   const uploadedTempIds = [];
   let activeUploads = 0;
   let maxActiveUploads = 0;
+  let pendingAudioCount = 0;
   let nextMessageId = 3000;
   let liberarPrimeiroUpload = () => {};
   const primeiroUploadLiberado = new Promise((resolve) => {
@@ -388,7 +389,7 @@ test("áudios consecutivos aparecem imediatamente e mantêm upload FIFO", async 
     // sem depender da velocidade da máquina ou de um timeout arbitrário.
     await expect(page.locator(".audio-message")).toHaveCount(2);
     expect(uploadedTempIds).toHaveLength(1);
-    const pendingAudioCount = await page.locator(".audio-message .wa-ticks.isPending").count();
+    pendingAudioCount = await page.locator(".audio-message .wa-ticks.isPending").count();
     expect(pendingAudioCount).toBeGreaterThanOrEqual(1);
   } finally {
     liberarPrimeiroUpload();
@@ -397,6 +398,10 @@ test("áudios consecutivos aparecem imediatamente e mantêm upload FIFO", async 
   await expect.poll(() => uploadedTempIds.length, { timeout: 10_000 }).toBe(2);
   expect(new Set(uploadedTempIds).size).toBe(2);
   expect(maxActiveUploads).toBe(1);
+  await expect(page.locator(".audio-message")).toHaveCount(2);
+  console.log(
+    `[metricas:audio:${testInfo.project.name}] bolhas=2 uploads=2 tempIdsUnicos=${new Set(uploadedTempIds).size} uploadsConcorrentes=${maxActiveUploads} pendingDuranteFila=${pendingAudioCount}`
+  );
 });
 
 test("troca rápida ignora resposta antiga e mantém thread longo virtualizado", async ({ page }, testInfo) => {
@@ -607,7 +612,14 @@ test("abertura e envio mantêm o thread visualmente estável", async ({ page }, 
     const startedAt = performance.now();
     const sample = () => {
       const gap = Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop);
-      window.__waVisualSamples.push(gap);
+      window.__waVisualSamples.push({
+        at: Math.round(performance.now() - startedAt),
+        gap,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        scrollTop: element.scrollTop,
+        composerHeight: document.querySelector(".wa-footer")?.getBoundingClientRect().height ?? null,
+      });
       if (performance.now() - startedAt < 700) requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
@@ -619,14 +631,17 @@ test("abertura e envio mantêm o thread visualmente estável", async ({ page }, 
 
   const scrollSamples = await page.evaluate(() => window.__waVisualSamples || []);
   expect(scrollSamples.length).toBeGreaterThan(5);
-  const displacedFrames = scrollSamples.filter((gap) => gap > 4);
+  const displacedFrames = scrollSamples.filter((sample) => sample.gap > 4);
   expect(
     displacedFrames.length,
     `gaps observados: ${JSON.stringify(scrollSamples.slice(0, 20))}`
   ).toBeLessThanOrEqual(1);
-  expect(scrollSamples.at(-1)).toBeLessThanOrEqual(4);
+  expect(scrollSamples.at(-1)?.gap).toBeLessThanOrEqual(4);
   expect(revealStyle.animationName).toBe("none");
   expect(revealStyle.opacity).toBe(1);
+  console.log(
+    `[metricas:scroll:${testInfo.project.name}] frames=${scrollSamples.length} deslocados=${displacedFrames.length} gapMax=${Math.max(...scrollSamples.map((sample) => sample.gap))} gapFinal=${scrollSamples.at(-1)?.gap ?? null}`
+  );
 });
 
 test("historico com muitas midias abre e envia sem saltos tardios", async ({ page }, testInfo) => {
@@ -756,13 +771,20 @@ test("historico com muitas midias abre e envia sem saltos tardios", async ({ pag
 
   const messages = page.locator(".wa-messages");
   await expect(page.locator(".wa-messages-virtual-root")).toBeVisible();
+  // Mede somente frames exibidos ao utilizador. Durante `--opening`, os filhos
+  // permanecem com opacity:0 até o snap inicial terminar.
+  await expect(messages).not.toHaveClass(/wa-messages--opening/);
   await messages.evaluate((element) => {
     window.__waMediaSamples = [];
     const startedAt = performance.now();
     const sample = () => {
-      window.__waMediaSamples.push(
-        Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop)
-      );
+      window.__waMediaSamples.push({
+        at: Math.round(performance.now() - startedAt),
+        gap: Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop),
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        scrollTop: element.scrollTop,
+      });
       if (performance.now() - startedAt < 1100) requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
@@ -775,10 +797,10 @@ test("historico com muitas midias abre e envia sem saltos tardios", async ({ pag
   const openingSamples = await page.evaluate(() => window.__waMediaSamples || []);
   expect(openingSamples.length).toBeGreaterThan(20);
   expect(
-    openingSamples.filter((gap) => gap > 6).length,
+    openingSamples.filter((sample) => sample.gap > 6).length,
     `gaps de abertura: ${JSON.stringify(openingSamples.slice(0, 30))}`
   ).toBeLessThanOrEqual(2);
-  expect(openingSamples.at(-1)).toBeLessThanOrEqual(6);
+  expect(openingSamples.at(-1)?.gap).toBeLessThanOrEqual(6);
 
   const renderedCount = await page.locator(".wa-bubble").count();
   expect(renderedCount).toBeGreaterThan(0);
@@ -835,4 +857,10 @@ test("historico com muitas midias abre e envia sem saltos tardios", async ({ pag
     () => messages.evaluate((element) => Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop)),
     { timeout: 5_000 }
   ).toBeLessThanOrEqual(6);
+  const finalMediaGap = await messages.evaluate((element) =>
+    Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop)
+  );
+  console.log(
+    `[metricas:midia:${testInfo.project.name}] framesAbertura=${openingSamples.length} deslocados=${openingSamples.filter((sample) => sample.gap > 6).length} gapMax=${Math.max(...openingSamples.map((sample) => sample.gap))} gapFinal=${openingSamples.at(-1)?.gap ?? null} ancoraDelta=${historyProbe.delta} bolhasRenderizadas=${renderedCount} gapPosEnvio=${finalMediaGap}`
+  );
 });
