@@ -48,6 +48,11 @@
 | `conversa/composer/components/*` | texto/ações, anexos, câmera, pickers, respostas e áudio |
 | `conversa/composer/hooks/*` | ciclos de vida de draft, typing, respostas, mídia, autocorreção e gravação |
 | `conversa/composer/utils/*` | helpers puros, teclado, áudio e comparação de props |
+| `conversa/ConversaBubble.jsx` | fachada compatível da bolha |
+| `conversa/bubble/ConversaBubbleShell.jsx` | orquestração da bolha e interface com ThreadRow/View |
+| `conversa/bubble/components/*` | renderers por tipo, status, menu, reações e player de áudio |
+| `conversa/bubble/hooks/*` | menu, gestos, retry de envio e playback |
+| `conversa/bubble/utils/*` | classify, ticks, retry, location e sessão de áudio |
 | `conversa/conversaService.js` | HTTP mensagens/ações |
 | `conversa/offlineOutbox.js` | texto offline |
 | `conversa/pendingMessageWatchdog.js` | pending longo |
@@ -76,7 +81,7 @@ CRM: `crm/CrmAvancadoRedirect.jsx` + `crm/pages/*`. Dashboard: `dashboard/Dashbo
 
 ## Testes
 
-`frontend/scripts/test-*.mjs` (inclui `test-conversa-composer.mjs`, merge áudio/mídia, outbox, ordem realtime e mic). Playwright: `frontend/playwright.config.js` + specs de atendimento mock, smoke e áudio.
+`frontend/scripts/test-*.mjs` (inclui `test-conversa-composer.mjs`, `test-conversa-bubble.mjs`, merge áudio/mídia, outbox, ordem realtime e mic). Playwright: `frontend/playwright.config.js` + specs de atendimento mock, smoke e áudio.
 
 ## Onde **não** procurar verdade
 

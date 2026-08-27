@@ -233,13 +233,18 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
           {syncing ? "Sincronizando…" : "Sincronizar contatos do celular"}
         </button>
         {syncResult && (
-          <p className="ia-muted" style={{ marginTop: 8 }}>
-            {syncResult.error
-              ? syncResult.error
-              : syncResult.job_id
-                ? (syncResult.mensagem || "Sincronização enfileirada.")
-                : `OK: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados.${syncResult.fotos_atualizadas ? ` ${syncResult.fotos_atualizadas} fotos atualizadas.` : ""}`}
-          </p>
+          <>
+            <p className="ia-muted" style={{ marginTop: 8 }}>
+              {syncResult.error
+                ? syncResult.error
+                : syncResult.job_id
+                  ? (syncResult.mensagem || "Sincronização enfileirada.")
+                  : `OK: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados.${syncResult.fotos_atualizadas ? ` ${syncResult.fotos_atualizadas} fotos atualizadas.` : ""}`}
+            </p>
+            {syncResult.aviso ? (
+              <p style={{ marginTop: 4, color: "#b45309", fontSize: 13 }}>⚠ {syncResult.aviso}</p>
+            ) : null}
+          </>
         )}
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>

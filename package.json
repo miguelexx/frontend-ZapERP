@@ -17,6 +17,7 @@
     "test:chat-media-display": "node --import ./scripts/vite-env-shim.mjs scripts/test-chat-media-display.mjs",
     "test:conversation-boundary": "node scripts/test-conversation-boundary.mjs",
     "test:composer": "node scripts/test-conversa-composer.mjs",
+    "test:bubble": "node --import ./scripts/vite-env-shim.mjs scripts/test-conversa-bubble.mjs",
     "test:sequential-messages": "node scripts/test-sequential-messages.mjs",
     "test:inbound-media-sequence": "node scripts/test-inbound-media-sequence.mjs",
     "test:realtime-message-order": "node scripts/test-realtime-message-order.mjs",

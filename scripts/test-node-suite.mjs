@@ -6,6 +6,7 @@ const WITH_VITE_ENV_SHIM = new Set([
   "test-audio-recording-lifecycle.mjs",
   "test-chat-media-display.mjs",
   "test-contact-conversation-routing.mjs",
+  "test-conversa-bubble.mjs",
   "test-lock-card-avatar.mjs",
   "test-mic-stream-service.mjs",
 ]);
@@ -21,6 +22,7 @@ const tests = [
   "test-chat-search-prefix.mjs",
   "test-contact-conversation-routing.mjs",
   "test-conversation-boundary.mjs",
+  "test-conversa-bubble.mjs",
   "test-conversa-composer.mjs",
   "test-deploy-recovery-and-finalization.mjs",
   "test-inbound-media-sequence.mjs",

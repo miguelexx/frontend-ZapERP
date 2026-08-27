@@ -25,8 +25,9 @@
 4. Não ligar listener socket dentro de Row/Bubble.
 5. Não desligar virtualização “para simplificar”.
 6. Não buscar a lista inteira a cada `nova_mensagem`.
-7. Áudio: um player ativo; revoke blob URLs no unmount.
+7. Áudio: um player ativo (`bubble/utils/audioSession.js`); `el.load()` ao trocar src; revoke blob URLs no unmount.
 8. Evitar Context novo no shell do atendimento.
+9. Não keyar renderer da bolha por `status` — pending→read deve só atualizar o tick.
 
 ## Sintomas → lugar
 

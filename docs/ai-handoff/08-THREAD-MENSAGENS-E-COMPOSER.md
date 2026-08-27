@@ -19,7 +19,12 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 | `ConversaView.jsx` | shell: header, thread, composer, sidebar, send, watchdog, outbox, viewer |
 | `ConversaThread.jsx` | day separators; escolhe virtual vs estático |
 | `ConversaMessageVirtualList.jsx` | `@tanstack/react-virtual`, overscan ~12, `estimateSize` por tipo |
-| `ConversaBubble.jsx` / `ThreadRow.jsx` | memo + `threadRowPropsAreEqual` |
+| `ThreadRow.jsx` | memo + `threadRowPropsAreEqual`; escolhe Bubble / nota interna / movimentação |
+| `ConversaBubble.jsx` | fachada compatível; reexporta `bubble/ConversaBubbleShell.jsx` |
+| `bubble/ConversaBubbleShell.jsx` | orquestra tipos, menu, gestos, retry e classes da bolha |
+| `bubble/components/*` | texto, imagem, vídeo, sticker, documento, contato, localização, áudio, status, menu, reações |
+| `bubble/hooks/*` | menu, long press/swipe de mídia, retry de envio e playback de áudio |
+| `bubble/utils/*` | classify, status, retry, location, sessão/duração de áudio |
 | `ConversaComposer.jsx` | fachada compatível; reexporta `composer/ConversaComposerShell.jsx` |
 | `composer/ConversaComposerShell.jsx` | coordena texto, modo nota, painéis e a interface pública do Composer |
 | `composer/components/*` | footer, anexos/câmera, emojis, stickers, respostas salvas, reply bar e gravador |
@@ -59,6 +64,33 @@ Validação da sessão:
 
 Limitações da validação: câmera e microfone foram exercitados com doubles determinísticos do navegador; permissões e codecs em aparelho físico, teclado iOS e Socket.IO real ainda exigem smoke manual antes do deploy.
 
+## Bolha modularizada (CONFIRMADO 2026-08-27)
+
+`ConversaBubble.jsx` permanece no mesmo path e export default, mas agora tem 1 linha e funciona apenas como fachada. A implementação saiu de um arquivo de 2.453 linhas, 20 `useState`, 16 `useEffect`, 3 `useLayoutEffect` e 22 `useRef` para módulos por tipo. `ConversaBubbleShell.jsx` orquestra classes, menu, gestos e o switch de tipo; o player de áudio ficou em `useAudioPlayback` + `AudioMessage`. A interface pública com `ThreadRow`/`ConversaView` (as mesmas ~38 props) foi preservada. `conversa.css` não foi alterado. `SwipeReplyTrack` continua no mesmo arquivo, com os mesmos limites (76 / 52 / 26 px).
+
+Divisão atual:
+
+- `classifyBubbleMessage`: identifica tipo, legenda, reply, encaminhado e flags de layout. **Não** usa `status` — pending→sent→delivered→read não remonta imagem/áudio;
+- `resolveOutgoingTick`: ticks monotônicos; flag stale de offline não rebaixa tick já confirmado; grupo nunca fica azul (cap delivered no caminho numérico);
+- `getRetryUiState`: botão "Tentar novamente" só em outbound com falha confirmada e `mensagem_id`; não dispara em pending/sent/delivered/read/`status_indefinido`/contato;
+- Renderers: `TextMessage`, `ImageMessage` (fallback blob→servidor→proxy, herda `img.complete` na reconciliação otimista), `VideoMessage`, `StickerMessage`, `DocumentMessage`, `ContactMessage`, `LocationMessage`, `AudioMessage`;
+- `QuotedReply` + `MessageCaption`: citação no topo e legenda só quando o texto não é placeholder/nome de arquivo;
+- `useMessageMenu` + `MessageMenu`: portal desktop e bottom sheet mobile; `visualViewport` para teclado;
+- `useMessageGestures`: long press 480 ms / 14 px, skip do tap na mídia após o menu, swipe continua em `SwipeReplyTrack`;
+- `useAudioPlayback`: um `<audio>` ativo via `audioSession`, `el.load()` ao trocar `src` em tempo real, refresh do token do `/media/proxy` no (re)load, waveform, velocidades 1×/1,5×/2×, stall watchdog, retry de fonte e pause no unmount. Cache LRU de duração (teto 1000) sobrevive a remount da mesma `msgKey`.
+
+Invariantes preservados: URLs autenticadas de mídia (`resolveBubbleMediaCandidates` / `getMediaPlaybackUrl` / `refreshProxyMediaToken`); retry não cria mensagem nova (reusa `id`/`tempId`); troca de conversa cai no cleanup do player (`pause` + limpa sessão se for o elemento atual).
+
+Validação da sessão (CONFIRMADO 2026-08-27):
+
+- `npm.cmd run test:bubble`: passou (tipos, temporária, ticks monotônicos, retry, reply, gestos, duração/sessão de áudio, fachada);
+- `npm.cmd run test:node`: 25/25 scripts (baseline anterior 24/24 + bubble);
+- `tsc --noEmit`: passou;
+- build: `ConversaView` 322,58 kB bruto / 94,89 kB gzip (antes 317,00 / 93,03). CSS da conversa inalterado (286,89 / 47,21). O split de módulos aumentou ~5,58 kB / 1,86 kB gzip por wrappers; não houve extração de chunks lazy da bolha (tudo no caminho da thread);
+- Playwright mock: 11 passaram e 1 cenário desktop-only foi ignorado no projeto mobile; reprodução de áudio 8/8 (play, fallback de fonte no mesmo clique, indisponível + retry, pause/resume).
+
+Limitações: smoke visual de long press/swipe, teclado iOS e áudio em aparelho físico continuam **PENDENTE DE VALIDAÇÃO** no browser real.
+
 Abertura da conversa (CONFIRMADO 2026-08-24): máscara `.wa-messages--opening` fica até o snap assentar (`onOpenSnapReady` no `useAutoScroll`, ~6 frames no desktop / 1 rAF no mobile). Não tirar a máscara no mesmo layout em que `loading` vira false — isso pintava o thread no topo e depois “puxava” ao fim. Foto/nome do header preferem a row da lista (`fromChat`) para não trocar URL no GET. `zapMsgsInitialPassRef` reseta no render da troca. Bolha nova anima só com `.zap-message-enter` — nunca `animation` em todo `.wa-bubble` (ao sair da máscara isso reanimava o thread inteiro). `snapIfStickBottom` não corre enquanto a máscara está ativa.
 
 Painel **Detalhes do cliente** (`SidebarCliente`, 2026-08-27): Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica na hora via `renameChatContact` (lista) + `patchConversa` (header). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document`; no mobile o overlay já existia. Esc também fecha (`ConversaView`).
@@ -92,7 +124,7 @@ Não substitua isso por “espera o POST e só então pinta a bolha”.
 
 Composer, `PendingMediaPreview`, `ImageSendPreviewMobile`. Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay`. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
 
-Tipos de bolha: texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard, **nota interna** (não vai ao WhatsApp).
+Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard/contato, call. Renderers em `bubble/components/*`; classificação em `classifyBubbleMessage`. **Nota interna** e movimentação interna continuam em `ThreadRow.jsx` (não passam pela Bubble). Player de áudio: `useAudioPlayback` (`el.load()` ao trocar src; um elemento ativo; pause no unmount). Status visual: `resolveOutgoingTick`. Retry de envio: `getRetryUiState` — reusa o `id` existente, não cria bolha nova.
 
 ## IDs e dedupe (invariantes)
 
