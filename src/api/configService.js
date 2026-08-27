@@ -232,17 +232,14 @@ function montarFormImport(file, mapping) {
 
 /** Analisa a planilha e devolve a prévia (não grava nada). */
 export async function previewImportarClientes(file, mapping) {
-  const { data } = await api.post('/clientes/importar/preview', montarFormImport(file, mapping), {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  // Não forçar Content-Type: o browser precisa definir o boundary do multipart.
+  const { data } = await api.post('/clientes/importar/preview', montarFormImport(file, mapping))
   return data
 }
 
 /** Executa a importação (cria/reutiliza clientes e vincula as tags das séries). */
 export async function confirmarImportarClientes(file, mapping) {
-  const { data } = await api.post('/clientes/importar', montarFormImport(file, mapping), {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  const { data } = await api.post('/clientes/importar', montarFormImport(file, mapping))
   return data
 }
 

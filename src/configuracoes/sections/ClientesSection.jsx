@@ -618,7 +618,7 @@ function ModalImportarClientes({ onClose, onImported }) {
       });
       setStep("preview");
     } catch (e) {
-      setErro(e?.response?.data?.erro || e?.message || "Erro ao analisar a planilha.");
+      setErro(e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao analisar a planilha.");
     } finally {
       setLoading(false);
     }
@@ -654,7 +654,7 @@ function ModalImportarClientes({ onClose, onImported }) {
       setStep("done");
       onImported?.();
     } catch (e) {
-      setErro(e?.response?.data?.erro || e?.message || "Erro ao importar clientes.");
+      setErro(e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao importar clientes.");
     } finally {
       setLoading(false);
     }

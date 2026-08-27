@@ -14,6 +14,8 @@
 
 Rota: `config_acessar` **ou** só respostas salvas. Tabs via `?tab=`: geral, usuarios, permissoes, departamentos, tags, respostas, limites (admin), bot, clientes, auditoria. `configService.js`. Toggle `crm_habilitado` na geral **não** esconde o item CRM do menu.
 
+Importar clientes (`ClientesSection.jsx`): `POST /clientes/importar/preview` e `POST /clientes/importar` via FormData (campo `arquivo`). Não forçar `Content-Type: multipart/form-data` — o browser precisa do boundary. Preview não grava; colunas do modelo: Nome do(a) Aluno(a), Celular do(a) Responsável Pedagógico, Série (Ano).
+
 `/configuracoes/whatsapp` → `ConnectWhatsApp.jsx`: QR/status via `zapiIntegration.js` (**nome legado** `/integrations/zapi/connect/*`) + sync UltraMSG em `whatsappIntegration.js`. Toasts 404/429 “UltraMsg não configurado”.
 
 ## IA / chatbot — `pages/IA.jsx`
