@@ -9,7 +9,6 @@ import {
   fetchChatCounts,
   getChatsPageMeta,
   abrirConversaCliente,
-  getZapiStatus,
   postFinalizacaoAusenciaLote,
 } from "./chatService";
 import { useChatStore } from "./chatsStore";
@@ -20,9 +19,6 @@ import { isSupervisorOrAdmin } from "../auth/permissions";
 import {
   isGroupConversation,
   getStatusAtendimentoEffective,
-  isAguardandoClienteManual,
-  isVCardText,
-  parseVCardMeta,
 } from "../utils/conversaUtils";
 import api from "../api/http";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -40,14 +36,12 @@ import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
 const ProdutoConsultaPanel = lazy(() => import("../conversa/ProdutoConsultaPanel"));
 export { getDisplayName };
 import {
-  getLastMessage,
   isConversaAguardandoCliente,
   isConversaAguardandoFuncionario,
   isConversaEmAtendimentoBadge,
   isConversaPagamentoPendente,
   isConversaEmAtrasoPagamento,
   sortChatListByRecent,
-  getChatListSortTimestampMs,
   mergeChatRowListaAtividade,
 } from "./chatListRowAtendimento";
 import { isUsuarioSetorFinanceiro } from "../utils/financeiroSector";
@@ -62,7 +56,6 @@ import {
   setChatListFiltersScope,
 } from "./chatListFiltersData";
 import {
-  clearChatListRowsFilterSessionCache,
   hydrateChatListRowsForFilterFromSession,
   hydrateChatListSidebarFromSession,
   persistChatListSidebarToSession,
@@ -77,40 +70,33 @@ import ChatListHeaderBar from "./ChatListHeaderBar";
 import ChatListAdvancedFiltersPanel from "./ChatListAdvancedFiltersPanel";
 import MinhasPendenciasCard from "./MinhasPendenciasCard";
 import { useMinhasPendencias } from "./hooks/useMinhasPendencias";
+import { useWhatsappInstanceStatus } from "./hooks/useWhatsappInstanceStatus";
+import { useChatListFilterState } from "./hooks/useChatListFilterState";
+import { useChatListResync } from "./hooks/useChatListResync";
+import { useChatListPagination } from "./hooks/useChatListPagination";
 import { markPushEntryReady } from "../push/deferredPushSync";
 import { getClientesPendentesSupervisao, getResumoSupervisao } from "../api/supervisaoService";
 import { clearConversation, deleteConversation } from "./conversationActionsService";
-import { chatRowStableKey } from "./chatRowStableKey";
-import { getDefaultChatListTab } from "./chatListFilters";
+import {
+  isAppAdmin,
+  countDistinctConversas,
+  TABS_HIDE_OPTIMISTIC_CLOSED,
+  shouldHideOptimisticClosedFromTab,
+  getOptimisticRemovedRow,
+  pruneExpiredOptimisticRemoved,
+  sortChatRowsByOrder,
+  dedupeChatRowsByStableKey,
+  mergeChatRowsPreservingCurrent,
+  mergeEmAtendimentoBackgroundRows,
+  buildChatListPageState,
+  buildCountsQueryParams,
+  buildChatListFetchParams,
+  isAbortError,
+  isNetworkError,
+} from "./chatListQueryHelpers";
 
 /** Admin UI (filtro lateral por funcionário): aceita role/perfil legado. */
-function isAppAdmin(user) {
-  return isSupervisorOrAdmin(user);
-}
-
-function countDistinctConversas(list) {
-  const arr = Array.isArray(list) ? list : [];
-  const byKey = new Set();
-  arr.forEach((c) => {
-    const key = chatRowStableKey(c);
-    if (key) byKey.add(String(key));
-  });
-  return byKey.size;
-}
-
 const CONFIRM_LOTE_AUSENCIA = "FINALIZAR_LOTE_AUSENCIA_CLIENTE";
-const CHAT_LIST_DESKTOP_PAGE_LIMIT = 80;
-const CHAT_LIST_MOBILE_PAGE_LIMIT = 40;
-/** Contato oficial do Suporte ZapERP (DDD 34). */
-const SUPORTE_ZAPERP_WHATSAPP_URL = "https://wa.me/5534999911246";
-function getChatListPageLimit(isMobileLayout) {
-  return isMobileLayout ? CHAT_LIST_MOBILE_PAGE_LIMIT : CHAT_LIST_DESKTOP_PAGE_LIMIT;
-}
-const MOBILE_ZAPI_STATUS_DELAY_MS = 3200;
-/** Revalidação periódica do status do WhatsApp (o banner precisa sumir sozinho ao reconectar). */
-const ZAPI_STATUS_REFRESH_MS = 120_000;
-/** Trava para o foco de janela não disparar checagem a cada alternância de aba. */
-const ZAPI_STATUS_FOCUS_MIN_INTERVAL_MS = 30_000;
 const MOBILE_SECONDARY_REFRESH_DELAY_MS = 2800;
 const MOBILE_COUNTS_DELAY_MS = 2600;
 const MOBILE_FILTERS_BOOT_DELAY_MS = 3600;
@@ -119,182 +105,8 @@ const MOBILE_SUPERVISAO_POLL_DELAY_MS = 6000;
 const MOBILE_PENDENCIAS_INITIAL_DELAY_MS = 2600;
 const MOBILE_PENDENCIAS_RESYNC_DELAY_MS = 1400;
 const OPTIMISTIC_MINHA_FILA_REMOVE_TTL_MS = 12000;
-const TABS_HIDE_OPTIMISTIC_CLOSED = new Set([
-  "minha_fila",
-  "abertas",
-  "em_atendimento",
-  "aguardando_cliente",
-  "aguardando_atendente",
-  "aguardando_funcionario",
-  "pagamentos_pendentes",
-  "em_atraso",
-]);
-
-function isClosedAttendancePatch(patch) {
-  const status = String(
-    patch?.status_atendimento_real ?? patch?.status_atendimento ?? ""
-  ).toLowerCase();
-  return status === "fechada" || status === "encerrada";
-}
-
-function shouldHideOptimisticClosedFromTab(tab, mutation) {
-  if (mutation?.type !== "encerrar_conversa") return false;
-  if (!isClosedAttendancePatch(mutation?.patch)) return false;
-  return TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""));
-}
-
-function getOptimisticRemovedRow(entry) {
-  return entry && typeof entry === "object" && "row" in entry ? entry.row : entry;
-}
-
-function pruneExpiredOptimisticRemoved(map) {
-  const now = Date.now();
-  for (const [id, entry] of map.entries()) {
-    if (entry?.expiresAt != null && Number(entry.expiresAt) <= now) {
-      map.delete(id);
-    }
-  }
-}
-
-function getChatSortTs(c) {
-  return getChatListSortTimestampMs(c) || 0;
-}
-
-function sortChatRowsByOrder(list, order) {
-  return [...(Array.isArray(list) ? list : [])].sort((a, b) =>
-    order === "antigas"
-      ? new Date(getChatSortTs(a)) - new Date(getChatSortTs(b))
-      : new Date(getChatSortTs(b)) - new Date(getChatSortTs(a))
-  );
-}
-
-function dedupeChatRowsByStableKey(list) {
-  const byKey = new Map();
-  (Array.isArray(list) ? list : []).forEach((c) => {
-    const key = chatRowStableKey(c);
-    if (!byKey.has(key)) byKey.set(key, c);
-  });
-  return Array.from(byKey.values());
-}
-
-function mergeChatRowsPreservingCurrent(current, incoming, order) {
-  const byKey = new Map();
-  const put = (row, preferIncoming = false) => {
-    if (!row) return;
-    const key = chatRowStableKey(row);
-    const prev = byKey.get(key);
-    if (!prev) {
-      byKey.set(key, row);
-      return;
-    }
-    if (!preferIncoming) {
-      byKey.set(key, mergeChatRowListaAtividade(row, prev));
-      return;
-    }
-    const merged = mergeChatRowListaAtividade(row, prev);
-    byKey.set(key, merged);
-  };
-  (Array.isArray(current) ? current : []).forEach((row) => put(row, false));
-  (Array.isArray(incoming) ? incoming : []).forEach((row) => put(row, true));
-  return sortChatRowsByOrder(Array.from(byKey.values()), order);
-}
-
-function rowStillBelongsToEmAtendimentoLiveScope(row, { user, adminAtendenteFilterId, pendentesFuncionarioSet }) {
-  if (!row || row.sem_conversa || isGroupConversation(row)) return false;
-  const belongsToEmAtendimento =
-    isConversaAguardandoCliente(row) ||
-    isConversaAguardandoFuncionario(row, pendentesFuncionarioSet) ||
-    isConversaEmAtendimentoBadge(row);
-  if (!belongsToEmAtendimento) return false;
-
-  const filtroAtendenteAtivo =
-    adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-  if (filtroAtendenteAtivo) {
-    return row.atendente_id != null && String(row.atendente_id) === String(adminAtendenteFilterId);
-  }
-
-  if (isAppAdmin(user)) return true;
-
-  return (
-    row.atendente_id != null &&
-    user?.id != null &&
-    String(row.atendente_id) === String(user.id)
-  );
-}
-
-function mergeEmAtendimentoBackgroundRows(current, incoming, order, opts) {
-  const incomingKeys = new Set(
-    (Array.isArray(incoming) ? incoming : [])
-      .map((row) => chatRowStableKey(row))
-      .filter(Boolean)
-  );
-  const preserved = (Array.isArray(current) ? current : []).filter((row) => {
-    const key = chatRowStableKey(row);
-    if (!key || incomingKeys.has(key)) return false;
-    return rowStillBelongsToEmAtendimentoLiveScope(row, opts);
-  });
-  if (!preserved.length) return incoming;
-  return mergeChatRowsPreservingCurrent(preserved, incoming, order);
-}
-
-function buildChatListPageState(data, pagesLoaded = 1) {
-  const meta = getChatsPageMeta(data);
-  const fromMeta = Number(meta?.pagesLoaded);
-  const safePages = Number.isFinite(fromMeta) && fromMeta > 0
-    ? Math.floor(fromMeta)
-    : Math.max(1, Math.floor(Number(pagesLoaded) || 1));
-  return {
-    hasMore: Boolean(meta?.hasMore && meta?.nextCursor),
-    nextCursor: meta?.nextCursor || null,
-    nextCursorId: meta?.nextCursorId ?? null,
-    totalCount: meta?.totalCount ?? null,
-    pagesLoaded: safePages,
-    loading: false,
-    error: "",
-  };
-}
-
-function buildCountsQueryParams({
-  tagFilter,
-  departamentoFilter,
-  dataInicio,
-  dataFim,
-  debouncedSearch,
-  adminAtendenteFilterId,
-}) {
-  const adminPorFuncionario =
-    adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-  const searchTerm = String(debouncedSearch || "").trim();
-  const params = {
-    tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-    departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-    data_inicio: dataInicio || undefined,
-    data_fim: dataFim || undefined,
-    palavra: searchTerm || undefined,
-  };
-  if (adminPorFuncionario) {
-    const aid = Number(adminAtendenteFilterId);
-    params.atendente_id =
-      Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
-  }
-  return params;
-}
-
-function isAbortError(err) {
-  return (
-    err?.name === "AbortError" ||
-    err?.name === "CanceledError" ||
-    err?.code === "ERR_CANCELED"
-  );
-}
-
-function isNetworkError(err) {
-  return (
-    err?.code === "ERR_NETWORK" ||
-    err?.message === "Network Error" ||
-    err?.request?.status === 0
-  );
-}
+/** Contato oficial do Suporte ZapERP (DDD 34). */
+const SUPORTE_ZAPERP_WHATSAPP_URL = "https://wa.me/5534999911246";
 
 /** IDs de conversas individuais em atendimento (para assistente de lote por ausência). */
 function collectEmAtendimentoIdsFromChats(list, max = 50) {
@@ -323,6 +135,7 @@ export default function ChatList() {
   const carregarConversa = useConversaStore((s) => s.carregarConversa);
   const queueComposerAppend = useConversaStore((s) => s.queueComposerAppend);
   const isMobileLayout = useMatchMedia("(max-width: 640px)");
+  const { zapiConnected, zapiStatusLoaded } = useWhatsappInstanceStatus(isMobileLayout);
   const listLoading = useChatStore((s) => s.loading);
   const hasListRows = useChatStore((s) => (s.chats?.length ?? 0) > 0);
 
@@ -406,11 +219,73 @@ export default function ChatList() {
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
-  // O termo imediato filtra as linhas já carregadas; o debounced limita chamadas à API.
-  // Assim a lista nunca exibe resultados sabidamente errados durante os 350 ms de espera.
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [searchClearNonce, setSearchClearNonce] = useState(0);
+  const [allTags, setAllTags] = useState([]);
+  const [atendentes, setAtendentes] = useState([]);
+  const [departamentos, setDepartamentos] = useState(() => {
+    const cached = getChatListFiltersDataCache()?.departamentos;
+    return Array.isArray(cached) ? cached : [];
+  });
+  const isFinanceiroUser = useMemo(
+    () => isUsuarioSetorFinanceiro(user, departamentos),
+    [user, departamentos]
+  );
+  const isFinanceiroUserRef = useRef(isFinanceiroUser);
+  isFinanceiroUserRef.current = isFinanceiroUser;
+  const financeiroBadgesPrimedRef = useRef(false);
+  const [filtersAuxLoading, setFiltersAuxLoading] = useState(false);
+
+  const {
+    searchInput,
+    debouncedSearch,
+    searchClearNonce,
+    handleSearchDebounced,
+    handleSearchInputChange,
+    clearChatSearch,
+    statusFilter,
+    setStatusFilter,
+    tagFilter,
+    dataInicio,
+    dataFim,
+    atendenteFilter,
+    departamentoFilter,
+    mineOnly,
+    order,
+    showFilters,
+    setShowFilters,
+    onlyFinalizadasAusencia,
+    aguardandoClienteOnly,
+    pagamentosPendentesOnly,
+    emAtrasoOnly,
+    tempoParadoFilter,
+    tab,
+    setTab,
+    tabRef,
+    filterRequestKey,
+    filterRequestBaseKey,
+    handleStatusFilterChange,
+    handleTagFilterChange,
+    handleDepartamentoFilterChange,
+    handleAtendenteFilterChange,
+    handleDataInicioChange,
+    handleDataFimChange,
+    handleMineOnlyChange,
+    handleOnlyFinalizadasAusenciaChange,
+    handleAguardandoClienteOnlyChange,
+    handlePagamentosPendentesOnlyChange,
+    handleEmAtrasoOnlyChange,
+    handleOrderChange,
+    handleTempoParadoFilterChange,
+    handleToggleFilters,
+    resetFiltersToDefault,
+  } = useChatListFilterState({
+    user,
+    separarMensagensDisparadasLigado,
+    isFinanceiroUser,
+    adminAtendenteFilterId,
+    conversaIdsPendenciaQuery,
+    filterScopeKey,
+  });
+
   const [chatListPage, setChatListPage] = useState({
     hasMore: false,
     nextCursor: null,
@@ -424,50 +299,6 @@ export default function ChatList() {
   const [activeListTotalCount, setActiveListTotalCount] = useState(null);
   const chatListPageRef = useRef(chatListPage);
   chatListPageRef.current = chatListPage;
-  const handleSearchDebounced = useCallback((t) => {
-    setDebouncedSearch(t);
-  }, []);
-  const handleSearchInputChange = useCallback((t) => {
-    setSearchInput(t);
-  }, []);
-  const clearChatSearch = useCallback(() => {
-    setSearchInput("");
-    setDebouncedSearch("");
-    setSearchClearNonce((n) => n + 1);
-  }, []);
-
-  const [statusFilter, setStatusFilter] = useState("todos");
-  const [allTags, setAllTags] = useState([]);
-  const [tagFilter, setTagFilter] = useState("todas");
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
-  const [atendentes, setAtendentes] = useState([]);
-  const [atendenteFilter, setAtendenteFilter] = useState("todos");
-  const [departamentos, setDepartamentos] = useState(() => {
-    const cached = getChatListFiltersDataCache()?.departamentos;
-    return Array.isArray(cached) ? cached : [];
-  });
-  const isFinanceiroUser = useMemo(
-    () => isUsuarioSetorFinanceiro(user, departamentos),
-    [user, departamentos]
-  );
-  const isFinanceiroUserRef = useRef(isFinanceiroUser);
-  isFinanceiroUserRef.current = isFinanceiroUser;
-  const financeiroBadgesPrimedRef = useRef(false);
-  const [departamentoFilter, setDepartamentoFilter] = useState("todos");
-  const [mineOnly, setMineOnly] = useState(false);
-  const [order, setOrder] = useState("recentes");
-  const [showFilters, setShowFilters] = useState(false);
-  const [filtersAuxLoading, setFiltersAuxLoading] = useState(false);
-  /** Filtro avançado: conversas fechadas com finalização por ausência (reforça query GET /chats). */
-  const [onlyFinalizadasAusencia, setOnlyFinalizadasAusencia] = useState(false);
-  /** Filtro avançado: conversas em atendimento com humano aguardando resposta do cliente. */
-  const [aguardandoClienteOnly, setAguardandoClienteOnly] = useState(false);
-  /** Financeiro: filtros avançados de cobrança (somente setor Financeiro). */
-  const [pagamentosPendentesOnly, setPagamentosPendentesOnly] = useState(false);
-  const [emAtrasoOnly, setEmAtrasoOnly] = useState(false);
-  /** GET /chats?tempo_parado= — conversas com aguardando_cliente_desde acima do limite (backend). */
-  const [tempoParadoFilter, setTempoParadoFilter] = useState("");
   const [loteAusenciaBusy, setLoteAusenciaBusy] = useState(false);
   const [loteAusenciaMsg, setLoteAusenciaMsg] = useState("");
   const [loteAusenciaConfirm, setLoteAusenciaConfirm] = useState("");
@@ -483,9 +314,6 @@ export default function ChatList() {
   const novoBtnRef = useRef(null);
   const novoMenuRef = useRef(null);
 
-  // tabs estilo WhatsApp (chip row)
-  // todas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente | aguardando_funcionario
-  const [tab, setTab] = useState(() => getDefaultChatListTab(useAuthStore.getState().user));
   const handlePendenciaClick = useCallback(
     (categoria) => {
       clearChatSearch();
@@ -495,55 +323,6 @@ export default function ChatList() {
     [clearChatSearch, onPendenciaClick, setTab]
   );
   const [zapFilterSkeleton, setZapFilterSkeleton] = useState(false);
-  const tabRef = useRef(tab);
-  tabRef.current = tab;
-
-  useEffect(() => {
-    if (tab === "nao_lidas") setTab("todas");
-  }, [tab]);
-
-  useEffect(() => {
-    if (!isSupervisorOrAdmin(user) && tab === "aguardando_funcionario") {
-      setTab(getDefaultChatListTab(user));
-    }
-  }, [user, tab]);
-
-  useEffect(() => {
-    if (user?.atendimento_modo_simples && tab === "minha_fila") {
-      setTab("aguardando_atendente");
-      return;
-    }
-    if (!user?.atendimento_modo_simples && tab === "aguardando_atendente") {
-      setTab("minha_fila");
-      return;
-    }
-    if (
-      user?.atendimento_modo_simples &&
-      tab !== "todas" &&
-      tab !== "aguardando_atendente" &&
-      tab !== "aguardando_cliente"
-    ) {
-      setTab(getDefaultChatListTab(user));
-    }
-  }, [user?.atendimento_modo_simples, tab]);
-
-  useEffect(() => {
-    if (!separarMensagensDisparadasLigado && tab === "mensagens_disparadas") {
-      setTab(getDefaultChatListTab(user));
-    }
-  }, [separarMensagensDisparadasLigado, tab, user?.atendimento_modo_simples]);
-
-  useEffect(() => {
-    if (!isFinanceiroUser && (tab === "pagamentos_pendentes" || tab === "em_atraso")) {
-      setTab(getDefaultChatListTab(user));
-    }
-  }, [isFinanceiroUser, tab, user?.atendimento_modo_simples]);
-
-  useEffect(() => {
-    if (!separarMensagensDisparadasLigado && statusFilter === "mensagem_disparada") {
-      setStatusFilter("todos");
-    }
-  }, [separarMensagensDisparadasLigado, statusFilter]);
 
   /** GET /chats?minha_fila=1 — fila do atendente (abertas + em atendimento comigo); sem status_atendimento na query. */
   const [minhaFilaList, setMinhaFilaList] = useState(null);
@@ -570,48 +349,6 @@ export default function ChatList() {
   const [emAtrasoBadgeCount, setEmAtrasoBadgeCount] = useState(0);
   /** Contador do chip “Mensagens Disparadas”: GET /chats?status_atendimento=mensagem_disparada (escopo backend). */
   const [mensagensDisparadasCount, setMensagensDisparadasCount] = useState(0);
-
-  const filterRequestKey = [
-    tab,
-    debouncedSearch,
-    tagFilter,
-    departamentoFilter,
-    statusFilter,
-    atendenteFilter,
-    dataInicio,
-    dataFim,
-    mineOnly ? "mine" : "all",
-    order,
-    adminAtendenteFilterId ?? "",
-    onlyFinalizadasAusencia ? "auto" : "",
-    aguardandoClienteOnly ? "aguardando" : "",
-    pagamentosPendentesOnly ? "pag-pendente" : "",
-    emAtrasoOnly ? "em-atraso" : "",
-    tempoParadoFilter,
-    conversaIdsPendenciaQuery ?? "",
-    separarMensagensDisparadasLigado ? "sep-disparadas" : "",
-    filterScopeKey,
-  ].join("|");
-  const filterRequestBaseKey = [
-    tab,
-    tagFilter,
-    departamentoFilter,
-    statusFilter,
-    atendenteFilter,
-    dataInicio,
-    dataFim,
-    mineOnly ? "mine" : "all",
-    order,
-    adminAtendenteFilterId ?? "",
-    onlyFinalizadasAusencia ? "auto" : "",
-    aguardandoClienteOnly ? "aguardando" : "",
-    pagamentosPendentesOnly ? "pag-pendente" : "",
-    emAtrasoOnly ? "em-atraso" : "",
-    tempoParadoFilter,
-    conversaIdsPendenciaQuery ?? "",
-    separarMensagensDisparadasLigado ? "sep-disparadas" : "",
-    filterScopeKey,
-  ].join("|");
 
   useEffect(() => {
     const applyCachedFilterRows = (cachedRows) => {
@@ -724,10 +461,6 @@ export default function ChatList() {
   const pendentesFuncionarioIdsRef = useRef(pendentesFuncionarioIds);
   pendentesFuncionarioIdsRef.current = pendentesFuncionarioIds;
 
-  // Status de conexão Z-API: null=não verificado, true=conectado, false=desconectado
-  const [zapiConnected, setZapiConnected] = useState(null);
-  const [zapiStatusLoaded, setZapiStatusLoaded] = useState(false);
-
   const showToast = useNotificationStore((s) => s.showToast);
 
   const handleSuporteZapERPClick = useCallback(() => {
@@ -757,58 +490,6 @@ export default function ChatList() {
   useEffect(() => {
     if (!isAppAdmin(user)) clearAdminAtendenteFilter();
   }, [user?.perfil, user?.role, clearAdminAtendenteFilter]);
-
-  // Status UltraMSG (nome legado getZapiStatus) só após paint/idle, sem competir com GET da lista.
-  useEffect(() => {
-    let cancelled = false;
-
-    const delay = isMobileLayout ? MOBILE_ZAPI_STATUS_DELAY_MS : 400;
-    let ultimaChecagem = 0;
-
-    const checar = () => {
-      ultimaChecagem = Date.now();
-      getZapiStatus()
-        .then((s) => {
-          if (cancelled) return;
-          setZapiConnected(s?.connected === true);
-          setZapiStatusLoaded(true);
-        })
-        .catch(() => {
-          if (!cancelled) setZapiStatusLoaded(true);
-        });
-    };
-
-    const cancelStatus = scheduleAfterInitialPaint(checar, delay);
-
-    // O status era lido UMA vez, ao montar. Depois de reconectar o WhatsApp o banner
-    // "mensagens não serão entregues" continuava na tela até o atendente dar F5 — e, ao
-    // contrário, uma queda no meio do expediente nunca aparecia. Agora revalida sozinho.
-    const intervalo = setInterval(checar, ZAPI_STATUS_REFRESH_MS);
-
-    // Voltar para a aba é o momento em que o atendente olha a tela: revalida na hora,
-    // com trava para não disparar a cada alternância de janela.
-    const aoFocar = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - ultimaChecagem < ZAPI_STATUS_FOCUS_MIN_INTERVAL_MS) return;
-      checar();
-    };
-    document.addEventListener("visibilitychange", aoFocar);
-    window.addEventListener("focus", aoFocar);
-
-    return () => {
-      cancelled = true;
-      cancelStatus();
-      clearInterval(intervalo);
-      document.removeEventListener("visibilitychange", aoFocar);
-      window.removeEventListener("focus", aoFocar);
-    };
-  }, [isMobileLayout]);
-
-  // Atualização automática da lista (nomes, novas conversas) a cada 5 min — evita "refresh" constante
-  useEffect(() => {
-    const interval = setInterval(() => loadRef.current?.(), 300_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const refreshChatFilterCounts = useCallback(async (opts = {}) => {
     const requestId = ++countsRequestIdRef.current;
@@ -1123,125 +804,36 @@ export default function ChatList() {
       setListRefreshing((prev) => (prev ? prev : true));
     }
     try {
-      /** Modo admin por funcionário: prioridade sobre status/minha_fila/atendente dos filtros avançados — ver chatsFiltrados. */
-      const adminPorFuncionario =
-        adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-
-      const finalAutoQuery = tab === "finalizadas_auto" || onlyFinalizadasAusencia;
-      const aguardandoQuery = tab === "aguardando_cliente" || aguardandoClienteOnly;
-      const aguardandoAtendenteQuery = tab === "aguardando_atendente";
-      const pagamentoPendenteQuery =
-        isFinanceiroUser && (tab === "pagamentos_pendentes" || pagamentosPendentesOnly);
-      const emAtrasoQuery = isFinanceiroUser && (tab === "em_atraso" || emAtrasoOnly);
-      const searchTerm = String(debouncedSearch || "").trim();
-      const pageLimit = getChatListPageLimit(isMobileLayout);
-      const includeAllForSearch = searchTerm ? "1" : undefined;
-      // B01: com termo, busca em toda a base visível (não prende à aba/chip de estado).
-      const searchBypassesTabFilters = Boolean(searchTerm);
-
-      let params;
-      if (searchBypassesTabFilters) {
-        params = {
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          palavra: searchTerm,
-          incluir_todos_clientes: includeAllForSearch,
-          limit: pageLimit,
-        };
-        if (adminPorFuncionario) {
-          const aid = Number(adminAtendenteFilterId);
-          params.atendente_id =
-            Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
-        } else if (atendenteFilter !== "todos") {
-          params.atendente_id = atendenteFilter;
-        }
-      } else if (adminPorFuncionario) {
-        /** Contrato API: `atendente_id` numérico (usuarios.id); omitir status_atendimento / minha_fila. */
-        const aid = Number(adminAtendenteFilterId);
-        const atendenteIdQuery =
-          Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
-        params = {
-          atendente_id: atendenteIdQuery,
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          palavra: searchTerm || undefined,
-          incluir_todos_clientes: includeAllForSearch,
-          limit: pageLimit,
-        };
-        if (finalAutoQuery) {
-          params.finalizacao_motivo = "ausencia_cliente";
-        }
-        if (aguardandoQuery) {
-          params.aguardando_cliente = "1";
-        }
-      } else {
-        params = {
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          status_atendimento: statusFilter !== "todos" ? statusFilter : undefined,
-          atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          palavra: searchTerm || undefined,
-          incluir_todos_clientes: includeAllForSearch,
-          limit: pageLimit,
-        };
-        if (tab === "minha_fila") {
-          params.minha_fila = "1";
-          delete params.status_atendimento;
-          if (finalAutoQuery) {
-            params.status_atendimento = "fechada";
-            params.finalizacao_motivo = "ausencia_cliente";
-          }
-        } else if (aguardandoQuery) {
-          params.aguardando_cliente = "1";
-          delete params.status_atendimento;
-          // Escopo por sessão; atendente_id só quando gestor usa "Por funcionário".
-          delete params.atendente_id;
-        } else if (aguardandoAtendenteQuery) {
-          params.aguardando_atendente = "1";
-          delete params.status_atendimento;
-          delete params.atendente_id;
-        } else if (pagamentoPendenteQuery) {
-          params.pagamento_pendente = "1";
-          delete params.status_atendimento;
-          delete params.atendente_id;
-        } else if (emAtrasoQuery) {
-          params.em_atraso = "1";
-          delete params.status_atendimento;
-          delete params.atendente_id;
-        } else if (finalAutoQuery) {
-          params.status_atendimento = "fechada";
-          params.finalizacao_motivo = "ausencia_cliente";
-        } else if (tab === "abertas") {
-          params.status_atendimento = "aberta";
-        } else if (tab === "em_atendimento") {
-          params.status_atendimento = "em_atendimento";
-        } else if (tab === "finalizadas") {
-          params.status_atendimento = "fechada";
-        } else if (tab === "hoje") {
-          params.hoje = "1";
-          delete params.status_atendimento;
-        } else if (tab === "mensagens_disparadas" && separarMensagensDisparadasLigado) {
-          params.status_atendimento = "mensagem_disparada";
-        } else if (tab === "aguardando_funcionario" && isSupervisorOrAdmin(user)) {
-          const ids = (pendentesFuncionarioIdsRef.current || [])
-            .map((x) => Number(x))
-            .filter((n) => Number.isFinite(n) && n > 0);
-          params.conversa_ids = ids.length > 0 ? ids.join(",") : "0";
-          delete params.status_atendimento;
-          delete params.atendente_id;
-        }
-      }
-
-      if (!searchBypassesTabFilters && tempoParadoFilter) params.tempo_parado = tempoParadoFilter;
-      if (!searchBypassesTabFilters && conversaIdsPendenciaQuery != null) {
-        params.conversa_ids = conversaIdsPendenciaQuery;
-      }
+      const {
+        params,
+        searchTerm,
+        pageLimit,
+        adminPorFuncionario,
+        aguardandoQuery,
+        aguardandoAtendenteQuery,
+      } = buildChatListFetchParams({
+        tab,
+        statusFilter,
+        tagFilter,
+        departamentoFilter,
+        atendenteFilter,
+        dataInicio,
+        dataFim,
+        debouncedSearch,
+        adminAtendenteFilterId,
+        onlyFinalizadasAusencia,
+        aguardandoClienteOnly,
+        pagamentosPendentesOnly,
+        emAtrasoOnly,
+        tempoParadoFilter,
+        conversaIdsPendenciaQuery,
+        separarMensagensDisparadasLigado,
+        isFinanceiroUser,
+        isMobileLayout,
+        user,
+        pendentesFuncionarioIds: pendentesFuncionarioIdsRef.current,
+        isSupervisorOrAdminFn: isSupervisorOrAdmin,
+      });
       lastListParamsRef.current = { ...params };
 
       /** Lista estrita: só o que a API devolveu — o merge com `prev` não pode reintroduzir conversas de outras abas. */
@@ -1455,115 +1047,43 @@ export default function ChatList() {
   const loadRef = useRef(load);
   loadRef.current = load;
 
-  const handleLoadMoreChats = useCallback(async () => {
-    const page = chatListPageRef.current;
-    const baseParams = lastListParamsRef.current;
-    if (!baseParams || !page?.hasMore || !page?.nextCursor || page.loading) return;
+  useChatListResync({
+    loadRef,
+    loadInFlightRef,
+    loadQueuedRef,
+    lastLoadFinishedAtRef,
+    tabRef,
+    refreshChatFilterCounts,
+    isMobileLayout,
+    filterScopeKey,
+    atendimentoModoSimples: user?.atendimento_modo_simples,
+  });
 
-    const requestId = loadRequestIdRef.current;
-    setChatListPage((prev) => ({ ...prev, loading: true, error: "" }));
-    const loadMoreAbort = new AbortController();
-
-    try {
-      const data = await fetchChats(
-        {
-          ...baseParams,
-          cursor: page.nextCursor,
-          cursorId: page.nextCursorId,
-          limit: getChatListPageLimit(isMobileLayout),
-        },
-        { signal: loadMoreAbort.signal }
-      );
-      if (requestId !== loadRequestIdRef.current) return;
-
-      const adminPorFuncionario =
-        adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-      let list = Array.isArray(data) ? data : [];
-      if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
-        list = filterOptimisticRemovedMinhaFila(list);
-      }
-      if (!adminPorFuncionario && mineOnly && user?.id && !isAppAdmin(user)) {
-        list = list.filter((c) => String(c.atendente_id) === String(user.id));
-      }
-      list = sortChatRowsByOrder(dedupeChatRowsByStableKey(list), order);
-      const nextPagesLoaded = Math.min(
-        CHAT_LIST_PRESERVE_MAX_PAGES,
-        Math.max(1, Number(page.pagesLoaded || 1) + 1)
-      );
-      setChatListPage(buildChatListPageState(data, nextPagesLoaded));
-
-      if (!adminPorFuncionario && tabRef.current === "minha_fila") {
-        setMinhaFilaList((prev) => {
-          const merged = mergeChatRowsPreservingCurrent(prev || [], list, order);
-          persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
-            minhaFila: merged,
-          });
-          return merged;
-        });
-        return;
-      }
-
-      setChats((prev) => mergeChatRowsPreservingCurrent(prev || [], list, order));
-      persistChatListRowsForFilterToSession(
-        filterScopeKey,
-        filterRequestKey,
-        useChatStore.getState().chats || []
-      );
-      persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
-        emAtendimentoBadgeCount,
-        aguardandoClienteBadgeCount,
-        mensagensDisparadasCount,
-      });
-    } catch (e) {
-      if (isAbortError(e)) return;
-      const msg =
-        e?.response?.data?.error ||
-        e?.response?.data?.message ||
-        e?.message ||
-        "Não foi possível carregar mais conversas.";
-      setChatListPage((prev) => ({ ...prev, loading: false, error: String(msg) }));
-    }
-  }, [
+  const { handleLoadMoreChats } = useChatListPagination({
+    chatListPage,
+    setChatListPage,
+    chatListPageRef,
+    lastListParamsRef,
+    loadRequestIdRef,
+    emptyPageAdvanceRef,
+    tab,
+    tabRef,
+    listLoading,
+    hasListRows,
+    isMobileLayout,
     adminAtendenteFilterId,
     mineOnly,
-    user?.id,
+    user,
     order,
     setChats,
+    setMinhaFilaList,
     filterScopeKey,
+    filterRequestKey,
     emAtendimentoBadgeCount,
     aguardandoClienteBadgeCount,
     mensagensDisparadasCount,
     filterOptimisticRemovedMinhaFila,
-    isMobileLayout,
-  ]);
-
-  // Página SQL filtrada ficou vazia mas ainda há has_more: avança sozinho (senão a lista parece “sumida”).
-  useEffect(() => {
-    if (tab === "minha_fila") {
-      emptyPageAdvanceRef.current = 0;
-      return;
-    }
-    if (listLoading || chatListPage.loading) return;
-    if (!chatListPage.hasMore || !chatListPage.nextCursor) {
-      emptyPageAdvanceRef.current = 0;
-      return;
-    }
-    if (hasListRows) {
-      emptyPageAdvanceRef.current = 0;
-      return;
-    }
-    if (emptyPageAdvanceRef.current >= 5) return;
-    emptyPageAdvanceRef.current += 1;
-    void handleLoadMoreChats();
-  }, [
-    tab,
-    listLoading,
-    hasListRows,
-    chatListPage.hasMore,
-    chatListPage.nextCursor,
-    chatListPage.loading,
-    handleLoadMoreChats,
-  ]);
+  });
 
   useEffect(() => {
     return () => {
@@ -1630,40 +1150,6 @@ export default function ChatList() {
       setLoteAusenciaBusy(false);
     }
   }, [showToast, loteAusenciaConfirm]);
-
-  const chatListResyncNonce = useChatStore((s) => s.chatListResyncNonce);
-  useEffect(() => {
-    if (!chatListResyncNonce) return;
-    const forceResync = useChatStore.getState().chatListResyncForce === true;
-    if (forceResync) {
-      useChatStore.setState({ chatListResyncForce: false });
-    }
-    if (loadInFlightRef.current) {
-      loadQueuedRef.current = { background: true };
-      void refreshChatFilterCounts({ silent: true });
-      if (isMobileLayout) clearChatListRowsFilterSessionCache(filterScopeKey);
-      return;
-    }
-    const hasVisibleChats = (useChatStore.getState().chats?.length ?? 0) > 0;
-    const tabAtual = tabRef.current;
-    const modoSimplesAtivo = user?.atendimento_modo_simples === true;
-    const bypassResyncThrottle =
-      forceResync ||
-      tabAtual === "aguardando_atendente" ||
-      (modoSimplesAtivo && (tabAtual === "aguardando_cliente" || tabAtual === "todas"));
-    const throttleResync =
-      hasVisibleChats &&
-      Date.now() - lastLoadFinishedAtRef.current < 2500 &&
-      !bypassResyncThrottle;
-    if (throttleResync) {
-      void refreshChatFilterCounts({ silent: true });
-      if (isMobileLayout) clearChatListRowsFilterSessionCache(filterScopeKey);
-      return;
-    }
-    loadRef.current?.({ background: true });
-    void refreshChatFilterCounts({ silent: true });
-    if (isMobileLayout) clearChatListRowsFilterSessionCache(filterScopeKey);
-  }, [chatListResyncNonce, refreshChatFilterCounts, isMobileLayout, filterScopeKey, user?.atendimento_modo_simples]);
 
   /** Supervisão: ao atualizar IDs pendentes, refetch da aba "Aguardando atendente". */
   useEffect(() => {
@@ -1767,14 +1253,6 @@ export default function ChatList() {
       }
     }
   }, [chatListOptimisticMutationNonce, setChats]);
-
-  useEffect(() => {
-    function onSyncContatos() {
-      loadRef.current?.();
-    }
-    window.addEventListener("zapi_sync_contatos", onSyncContatos);
-    return () => window.removeEventListener("zapi_sync_contatos", onSyncContatos);
-  }, []);
 
   const applyFiltersDataToState = useCallback((data) => {
     setAllTags(data?.tags ?? []);
@@ -1956,15 +1434,7 @@ export default function ChatList() {
         if (useConversaStore.getState().selectedId != null) return;
         // ESC: fecha filtros e limpa busca
         clearAdminAtendenteFilter();
-        setShowFilters(false);
-        clearChatSearch();
-        setStatusFilter("todos");
-        setTagFilter("todas");
-        setDepartamentoFilter("todos");
-        setMineOnly(false);
-        setOrder("recentes");
-        setTab(getDefaultChatListTab(user));
-        setTempoParadoFilter("");
+        resetFiltersToDefault();
         setLoteAusenciaMsg("");
         setLoteAusenciaConfirm("");
         setShowNovoMenu(false);
@@ -1978,7 +1448,7 @@ export default function ChatList() {
     adminAtendentePanelOpen,
     setAdminAtendentePanelOpen,
     clearAdminAtendenteFilter,
-    clearChatSearch,
+    resetFiltersToDefault,
     showNovoMenu,
     user?.atendimento_modo_simples,
   ]);
@@ -2054,10 +1524,6 @@ export default function ChatList() {
   const handleToggleNovoMenu = useCallback((e) => {
     e.stopPropagation();
     setShowNovoMenu((v) => !v);
-  }, []);
-
-  const handleToggleFilters = useCallback(() => {
-    setShowFilters((v) => !v);
   }, []);
 
   const handleOpenProdutos = useCallback(() => {
@@ -2201,72 +1667,6 @@ export default function ChatList() {
 
   const showSetorFilter = isAppAdmin(user);
   const showAusenciaLote = isSupervisorOrAdmin(user);
-
-  const handleStatusFilterChange = useCallback((value) => {
-    clearChatSearch();
-    setStatusFilter(value);
-  }, [clearChatSearch]);
-
-  const handleTagFilterChange = useCallback((value) => {
-    clearChatSearch();
-    setTagFilter(value);
-  }, [clearChatSearch]);
-
-  const handleDepartamentoFilterChange = useCallback((value) => {
-    clearChatSearch();
-    setDepartamentoFilter(value);
-  }, [clearChatSearch]);
-
-  const handleAtendenteFilterChange = useCallback((value) => {
-    clearChatSearch();
-    setAtendenteFilter(value);
-  }, [clearChatSearch]);
-
-  const handleDataInicioChange = useCallback((value) => {
-    clearChatSearch();
-    setDataInicio(value);
-  }, [clearChatSearch]);
-
-  const handleDataFimChange = useCallback((value) => {
-    clearChatSearch();
-    setDataFim(value);
-  }, [clearChatSearch]);
-
-  const handleMineOnlyChange = useCallback((on) => {
-    clearChatSearch();
-    setMineOnly(on);
-  }, [clearChatSearch]);
-
-  const handleOnlyFinalizadasAusenciaChange = useCallback((on) => {
-    clearChatSearch();
-    setOnlyFinalizadasAusencia(on);
-    if (on) setStatusFilter("fechada");
-  }, [clearChatSearch]);
-
-  const handleAguardandoClienteOnlyChange = useCallback((on) => {
-    clearChatSearch();
-    setAguardandoClienteOnly(on);
-  }, [clearChatSearch]);
-
-  const handlePagamentosPendentesOnlyChange = useCallback((on) => {
-    clearChatSearch();
-    setPagamentosPendentesOnly(on);
-  }, [clearChatSearch]);
-
-  const handleEmAtrasoOnlyChange = useCallback((on) => {
-    clearChatSearch();
-    setEmAtrasoOnly(on);
-  }, [clearChatSearch]);
-
-  const handleOrderChange = useCallback((value) => {
-    clearChatSearch();
-    setOrder(value);
-  }, [clearChatSearch]);
-
-  const handleTempoParadoFilterChange = useCallback((value) => {
-    clearChatSearch();
-    setTempoParadoFilter(value);
-  }, [clearChatSearch]);
 
   const handleClearAdminAtendenteFilter = useCallback(() => {
     clearChatSearch();

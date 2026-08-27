@@ -14,13 +14,31 @@ Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instanc
 
 | Arquivo | Papel |
 |---------|--------|
-| `chatList.jsx` | orquestra load, tabs, search, paginação, cache, select |
+| `chatList.jsx` | coordenador: load, cache, seleção, badges, UI |
 | `ChatListBody.jsx` | único subscriber pesado de `chats`; memo |
 | `ChatListRows.jsx` / `ChatListRowsPane.jsx` | janela de rows |
 | `ChatListRow.jsx` | `memo(..., chatRowPropsAreEqual)` |
 | `ChatListSearchBox.jsx` | input isolado (digitação **não** re-renderiza a lista) |
 | Header/Toolbar/AdvancedFilters | UI de filtros |
-| `hooks/useChatListFilters.js`, `useChatListCounts.js` | estado de filtro/contagens |
+| `hooks/useChatListFilterState.js` | estado serializável (abas, busca, avançados); `useChatListFilters.js` continua o compute in-memory no Body |
+| `hooks/useWhatsappInstanceStatus.js` | banner WhatsApp desconectado (`GET /chats/zapi-status`, nome legado) |
+| `hooks/useChatListPagination.js` | carregar mais + auto-avanço de página vazia |
+| `hooks/useChatListResync.js` | nonce do store (debounce no **store**, não no hook), refresh 5 min, `zapi_sync_contatos` |
+| `hooks/useChatListCounts.js` | deriva números dos chips a partir de `chatFilterCounts` já carregados |
+| `chatListQueryHelpers.js` | `buildChatListFetchParams`, merge/dedupe/página |
+
+## Modularização do coordenador (CONFIRMADO 2026-08-27)
+
+`chatList.css`, `chatsStore.js`, comparadores, cache lateral, virtualização, Socket.IO, regras de fila e payloads **não** foram alterados.
+
+- Status das instâncias: timers/delay mobile/foco iguais; banner no coordenador.
+- Filtros: significado intacto; troca de filtro ainda zera `pagesLoaded` para 1 no efeito de `filterRequestKey`.
+- Busca: com termo, `incluir_todos_clientes=1` e a aba **não** restringe o GET (B01). Generation `loadRequestIdRef` impede resposta antiga.
+- Paginação: limites 80/40, preserve max pages, AbortController no load more.
+- Resync: se `load()` está em voo, enfileira `{ background: true }` (última atualização após o voo).
+- Contadores/filas: fetchers (`refreshChatFilterCounts`, badges) permanecem no coordenador nesta etapa; `useChatListCounts` só deriva UI.
+
+`load()` HTTP ainda vive no coordenador (merge `setChats` + cache + badges secundários).
 
 ## Filtros, tabs, paginação, busca (CONFIRMADO)
 

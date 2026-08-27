@@ -1,32 +1,21 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { shallow } from "zustand/shallow";
 import { useConversaStore, getMessageListReactKey, isPendingOutgoingTemp } from "./conversaStore";
 import {
   enviarMensagem,
   excluirMensagem,
-  enviarReacao,
-  removerReacao,
-  registrarLigacao,
   reenviarMidiaFalha,
   reenviarTextoFalha,
-  adicionarAtendenteConversa,
-  marcarLidaModoSimplesChat,
 } from "./conversaService";
 import {
   isGroupConversation,
   getStatusAtendimentoEffective,
   isClosedAttendance,
-  exibirBadgePagamentoConcluido,
   isConversaModoSimplesAtiva,
-  resolveModoSimplesAguardandoEffective,
-  buildConversaModoSimplesUiSource,
-  isModoSimplesAguardandoAtendente,
 } from "../utils/conversaUtils";
 import "./conversa.css";
 import "../styles/zap-animations.css";
-import api from "../api/http";
-import { resolveUploadTimeoutMs } from "../api/httpTimeouts";
 import {
   classifyOutboundAxiosError,
   shouldShowOutboundToast,
@@ -34,36 +23,18 @@ import {
 } from "./outboundSendError";
 import {
   enqueueOutboxText,
-  flushOutbox,
-  outboxHasItems,
   isBrowserOffline,
   removeFromOutbox,
 } from "./offlineOutbox";
-import { WATCHDOG_TICK_MS } from "./pendingMessageWatchdog";
 import { useAuthStore } from "../auth/authStore";
 import { canAssumir, canNotaInterna, canReabrir, canTag, canTransferirSetorConversa } from "../auth/permissions";
-import AtendentesModal from "../atendimento/AtendentesModal";
-import { useConversaParticipantes } from "../atendimento/useConversaParticipantes";
 import "../atendimento/atendentes.css";
 import { criarNotaInterna } from "./conversaService";
-const ProdutoConsultaPanel = lazy(() => import("./ProdutoConsultaPanel"));
-const SidebarCliente = lazy(() => import("./SidebarCliente"));
-const ForwardModal = lazy(() => import("./components/ForwardModal"));
-const ShareContactModal = lazy(() => import("./components/ShareContactModal"));
-const ShareLocationModal = lazy(() => import("./components/ShareLocationModal"));
-const PixConfigModal = lazy(() => import("./components/PixConfigModal"));
-const MsgInfoModal = lazy(() => import("./components/MsgInfoModal"));
-const CallModal = lazy(() => import("./components/CallModal"));
-const AddToGroupModal = lazy(() => import("./components/AddToGroupModal"));
-const MediaViewerOverlay = lazy(() => import("./components/MediaViewerOverlay"));
 import {
   abrirConversaPorTelefone,
-  carregarMensagensAntigasContato,
   conversaFromContatoResponse,
-  fetchChats,
   resolveWhatsappInstanceIdForSharedContact,
 } from "../chats/chatService";
-import { getDisplayName } from "../chats/chatListDisplay";
 import { getSocket } from "../socket/socket";
 import { scheduleAfterInitialPaint } from "../chats/scheduleAfterInitialPaint";
 import { saveReplyMeta } from "./replyMeta";
@@ -71,9 +42,6 @@ import {
   buildOptimisticOutgoingMessage,
   bumpChatListWithOptimisticMessage,
   applyModoSimplesClienteOnOutgoingSend,
-  extractArquivoApiFailures,
-  extractArquivoApiReconciliations,
-  normalizeArquivoApiToMessage,
   normalizeTextSendApiToMessage,
 } from "./conversaOptimisticMessage";
 import {
@@ -84,38 +52,18 @@ import {
 import ConversaThread from "./ConversaThread";
 import ConversaComposer from "./ConversaComposer";
 
-import { FORWARD_SELECT_MAX, MAX_DOCUMENTOS_LOTE_ENVIO, STICKER_RECENTS_LIMIT } from "./conversaConstants";
 import {
-  formatDia,
-  sameDay,
   safeString,
   isOutgoingMessage,
-  isMediaCaptionBundleTop,
-  isPlainCaptionFollowMessage,
-  mediaHasInlineCaption,
-  captionTextsEquivalent,
-  messageHasReplyMeta,
-  sameCaptionBundleAuthor,
-  captionFollowTimeOk,
-  formatHoraCurta,
-  timelineEventLabel,
-  initials,
-  statusBadge,
   isImageFile,
-  isAudioFile,
   isVideoFile,
   isArquivoBloqueadoWhatsApp,
   mensagemArquivoBloqueadoWhatsApp,
   getMediaUrl,
   fileToPreviewURL,
-  getAudioFilename,
-  readRecentStickers,
-  writeRecentStickers,
-  toDataUrl,
-  convertImageToWebp,
   isRichMediaMessage,
-  resolveConversaAvatarUrl,
 } from "./utils/conversaViewHelpers";
+import { buildMensagensComSeparadores } from "./utils/buildMensagensComSeparadores";
 import {
   snippetFromMsg,
   buildReplyMetaForPersist,
@@ -123,32 +71,41 @@ import {
   getReplySenderLabel,
 } from "./utils/conversaMessageDisplay";
 import {
-  IconClose,
-  ChatToast,
-} from "./conversaViewIcons";
+  normalizeDepartamentoIdForAccess,
+  getUserDepartamentoIdSet,
+} from "./utils/conversaAccessHelpers";
+import { buildEscapeEntries, runFirstActiveEscape } from "./utils/conversationEscapeOrder";
 import Bubble from "./ConversaBubble";
-import { useStableTimeout } from "./hooks/useStableTimeout";
+import { useConversationToast } from "./hooks/useConversationToast";
+import { usePendingOutgoingLifecycle } from "./hooks/usePendingOutgoingLifecycle";
+import { useConversationHeaderIdentity } from "./hooks/useConversationHeaderIdentity";
+import { useConversationReactions } from "./hooks/useConversationReactions";
+import { useConversationSelection } from "./hooks/useConversationSelection";
+import { useConversationThreadActions } from "./hooks/useConversationThreadActions";
+import { useConversationOutboundMedia } from "./hooks/useConversationOutboundMedia";
 import { useAutoScroll, snapThreadToBottom } from "./hooks/useAutoScroll";
 import { useMobileKeyboardViewport } from "./hooks/useMobileKeyboardViewport";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import { useForwardFlow } from "./hooks/useForwardFlow";
 import { useMediaViewer } from "./hooks/useMediaViewer";
+import { useAddToGroup } from "./hooks/useAddToGroup";
+import { useConversationCall } from "./hooks/useConversationCall";
+import { useConversationSearch } from "./hooks/useConversationSearch";
+import { useConversationTimeline } from "./hooks/useConversationTimeline";
+import { useConversationParticipants } from "./hooks/useConversationParticipants";
+import { useConversationDepartments } from "./hooks/useConversationDepartments";
+import { useConversationTags } from "./hooks/useConversationTags";
 import { usePixConfig } from "./hooks/usePixConfig";
 import { useShareContact } from "./hooks/useShareContact";
 import { useShareLocation } from "./hooks/useShareLocation";
 import ConversaSelectionBar from "./components/ConversaSelectionBar";
 import PendingMediaPreview from "./components/PendingMediaPreview";
 import ConversaHeader from "./components/ConversaHeader";
-import ConversaMessageSearchPanel from "./components/ConversaMessageSearchPanel";
+import ConversaViewOverlays from "./components/ConversaViewOverlays";
+import ConversaTimelinePanel from "./components/ConversaTimelinePanel";
+import ConversaDropOverlay from "./components/ConversaDropOverlay";
 
-import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore";
-import { chatRowListStoreKey } from "../chats/chatListStoreCompare";
-import { useWhatsappInstancesStore } from "../chats/whatsappInstancesStore";
-import {
-  listarTags,
-  adicionarTagConversa,
-  removerTagConversa,
-} from "../api/tagService";
+import { useChatStore } from "../chats/chatsStore";
 import { useMatchMedia } from "../hooks/useMatchMedia";
 import EmptyState from "../components/feedback/EmptyState";
 import ConversaLoadingScreen from "./ConversaLoadingScreen";
@@ -161,50 +118,8 @@ import "../components/feedback/toast.css";
 
 
 /* =========================================================
-   Hooks
+   ConversaView — coordenador
 ========================================================= */
-
-function normalizeDepartamentoIdForAccess(value) {
-  if (value == null || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? String(n) : String(value).trim();
-}
-
-function getUserDepartamentoIdSet(user) {
-  const ids = [];
-  if (Array.isArray(user?.departamento_ids)) ids.push(...user.departamento_ids);
-  if (user?.departamento_id != null) ids.push(user.departamento_id);
-  if (Array.isArray(user?.departamentos)) {
-    for (const dep of user.departamentos) {
-      ids.push(dep?.id ?? dep?.departamento_id ?? dep);
-    }
-  }
-
-  const set = new Set();
-  for (const id of ids) {
-    const normalized = normalizeDepartamentoIdForAccess(id);
-    if (normalized) set.add(normalized);
-  }
-  return set;
-}
-
-const timelineMsgRowCache = new WeakMap();
-
-function getOrCreateTimelineMsgRow(msg, showRemetente, reaction) {
-  const cached = timelineMsgRowCache.get(msg);
-  if (
-    cached &&
-    cached.__showRemetente === showRemetente &&
-    cached.__reaction === reaction &&
-    !cached.__captionBundleTop &&
-    !cached.__captionBundleFollow
-  ) {
-    return cached;
-  }
-  const row = { ...msg, __type: "msg", __showRemetente: showRemetente, __reaction: reaction };
-  timelineMsgRowCache.set(msg, row);
-  return row;
-}
 
 function ConversaViewBody() {
   const {
@@ -382,12 +297,14 @@ function ConversaViewBody() {
   ]);
 
   // Hook de participantes — antes de podeEnviar pois co-atendentes também podem enviar
-  // Usa expressões inline (conversaId e isGroup ainda não declarados aqui)
-  const { participantes: atendentesParticipantes, total: totalAtendentes, reload: reloadAtendentes } =
-    useConversaParticipantes(
-      isGroupConversation(conversa) ? null : (conversa?.id || null),
-      conversa?.atendente_id ?? null
-    );
+  const {
+    atendentesParticipantes,
+    totalAtendentes,
+    reloadAtendentes,
+    atendentesModalOpen,
+    setAtendentesModalOpen,
+    handleOpenAdicionarAtendente,
+  } = useConversationParticipants({ conversa });
 
   const podeEnviar = useMemo(() => {
     if (!user?.id || !conversa?.id) return false;
@@ -431,8 +348,6 @@ function ConversaViewBody() {
     atendentesParticipantes,
   ]);
 
-  const [showTimeline, setShowTimeline] = useState(false);
-  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [threadOpening, setThreadOpening] = useState(false);
   /** Garante máscara no 1º frame da troca (setState no render), não só no useLayoutEffect pós-paint. */
@@ -450,8 +365,7 @@ function ConversaViewBody() {
     }
   }, []);
 
-  const [toast, setToast] = useState(null);
-  const toastT = useStableTimeout();
+  const { toast, setToast, showToast } = useConversationToast();
 
   const [dragOver, setDragOver] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
@@ -484,17 +398,7 @@ function ConversaViewBody() {
       retries.clear();
     };
   }, []);
-  const [localReactions, setLocalReactions] = useState({});
-  const [reactionLoading, setReactionLoading] = useState({});
 
-  const [addToGroupModal, setAddToGroupModal] = useState({ open: false, telefone: null, nome: null });
-  const [addToGroupGrupos, setAddToGroupGrupos] = useState([]);
-  const [addToGroupLoading, setAddToGroupLoading] = useState(false);
-  const [addToGroupSending, setAddToGroupSending] = useState(false);
-
-  const [callModalOpen, setCallModalOpen] = useState(false);
-  const [callDuration, setCallDuration] = useState(5);
-  const [callSending, setCallSending] = useState(false);
   const messagesContainerRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   /** Meta do último snap via ResizeObserver — evita reancorar em ticks de status. */
@@ -514,20 +418,7 @@ function ConversaViewBody() {
   const userInterruptedOpenSnapRef = useRef(false);
   const cancelOpenSnapPendingRef = useRef(null);
   const messagesScrollPreserveSnapRef = useRef(null);
-  const [allTags, setAllTags] = useState([]);
-  const [tagsOpen, setTagsOpen] = useState(false);
-  const [tagsLoading, setTagsLoading] = useState(false);
-  const [tagMutatingId, setTagMutatingId] = useState(null);
   const [showClienteSide, setShowClienteSide] = useState(false);
-  const [showTransferirSetor, setShowTransferirSetor] = useState(false);
-  const [departamentos, setDepartamentos] = useState([]);
-  const [transferirSetorLoading, setTransferirSetorLoading] = useState(false);
-  const [showAdicionarAtendente, setShowAdicionarAtendente] = useState(false);
-  const [atendentesDisponiveis, setAtendentesDisponiveis] = useState([]);
-  const [atendenteSearch, setAtendenteSearch] = useState("");
-  const [atendentesLoading, setAtendentesLoading] = useState(false);
-  const [adicionarAtendenteLoadingId, setAdicionarAtendenteLoadingId] = useState(null);
-  const [atendentesModalOpen, setAtendentesModalOpen] = useState(false);
   const [showProdutosPanel, setShowProdutosPanel] = useState(false);
 
   const userRole = String(user?.role || user?.perfil || "").toLowerCase();
@@ -537,22 +428,6 @@ function ConversaViewBody() {
 
   // ações estilo WhatsApp: responder, encaminhar, fixar, favoritar, selecionar, apagar
   const [replyTo, setReplyTo] = useState(null);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedMsgIds, setSelectedMsgIds] = useState({});
-  /** Ordem em que as mensagens foram marcadas (ids como string), para respeitar na API. */
-  const [selectionOrder, setSelectionOrder] = useState([]);
-  const selectionOrderRef = useRef([]);
-  /**
-   * Âncora de scroll capturada imediatamente antes de ligar/desligar o modo seleção.
-   * A barra de seleção é sticky e ocupa espaço no fluxo do container de mensagens;
-   * ao entrar/sair ela empurra as mensagens (o "pulo"). Reposicionamos o scroll para
-   * manter o conteúdo fixo. Ver useLayoutEffect abaixo.
-   */
-  const selectModeAnchorRef = useRef(null);
-  /** True quando o modo seleção foi aberto por "Encaminhar" (mostra fluxo até o destino). */
-  const [forwardSelectIntent, setForwardSelectIntent] = useState(false);
-  const [pinnedIds, setPinnedIds] = useState([]);
-  const [starredIds, setStarredIds] = useState([]);
 
   const [msgInfoOpen, setMsgInfoOpen] = useState(false);
   const [msgInfo, setMsgInfo] = useState(null);
@@ -621,6 +496,44 @@ function ConversaViewBody() {
   }, [pendingPreview]);
 
   const conversaId = conversa?.id || null;
+
+  const { localReactions, reactionLoading, handleSendReaction, handleRemoveReaction } =
+    useConversationReactions({ conversaId, showToast });
+
+  usePendingOutgoingLifecycle({
+    conversaId,
+    refresh,
+    showToast,
+    applyPendingOutgoingWatchdog,
+  });
+
+  const onConversationChange = useCallback(() => {
+    setReplyTo(null);
+    lastResizeSnapMetaRef.current = { contentKey: null, scrollHeight: 0 };
+  }, []);
+
+  const {
+    selectMode,
+    selectedMsgIds,
+    selectModeAnchorRef,
+    forwardSelectIntent,
+    setForwardSelectIntent,
+    pinnedIds,
+    pinnedSet,
+    starredSet,
+    selectedSet,
+    orderedSelectedIds,
+    togglePin,
+    toggleStar,
+    startSelect,
+    toggleSelected,
+    exitSelectMode,
+  } = useConversationSelection({
+    conversaId,
+    messagesContainerRef,
+    showToast,
+    onConversationChange,
+  });
 
   const debugMessageBoundary = useCallback((event, payload = {}) => {
     if (!import.meta?.env?.DEV) return;
@@ -701,65 +614,28 @@ function ConversaViewBody() {
     !isGroup;
   const podeAnotar = !isGroup && !!conversaId && canNotaInterna(user);
 
-  // Nunca exibir LID (lid:xxx) como nome ou número — identificador interno do WhatsApp
-  const isLidValue = (v) => v != null && String(v).trim().toLowerCase().startsWith("lid:");
-
-  // Status ticks da ultima_mensagem não devem re-renderizar a conversa aberta (evita pulo).
-  const fromChat = useChatStore(
-    (s) => getChatByIdFromStore(conversaId, s.chats),
-    (a, b) => chatRowListStoreKey(a) === chatRowListStoreKey(b)
-  );
-
-  const showWhatsappInstanceUi = useWhatsappInstancesStore((s) => s.hasMultiple);
-
-  const whatsappInstanceLabel = useMemo(() => {
-    if (!showWhatsappInstanceUi || isGroup) return "";
-    const source = conversa ?? fromChat ?? {};
-    return String(
-      source?.whatsapp_instance_nome ||
-      source?.whatsappInstanceNome ||
-      source?.whatsapp_instance_display_phone ||
-      source?.whatsappInstanceDisplayPhone ||
-      fromChat?.whatsapp_instance_nome ||
-      fromChat?.whatsapp_instance_display_phone ||
-      ""
-    ).trim();
-  }, [conversa, fromChat, isGroup, showWhatsappInstanceUi]);
-
-  // Nome idêntico à lista de conversas: usa getDisplayName do chatList quando disponível
-  const nomeLista = useChatStore((s) => {
-    if (conversaId == null || conversaId === "") return "";
-    const row = getChatByIdFromStore(conversaId, s.chats);
-    return row ? getDisplayName(row) : "";
+  const {
+    fromChat,
+    nome,
+    avatar,
+    avatarUrl,
+    showAvatarImg,
+    setAvatarImgError,
+    badge,
+    showPagamentoConcluidoBadge,
+    headerCrmAtivoLayout,
+    encerramentoAusenciaHint,
+    whatsappInstanceLabel,
+    conversaModoSimplesUi,
+    isLidValue,
+  } = useConversationHeaderIdentity({
+    conversa,
+    conversaId,
+    isGroup,
+    mensagens,
+    user,
+    modoSimplesAtivo,
   });
-
-  const nome = useMemo(() => {
-    const valid = (v) => {
-      const s = String(v || "").trim();
-      if (!s || isLidValue(s) || s === "Contato") return "";
-      return s;
-    };
-    const aberto = valid(conversa ? getDisplayName(conversa) : "");
-    const lista = valid(nomeLista);
-    if (aberto && lista && aberto !== lista) return aberto;
-    if (lista) return lista;
-    if (aberto) return aberto;
-    if (isGroup) {
-      const g =
-        conversa?.nome_grupo ||
-        conversa?.contato_nome ||
-        conversa?.nome ||
-        "Grupo";
-      return isLidValue(g) ? "Grupo" : g;
-    }
-    const tel =
-      conversa?.telefone_exibivel ||
-      conversa?.cliente_telefone ||
-      conversa?.telefone ||
-      "";
-    if (tel && !isLidValue(tel)) return String(tel).trim();
-    return "Contato";
-  }, [conversa, nomeLista, conversaId, isGroup]);
 
   const replyBarPreview = useMemo(() => {
     if (!replyTo) return null;
@@ -773,102 +649,6 @@ function ConversaViewBody() {
       text: replySnippetDisplay(meta) || snippetFromMsg(replyTo),
     };
   }, [replyTo, nome, fromChat, conversa]);
-
-  const rawAvatarUrl = isGroup
-    ? (fromChat?.foto_grupo ?? conversa?.foto_grupo ?? null)
-    : (
-        fromChat?.foto_perfil ??
-        fromChat?.foto_perfil_contato_cache ??
-        conversa?.foto_perfil ??
-        conversa?.foto_perfil_contato_cache ??
-        conversa?.cliente?.foto_perfil ??
-        conversa?.clientes?.foto_perfil ??
-        null
-      );
-  const avatarUrl = resolveConversaAvatarUrl(rawAvatarUrl);
-  const avatar = useMemo(() => (isGroup ? "👥" : initials(nome)), [isGroup, nome]);
-  const [avatarImgError, setAvatarImgError] = useState(false);
-  const showAvatarImg = Boolean(avatarUrl && !avatarImgError);
-
-  const conversaModoSimplesUi = useMemo(
-    () => buildConversaModoSimplesUiSource(conversa, fromChat, mensagens),
-    [conversa, fromChat, mensagens]
-  );
-
-  const badge = useMemo(() => {
-    if (modoSimplesAtivo && !isGroup) {
-      const ag = resolveModoSimplesAguardandoEffective(conversaModoSimplesUi, user);
-      if (ag === "atendente") {
-        return statusBadge("aguardando_atendente", false, conversaModoSimplesUi?.finalizacao_motivo);
-      }
-      if (ag === "cliente") {
-        return statusBadge("aguardando_cliente", false, conversaModoSimplesUi?.finalizacao_motivo);
-      }
-      return null;
-    }
-    const status = getStatusAtendimentoEffective(conversa);
-    const statusVisual =
-      status === "em_atendimento" && conversa?.atendente_id != null && conversa?.aguardando_cliente_desde != null
-        ? "aguardando_cliente"
-        : status;
-    return statusBadge(
-      statusVisual,
-      conversa?.exibir_badge_aberta,
-      conversa?.finalizacao_motivo
-    );
-  }, [
-    modoSimplesAtivo,
-    user,
-    isGroup,
-    conversaModoSimplesUi,
-    conversa,
-    conversa?.status_atendimento,
-    conversa?.status_atendimento_real,
-    conversa?.atendente_id,
-    conversa?.aguardando_cliente_desde,
-    conversa?.exibir_badge_aberta,
-    conversa?.finalizacao_motivo,
-  ]);
-
-  const showPagamentoConcluidoBadge = useMemo(
-    () => exibirBadgePagamentoConcluido(conversa),
-    [
-      conversa?.pagamento_concluido_em,
-      conversa?.status_atendimento,
-      conversa?.status_atendimento_real,
-    ]
-  );
-
-  /** Mobile: layout compacto em duas linhas + pill menor só em em_atendimento / aguardando_cliente */
-  const headerCrmAtivoLayout = useMemo(() => {
-    const s = safeString(getStatusAtendimentoEffective(conversa)).toLowerCase();
-    return s === "em_atendimento" || s === "aguardando_cliente";
-  }, [conversa?.status_atendimento, conversa?.status_atendimento_real, conversa]);
-
-  const encerramentoAusenciaHint = useMemo(() => {
-    if (modoSimplesAtivo) return null;
-    const s = safeString(getStatusAtendimentoEffective(conversa)).toLowerCase();
-    if (s !== "fechada") return null;
-    if (safeString(conversa?.finalizacao_motivo).toLowerCase() !== "ausencia_cliente" && conversa?.finalizada_automaticamente !== true) {
-      return null;
-    }
-    return "Encerrada automaticamente por ausência do cliente.";
-  }, [
-    modoSimplesAtivo,
-    conversa?.status_atendimento,
-    conversa?.status_atendimento_real,
-    conversa?.finalizacao_motivo,
-    conversa?.finalizada_automaticamente,
-  ]);
-
-  useEffect(() => {
-    setAvatarImgError(false);
-  }, [conversaId, avatarUrl]);
-
-  const selectedTagIds = useMemo(
-    () => (Array.isArray(tags) ? tags.map((t) => String(t?.id)) : []),
-    [tags]
-  );
 
   const lastMsg = useMemo(
     () => (mensagens?.length ? mensagens[mensagens.length - 1] : null),
@@ -884,43 +664,11 @@ function ConversaViewBody() {
     );
   }, [lastMsg]);
 
-  const pinnedSet = useMemo(() => new Set((pinnedIds || []).map(String)), [pinnedIds]);
-  const starredSet = useMemo(() => new Set((starredIds || []).map(String)), [starredIds]);
-  const selectedSet = useMemo(() => new Set(Object.keys(selectedMsgIds || {}).filter((k) => selectedMsgIds[k])), [selectedMsgIds]);
-
   const pinnedTop = useMemo(() => {
     if (!mensagens?.length || !(pinnedIds || []).length) return null;
     const lastPinnedId = String((pinnedIds || [])[pinnedIds.length - 1]);
     return (mensagens || []).find((m) => String(m.id) === lastPinnedId) || null;
   }, [mensagens, pinnedIds]);
-
-  useEffect(() => {
-    // reset por conversa
-    selectModeAnchorRef.current = null;
-    setReplyTo(null);
-    setSelectMode(false);
-    setSelectedMsgIds({});
-    selectionOrderRef.current = [];
-    setSelectionOrder([]);
-    setForwardSelectIntent(false);
-    lastResizeSnapMetaRef.current = { contentKey: null, scrollHeight: 0 };
-
-    if (!conversaId) {
-      setPinnedIds([]);
-      setStarredIds([]);
-      return;
-    }
-
-    try {
-      const pins = JSON.parse(localStorage.getItem(`zap:pins:${conversaId}`) || "[]");
-      const stars = JSON.parse(localStorage.getItem(`zap:stars:${conversaId}`) || "[]");
-      setPinnedIds(Array.isArray(pins) ? pins : []);
-      setStarredIds(Array.isArray(stars) ? stars : []);
-    } catch {
-      setPinnedIds([]);
-      setStarredIds([]);
-    }
-  }, [conversaId]);
 
   const tempoSemResponder = useMemo(() => {
     const list = Array.isArray(mensagens) ? mensagens : [];
@@ -1243,14 +991,6 @@ function ConversaViewBody() {
     zapMsgsInitialPassRef.current = false;
   }, [loading, conversaId, mensagens]);
 
-  const showToast = useCallback(
-    (next) => {
-      setToast(next);
-      toastT.set(() => setToast(null), 3500);
-    },
-    [toastT]
-  );
-
   /**
    * Timeout/rede: status_indefinido + refresh (não erro/provedor).
    * Falha confirmada: erro. Preserva client_temp_id; não cria segunda mensagem.
@@ -1295,130 +1035,6 @@ function ConversaViewBody() {
     [marcarMensagemEnvioIncerto, marcarMensagemTempErro, refresh, showToast]
   );
 
-  // Watchdog: demora visual + status_indefinido; reconcilia via refresh (sem reenvio automático).
-  useEffect(() => {
-    if (!conversaId) return undefined;
-    const tick = () => {
-      try {
-        applyPendingOutgoingWatchdog?.();
-      } catch (_) {
-        /* ignore */
-      }
-    };
-    tick();
-    const id = window.setInterval(tick, WATCHDOG_TICK_MS);
-    return () => {
-      window.clearInterval(id);
-    };
-  }, [conversaId, applyPendingOutgoingWatchdog]);
-
-  /**
-   * Fila offline persistente: ao voltar a internet, reenvia em ordem com o mesmo
-   * client_temp_id. Remove do storage somente apos confirmacao do backend.
-   */
-  useEffect(() => {
-    let cancelled = false;
-
-    const flushPendingOutbox = async () => {
-      if (cancelled || isBrowserOffline() || !outboxHasItems()) return;
-      try {
-        await flushOutbox({
-          estaOffline: isBrowserOffline,
-          sendText: async (item) =>
-            enviarMensagem(
-              item.conversaId,
-              item.texto,
-              item.replyMeta || undefined,
-              item.tempId
-            ),
-          onConfirmado: (item, res) => {
-            const store = useConversaStore.getState();
-            const realMsg = normalizeTextSendApiToMessage(res, item.conversaId);
-            const resId = res?.mensagem?.id ?? res?.id ?? realMsg?.id;
-            const status =
-              realMsg?.status_mensagem ||
-              realMsg?.status ||
-              res?.status_mensagem ||
-              res?.mensagem?.status_mensagem ||
-              res?.status ||
-              res?.mensagem?.status ||
-              "pending";
-            const payload = {
-              ...(realMsg || {}),
-              id: resId ?? realMsg?.id,
-              conversa_id: realMsg?.conversa_id ?? item.conversaId,
-              texto: realMsg?.texto ?? item.texto,
-              tipo: realMsg?.tipo || "texto",
-              direcao: "out",
-              status,
-              status_mensagem: status,
-              client_temp_id: item.tempId,
-              whatsapp_id: realMsg?.whatsapp_id ?? res?.whatsapp_id ?? res?.mensagem?.whatsapp_id,
-              // Encerra a espera offline na hora — sem isso o relogio fica preso ate o F5.
-              aguardando_conexao: false,
-              envio_incerto: false,
-              envio_demorado: false,
-              envio_erro: false,
-              ...(item.replyMeta ? { reply_meta: item.replyMeta } : {}),
-            };
-            if (payload.id == null && !payload.whatsapp_id) return;
-            store.reconciliarMensagem?.(item.tempId, payload);
-            // Garante ticks em tempo real mesmo se o merge anterior preservou flags locais.
-            store.patchMensagem?.(payload.id, {
-              status,
-              status_mensagem: status,
-              tempId: item.tempId,
-              aguardando_conexao: false,
-              envio_incerto: false,
-              envio_demorado: false,
-              ...(payload.whatsapp_id ? { whatsapp_id: payload.whatsapp_id } : {}),
-            }, { conversa_id: payload.conversa_id });
-          },
-          onFalhaDefinitiva: (item, classified) => {
-            useConversaStore.getState().marcarMensagemTempErro?.(item.tempId, {
-              erro_mensagem: classified?.message || "Não foi possível enviar a mensagem.",
-            });
-            const toastKey = `outbox-fail-${item.tempId}`;
-            if (shouldShowOutboundToast(toastKey)) {
-              showToast({
-                type: "error",
-                title: "Falha ao enviar",
-                message: classified?.message || "Não foi possível enviar a mensagem salva offline.",
-              });
-            }
-          },
-        });
-      } catch (e) {
-        console.warn("[outbox] flush falhou:", e?.message || e);
-      }
-      if (!cancelled && conversaId) {
-        try {
-          void refresh({ silent: true });
-        } catch (_) {
-          /* ignore */
-        }
-      }
-    };
-
-    const onOnline = () => {
-      try {
-        applyPendingOutgoingWatchdog?.();
-      } catch (_) {
-        /* ignore */
-      }
-      void flushPendingOutbox();
-    };
-
-    window.addEventListener("online", onOnline);
-    if (!isBrowserOffline() && outboxHasItems()) {
-      void flushPendingOutbox();
-    }
-    return () => {
-      cancelled = true;
-      window.removeEventListener("online", onOnline);
-    };
-  }, [conversaId, refresh, showToast, applyPendingOutgoingWatchdog]);
-
   const {
     mediaViewer,
     mediaPdfBlobUrl,
@@ -1431,6 +1047,54 @@ function ConversaViewBody() {
     closeMediaViewer,
     handleMediaViewerPrint,
   } = useMediaViewer({ showToast });
+
+  const {
+    addToGroupModal,
+    addToGroupGrupos,
+    addToGroupLoading,
+    addToGroupSending,
+    handleAdicionarGrupoContact,
+    closeAddToGroupModal,
+    confirmAddToGroup,
+  } = useAddToGroup(showToast);
+
+  const {
+    callModalOpen,
+    setCallModalOpen,
+    callDuration,
+    callSending,
+    handleCallDurationChange,
+    handleCallConfirm,
+  } = useConversationCall({ conversaId, showToast });
+
+  const {
+    showTimeline,
+    setShowTimeline,
+    toggleTimeline,
+    handleCloseTimeline,
+  } = useConversationTimeline({ conversaId, carregarAtendimentos });
+
+  const {
+    showTransferirSetor,
+    setShowTransferirSetor,
+    departamentos,
+    transferirSetorLoading,
+    setorAtual,
+    handleOpenTransferirSetor,
+    handleTransferirSetor,
+    handleRemoverSetor,
+  } = useConversationDepartments({ conversaId, conversa, refresh, showToast });
+
+  const {
+    allTags,
+    tagsOpen,
+    setTagsOpen,
+    tagsLoading,
+    tagMutatingId,
+    selectedTagIds,
+    handleToggleTagPanel,
+    handleToggleTag,
+  } = useConversationTags({ conversaId, tags, setTags, showToast });
 
   const {
     shareContactOpen,
@@ -1826,72 +1490,6 @@ function ConversaViewBody() {
     [openMediaSendPreview]
   );
 
-  const handleSendReaction = useCallback(
-    async (msg, reaction) => {
-      if (!conversaId || !msg?.id || !reaction) return;
-      const mid = String(msg.id);
-      if (reactionLoading[mid]) return;
-      setReactionLoading((prev) => ({ ...prev, [mid]: true }));
-      setLocalReactions((prev) => ({ ...prev, [mid]: reaction }));
-      try {
-        await enviarReacao(conversaId, msg.id, reaction);
-      } catch (err) {
-        console.error("Erro ao enviar reação:", err);
-        setLocalReactions((prev) => {
-          const next = { ...prev };
-          delete next[mid];
-          return next;
-        });
-        showToast({
-          type: "error",
-          title: "Falha ao reagir",
-          message: err?.response?.data?.error || "Não foi possível registrar a reação.",
-        });
-      } finally {
-        setReactionLoading((prev) => {
-          const next = { ...prev };
-          delete next[mid];
-          return next;
-        });
-      }
-    },
-    [conversaId, reactionLoading, showToast]
-  );
-
-  const handleRemoveReaction = useCallback(
-    async (msg) => {
-      if (!conversaId || !msg?.id) return;
-      const mid = String(msg.id);
-      if (reactionLoading[mid]) return;
-      if (!localReactions[mid]) return;
-      setReactionLoading((prev) => ({ ...prev, [mid]: true }));
-      const prevReaction = localReactions[mid];
-      setLocalReactions((prev) => {
-        const next = { ...prev };
-        delete next[mid];
-        return next;
-      });
-      try {
-        await removerReacao(conversaId, msg.id);
-      } catch (err) {
-        console.error("Erro ao remover reação:", err);
-        setLocalReactions((prev) => ({ ...prev, [mid]: prevReaction }));
-        showToast({
-          type: "error",
-          title: "Falha ao remover reação",
-          message: err?.response?.data?.error || "Não foi possível remover a reação.",
-        });
-      } finally {
-        setReactionLoading((prev) => {
-          const next = { ...prev };
-          delete next[mid];
-          return next;
-        });
-      }
-    },
-    [conversaId, localReactions, reactionLoading, showToast]
-  );
-
   const onDragEnter = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1942,698 +1540,49 @@ function ConversaViewBody() {
     }
   }, [conversaId, conversa, reabrirConversa, showToast]);
 
-  const handleEnviarArquivo = useCallback(
-    async (file, opts = {}) => {
-      if (!file || !conversaId) return;
-      if (isArquivoBloqueadoWhatsApp(file)) {
-        showToast({
-          type: "error",
-          title: "Arquivo não permitido",
-          message: mensagemArquivoBloqueadoWhatsApp(file),
-        });
-        clearPending();
-        return;
-      }
-      if (!podeEnviar) {
-        showToast({
-          type: "warning",
-          title: "Conversa não assumida",
-          message: "Clique em Assumir para enviar mensagens.",
-        });
-        clearPending();
-        return;
-      }
-      const conversaAberta = await garantirConversaAbertaParaEnvio();
-      if (!conversaAberta) {
-        clearPending();
-        return;
-      }
-
-      const flightKey = `${conversaId}:${file?.name || "arquivo"}:${file?.size ?? 0}:${file?.lastModified ?? 0}`;
-      if (arquivoEnvioInFlightRef.current.has(flightKey)) return;
-      arquivoEnvioInFlightRef.current.add(flightKey);
-
-      const legenda = String(opts.caption ?? "").trim();
-      const isVideoSend = isVideoFile(file);
-      // Retry por item: reusa o tempId (⇒ mesmo client_temp_id) para o back-end deduplicar e
-      // não gerar áudio duplicado. Remove a bolha de erro antiga antes de reanexar a nova (pending).
-      const optimisticMsg = buildOptimisticOutgoingMessage({
-        conversaId,
-        file,
-        caption: legenda,
-        forceStickerType: opts.forceStickerType,
-        forceVoiceType: opts.tipo === "voice" || opts.tipo === "ptt",
-        tipo: opts.tipo,
-        tempId: opts.reuseTempId || undefined,
-      });
-      const tempId = optimisticMsg.tempId;
-      if (opts.reuseTempId) removerMensagemTemp(opts.reuseTempId);
-      // Retém o File de áudio para permitir reenvio por item em caso de falha (base do retry).
-      // Só áudio: notas de voz são pequenas; outros anexos não entram para não segurar memória.
-      const isAudioSend = opts.tipo === "voice" || opts.tipo === "audio" || isAudioFile(file);
-      if (isAudioSend) {
-        const prev = audioRetryFilesRef.current.get(tempId);
-        audioRetryFilesRef.current.set(tempId, {
-          file,
-          tipo: opts.tipo || "voice",
-          attempts: prev?.attempts || 0,
-        });
-      }
-      debugMessageBoundary("send_media", {
-        conversa_id: conversaId,
-        atendimento_id: conversa?.atendimento_id ?? conversa?.atendimento?.id,
-        cliente_id: conversa?.cliente_id ?? conversa?.cliente?.id,
-        phone: conversa?.phone ?? conversa?.telefone ?? conversa?.cliente_telefone,
-        message_id: tempId,
-      });
-      const revertOutgoingStatus = applyOutgoingStatusOptimistic();
-      const revertModoSimples = appendOutgoingOptimisticMessage(optimisticMsg);
-      clearPending();
-
-      const formData = new FormData();
-      const nomeArquivo = isAudioFile(file) ? getAudioFilename(file) : (file?.name || "arquivo");
-      formData.append("file", file, nomeArquivo);
-      if (opts.forceStickerType) {
-        formData.append("tipo", "sticker");
-      } else if (opts.tipo === "voice" || opts.tipo === "audio") {
-        formData.append("tipo", opts.tipo);
-      } else if (isVideoSend) {
-        // Contrato explícito: impede MIME genérico de celular/browser de cair como documento.
-        formData.append("tipo", "video");
-      }
-      if (opts.tipo === "voice" || opts.tipo === "audio" || isAudioFile(file)) {
-        const audioDurationMs = Number(file?.__zaperpAudioDurationMs || 0);
-        const audioElapsedMs = Number(file?.__zaperpAudioElapsedMs || 0);
-        const audioBytes = Number(file?.__zaperpAudioBytes || file?.size || 0);
-        const audioMime = String(file?.__zaperpAudioMimeType || file?.type || "").trim();
-        if (Number.isFinite(audioDurationMs) && audioDurationMs > 0) {
-          formData.append("audio_duration_ms", String(Math.round(audioDurationMs)));
-        }
-        if (Number.isFinite(audioElapsedMs) && audioElapsedMs > 0) {
-          formData.append("audio_elapsed_ms", String(Math.round(audioElapsedMs)));
-        }
-        if (Number.isFinite(audioBytes) && audioBytes > 0) {
-          formData.append("audio_blob_bytes", String(Math.round(audioBytes)));
-        }
-        if (audioMime) {
-          formData.append("audio_recorded_mime", audioMime);
-        }
-      }
-      if (legenda) {
-        formData.append("caption", legenda);
-      }
-      formData.append("client_temp_id", tempId);
-      formData.append("conversa_id", String(conversaId));
-      if (conversa?.atendimento_id != null) formData.append("atendimento_id", String(conversa.atendimento_id));
-      if (conversa?.cliente_id != null) formData.append("cliente_id", String(conversa.cliente_id));
-      if (conversa?.telefone != null) formData.append("phone", String(conversa.telefone));
-
-      // Áudios consecutivos precisam aparecer imediatamente, mas devem chegar ao back-end em FIFO.
-      // A bolha otimista já foi anexada acima; somente o POST aguarda o upload anterior.
-      let releaseAudioUpload = null;
-      if (opts.enqueueAudio) {
-        const previousAudioUpload = enviarAudioQueueRef.current.catch(() => {});
-        enviarAudioQueueRef.current = new Promise((resolve) => {
-          releaseAudioUpload = resolve;
-        });
-        await previousAudioUpload;
-      }
-
-      // Vídeos grandes continuam em background sem bloquear o composer inteiro.
-      // A bolha otimista + lock por arquivo já impedem duplo envio do mesmo vídeo.
-      if (!isVideoSend) setSendingTracked(true);
-      try {
-        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
-          timeout: resolveUploadTimeoutMs(file),
-          skipGlobalNetworkToast: true,
-          skipGlobal500Toast: true,
-        });
-
-        const reconciliations = extractArquivoApiReconciliations(data, conversaId, [tempId]);
-        if (reconciliations.length) {
-          reconciliations.forEach(({ tempId: tid, realMsg }) => reconciliarMensagem(tid, realMsg));
-        } else {
-          const realMsg = normalizeArquivoApiToMessage(data, conversaId);
-          if (realMsg?.id != null || realMsg?.whatsapp_id) {
-            reconciliarMensagem(tempId, realMsg);
-          }
-        }
-        if (
-          !opts.waitSocketOnly &&
-          reconciliations.length === 0 &&
-          (!data?.id || Number(data?.conversa_id) !== Number(conversaId))
-        ) {
-          const targetId = conversaId;
-          scheduleAfterInitialPaint(() => {
-            const st = useConversaStore.getState();
-            if (String(st.selectedId) !== String(targetId)) return;
-            void st.refresh({ silent: true });
-          }, 400);
-        }
-        const knownIds = [
-          data?.id,
-          ...(Array.isArray(data?.ids) ? data.ids : []),
-          ...(Array.isArray(data?.results) ? data.results.map((r) => r?.id) : []),
-        ];
-        scheduleArquivoSendConsistencyCheck(conversaId, [tempId], {
-          knownIds,
-          // O status chega por socket. Refazer toda a conversa após 2,6 s durante um
-          // upload de vídeo era a principal fonte de pulo/travada visual.
-          skipPendingStatusRefresh: isVideoSend,
-        });
-        // Enviado (persistido no back-end): não precisa mais reter o File para retry.
-        if (isAudioSend) audioRetryFilesRef.current.delete(tempId);
-      } catch (err) {
-        revertModoSimples?.();
-        revertOutgoingStatus?.();
-        const persistedFailure = Array.isArray(err?.response?.data?.results)
-          ? err.response.data.results.find(
-              (row) =>
-                row?.persisted === true &&
-                row?.id != null &&
-                String(row?.client_temp_id ?? "") === String(tempId)
-            )
-          : null;
-        applyOutboundSendFailure(tempId, err, {
-          toastTitle: "Falha ao enviar",
-          mensagemId: persistedFailure?.id ?? null,
-        });
-        // Mantém o File retido apenas durante esta sessão; o botão de retry usa o mensagem_id
-        // persistido e o arquivo salvo no servidor.
-        if (isAudioSend) {
-          const entry = audioRetryFilesRef.current.get(tempId);
-          if (entry) entry.attempts = (entry.attempts || 0) + 1;
-        }
-      } finally {
-        releaseAudioUpload?.();
-        arquivoEnvioInFlightRef.current.delete(flightKey);
-        if (!isVideoSend) setSendingTracked(false);
-        focusMessageInput();
-      }
-    },
-    [
-      conversaId,
-      conversa,
-      debugMessageBoundary,
-      showToast,
-      clearPending,
-      podeEnviar,
-      garantirConversaAbertaParaEnvio,
-      focusMessageInput,
-      reconciliarMensagem,
-      marcarMensagemTempErro,
-      applyOutboundSendFailure,
-      removerMensagemTemp,
-      appendOutgoingOptimisticMessage,
-      applyOutgoingStatusOptimistic,
-      scheduleArquivoSendConsistencyCheck,
-      setSendingTracked,
-    ]
-  );
-
-  const handleFileInputChange = useCallback(
-    (e) => {
-      const file = e.target.files?.[0];
-      if (!file) {
-        e.target.value = "";
-        return;
-      }
-      handleDropFile(file);
-      e.target.value = "";
-    },
-    [handleDropFile]
-  );
-
-  const handleCameraInputChange = useCallback(
-    (e) => {
-      const file = e.target.files?.[0];
-      if (!file) {
-        e.target.value = "";
-        return;
-      }
-      handleDropFile(file);
-      e.target.value = "";
-    },
-    [handleDropFile]
-  );
-
-  const handleFototecaInputChange = useCallback(
-    async (e) => {
-      const files = e.target.files ? Array.from(e.target.files) : [];
-      e.target.value = "";
-      if (!files.length || !conversaId) return;
-      if (!podeEnviar) {
-        showToast({
-          type: "warning",
-          title: "Conversa não assumida",
-          message: "Clique em Assumir para enviar mensagens.",
-        });
-        return;
-      }
-      const conversaAberta = await garantirConversaAbertaParaEnvio();
-      if (!conversaAberta) return;
-      const tempIds = [];
-      shouldStickToBottomRef.current = true;
-      const revertOutgoingStatus = applyOutgoingStatusOptimistic();
-      let revertModoSimples = null;
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        const optimisticMsg = buildOptimisticOutgoingMessage({ conversaId, file: f });
-        tempIds.push(optimisticMsg.tempId);
-        debugMessageBoundary("send_media", {
-          conversa_id: conversaId,
-          atendimento_id: conversa?.atendimento_id ?? conversa?.atendimento?.id,
-          cliente_id: conversa?.cliente_id ?? conversa?.cliente?.id,
-          phone: conversa?.phone ?? conversa?.telefone ?? conversa?.cliente_telefone,
-          message_id: optimisticMsg.tempId,
-        });
-        const modoRevert = appendOutgoingOptimisticMessage(optimisticMsg, { bumpList: i === files.length - 1 });
-        if (modoRevert) revertModoSimples = modoRevert;
-      }
-
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append("file", files[i]);
-      }
-      formData.append("client_temp_ids", JSON.stringify(tempIds));
-      formData.append("conversa_id", String(conversaId));
-      if (conversa?.atendimento_id != null) formData.append("atendimento_id", String(conversa.atendimento_id));
-      if (conversa?.cliente_id != null) formData.append("cliente_id", String(conversa.cliente_id));
-      if (conversa?.telefone != null) formData.append("phone", String(conversa.telefone));
-      setSendingTracked(true);
-      try {
-        const batchBytes = files.reduce((sum, f) => sum + (Number(f?.size) || 0), 0);
-        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
-          timeout: resolveUploadTimeoutMs(batchBytes),
-          skipGlobalNetworkToast: true,
-          skipGlobal500Toast: true,
-        });
-        const reconciliations = extractArquivoApiReconciliations(data, conversaId, tempIds);
-        reconciliations.forEach(({ tempId, realMsg }) => reconciliarMensagem(tempId, realMsg));
-
-        const failures = extractArquivoApiFailures(data, tempIds);
-        failures.forEach(({ tempId, error }) =>
-          marcarMensagemTempErro(tempId, { erro_mensagem: error })
-        );
-
-        const reconciledTempIds = new Set(reconciliations.map((r) => String(r.tempId)));
-        const failedTempIds = new Set(failures.map((f) => String(f.tempId)));
-        const pendingTempIds = tempIds.filter(
-          (tid) => !reconciledTempIds.has(String(tid)) && !failedTempIds.has(String(tid))
-        );
-
-        if (pendingTempIds.length > 0) {
-          const targetId = conversaId;
-          scheduleAfterInitialPaint(() => {
-            const st = useConversaStore.getState();
-            if (String(st.selectedId) !== String(targetId)) return;
-            void st.refresh({ silent: true });
-          }, 400);
-        }
-        const knownIds = [
-          data?.id,
-          ...(Array.isArray(data?.ids) ? data.ids : []),
-          ...(Array.isArray(data?.results) ? data.results.map((r) => r?.id) : []),
-        ];
-        const tempIdsToCheck = tempIds.filter((tid) => !failedTempIds.has(String(tid)));
-        if (tempIdsToCheck.length > 0) {
-          scheduleArquivoSendConsistencyCheck(conversaId, tempIdsToCheck, { knownIds });
-        }
-
-        if (failures.length > 0) {
-          const okCount = reconciliations.length;
-          showToast({
-            type: okCount > 0 ? "warning" : "error",
-            title: okCount > 0 ? "Envio parcial" : "Falha ao enviar",
-            message:
-              okCount > 0
-                ? `${okCount} foto(s) enviada(s). ${failures.length} falhou(aram).`
-                : failures[0]?.error || "Não foi possível enviar as fotos. Tente novamente.",
-          });
-        }
-      } catch (err) {
-        revertModoSimples?.();
-        revertOutgoingStatus?.();
-        const is403 = err?.response?.status === 403;
-        const apiMsg = err?.response?.data?.error;
-        const partialFailures = extractArquivoApiFailures(err?.response?.data, tempIds);
-        if (partialFailures.length) {
-          const reconciliations = extractArquivoApiReconciliations(err?.response?.data, conversaId, tempIds);
-          reconciliations.forEach(({ tempId, realMsg }) => reconciliarMensagem(tempId, realMsg));
-          partialFailures.forEach(({ tempId, error }) =>
-            marcarMensagemTempErro(tempId, { erro_mensagem: error })
-          );
-          showToast({
-            type: reconciliations.length > 0 ? "warning" : "error",
-            title: reconciliations.length > 0 ? "Envio parcial" : is403 ? "Acesso restrito" : "Falha ao enviar",
-            message:
-              reconciliations.length > 0
-                ? `${reconciliations.length} foto(s) enviada(s). ${partialFailures.length} falhou(aram).`
-                : apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar as fotos. Tente novamente."),
-          });
-        } else {
-          const classified = classifyOutboundAxiosError(err);
-          tempIds.forEach((tid) => {
-            if (classified.uncertain) {
-              marcarMensagemEnvioIncerto(tid, { erro_mensagem: classified.message });
-            } else {
-              marcarMensagemTempErro(tid, { erro_mensagem: classified.message });
-            }
-          });
-          if (classified.uncertain) void refresh({ silent: true });
-          if (shouldShowOutboundToast(`batch-fotos-${conversaId}-${classified.kind}`)) {
-            showToast({
-              type: classified.uncertain ? "warning" : "error",
-              title: classified.uncertain
-                ? classified.kind === OUTBOUND_ERROR_KIND.TIMEOUT
-                  ? "Demora no envio"
-                  : "Sem conexão"
-                : is403
-                  ? "Acesso restrito"
-                  : "Falha ao enviar",
-              message: classified.message,
-            });
-          }
-        }
-      } finally {
-        setSendingTracked(false);
-        focusMessageInput();
-      }
-    },
-    [
-      conversaId,
-      conversa,
-      debugMessageBoundary,
-      podeEnviar,
-      showToast,
-      garantirConversaAbertaParaEnvio,
-      focusMessageInput,
-      marcarMensagemTempErro,
-      marcarMensagemEnvioIncerto,
-      refresh,
-      reconciliarMensagem,
-      appendOutgoingOptimisticMessage,
-      applyOutgoingStatusOptimistic,
-      scheduleArquivoSendConsistencyCheck,
-      setSendingTracked,
-    ]
-  );
-
-  const handleDocumentInputChange = useCallback(
-    async (e) => {
-      let files = e.target.files ? Array.from(e.target.files) : [];
-      e.target.value = "";
-      if (!files.length || !conversaId) return;
-
-      const blocked = files.filter((f) => isArquivoBloqueadoWhatsApp(f));
-      if (blocked.length) {
-        showToast({
-          type: "error",
-          title: "Arquivo não permitido",
-          message: mensagemArquivoBloqueadoWhatsApp(blocked[0]),
-        });
-        files = files.filter((f) => !isArquivoBloqueadoWhatsApp(f));
-        if (!files.length) return;
-      }
-
-      if (files.length > MAX_DOCUMENTOS_LOTE_ENVIO) {
-        showToast({
-          type: "warning",
-          title: "Limite de documentos",
-          message: `Selecione no máximo ${MAX_DOCUMENTOS_LOTE_ENVIO} documentos por vez. Apenas os primeiros ${MAX_DOCUMENTOS_LOTE_ENVIO} serão enviados.`,
-        });
-        files = files.slice(0, MAX_DOCUMENTOS_LOTE_ENVIO);
-      }
-
-      if (files.length === 1) {
-        handleDropFile(files[0]);
-        return;
-      }
-
-      if (!podeEnviar) {
-        showToast({
-          type: "warning",
-          title: "Conversa não assumida",
-          message: "Clique em Assumir para enviar mensagens.",
-        });
-        return;
-      }
-
-      const conversaAberta = await garantirConversaAbertaParaEnvio();
-      if (!conversaAberta) return;
-      const tempIds = [];
-      shouldStickToBottomRef.current = true;
-      const revertOutgoingStatus = applyOutgoingStatusOptimistic();
-      let revertModoSimples = null;
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        const optimisticMsg = buildOptimisticOutgoingMessage({ conversaId, file: f });
-        tempIds.push(optimisticMsg.tempId);
-        debugMessageBoundary("send_media", {
-          conversa_id: conversaId,
-          atendimento_id: conversa?.atendimento_id ?? conversa?.atendimento?.id,
-          cliente_id: conversa?.cliente_id ?? conversa?.cliente?.id,
-          phone: conversa?.phone ?? conversa?.telefone ?? conversa?.cliente_telefone,
-          message_id: optimisticMsg.tempId,
-        });
-        const modoRevert = appendOutgoingOptimisticMessage(optimisticMsg, { bumpList: i === files.length - 1 });
-        if (modoRevert) revertModoSimples = modoRevert;
-      }
-
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append("file", files[i]);
-      }
-      formData.append("client_temp_ids", JSON.stringify(tempIds));
-      formData.append("conversa_id", String(conversaId));
-      if (conversa?.atendimento_id != null) formData.append("atendimento_id", String(conversa.atendimento_id));
-      if (conversa?.cliente_id != null) formData.append("cliente_id", String(conversa.cliente_id));
-      if (conversa?.telefone != null) formData.append("phone", String(conversa.telefone));
-      setSendingTracked(true);
-      try {
-        const batchBytes = files.reduce((sum, f) => sum + (Number(f?.size) || 0), 0);
-        const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
-          timeout: resolveUploadTimeoutMs(batchBytes),
-          skipGlobalNetworkToast: true,
-          skipGlobal500Toast: true,
-        });
-        const reconciliations = extractArquivoApiReconciliations(data, conversaId, tempIds);
-        reconciliations.forEach(({ tempId, realMsg }) => reconciliarMensagem(tempId, realMsg));
-
-        const failures = extractArquivoApiFailures(data, tempIds);
-        failures.forEach(({ tempId, error }) =>
-          marcarMensagemTempErro(tempId, { erro_mensagem: error })
-        );
-
-        const reconciledTempIds = new Set(reconciliations.map((r) => String(r.tempId)));
-        const failedTempIds = new Set(failures.map((f) => String(f.tempId)));
-        const pendingTempIds = tempIds.filter(
-          (tid) => !reconciledTempIds.has(String(tid)) && !failedTempIds.has(String(tid))
-        );
-
-        if (pendingTempIds.length > 0) {
-          const targetId = conversaId;
-          scheduleAfterInitialPaint(() => {
-            const st = useConversaStore.getState();
-            if (String(st.selectedId) !== String(targetId)) return;
-            void st.refresh({ silent: true });
-          }, 400);
-        }
-        const knownIds = [
-          data?.id,
-          ...(Array.isArray(data?.ids) ? data.ids : []),
-          ...(Array.isArray(data?.results) ? data.results.map((r) => r?.id) : []),
-        ];
-        const tempIdsToCheck = tempIds.filter((tid) => !failedTempIds.has(String(tid)));
-        if (tempIdsToCheck.length > 0) {
-          scheduleArquivoSendConsistencyCheck(conversaId, tempIdsToCheck, { knownIds });
-        }
-
-        if (failures.length > 0) {
-          const okCount = reconciliations.length;
-          showToast({
-            type: okCount > 0 ? "warning" : "error",
-            title: okCount > 0 ? "Envio parcial" : "Falha ao enviar",
-            message:
-              okCount > 0
-                ? `${okCount} documento(s) enviado(s). ${failures.length} falhou(aram).`
-                : failures[0]?.error || "Não foi possível enviar os documentos. Tente novamente.",
-          });
-        }
-      } catch (err) {
-        revertModoSimples?.();
-        revertOutgoingStatus?.();
-        const is403 = err?.response?.status === 403;
-        const apiMsg = err?.response?.data?.error;
-        const partialFailures = extractArquivoApiFailures(err?.response?.data, tempIds);
-        if (partialFailures.length) {
-          const reconciliations = extractArquivoApiReconciliations(err?.response?.data, conversaId, tempIds);
-          reconciliations.forEach(({ tempId, realMsg }) => reconciliarMensagem(tempId, realMsg));
-          partialFailures.forEach(({ tempId, error }) =>
-            marcarMensagemTempErro(tempId, { erro_mensagem: error })
-          );
-          showToast({
-            type: reconciliations.length > 0 ? "warning" : "error",
-            title: reconciliations.length > 0 ? "Envio parcial" : is403 ? "Acesso restrito" : "Falha ao enviar",
-            message:
-              reconciliations.length > 0
-                ? `${reconciliations.length} documento(s) enviado(s). ${partialFailures.length} falhou(aram).`
-                : apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar os documentos. Tente novamente."),
-          });
-        } else {
-          const classified = classifyOutboundAxiosError(err);
-          tempIds.forEach((tid) => {
-            if (classified.uncertain) {
-              marcarMensagemEnvioIncerto(tid, { erro_mensagem: classified.message });
-            } else {
-              marcarMensagemTempErro(tid, { erro_mensagem: classified.message });
-            }
-          });
-          if (classified.uncertain) void refresh({ silent: true });
-          if (shouldShowOutboundToast(`batch-docs-${conversaId}-${classified.kind}`)) {
-            showToast({
-              type: classified.uncertain ? "warning" : "error",
-              title: classified.uncertain
-                ? classified.kind === OUTBOUND_ERROR_KIND.TIMEOUT
-                  ? "Demora no envio"
-                  : "Sem conexão"
-                : is403
-                  ? "Acesso restrito"
-                  : "Falha ao enviar",
-              message: classified.message,
-            });
-          }
-        }
-      } finally {
-        setSendingTracked(false);
-        focusMessageInput();
-      }
-    },
-    [
-      conversaId,
-      conversa,
-      debugMessageBoundary,
-      podeEnviar,
-      showToast,
-      handleDropFile,
-      garantirConversaAbertaParaEnvio,
-      focusMessageInput,
-      marcarMensagemTempErro,
-      marcarMensagemEnvioIncerto,
-      refresh,
-      reconciliarMensagem,
-      appendOutgoingOptimisticMessage,
-      applyOutgoingStatusOptimistic,
-      scheduleArquivoSendConsistencyCheck,
-      setSendingTracked,
-    ]
-  );
-
-  const handleConfirmSendFile = useCallback(async () => {
-    if (!pendingFile || confirmSendLockRef.current) return;
-    if (pendingConversaIdRef.current && String(pendingConversaIdRef.current) !== String(conversaId)) {
-      clearPending();
-      return;
-    }
-    confirmSendLockRef.current = true;
-    try {
-      const captionToSend = pendingCaption;
-      await handleEnviarArquivo(pendingFile, { ...pendingSendOptions, caption: captionToSend });
-    } finally {
-      confirmSendLockRef.current = false;
-    }
-  }, [pendingFile, pendingCaption, pendingSendOptions, conversaId, clearPending, handleEnviarArquivo]);
-
-  const handleConfirmSendImageMobile = useCallback(
-    async ({ sendAsOriginal, croppedAreaPixels, rotation, fileName, mimeType }) => {
-      if (!pendingFile || !pendingPreview || confirmSendLockRef.current) return;
-      if (pendingConversaIdRef.current && String(pendingConversaIdRef.current) !== String(conversaId)) {
-        clearPending();
-        return;
-      }
-      confirmSendLockRef.current = true;
-      try {
-        const captionToSend = pendingCaption;
-        let fileToSend = pendingFile;
-        if (!sendAsOriginal && croppedAreaPixels) {
-          const { exportCroppedImageFile } = await import("./utils/imageCropExport.js");
-          fileToSend = await exportCroppedImageFile({
-            imageSrc: pendingPreview,
-            pixelCrop: croppedAreaPixels,
-            rotation: rotation || 0,
-            fileName: fileName || pendingFile.name,
-            mimeType: mimeType || pendingFile.type,
-          });
-        }
-        await handleEnviarArquivo(fileToSend, { ...pendingSendOptions, caption: captionToSend });
-      } finally {
-        confirmSendLockRef.current = false;
-      }
-    },
-    [pendingFile, pendingPreview, pendingCaption, pendingSendOptions, conversaId, clearPending, handleEnviarArquivo]
-  );
-
-  const persistRecentSticker = useCallback(
-    async (file) => {
-      try {
-        const dataUrl = await toDataUrl(file);
-        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const item = {
-          id,
-          name: file.name || "figurinha",
-          mimeType: file.type || "image/webp",
-          dataUrl,
-          ts: Date.now(),
-        };
-        const current = readRecentStickers(user);
-        const next = [item, ...current.filter((x) => x?.dataUrl !== dataUrl)].slice(0, STICKER_RECENTS_LIMIT);
-        writeRecentStickers(user, next);
-      } catch {
-        /* ignore */
-      }
-    },
-    [user]
-  );
-
-  const sendStickerFile = useCallback(
-    async (inputFile) => {
-      if (!inputFile || !conversaId) return;
-      try {
-        let fileToSend = inputFile;
-        const type = String(inputFile.type || "").toLowerCase();
-        const shouldConvert = type.startsWith("image/") && type !== "image/webp" && !type.includes("gif");
-        if (shouldConvert) {
-          try {
-            fileToSend = await convertImageToWebp(inputFile);
-          } catch {
-            fileToSend = inputFile;
-          }
-        }
-        await handleEnviarArquivo(fileToSend, { forceStickerType: true, waitSocketOnly: true });
-        await persistRecentSticker(fileToSend);
-        composerRef.current?.closePanels?.();
-      } catch {
-        /* toast já tratado no envio */
-      }
-    },
-    [conversaId, handleEnviarArquivo, persistRecentSticker]
-  );
-
-  const handleStickerInputChange = useCallback(
-    async (e) => {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (!file) return;
-      await sendStickerFile(file);
-    },
-    [sendStickerFile]
-  );
-
-  const toggleTimeline = useCallback(() => {
-    setShowTimeline((v) => !v);
-  }, []);
-
-  const handleCloseTimeline = useCallback(() => setShowTimeline(false), []);
+  const {
+    handleEnviarArquivo,
+    handleFileInputChange,
+    handleCameraInputChange,
+    handleFototecaInputChange,
+    handleDocumentInputChange,
+    handleConfirmSendFile,
+    handleConfirmSendImageMobile,
+    sendStickerFile,
+    handleStickerInputChange,
+  } = useConversationOutboundMedia({
+    conversaId,
+    conversa,
+    user,
+    podeEnviar,
+    showToast,
+    debugMessageBoundary,
+    clearPending,
+    garantirConversaAbertaParaEnvio,
+    focusMessageInput,
+    reconciliarMensagem,
+    marcarMensagemTempErro,
+    marcarMensagemEnvioIncerto,
+    applyOutboundSendFailure,
+    removerMensagemTemp,
+    appendOutgoingOptimisticMessage,
+    applyOutgoingStatusOptimistic,
+    scheduleArquivoSendConsistencyCheck,
+    setSendingTracked,
+    refresh,
+    handleDropFile,
+    composerRef,
+    arquivoEnvioInFlightRef,
+    audioRetryFilesRef,
+    enviarAudioQueueRef,
+    shouldStickToBottomRef,
+    pendingFile,
+    pendingPreview,
+    pendingCaption,
+    pendingSendOptions,
+    pendingConversaIdRef,
+    confirmSendLockRef,
+  });
 
   const enviarTextoEmAndamentoRef = useRef(false);
   const enviarTextoQueueRef = useRef(Promise.resolve());
@@ -2840,94 +1789,6 @@ function ConversaViewBody() {
     composerRef,
   });
 
-  const persistPins = useCallback((next) => {
-    if (!conversaId) return;
-    try {
-      localStorage.setItem(`zap:pins:${conversaId}`, JSON.stringify(next || []));
-    } catch {}
-  }, [conversaId]);
-
-  const persistStars = useCallback((next) => {
-    if (!conversaId) return;
-    try {
-      localStorage.setItem(`zap:stars:${conversaId}`, JSON.stringify(next || []));
-    } catch {}
-  }, [conversaId]);
-
-  const togglePin = useCallback((msg) => {
-    if (!msg?.id || !conversaId) return;
-    setPinnedIds((cur) => {
-      const id = String(msg.id);
-      const has = (cur || []).map(String).includes(id);
-      const next = has ? (cur || []).filter((x) => String(x) !== id) : [...(cur || []), id];
-      persistPins(next);
-      showToast({ type: "info", title: has ? "Desafixada" : "Fixada", message: snippetFromMsg(msg) });
-      return next;
-    });
-  }, [conversaId, persistPins, showToast]);
-
-  const toggleStar = useCallback((msg) => {
-    if (!msg?.id || !conversaId) return;
-    setStarredIds((cur) => {
-      const id = String(msg.id);
-      const has = (cur || []).map(String).includes(id);
-      const next = has ? (cur || []).filter((x) => String(x) !== id) : [...(cur || []), id];
-      persistStars(next);
-      showToast({ type: "info", title: has ? "Removida dos favoritos" : "Favoritada", message: snippetFromMsg(msg) });
-      return next;
-    });
-  }, [conversaId, persistStars, showToast]);
-
-  const startSelect = useCallback((msg) => {
-    if (!msg?.id || msg.apagada_para_todos) return;
-    selectModeAnchorRef.current = captureMessagesScrollAnchor(messagesContainerRef.current);
-    setForwardSelectIntent(false);
-    setSelectMode(true);
-    const key = String(msg.id);
-    setSelectedMsgIds((cur) => {
-      const next = { ...(cur || {}), [key]: true };
-      let ord = selectionOrderRef.current;
-      ord = ord.includes(key) ? ord : [...ord, key];
-      selectionOrderRef.current = ord;
-      setSelectionOrder(ord);
-      return next;
-    });
-  }, []);
-
-  const toggleSelected = useCallback(
-    (msg) => {
-      if (!msg?.id || msg.apagada_para_todos) return;
-      setSelectedMsgIds((cur) => {
-        const key = String(msg.id);
-        const wasOn = !!cur[key];
-        const nextOn = !wasOn;
-        let ord = selectionOrderRef.current;
-        if (nextOn && forwardSelectIntent && ord.length >= FORWARD_SELECT_MAX && !ord.includes(key)) {
-          showToast({
-            type: "warning",
-            title: "Limite",
-            message: `No máximo ${FORWARD_SELECT_MAX} mensagens por encaminhamento.`,
-          });
-          return cur;
-        }
-        ord = nextOn ? (ord.includes(key) ? ord : [...ord, key]) : ord.filter((k) => k !== key);
-        selectionOrderRef.current = ord;
-        setSelectionOrder(ord);
-        return { ...cur, [key]: nextOn };
-      });
-    },
-    [forwardSelectIntent, showToast]
-  );
-
-  const exitSelectMode = useCallback(() => {
-    selectModeAnchorRef.current = captureMessagesScrollAnchor(messagesContainerRef.current);
-    selectionOrderRef.current = [];
-    setSelectionOrder([]);
-    setSelectedMsgIds({});
-    setSelectMode(false);
-    setForwardSelectIntent(false);
-  }, []);
-
   const handleThreadReaction = useCallback(
     (msg, reaction) => {
       handleSendReaction(msg, reaction);
@@ -3012,11 +1873,6 @@ function ConversaViewBody() {
     openForwardFromSelection([String(msg.id)], mensagens);
   }, [showToast, openForwardFromSelection, mensagens]);
 
-  const orderedSelectedIds = useMemo(
-    () => (selectionOrder || []).filter((id) => selectedMsgIds?.[id]),
-    [selectionOrder, selectedMsgIds]
-  );
-
   const handleForwardAdvance = useCallback(() => {
     openForwardFromSelection(orderedSelectedIds, mensagens);
   }, [openForwardFromSelection, orderedSelectedIds, mensagens]);
@@ -3028,12 +1884,21 @@ function ConversaViewBody() {
       const isMedia = isRichMediaMessage(msg);
       const ok = window.confirm(
         isMedia
-          ? `Ocultar esta mídia só para você?\n\n` +
-              `• Ela continua no histórico para os outros atendentes.\n` +
-              `• Não apaga o arquivo no servidor nem no WhatsApp.\n\n` +
+          ? `Ocultar esta mídia só para você?
+
+` +
+              `• Ela continua no histórico para os outros atendentes.
+` +
+              `• Não apaga o arquivo no servidor nem no WhatsApp.
+
+` +
               `Prévia: "${preview || "(mídia)"}"`
-          : `Ocultar esta mensagem só para você?\n\n` +
-              `Os outros da conversa continuam vendo.\n\n` +
+          : `Ocultar esta mensagem só para você?
+
+` +
+              `Os outros da conversa continuam vendo.
+
+` +
               `Prévia: "${preview || "(sem texto)"}"`
       );
       if (!ok) return;
@@ -3086,12 +1951,23 @@ function ConversaViewBody() {
       const isMedia = isRichMediaMessage(msg);
       const ok = window.confirm(
         isMedia
-          ? `Apagar para todos esta mídia?\n\n` +
-              `• Só é permitido para mensagens que você enviou.\n` +
-              `• A conversa passará a mostrar um aviso no lugar da mídia.\n` +
-              `• A remoção no WhatsApp depende do provedor (UltraMsg).\n\n` +
-              `Prévia: "${preview || "(mídia)"}"\n(id ${pk})`
-          : `Apagar para todos esta mensagem?\n\n"${preview || "(sem texto)"}"\n\nSomente esta mensagem (id ${pk}) será substituída por um aviso.`
+          ? `Apagar para todos esta mídia?
+
+` +
+              `• Só é permitido para mensagens que você enviou.
+` +
+              `• A conversa passará a mostrar um aviso no lugar da mídia.
+` +
+              `• A remoção no WhatsApp depende do provedor (UltraMsg).
+
+` +
+              `Prévia: "${preview || "(mídia)"}"
+(id ${pk})`
+          : `Apagar para todos esta mensagem?
+
+"${preview || "(sem texto)"}"
+
+Somente esta mensagem (id ${pk}) será substituída por um aviso.`
       );
       if (!ok) return;
       try {
@@ -3174,37 +2050,13 @@ function ConversaViewBody() {
     window.setTimeout(() => flashMessageById(msgId), 260);
   }, [flashMessageById, headerCompact]);
 
-  const handleSelectMessageSearchResult = useCallback(
-    async (msg) => {
-      const msgId = msg?.id;
-      if (!msgId || !conversaId) return;
-
-      let loaded = (useConversaStore.getState().mensagens || []).some((m) => String(m?.id) === String(msgId));
-      let attempts = 0;
-      while (!loaded && attempts < 20) {
-        const st = useConversaStore.getState();
-        if (String(st.selectedId ?? "") !== String(conversaId)) return;
-        if (!st.hasMore || st.loadingMore) break;
-        attempts += 1;
-        // eslint-disable-next-line no-await-in-loop
-        await st.loadMore();
-        loaded = (useConversaStore.getState().mensagens || []).some((m) => String(m?.id) === String(msgId));
-      }
-
-      if (headerCompact) setMessageSearchOpen(false);
-      if (loaded) {
-        window.setTimeout(() => scrollToMsg(msgId), headerCompact ? 120 : 0);
-        return;
-      }
-
-      showToast({
-        type: "info",
-        title: "Mensagem encontrada",
-        message: "O resultado existe no histórico, mas não foi possível posicionar a conversa automaticamente.",
-      });
-    },
-    [conversaId, headerCompact, scrollToMsg, showToast]
-  );
+  const {
+    messageSearchOpen,
+    setMessageSearchOpen,
+    openMessageSearch,
+    closeMessageSearch,
+    handleSelectMessageSearchResult,
+  } = useConversationSearch({ conversaId, headerCompact, scrollToMsg, showToast });
 
   const jumpToReply = useCallback((replyToId) => {
     const rid = safeString(replyToId);
@@ -3232,68 +2084,55 @@ function ConversaViewBody() {
 
   const onEscape = useCallback(() => {
     /* Cascata: 1 overlay/menu por ESC; sem overlay, sai só da conversa (sem alterar status). */
+    // Passos imperativos do Composer primeiro (checam e fecham no mesmo passo).
     if (composerRef.current?.isRecording?.()) {
       composerRef.current?.cancelRecording?.();
       return;
     }
     if (composerRef.current?.closePanels?.()) return;
-    if (mediaViewer) {
-      closeMediaViewer();
-      return;
-    }
-    if (pendingFile) {
-      clearPending();
-      return;
-    }
-    if (shareContactOpen) {
-      handleShareContactClose();
-      return;
-    }
-    if (shareLocationOpen) {
-      handleShareLocationClose();
-      return;
-    }
-    if (pixModalOpen) {
-      setPixModalOpen(false);
-      return;
-    }
-    if (msgInfoOpen) {
-      setMsgInfoOpen(false);
-      setMsgInfo(null);
-      return;
-    }
-    if (showTransferirSetor) {
-      setShowTransferirSetor(false);
-      return;
-    }
-    if (showProdutosPanel) {
-      setShowProdutosPanel(false);
-      return;
-    }
-    if (showClienteSide) {
-      setShowClienteSide(false);
-      return;
-    }
-    if (showTimeline) {
-      setShowTimeline(false);
-      return;
-    }
-    if (tagsOpen) {
-      setTagsOpen(false);
-      return;
-    }
-    if (forwardOpen || selectMode) {
-      dismissSelectionOverlay();
-      return;
-    }
-    if (replyTo) {
-      setReplyTo(null);
-      return;
-    }
-    if (messageSearchOpen) {
-      setMessageSearchOpen(false);
-      return;
-    }
+
+    const handled = runFirstActiveEscape(
+      buildEscapeEntries(
+        {
+          mediaViewer,
+          pendingFile,
+          shareContactOpen,
+          shareLocationOpen,
+          pixModalOpen,
+          msgInfoOpen,
+          showTransferirSetor,
+          showProdutosPanel,
+          showClienteSide,
+          showTimeline,
+          tagsOpen,
+          forwardOpen,
+          selectMode,
+          replyTo,
+          messageSearchOpen,
+        },
+        {
+          closeMediaViewer,
+          clearPending,
+          closeShareContact: handleShareContactClose,
+          closeShareLocation: handleShareLocationClose,
+          closePixModal: () => setPixModalOpen(false),
+          closeMsgInfo: () => {
+            setMsgInfoOpen(false);
+            setMsgInfo(null);
+          },
+          closeTransferirSetor: () => setShowTransferirSetor(false),
+          closeProdutosPanel: () => setShowProdutosPanel(false),
+          closeClienteSide: () => setShowClienteSide(false),
+          closeTimeline: () => setShowTimeline(false),
+          closeTags: () => setTagsOpen(false),
+          dismissSelectionOverlay,
+          clearReply: () => setReplyTo(null),
+          closeMessageSearch: () => setMessageSearchOpen(false),
+        }
+      )
+    );
+    if (handled) return;
+
     closeSelectedConversation({ preferHistoryBack: headerCompact });
   }, [
     mediaViewer,
@@ -3316,6 +2155,8 @@ function ConversaViewBody() {
     dismissSelectionOverlay,
     replyTo,
     messageSearchOpen,
+    setMessageSearchOpen,
+    setShowTimeline,
     headerCompact,
   ]);
 
@@ -3372,189 +2213,15 @@ function ConversaViewBody() {
     [showToast, carregarConversa, conversa?.whatsapp_instance_id, fromChat?.whatsapp_instance_id]
   );
 
-  const handleAdicionarGrupoContact = useCallback((meta) => {
-    if (!meta?.telefone) {
-      showToast({ type: "warning", title: "Telefone indisponível", message: "Este contato não possui número." });
-      return;
-    }
-    setAddToGroupModal({ open: true, telefone: meta.telefone, nome: meta.nome || "Contato" });
-  }, [showToast]);
-
-  const closeAddToGroupModal = useCallback(() => {
-    setAddToGroupModal({ open: false, telefone: null, nome: null });
-    setAddToGroupGrupos([]);
-    setAddToGroupSending(false);
-  }, []);
-
-  const confirmAddToGroup = useCallback(
-    async (grupo) => {
-      if (!grupo?.id || !addToGroupModal?.telefone || addToGroupSending) return;
-      setAddToGroupSending(true);
-      try {
-        await api.post(`/chats/${grupo.id}/participantes`, { telefone: addToGroupModal.telefone });
-        showToast({ type: "success", title: "Adicionado", message: `${addToGroupModal.nome} foi adicionado ao grupo.` });
-        closeAddToGroupModal();
-      } catch (e) {
-        const status = e?.response?.status;
-        const msg = e?.response?.data?.error || e.message;
-        if (status === 404 || status === 501 || msg?.toLowerCase?.().includes("not found") || msg?.toLowerCase?.().includes("não suportado")) {
-          showToast({
-            type: "info",
-            title: "Funcionalidade indisponível",
-            message: "Adicionar contato a grupo pode não estar disponível nesta instância.",
-          });
-        } else {
-          showToast({ type: "error", title: "Falha ao adicionar", message: msg || "Não foi possível adicionar ao grupo." });
-        }
-      } finally {
-        setAddToGroupSending(false);
-      }
-    },
-    [addToGroupModal, addToGroupSending, showToast, closeAddToGroupModal]
-  );
-
-  useEffect(() => {
-    if (showTimeline && conversaId) {
-      carregarAtendimentos(conversaId);
-    }
-  }, [showTimeline, conversaId, carregarAtendimentos]);
-
-  useEffect(() => {
-    if (!addToGroupModal?.open) {
-      setAddToGroupGrupos([]);
-      setAddToGroupLoading(false);
-      return;
-    }
-    const cachedChats = useChatStore.getState().chats;
-    const gruposEmMemoria = (Array.isArray(cachedChats) ? cachedChats : []).filter((c) => isGroupConversation(c));
-    if (gruposEmMemoria.length > 0) {
-      setAddToGroupGrupos(gruposEmMemoria);
-      setAddToGroupLoading(false);
-      return;
-    }
-    setAddToGroupLoading(true);
-    fetchChats()
-      .then((list) => {
-        const grupos = (Array.isArray(list) ? list : []).filter((c) => isGroupConversation(c));
-        setAddToGroupGrupos(grupos);
-      })
-      .catch(() => setAddToGroupGrupos([]))
-      .finally(() => setAddToGroupLoading(false));
-  }, [addToGroupModal?.open]);
-
   useEffect(() => {
     clearPending();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversaId]);
 
-  const mensagensComSeparadores = useMemo(() => {
-    const raw = Array.isArray(mensagens) ? mensagens : [];
-    const list = [];
-    const reactionsByMsgId = {};
-
-    // Primeiro, varre a lista original para detectar mensagens de reação (tipo='reaction')
-    // e anexar o emoji na mensagem imediatamente anterior (aproximação estilo WhatsApp).
-    for (let i = 0; i < raw.length; i++) {
-      const msg = raw[i];
-      if (!msg) continue;
-      const tipo = safeString(msg.tipo).toLowerCase();
-      if (tipo === "reaction") {
-        const text = safeString(msg.texto || msg.message || msg.body);
-        let emoji = "";
-        const m = text.match(/rea[cç][aã]o:\s*(.+)$/i);
-        if (m && m[1]) {
-          emoji = m[1].trim();
-        } else if (text) {
-          // fallback: último caractere visível
-          emoji = text.slice(-2).trim() || text.slice(-1);
-        }
-        const prevMsg = list[list.length - 1];
-        if (prevMsg && prevMsg.id != null && emoji) {
-          reactionsByMsgId[String(prevMsg.id)] = emoji;
-        }
-        // não adiciona a mensagem de reação na timeline
-        continue;
-      }
-      list.push(msg);
-    }
-
-    const out = [];
-
-    // Chave única por remetente: telefone quando existir, senão nome (evita "nome:" vs "tel:" darem chaves diferentes).
-    const senderKey = (m) => {
-      if (!m) return "";
-      const tel = safeString(m?.remetente_telefone);
-      const n = safeString(m?.remetente_nome);
-      return tel || n || "";
-    };
-
-    for (let i = 0; i < list.length; i++) {
-      const msg = list[i];
-      if (!msg) continue;
-      const prev = list[i - 1];
-
-      const isNewDay = i === 0 || !sameDay(prev?.criado_em, msg?.criado_em);
-      if (isNewDay) {
-        const label = formatDia(msg?.criado_em) || "Data";
-        out.push({ __type: "day", id: `day-${label}-${i}`, label });
-      }
-
-      const outMsg = isOutgoingMessage(msg);
-      const prevOut = isOutgoingMessage(prev);
-      const curSender = senderKey(msg);
-      const prevSender = senderKey(prev);
-
-      // WhatsApp-like (grupos): nome só na primeira msg do bloco; depois só as mensagens.
-      const showRemetente =
-        isGroup &&
-        !outMsg &&
-        Boolean(curSender) &&
-        (isNewDay || !prev || prevOut || curSender !== prevSender);
-
-      const reaction = reactionsByMsgId[String(msg.id)];
-
-      out.push(getOrCreateTimelineMsgRow(msg, showRemetente, reaction));
-    }
-
-    /* Foto/vídeo seguido de texto curto (legenda enviada em mensagem separada): une visualmente. */
-    for (let i = 0; i < out.length; i++) {
-      const row = out[i];
-      if (row.__type !== "msg") continue;
-      let prevIdx = -1;
-      for (let j = i - 1; j >= 0; j--) {
-        if (out[j].__type === "msg") {
-          prevIdx = j;
-          break;
-        }
-      }
-      if (prevIdx < 0) continue;
-      const prev = out[prevIdx];
-      const cur = row;
-      if (!isMediaCaptionBundleTop(prev)) continue;
-      if (mediaHasInlineCaption(prev)) {
-        /* Legenda já no balão da mídia (envio pelo CRM). Oculta texto seguinte idêntico (eco webhook). */
-        if (
-          isPlainCaptionFollowMessage(cur) &&
-          !messageHasReplyMeta(cur) &&
-          sameCaptionBundleAuthor(prev, cur) &&
-          captionFollowTimeOk(prev, cur) &&
-          captionTextsEquivalent(prev, cur)
-        ) {
-          out.splice(i, 1);
-          i -= 1;
-        }
-        continue;
-      }
-      if (!isPlainCaptionFollowMessage(cur)) continue;
-      if (messageHasReplyMeta(cur)) continue;
-      if (!sameCaptionBundleAuthor(prev, cur)) continue;
-      if (!captionFollowTimeOk(prev, cur)) continue;
-      out[prevIdx] = { ...prev, __captionBundleTop: true };
-      out[i] = { ...cur, __captionBundleFollow: true };
-    }
-
-    return out;
-  }, [mensagens, isGroup]);
+  const mensagensComSeparadores = useMemo(
+    () => buildMensagensComSeparadores(mensagens, isGroup),
+    [mensagens, isGroup]
+  );
   const hasThreadMessageRows = useMemo(
     () => mensagensComSeparadores.some((item) => item?.__type === "msg"),
     [mensagensComSeparadores]
@@ -3582,389 +2249,33 @@ function ConversaViewBody() {
     });
   }, [conversaId, mensagens.length]);
 
-  const showAssumeEmptyCta = useMemo(() => {
-    if (modoSimplesAtivo) return false;
-    if (isGroup) return false;
-    if (!conversa?.id || conversa?.mensagens_bloqueadas) return false;
-    if (conversa?.exibir_cta_assumir_sem_mensagens !== true) return false;
-    if (!canAssumir(user)) return false;
-    const status = getStatusAtendimentoEffective(conversa);
-    if (status === "fechada" || status === "encerrada") return false;
-    const atendenteId = conversa?.atendente_id ?? null;
-    const hasAtendente = atendenteId !== null && atendenteId !== "";
-    if (hasAtendente) return false;
-    const userRole = String(user?.role || user?.perfil || "").toLowerCase();
-    const isPrivileged = userRole === "admin" || userRole === "supervisor";
-    const convDepId = conversa?.departamento_id ?? null;
-    const userDepIds = Array.isArray(user?.departamento_ids)
-      ? user.departamento_ids.map((id) => Number(id))
-      : user?.departamento_id != null
-        ? [Number(user.departamento_id)]
-        : [];
-    const mesmaSetorOuSemRestricao =
-      isPrivileged ||
-      convDepId == null ||
-      (userDepIds.length > 0 && userDepIds.includes(Number(convDepId)));
-    return mesmaSetorOuSemRestricao;
-  }, [modoSimplesAtivo, conversa, user, isGroup]);
-
-  const showMarcarLidaModoSimplesBar = useMemo(() => {
-    if (!modoSimplesAtivo) return false;
-    if (!conversaId || isClosedAttendance(conversaModoSimplesUi)) return false;
-    return isModoSimplesAguardandoAtendente(conversaModoSimplesUi, user);
-  }, [modoSimplesAtivo, conversaId, conversaModoSimplesUi, user]);
-
-  const [marcarLidaModoSimplesBusy, setMarcarLidaModoSimplesBusy] = useState(false);
-
-  const handleMarcarLidaModoSimples = useCallback(async () => {
-    if (!conversa?.id || marcarLidaModoSimplesBusy) return;
-    setMarcarLidaModoSimplesBusy(true);
-    try {
-      const data = await marcarLidaModoSimplesChat(conversa.id);
-      const patch = {
-        modo_simples_aguardando: null,
-        lida: true,
-        unread_count: 0,
-        tem_novas_mensagens: false,
-        tem_novas_mensagens_em_atendimento: false,
-        atendimento_modo_simples: true,
-        ...(data?.conversa && typeof data.conversa === "object" ? data.conversa : {}),
-      };
-      useConversaStore.getState().patchConversa(patch);
-      useChatStore.getState().setUnread(conversa.id, 0);
-      useChatStore.getState().updateChat({ id: conversa.id, ...patch });
-      useChatStore.getState().requestChatListResync?.();
-      showToast({
-        type: "success",
-        title: data?.already_cleared ? "Já estava marcada como lida" : "Marcada como lida",
-        message: data?.already_cleared
-          ? "Conversa fora da fila Aguardando atendente."
-          : "Conversa removida da fila Aguardando atendente.",
-      });
-    } catch (e) {
-      console.error("Erro ao marcar como lida (modo simples):", e);
-      showToast({
-        type: "error",
-        title: "Não foi possível marcar como lida",
-        message: e?.response?.data?.error || e?.message || "Tente novamente.",
-      });
-    } finally {
-      setMarcarLidaModoSimplesBusy(false);
-    }
-  }, [conversa?.id, marcarLidaModoSimplesBusy, showToast]);
-
-  const [assumeEmptyBusy, setAssumeEmptyBusy] = useState(false);
-  const [reopenClosedBusy, setReopenClosedBusy] = useState(false);
-  const [oldContactSyncBusy, setOldContactSyncBusy] = useState(false);
-
-  const showReopenClosedCta = useMemo(() => {
-    if (modoSimplesAtivo) return false;
-    if (isGroup) return false;
-    if (!conversa?.id) return false;
-    if (!canReabrir(user)) return false;
-    return isClosedAttendance(conversa);
-  }, [modoSimplesAtivo, conversa, user, isGroup]);
-
-  const contactDisplayPhone = useMemo(() => {
-    const candidates = [
-      conversa?.telefone_exibivel,
-      conversa?.cliente_telefone,
-      conversa?.cliente?.telefone,
-      conversa?.clientes?.telefone,
-      isLidValue(conversa?.telefone) ? "" : conversa?.telefone,
-    ];
-    for (const raw of candidates) {
-      const phone = String(raw || "").trim();
-      if (phone && !isLidValue(phone)) return phone;
-    }
-    return "";
-  }, [conversa]);
-
-  const showContactOldSyncCta = useMemo(() => {
-    if (isGroup) return false;
-    if (!conversa?.id || conversa?.mensagens_bloqueadas) return false;
-    return Boolean(contactDisplayPhone);
-  }, [conversa, isGroup, contactDisplayPhone]);
-
-  /** Conversa ainda só com LID e sem telefone real — histórico do WhatsApp fica indisponível. */
-  const showLidPhoneMissingHint = useMemo(() => {
-    if (isGroup || !conversa?.id || conversa?.mensagens_bloqueadas) return false;
-    if (contactDisplayPhone) return false;
-    return isLidValue(conversa?.telefone);
-  }, [conversa, isGroup, contactDisplayPhone]);
-
-  const handleAssumeEmpty = useCallback(async () => {
-    if (!conversaId || assumeEmptyBusy) return;
-    setAssumeEmptyBusy(true);
-    try {
-      await assumirConversa(conversaId);
-      if ((useConversaStore.getState().mensagens || []).length === 0) {
-        await refresh({ silent: true });
-      }
-      showToast({
-        type: "success",
-        title: "Conversa assumida",
-        message: "Você já pode enviar mensagens.",
-      });
-    } catch (e) {
-      showToast({
-        type: "error",
-        title: "Erro ao assumir",
-        message: e?.response?.data?.error || e?.message || "Tente novamente.",
-      });
-    } finally {
-      setAssumeEmptyBusy(false);
-    }
-  }, [conversaId, assumeEmptyBusy, assumirConversa, refresh, showToast]);
-
-  const handleReopenClosed = useCallback(async () => {
-    if (!conversaId || reopenClosedBusy) return;
-    setReopenClosedBusy(true);
-    try {
-      await reabrirConversa(conversaId);
-      await refresh({ silent: true });
-      showToast({
-        type: "success",
-        title: "Atendimento reaberto",
-        message: "Você já está em atendimento nesta conversa.",
-      });
-    } catch (e) {
-      showToast({
-        type: "error",
-        title: "Erro ao reabrir",
-        message: e?.response?.data?.error || e?.message || "Tente novamente.",
-      });
-    } finally {
-      setReopenClosedBusy(false);
-    }
-  }, [conversaId, reopenClosedBusy, reabrirConversa, refresh, showToast]);
-
-  const handleCarregarMensagensAntigasContato = useCallback(async () => {
-    if (!conversaId || oldContactSyncBusy || useConversaStore.getState().loadingMore) return;
-    setOldContactSyncBusy(true);
-    try {
-      const res = await carregarMensagensAntigasContato(conversaId);
-      await refresh({ silent: true });
-      const loadResult = await useConversaStore.getState().loadAllMessages?.();
-      if (loadResult && loadResult.ok === false && !loadResult.aborted) {
-        throw loadResult.error || new Error("Nao foi possivel carregar todas as mensagens salvas.");
-      }
-      const importadas = Number(res?.mensagens_importadas || 0);
-      const atualizadas = Number(res?.mensagens_atualizadas || 0);
-      const alteradas = importadas + atualizadas;
-      const carregadas = Number(loadResult?.messagesAdded || 0);
-      showToast({
-        type: (alteradas + carregadas) > 0 ? "success" : "info",
-        title: (alteradas + carregadas) > 0 ? "Historico carregado" : "Sem mensagens antigas",
-        message: alteradas > 0 || carregadas > 0
-          ? `${importadas} mensagem(ns) importada(s), ${atualizadas} atualizada(s) e ${carregadas} carregada(s) na conversa.`
-          : (res?.message || "Nenhuma mensagem antiga encontrada para este contato."),
-      });
-    } catch (e) {
-      showToast({
-        type: "error",
-        title: "Falha ao carregar historico",
-        message: e?.response?.data?.error || e?.message || "Tente novamente.",
-      });
-    } finally {
-      setOldContactSyncBusy(false);
-    }
-  }, [conversaId, oldContactSyncBusy, refresh, showToast]);
-
-  const setorAtual =
-    conversa?.departamento_id != null
-      ? (conversa?.setor ?? conversa?.departamento?.nome ?? conversa?.departamentos?.nome ?? null)
-      : null;
-
-  const carregarDepartamentos = useCallback(async () => {
-    try {
-      const { data } = await api.get("/dashboard/departamentos");
-      setDepartamentos(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("Erro ao carregar departamentos:", e);
-      setDepartamentos([]);
-    }
-  }, []);
-
-  const handleOpenTransferirSetor = useCallback(() => {
-    setShowTransferirSetor(true);
-    carregarDepartamentos();
-  }, [carregarDepartamentos]);
-
-  const handleTransferirSetor = useCallback(
-    async (departamentoId) => {
-      if (!conversaId || !departamentoId || transferirSetorLoading) return;
-      setTransferirSetorLoading(true);
-      try {
-        await api.put(`/chats/${conversaId}/departamento`, {
-          departamento_id: Number(departamentoId),
-        });
-        await refresh({ silent: true });
-        setShowTransferirSetor(false);
-      } catch (e) {
-        console.error("Erro ao transferir setor:", e);
-        showToast({
-          type: "error",
-          title: "Falha ao transferir setor",
-          message: e?.response?.data?.error || "Tente novamente.",
-        });
-      } finally {
-        setTransferirSetorLoading(false);
-      }
-    },
-    [conversaId, refresh, showToast, transferirSetorLoading]
-  );
-
-  const handleRemoverSetor = useCallback(
-    async () => {
-      if (!conversaId || transferirSetorLoading) return;
-      setTransferirSetorLoading(true);
-      try {
-        await api.put(`/chats/${conversaId}/departamento`, { remover_setor: true });
-        await refresh({ silent: true });
-        setShowTransferirSetor(false);
-        showToast({ type: "success", title: "Setor removido", message: "A conversa não possui mais setor vinculado." });
-      } catch (e) {
-        console.error("Erro ao remover setor:", e);
-        showToast({
-          type: "error",
-          title: "Falha ao remover setor",
-          message: e?.response?.data?.error || "Tente novamente.",
-        });
-      } finally {
-        setTransferirSetorLoading(false);
-      }
-    },
-    [conversaId, refresh, showToast, transferirSetorLoading]
-  );
-
-  const handleOpenAdicionarAtendente = useCallback(() => {
-    if (!conversaId) return;
-    reloadAtendentes();
-    setAtendentesModalOpen(true);
-  }, [conversaId, reloadAtendentes]);
-
-  const atendentesDisponiveisFiltrados = useMemo(() => {
-    const term = safeString(atendenteSearch).toLowerCase();
-    const list = Array.isArray(atendentesDisponiveis) ? atendentesDisponiveis : [];
-    if (!term) return list;
-    return list.filter((u) => {
-      const hay = `${safeString(u.nome)} ${safeString(u.email)} ${safeString(u.perfil)}`.toLowerCase();
-      return hay.includes(term);
-    });
-  }, [atendenteSearch, atendentesDisponiveis]);
-
-  const handleAdicionarAtendente = useCallback(
-    async (usuarioId) => {
-      if (!conversaId || adicionarAtendenteLoadingId != null) return;
-      const uid = Number(usuarioId);
-      if (!Number.isFinite(uid) || uid <= 0) return;
-      setAdicionarAtendenteLoadingId(uid);
-      try {
-        const res = await adicionarAtendenteConversa(conversaId, uid);
-        const nomeAdicionado = res?.usuario?.nome || "Atendente";
-        setShowAdicionarAtendente(false);
-        setAtendentesDisponiveis([]);
-        await Promise.all([
-          refresh({ silent: true }),
-          carregarAtendimentos(conversaId).catch(() => null),
-        ]);
-        showToast({
-          type: "success",
-          title: "Atendente adicionado",
-          message: `${nomeAdicionado} agora participa deste atendimento.`,
-        });
-      } catch (e) {
-        console.error("Erro ao adicionar atendente:", e);
-        showToast({
-          type: "error",
-          title: "Falha ao adicionar",
-          message: e?.response?.data?.error || e?.message || "Tente novamente.",
-        });
-      } finally {
-        setAdicionarAtendenteLoadingId(null);
-      }
-    },
-    [adicionarAtendenteLoadingId, carregarAtendimentos, conversaId, refresh, showToast]
-  );
-
-  const carregarTags = useCallback(
-    async (opts = {}) => {
-      const showError = opts.showErrorToUser !== false;
-      try {
-        setTagsLoading(true);
-        const data = await listarTags();
-        setAllTags(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Erro ao listar tags:", err);
-        if (showError) {
-          showToast({
-            type: "error",
-            title: "Falha ao carregar tags",
-            message: "Não foi possível carregar as tags disponíveis.",
-          });
-        }
-      } finally {
-        setTagsLoading(false);
-      }
-    },
-    [showToast]
-  );
-
-  const handleToggleTagPanel = useCallback(() => {
-    setTagsOpen((prev) => {
-      const next = !prev;
-      if (next) {
-        // ao abrir o painel, carrega tags e mostra toast só se falhar (usuário está vendo o painel)
-        carregarTags({ showErrorToUser: true });
-      }
-      return next;
-    });
-  }, [carregarTags]);
-
-  const handleToggleTag = useCallback(
-    async (tag) => {
-      if (!conversaId || !tag?.id) return;
-      const alreadySelected = selectedTagIds.includes(String(tag.id));
-      const previousTags = Array.isArray(tags) ? tags : [];
-      const nextTags = alreadySelected
-        ? previousTags.filter((t) => String(t.id) !== String(tag.id))
-        : [...previousTags, tag];
-      try {
-        setTagMutatingId(tag.id);
-        setTags(nextTags);
-        const chatStore = useChatStore.getState();
-        if (alreadySelected) {
-          chatStore.removerTag(conversaId, tag.id);
-        } else {
-          chatStore.adicionarTag(conversaId, tag);
-        }
-        if (alreadySelected) {
-          await removerTagConversa(conversaId, tag.id);
-        } else {
-          await adicionarTagConversa(conversaId, tag.id);
-        }
-      } catch (err) {
-        if (!alreadySelected && err?.response?.status === 409) {
-          return;
-        }
-        setTags(previousTags);
-        useChatStore.getState().updateChat({ id: conversaId, tags: previousTags });
-        console.error("Erro ao atualizar tag da conversa:", err);
-        showToast({
-          type: "error",
-          title: "Falha ao atualizar tag",
-          message: "Não foi possível atualizar as tags desta conversa.",
-        });
-      } finally {
-        setTagMutatingId(null);
-      }
-    },
-    [conversaId, selectedTagIds, setTags, showToast, tags]
-  );
-
-  // Tags: só carregamos ao abrir o painel (evita toast "falha ao carregar" em background)
-  // handleToggleTagPanel já chama carregarTags() ao abrir quando allTags está vazio
+  const {
+    showAssumeEmptyCta,
+    showMarcarLidaModoSimplesBar,
+    marcarLidaModoSimplesBusy,
+    handleMarcarLidaModoSimples,
+    assumeEmptyBusy,
+    reopenClosedBusy,
+    oldContactSyncBusy,
+    showReopenClosedCta,
+    showContactOldSyncCta,
+    showLidPhoneMissingHint,
+    handleAssumeEmpty,
+    handleReopenClosed,
+    handleCarregarMensagensAntigasContato,
+  } = useConversationThreadActions({
+    conversa,
+    conversaId,
+    isGroup,
+    user,
+    modoSimplesAtivo,
+    conversaModoSimplesUi,
+    isLidValue,
+    assumirConversa,
+    reabrirConversa,
+    refresh,
+    showToast,
+  });
 
   const handleComposerAppendConsumed = useCallback(() => {
     clearComposerAppendQueue();
@@ -4147,46 +2458,6 @@ function ConversaViewBody() {
     if (!pixConfigSaving) setPixModalOpen(false);
   }, [pixConfigSaving]);
 
-  const handleCallDurationChange = useCallback((raw) => {
-    const v = Number(raw) || 0;
-    if (v < 1) setCallDuration(1);
-    else if (v > 15) setCallDuration(15);
-    else setCallDuration(v);
-  }, []);
-
-  const handleCallConfirm = useCallback(async () => {
-    if (!conversaId || callSending) return;
-    const dur = Math.min(15, Math.max(1, Number(callDuration) || 5));
-    setCallSending(true);
-    try {
-      const data = await registrarLigacao(conversaId, dur);
-      if (data?.ok === false) {
-        throw Object.assign(new Error(data?.error || data?.motivo || "Falha ao registrar ligação"), {
-          response: { status: 502, data },
-        });
-      }
-      setCallModalOpen(false);
-      showToast({
-        type: "success",
-        title: "Ligação registrada",
-        message: "A ligação via WhatsApp foi registrada na conversa.",
-      });
-    } catch (err) {
-      console.error("Erro ao registrar ligação:", err);
-      const is403 = err?.response?.status === 403;
-      const apiMsg = err?.response?.data?.error || err?.response?.data?.motivo || err?.message;
-      showToast({
-        type: "error",
-        title: is403 ? "Acesso restrito" : "Falha ao registrar ligação",
-        message:
-          apiMsg ||
-          (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível registrar a ligação."),
-      });
-    } finally {
-      setCallSending(false);
-    }
-  }, [conversaId, callSending, callDuration, showToast]);
-
   const mensagensBloqueadasHint = Boolean(conversa?.mensagens_bloqueadas);
   const atendimentoEncerradoHint = !modoSimplesAtivo && !isGroup && isClosedAttendance(conversa);
   const atendenteNomeHint = conversa?.atendente_nome ?? "";
@@ -4230,22 +2501,13 @@ function ConversaViewBody() {
 
   return (
     <div ref={waShellRef} className="wa-shell" onDragEnter={onDragEnter}>
-        <ChatToast toast={toast} onClose={() => setToast(null)} />
+        <ConversaDropOverlay
+          open={dragOver}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        />
 
-        {dragOver ? (
-          <div
-            className="wa-dropOverlay"
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            role="presentation"
-          >
-            <div className="wa-dropCard">
-              <div className="wa-dropTitle">Solte para anexar</div>
-              <div className="wa-dropSub">Envie imagens e arquivos diretamente na conversa.</div>
-            </div>
-          </div>
-        ) : null}
 
         <ConversaHeader
           headerRef={waHeaderRef}
@@ -4282,193 +2544,140 @@ function ConversaViewBody() {
           showProdutosPanel={showProdutosPanel}
           onOpenProdutosPanel={handleOpenProdutosPanel}
           onOpenClienteSide={handleOpenClienteSide}
-          onOpenMessageSearch={() => setMessageSearchOpen(true)}
+          onOpenMessageSearch={openMessageSearch}
           whatsappInstanceLabel={whatsappInstanceLabel}
         />
 
-        <ConversaMessageSearchPanel
-          open={messageSearchOpen}
+        <ConversaViewOverlays
+          toast={toast}
+          onToastClose={() => setToast(null)}
+          messageSearchOpen={messageSearchOpen}
           conversaId={conversaId}
-          onClose={() => setMessageSearchOpen(false)}
-          onSelectResult={handleSelectMessageSearchResult}
+          closeMessageSearch={closeMessageSearch}
+          handleSelectMessageSearchResult={handleSelectMessageSearchResult}
+          isGroup={isGroup}
+          podeTransferirSetor={podeTransferirSetor}
+          showTransferirSetor={showTransferirSetor}
+          departamentos={departamentos}
+          conversa={conversa}
+          transferirSetorLoading={transferirSetorLoading}
+          setShowTransferirSetor={setShowTransferirSetor}
+          handleTransferirSetor={handleTransferirSetor}
+          handleRemoverSetor={handleRemoverSetor}
+          atendentesModalOpen={atendentesModalOpen}
+          atendentesParticipantes={atendentesParticipantes}
+          podeAdicionarAtendente={podeAdicionarAtendente}
+          setAtendentesModalOpen={setAtendentesModalOpen}
+          reloadAtendentes={reloadAtendentes}
+          podeGerenciarTags={podeGerenciarTags}
+          tagsOpen={tagsOpen}
+          allTags={allTags}
+          tagsLoading={tagsLoading}
+          selectedTagIds={selectedTagIds}
+          tagMutatingId={tagMutatingId}
+          handleToggleTagPanel={handleToggleTagPanel}
+          handleToggleTag={handleToggleTag}
+          showClienteSide={showClienteSide}
+          setShowClienteSide={setShowClienteSide}
+          tags={tags}
+          tempoSemResponder={tempoSemResponder}
+          refresh={refresh}
+          forwardOpen={forwardOpen}
+          forwardMsgs={forwardMsgs}
+          forwardPreviewLabel={forwardPreviewLabel}
+          forwardQuery={forwardQuery}
+          setForwardQuery={setForwardQuery}
+          forwardSending={forwardSending}
+          forwardSelectedConversaIds={forwardSelectedConversaIds}
+          forwardMax10Msg={forwardMax10Msg}
+          forwardMultiProgress={forwardMultiProgress}
+          forwardColaboradoresLoading={forwardColaboradoresLoading}
+          forwardColaboradoresFiltered={forwardColaboradoresFiltered}
+          forwardCandidates={forwardCandidates}
+          forwardClientesLoading={forwardClientesLoading}
+          forwardClientes={forwardClientes}
+          closeForward={closeForward}
+          confirmForwardToColaborador={confirmForwardToColaborador}
+          toggleForwardConversaSelect={toggleForwardConversaSelect}
+          confirmForwardTo={confirmForwardTo}
+          confirmForwardToCliente={confirmForwardToCliente}
+          confirmForwardToMany={confirmForwardToMany}
+          pixModalOpen={pixModalOpen}
+          pixTipoChave={pixTipoChave}
+          pixChave={pixChave}
+          pixNomeRecebedor={pixNomeRecebedor}
+          pixMensagemPadrao={pixMensagemPadrao}
+          pixConfigSaving={pixConfigSaving}
+          pixConfigLoading={pixConfigLoading}
+          handleClosePixModal={handleClosePixModal}
+          setPixTipoChave={setPixTipoChave}
+          setPixChave={setPixChave}
+          setPixNomeRecebedor={setPixNomeRecebedor}
+          setPixMensagemPadrao={setPixMensagemPadrao}
+          handleSalvarPixConfig={handleSalvarPixConfig}
+          msgInfoOpen={msgInfoOpen}
+          msgInfo={msgInfo}
+          handleCloseMsgInfo={handleCloseMsgInfo}
+          mediaViewer={mediaViewer}
+          mediaPdfBlobUrl={mediaPdfBlobUrl}
+          mediaPdfLoading={mediaPdfLoading}
+          mediaPdfError={mediaPdfError}
+          mediaPrintLoading={mediaPrintLoading}
+          mediaViewerImgRef={mediaViewerImgRef}
+          mediaViewerVideoRef={mediaViewerVideoRef}
+          closeMediaViewer={closeMediaViewer}
+          handleMediaViewerPrint={handleMediaViewerPrint}
+          shareContactOpen={shareContactOpen}
+          shareContactQuery={shareContactQuery}
+          setShareContactQuery={setShareContactQuery}
+          shareContactList={shareContactList}
+          shareContactLoading={shareContactLoading}
+          shareContactSending={shareContactSending}
+          handleShareContactClose={handleShareContactClose}
+          handleShareContactSelect={handleShareContactSelect}
+          shareLocationOpen={shareLocationOpen}
+          shareLocationGeoLoading={shareLocationGeoLoading}
+          shareLocationGeoError={shareLocationGeoError}
+          shareLocationLat={shareLocationLat}
+          shareLocationLng={shareLocationLng}
+          shareLocationNome={shareLocationNome}
+          shareLocationEndereco={shareLocationEndereco}
+          shareLocationSending={shareLocationSending}
+          handleShareLocationClose={handleShareLocationClose}
+          setShareLocationLat={setShareLocationLat}
+          setShareLocationLng={setShareLocationLng}
+          setShareLocationNome={setShareLocationNome}
+          setShareLocationEndereco={setShareLocationEndereco}
+          handleEnviarLocalizacao={handleEnviarLocalizacao}
+          showProdutosPanel={showProdutosPanel}
+          canConsultarProdutos={canConsultarProdutos}
+          setShowProdutosPanel={setShowProdutosPanel}
+          canVerSyncProdutos={canVerSyncProdutos}
+          canSincronizarProdutos={canSincronizarProdutos}
+          showToast={showToast}
+          queueComposerAppend={queueComposerAppend}
+          addToGroupModal={addToGroupModal}
+          addToGroupGrupos={addToGroupGrupos}
+          addToGroupLoading={addToGroupLoading}
+          addToGroupSending={addToGroupSending}
+          closeAddToGroupModal={closeAddToGroupModal}
+          confirmAddToGroup={confirmAddToGroup}
+          callModalOpen={callModalOpen}
+          callDuration={callDuration}
+          callSending={callSending}
+          setCallModalOpen={setCallModalOpen}
+          handleCallDurationChange={handleCallDurationChange}
+          handleCallConfirm={handleCallConfirm}
         />
 
-        {!isGroup && podeTransferirSetor && showTransferirSetor && (
-          <>
-            <button
-              type="button"
-              className="wa-floatingSheet-backdrop"
-              aria-label="Fechar painel de setor"
-              onClick={() => setShowTransferirSetor(false)}
-            />
-          <div
-            className="wa-tagsPanel wa-tagsPanel--setor"
-            role="dialog"
-            aria-label="Transferir setor"
-          >
-            <div className="wa-tagsPanel-head">
-              <span className="wa-tagsPanel-title">Transferir setor</span>
-              <button
-                type="button"
-                className="wa-iconBtn"
-                onClick={() => setShowTransferirSetor(false)}
-                title="Fechar"
-              >
-                <IconClose />
-              </button>
-            </div>
-            <div className="wa-tagsPanel-body">
-              {departamentos.length === 0 ? (
-                <div className="wa-muted">Carregando setores...</div>
-              ) : (
-                <div className="wa-tagsList">
-                  {departamentos.map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      className="wa-tagItem"
-                      onClick={() => handleTransferirSetor(d.id)}
-                      disabled={transferirSetorLoading || Number(d.id) === Number(conversa?.departamento_id)}
-                    >
-                      {d.nome}
-                      {Number(d.id) === Number(conversa?.departamento_id) ? " (atual)" : ""}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                className="wa-tagItem wa-tagItem--remover"
-                onClick={handleRemoverSetor}
-                disabled={transferirSetorLoading || !conversa?.departamento_id}
-                title={conversa?.departamento_id ? "Remover setor da conversa" : "Conversa já está sem setor"}
-              >
-                Sem setor
-              </button>
-              {transferirSetorLoading && (
-                <div className="wa-muted" style={{ marginTop: 8 }}>Salvando...</div>
-              )}
-            </div>
-          </div>
-          </>
-        )}
-
-        {atendentesModalOpen && !isGroup && (
-          <AtendentesModal
-            conversaId={conversaId}
-            participantes={atendentesParticipantes}
-            podeAdicionar={podeAdicionarAtendente}
-            onClose={() => setAtendentesModalOpen(false)}
-            onParticipanteChange={reloadAtendentes}
-          />
-        )}
-
-        {!isGroup && podeGerenciarTags && tagsOpen && (
-          <>
-            <button
-              type="button"
-              className="wa-floatingSheet-backdrop"
-              aria-label="Fechar painel de tags"
-              onClick={() => handleToggleTagPanel()}
-            />
-          <div className="wa-tagsPanel wa-tagsPanel--tags" role="dialog" aria-label="Tags da conversa">
-            <div className="wa-tagsPanel-head">
-              <span className="wa-tagsPanel-title">Tags do cliente</span>
-              <button
-                type="button"
-                className="wa-iconBtn"
-                onClick={handleToggleTagPanel}
-                title="Fechar"
-              >
-                <IconClose />
-              </button>
-            </div>
-            <div className="wa-tagsPanel-body">
-              {tagsLoading && allTags.length === 0 ? (
-                <div className="wa-muted">Carregando tags...</div>
-              ) : allTags.length === 0 ? (
-                <div className="wa-muted">Nenhuma tag cadastrada.</div>
-              ) : (
-                <div className="wa-tagsList">
-                  {allTags.map((tag) => {
-                    const selected = selectedTagIds.includes(String(tag.id));
-                    const busy = tagMutatingId === tag.id;
-                    return (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        className={`wa-tagChip ${selected ? "isSelected" : ""}`}
-                        onClick={() => handleToggleTag(tag)}
-                        disabled={busy}
-                      >
-                        <span className="wa-tagChip-label">{tag.nome}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-          </>
-        )}
-
-        {showClienteSide ? (
-          <Suspense fallback={null}>
-            <button
-              type="button"
-              className="wa-floatingSheet-backdrop wa-floatingSheet-backdrop--cliente"
-              aria-label="Fechar dados do cliente"
-              onClick={() => setShowClienteSide(false)}
-            />
-            <SidebarCliente
-              open
-              onClose={() => setShowClienteSide(false)}
-              conversa={conversa}
-              isGroup={isGroup}
-              tags={tags}
-              tempoSemResponder={tempoSemResponder}
-              onObservacaoSaved={refresh}
-            />
-          </Suspense>
-        ) : null}
-
         {/* TIMELINE */}
-        {showTimeline ? (
-          <div className="wa-timeline" role="region" aria-label="Historico do atendimento">
-            <div className="wa-timeline-head">
-              <div className="wa-timeline-headLeft">
-                <span className="wa-timeline-title">Histórico</span>
-                <span className="wa-timeline-sub">Eventos, transferências e notas desta conversa (Esc para fechar)</span>
-              </div>
-
-              <button onClick={handleCloseTimeline} className="wa-iconBtn" title="Fechar (Esc)" type="button">
-                <IconClose />
-              </button>
-            </div>
-
-            <div className="wa-timeline-body">
-              {atendimentosLoading ? (
-                <div className="wa-muted">Carregando...</div>
-              ) : (atendimentos || []).length === 0 ? (
-                <div className="wa-muted">Sem histórico ainda.</div>
-              ) : (
-                <div className="wa-timeline-list">
-                  {(atendimentos || []).map((a) => (
-                    <div key={a.id || `${a.acao}-${a.criado_em}`} className="wa-timeline-card">
-                      <div className="wa-timeline-row">
-                        <span className="wa-timeline-time">{formatHoraCurta(a.criado_em)}</span>
-                        <span className="wa-timeline-label">{timelineEventLabel(a, conversa)}</span>
-                      </div>
-                      {a.observacao ? (
-                        <div className="wa-timeline-nota">Nota interna: {a.observacao}</div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
+        <ConversaTimelinePanel
+          open={showTimeline}
+          atendimentos={atendimentos}
+          atendimentosLoading={atendimentosLoading}
+          conversa={conversa}
+          onClose={handleCloseTimeline}
+        />
 
         {/* MENSAGENS */}
         <div
@@ -4593,152 +2802,6 @@ function ConversaViewBody() {
           onConfirmSendFile={handleConfirmSendFile}
           onConfirmSendImageMobile={handleConfirmSendImageMobile}
         />
-
-        {forwardOpen && forwardMsgs?.length ? (
-          <Suspense fallback={null}>
-            <ForwardModal
-              open={forwardOpen}
-              forwardMsgs={forwardMsgs}
-              forwardPreviewLabel={forwardPreviewLabel}
-              forwardQuery={forwardQuery}
-              onForwardQueryChange={setForwardQuery}
-              forwardSending={forwardSending}
-              forwardSelectedConversaIds={forwardSelectedConversaIds}
-              forwardMax10Msg={forwardMax10Msg}
-              forwardMultiProgress={forwardMultiProgress}
-              forwardColaboradoresLoading={forwardColaboradoresLoading}
-              forwardColaboradoresFiltered={forwardColaboradoresFiltered}
-              forwardCandidates={forwardCandidates}
-              forwardClientesLoading={forwardClientesLoading}
-              forwardClientes={forwardClientes}
-              onClose={closeForward}
-              onConfirmForwardToColaborador={confirmForwardToColaborador}
-              onToggleForwardConversaSelect={toggleForwardConversaSelect}
-              onConfirmForwardTo={confirmForwardTo}
-              onConfirmForwardToCliente={confirmForwardToCliente}
-              onConfirmForwardToMany={confirmForwardToMany}
-            />
-          </Suspense>
-        ) : null}
-
-        {pixModalOpen ? (
-          <Suspense fallback={null}>
-            <PixConfigModal
-              open={pixModalOpen}
-              tipoChave={pixTipoChave}
-              chave={pixChave}
-              nomeRecebedor={pixNomeRecebedor}
-              mensagemPadrao={pixMensagemPadrao}
-              saving={pixConfigSaving}
-              loading={pixConfigLoading}
-              onClose={handleClosePixModal}
-              onTipoChaveChange={setPixTipoChave}
-              onChaveChange={setPixChave}
-              onNomeRecebedorChange={setPixNomeRecebedor}
-              onMensagemPadraoChange={setPixMensagemPadrao}
-              onSave={() => handleSalvarPixConfig()}
-            />
-          </Suspense>
-        ) : null}
-
-        {msgInfoOpen && msgInfo ? (
-          <Suspense fallback={null}>
-            <MsgInfoModal open={msgInfoOpen} msgInfo={msgInfo} onClose={handleCloseMsgInfo} />
-          </Suspense>
-        ) : null}
-
-        {mediaViewer ? (
-          <Suspense fallback={null}>
-            <MediaViewerOverlay
-              mediaViewer={mediaViewer}
-              mediaPdfBlobUrl={mediaPdfBlobUrl}
-              mediaPdfLoading={mediaPdfLoading}
-              mediaPdfError={mediaPdfError}
-              mediaPrintLoading={mediaPrintLoading}
-              mediaViewerImgRef={mediaViewerImgRef}
-              mediaViewerVideoRef={mediaViewerVideoRef}
-              onClose={closeMediaViewer}
-              onPrint={handleMediaViewerPrint}
-            />
-          </Suspense>
-        ) : null}
-
-        {shareContactOpen ? (
-          <Suspense fallback={null}>
-            <ShareContactModal
-              open={shareContactOpen}
-              query={shareContactQuery}
-              onQueryChange={setShareContactQuery}
-              list={shareContactList}
-              loading={shareContactLoading}
-              sending={shareContactSending}
-              onClose={handleShareContactClose}
-              onSelectContact={handleShareContactSelect}
-            />
-          </Suspense>
-        ) : null}
-
-        {shareLocationOpen ? (
-          <Suspense fallback={null}>
-            <ShareLocationModal
-              open={shareLocationOpen}
-              geoLoading={shareLocationGeoLoading}
-              geoError={shareLocationGeoError}
-              lat={shareLocationLat}
-              lng={shareLocationLng}
-              nome={shareLocationNome}
-              endereco={shareLocationEndereco}
-              sending={shareLocationSending}
-              onClose={handleShareLocationClose}
-              onLatChange={setShareLocationLat}
-              onLngChange={setShareLocationLng}
-              onNomeChange={setShareLocationNome}
-              onEnderecoChange={setShareLocationEndereco}
-              onSend={handleEnviarLocalizacao}
-            />
-          </Suspense>
-        ) : null}
-
-        {showProdutosPanel && !isGroup && canConsultarProdutos ? (
-          <Suspense fallback={null}>
-            <ProdutoConsultaPanel
-              open
-              onClose={() => setShowProdutosPanel(false)}
-              canViewSyncStatus={canVerSyncProdutos}
-              canTriggerManualSync={canSincronizarProdutos}
-              showToast={showToast}
-              onEnviarParaConversa={(template) => queueComposerAppend(template)}
-            />
-          </Suspense>
-        ) : null}
-
-        {addToGroupModal?.open ? (
-          <Suspense fallback={null}>
-            <AddToGroupModal
-              open
-              contactNome={addToGroupModal?.nome}
-              grupos={addToGroupGrupos}
-              loading={addToGroupLoading}
-              sending={addToGroupSending}
-              onClose={closeAddToGroupModal}
-              onSelectGroup={confirmAddToGroup}
-            />
-          </Suspense>
-        ) : null}
-
-        {callModalOpen ? (
-          <Suspense fallback={null}>
-            <CallModal
-              open={callModalOpen}
-              duration={callDuration}
-              sending={callSending}
-              conversaId={conversaId}
-              onClose={() => !callSending && setCallModalOpen(false)}
-              onDurationChange={handleCallDurationChange}
-              onConfirm={handleCallConfirm}
-            />
-          </Suspense>
-        ) : null}
 
         <ConversaComposer
           ref={composerRef}

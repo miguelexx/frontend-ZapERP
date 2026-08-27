@@ -34,13 +34,42 @@
 |------|--------|
 | `pages/Atendimento.jsx` | shell 3 painéis |
 | `chats/chatsStore.js` | lista |
-| `chats/chatList.jsx` | orquestração da lista |
+| `chats/chatList.jsx` | coordenador da lista (load, seleção, cache, badges) |
+| `chats/hooks/useWhatsappInstanceStatus.js` | status UltraMSG (nome legado `getZapiStatus`): delay mobile, intervalo 120s, revalidação em foco |
+| `chats/hooks/useChatListFilterState.js` | estado serializável dos filtros/abas/busca (não confundir com o compute in-memory) |
+| `chats/hooks/useChatListFilters.js` | compute in-memory das rows já carregadas (ChatListBody) |
+| `chats/hooks/useChatListQuery.js` | contrato `buildChatListFetchParams` (busca não prende à aba) |
+| `chats/hooks/useChatListPagination.js` | load more + avanço de página vazia |
+| `chats/hooks/useChatListResync.js` | nonce do store, auto-refresh 5 min, fila se load em voo |
+| `chats/chatListQueryHelpers.js` | merge/dedupe/página/params GET — sem alterar comparadores da row |
 | `chats/ChatListBody.jsx` | subscriber pesado |
 | `chats/ChatListRow.jsx` | row memo |
 | `chats/chatListSidebarCache.js` | session cache |
 | `chats/chatService.js` | HTTP lista |
 | `conversa/conversaStore.js` | thread |
-| `conversa/ConversaView.jsx` | shell da conversa |
+| `conversa/ConversaView.jsx` | coordenador da conversa (delega features a hooks) |
+| `conversa/hooks/useConversationTags.js` | painel de tags + toggle otimista (rollback + 409) |
+| `conversa/hooks/useConversationDepartments.js` | painel "transferir setor" (GET/PUT departamento) |
+| `conversa/hooks/useAddToGroup.js` | adicionar contato a grupo (POST participantes) |
+| `conversa/hooks/useConversationCall.js` | modal "registrar ligação" (faixa 1–15, 403, `callSending`) |
+| `conversa/hooks/useConversationSearch.js` | painel de busca: estado + posicionar resultado (aborta em troca de conversa; `scrollToMsg` injetado) |
+| `conversa/hooks/useConversationTimeline.js` | histórico do atendimento: abertura + `carregarAtendimentos` |
+| `conversa/hooks/useConversationParticipants.js` | co-atendentes (envolve `useConversaParticipantes`) + modal de atendentes |
+| `conversa/hooks/useConversationToast.js` | toast/feedback (auto-dismiss 3500ms via `useStableTimeout`) |
+| `conversa/hooks/useConversationHeaderIdentity.js` | nome, avatar, badge, `fromChat` (sticky da lista) |
+| `conversa/hooks/useConversationSelection.js` | pins, stars, modo seleção (âncora sticky) |
+| `conversa/hooks/useConversationReactions.js` | reações da thread |
+| `conversa/hooks/useConversationThreadActions.js` | CTAs assumir/reabrir/histórico/marcar lida |
+| `conversa/hooks/usePendingOutgoingLifecycle.js` | watchdog tick + flush da outbox |
+| `conversa/hooks/useConversationOutboundMedia.js` | envio de arquivo/lote/sticker (FIFO áudio intacto) |
+| `conversa/utils/buildMensagensComSeparadores.js` | lista virtual: dias, remetente, bundle legenda |
+| `conversa/components/ConversaViewOverlays.jsx` | painéis/modais (exceto header/thread/composer/timeline) |
+| `conversa/components/ConversaDropOverlay.jsx` | overlay de arrastar-soltar |
+| `conversa/components/ConversaSetorPanel.jsx` | painel transferir setor |
+| `conversa/components/ConversaTagsPanel.jsx` | painel de tags |
+| `conversa/components/ConversaTimelinePanel.jsx` | UI do histórico (apresentacional; dados do `conversaStore`) |
+| `conversa/utils/conversationEscapeOrder.js` | **fonte única da ordem do `onEscape`** (testada em `scripts/test-conversa-escape-order.mjs`) |
+| `conversa/utils/conversaAccessHelpers.js` | helpers puros de acesso por departamento (auto-assumir/podeEnviar) |
 | `conversa/ConversaThread.jsx` | virtual vs static |
 | `conversa/ConversaMessageVirtualList.jsx` | TanStack Virtual |
 | `conversa/ConversaComposer.jsx` | fachada compatível do envio |

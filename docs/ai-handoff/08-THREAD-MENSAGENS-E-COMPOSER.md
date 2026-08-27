@@ -91,6 +91,59 @@ Validação da sessão (CONFIRMADO 2026-08-27):
 
 Limitações: smoke visual de long press/swipe, teclado iOS e áudio em aparelho físico continuam **PENDENTE DE VALIDAÇÃO** no browser real.
 
+## ConversaView modularizado — etapa 1 (CONFIRMADO 2026-08-27)
+
+`ConversaView.jsx` continua no mesmo path/export, mas está sendo reduzido a coordenador extraindo features auto-contidas para hooks (mesmo padrão já existente de `useForwardFlow`, `useMediaViewer`, `useShareContact`, `useShareLocation`, `usePixConfig`, `useConversaParticipantes`). Nesta etapa saíram três features **sem alterar comportamento, endpoints ou payloads**:
+
+- `hooks/useConversationTags.js` — painel de tags: `listarTags` só ao abrir o painel, update otimista via `setTags` (conversaStore) + `chatsStore.adicionarTag/removerTag`, rollback em erro, 409 tratado como sucesso silencioso;
+- `hooks/useConversationDepartments.js` — "transferir setor": `GET /dashboard/departamentos` ao abrir, `PUT /chats/:id/departamento` com `{ departamento_id }` ou `{ remover_setor: true }`, `refresh({ silent: true })` e `setorAtual` derivado;
+- `hooks/useAddToGroup.js` — adicionar contato a grupo: grupos vêm do cache do `chatsStore` (ou `fetchChats`), `POST /chats/:grupoId/participantes`, mensagens de indisponibilidade em 404/501;
+- `utils/conversaAccessHelpers.js` — `normalizeDepartamentoIdForAccess` + `getUserDepartamentoIdSet` (puros), usados em `podeEnviar`/auto-assumir.
+
+**Regra crítica que futuras IAs não podem quebrar:** o handler global `onEscape` fecha os painéis na ordem `mediaViewer → pendingFile → shareContact → shareLocation → pix → msgInfo → transferirSetor → produtos → clienteSide → timeline → tags → forward/select → reply → messageSearch → fechar conversa`. Cada hook de painel **deve expor o estado `open` e seu setter/closer** (ex.: `showTransferirSetor`/`setShowTransferirSetor`, `tagsOpen`/`setTagsOpen`) para o `onEscape` continuar referenciando-os. Ao extrair novas features de painel, mantenha essa ordem e as mesmas dependências do `useCallback` do `onEscape`.
+
+Métricas: `ConversaView.jsx` 4840 → 4623 linhas, `useState` 49 → 38, `useCallback` 102 → 92. Node 25/25, `tsc --noEmit` e build verdes. Chunk `ConversaView` 322,59 → 323,69 kB bruto (gzip 94,91 → 95,32) — leve aumento por wrappers de módulo; ganho é de manutenção/isolamento, **não** de bundle. Envio, upload, scroll, reconciliação e virtualização **não** foram tocados nesta etapa.
+
+## ConversaView modularizado — etapa 2 (CONFIRMADO 2026-08-27)
+
+Mais features auto-contidas saíram para hooks/componente, **sem tocar** em envio, upload FIFO, outbox/watchdog, reconciliação, ACK/dedupe, `conversaStore`, `socket.js`, `conversaOutboundMediaMerge.js`, virtualização, scroll/âncoras nem `conversa.css`:
+
+- `hooks/useConversationCall.js` — modal "registrar ligação": faixa 1–15 (default 5), `registrarLigacao(conversaId, dur)`, 403 = "Acesso restrito", `callSending` bloqueia fechar/reenviar. Expõe `setCallModalOpen` (o gatilho de abertura hoje **não** é chamado no código — modal inalcançável, mantido fiel);
+- `hooks/useConversationSearch.js` — painel de busca de mensagens: `messageSearchOpen` + seleção de resultado (pagina via `loadMore` respeitando `hasMore`/`loadingMore`, **aborta se a conversa mudar** para não posicionar a conversa nova em resultado antigo). `scrollToMsg` é **injetado** (não altera a lógica de scroll). Expõe `openMessageSearch`/`closeMessageSearch` estáveis;
+- `hooks/useConversationTimeline.js` + `components/ConversaTimelinePanel.jsx` — histórico do atendimento: estado de abertura + `carregarAtendimentos(conversaId)` ao abrir; UI (markup/CSS idênticos) fora do coordenador. Dados seguem no `conversaStore`;
+- `hooks/useConversationParticipants.js` — envolve `useConversaParticipantes` (dados/reload) + estado do modal de atendentes + `handleOpenAdicionarAtendente`. Precisa rodar cedo pois `atendentesParticipantes` alimenta `podeEnviar` (co-atendente também envia); por isso deriva `conversaId = conversa?.id`. **Removido código morto** do fluxo antigo "adicionar atendente" (estados `showAdicionarAtendente`, `atendentesDisponiveis`, `atendenteSearch`, `atendentesLoading`, `adicionarAtendenteLoadingId`, o memo `atendentesDisponiveisFiltrados` e `handleAdicionarAtendente`) — não eram referenciados no JSX (a UI real é o `AtendentesModal`);
+- `hooks/useConversationToast.js` — `toast`/`setToast`/`showToast` com auto-dismiss de 3500ms via `useStableTimeout`. Casos silenciosos, 409 e rollbacks continuam nos chamadores;
+- `utils/conversationEscapeOrder.js` — **fonte única da ordem do `onEscape`** (`ESCAPE_PANEL_ORDER` + `buildEscapeEntries` + `runFirstActiveEscape`). O coordenador só mantém os dois passos imperativos do Composer (cancelar gravação, `closePanels()`) antes da cadeia. Coberto por `scripts/test-conversa-escape-order.mjs` (19 cenários).
+
+**Reply/forward:** forward já vive em `useForwardFlow`. O estado de **reply** (`replyTo`) foi **mantido inline** de propósito: é lido dentro de `handleEnviar` (caminho de envio protegido) e usa `focusMessageInput` do composer; extraí-lo daria ganho mínimo e adicionaria indireção sobre a zona de envio. Documentado como pendência de baixa prioridade.
+
+**Re-render corrigido (evidência):** `ConversaHeader` é `memo`, mas recebia `onOpenMessageSearch={() => setMessageSearchOpen(true)}` (arrow inline) → quebrava o memo **a cada render** do coordenador. Agora usa `openMessageSearch` estável (idem `closeMessageSearch` no `ConversaMessageSearchPanel`). Melhora comprovável por construção (identidade estável → memo volta a funcionar), sem medir runtime.
+
+**View-models (Header/Thread/Composer):** o agrupamento completo de props em objetos `model`/`actions` foi **adiado deliberadamente**. Para componentes `memo`, passar primitivos/callbacks estáveis individuais já é o cenário memo-ótimo; trocar por objetos exige `useMemo` perfeito e reescrever ~30 referências internas do Header (risco de regressão visual num componente crítico mobile) para ganho **organizacional**, não de render. Recomendado como etapa dedicada com instrumentação de render.
+
+Métricas etapa 2: `ConversaView.jsx` 4623 → 4456 linhas, `useState` 38 → 26, `useMemo` 30, `useCallback` 92 → 84, imports 65. Node **26/26** (inclui `test-conversa-escape-order`), `tsc --noEmit` e build verdes. Chunk `ConversaView` 323,69 → 325,71 kB bruto (gzip 95,32 → 95,83) — leve aumento por wrappers; ganho é isolamento/testabilidade. e2e mock: 10 passaram + 1 flaky **de navegação** (`page.goto timeout`, teste "sem saltos tardios" mobile) que passa 3/3 isolado — mesmo flaky já registrado, **sem relação** com as extrações; scroll/tolerâncias **não** alterados.
+
+> Nota operacional: o webServer do e2e usa `reuseExistingServer: true` com `npm run dev`. Se sobrar um `vite dev` antigo na porta 5173 (iniciado sem `VITE_API_URL=http://localhost:5000`), o Playwright **reutiliza** esse servidor e a suíte trava no login apontando pra API de produção (11/12 falham). Encerre o processo da 5173 antes de rodar o mock.
+
+## ConversaView modularizado — etapa 3 (CONFIRMADO 2026-08-27)
+
+Redução estrutural para o coordenador ficar **abaixo de 3000 linhas** (4456 → **2903**). Algoritmos de envio/FIFO/watchdog/outbox/scroll **não foram reescritos** — só mudaram de arquivo.
+
+- `utils/buildMensagensComSeparadores.js` — montagem da lista virtual (dias, remetente em grupo, reações inbound, bundle foto+legenda); cache WeakMap preservado;
+- `hooks/useConversationHeaderIdentity.js` — nome/avatar/badge/instância WhatsApp/`fromChat` (sticky da lista);
+- `hooks/useConversationSelection.js` — pins/stars/seleção (âncora de scroll da barra sticky **inalterada**);
+- `hooks/useConversationReactions.js` — reagir/remover reação;
+- `hooks/useConversationThreadActions.js` — CTAs assumir/reabrir/histórico antigo/marcar lida (modo simples);
+- `hooks/usePendingOutgoingLifecycle.js` — tick do watchdog + flush da outbox (mesmo intervalo, mesmos payloads);
+- `hooks/useConversationOutboundMedia.js` — `handleEnviarArquivo`, lotes fototeca/documentos, sticker, preview confirm (FIFO de áudio **idêntico**; import dinâmico do crop aponta para `../utils/imageCropExport.js`);
+- `components/ConversaViewOverlays.jsx` + `ConversaDropOverlay` / `ConversaSetorPanel` / `ConversaTagsPanel` — JSX de painéis/modais fora do coordenador. Timeline permanece entre header e mensagens (fluxo de layout).
+
+**Contratos:** `onEscape` continua em `conversationEscapeOrder.js`. Scroll/`useAutoScroll`/âncoras continuam no coordenador. `handleEnviar` (texto) permanece inline porque lê `replyTo` e a fila de texto.
+
+Métricas etapa 3: linhas 4456 → **2903**, `useState` 26 → **13**. Node 26/26, `tsc --noEmit` e build verdes. Chunk `ConversaView` 325,71 → **335,44 kB** (gzip 95,83 → **98,20**) — aumento por wrappers; organização, não velocidade.
+
+**Correção 2026-08-27:** `canReabrir` voltou ao import de `permissions` em `ConversaView.jsx`. Sem isso o ErrorBoundary (“Algo deu errado”) disparava ao abrir qualquer conversa (e2e mock 11 falhas). O hook `useConversationThreadActions` já importava; o coordenador também usa `canReabrir` em `conversaElegivelAutoReabrir`.
+
 Abertura da conversa (CONFIRMADO 2026-08-24): máscara `.wa-messages--opening` fica até o snap assentar (`onOpenSnapReady` no `useAutoScroll`, ~6 frames no desktop / 1 rAF no mobile). Não tirar a máscara no mesmo layout em que `loading` vira false — isso pintava o thread no topo e depois “puxava” ao fim. Foto/nome do header preferem a row da lista (`fromChat`) para não trocar URL no GET. `zapMsgsInitialPassRef` reseta no render da troca. Bolha nova anima só com `.zap-message-enter` — nunca `animation` em todo `.wa-bubble` (ao sair da máscara isso reanimava o thread inteiro). `snapIfStickBottom` não corre enquanto a máscara está ativa.
 
 Painel **Detalhes do cliente** (`SidebarCliente`, 2026-08-27): Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica na hora via `renameChatContact` (lista) + `patchConversa` (header). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document`; no mobile o overlay já existia. Esc também fecha (`ConversaView`).
