@@ -6,10 +6,8 @@ import { useNotificationStore } from "../notifications/notificationStore";
 
 export function IconFunnelSend() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 5h16l-6 7v7l-4 2v-9L4 5z" />
-      <path d="M12 12l4 4" />
-      <path d="M16 12v4h-4" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
     </svg>
   );
 }
@@ -224,44 +222,54 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
           aria-labelledby="wa-crmSend-title"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="wa-modal-head">
-            <div className="wa-modal-title" id="wa-crmSend-title">
-              Enviar ao CRM
-            </div>
-            <button
-              type="button"
-              className="wa-header-btn"
-              onClick={() => !loading && setModalOpen(false)}
-              disabled={loading}
-              aria-label="Fechar"
-              title="Fechar"
-              style={{ width: 34, height: 34 }}
-            >
-              ✕
-            </button>
+          <button
+            type="button"
+            className="wa-crmSend-closeBtn"
+            onClick={() => !loading && setModalOpen(false)}
+            disabled={loading}
+            aria-label="Fechar"
+            title="Fechar"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+
+          <div className="wa-crmSend-heroIcon" aria-hidden>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+            </svg>
           </div>
-          <form className="wa-modal-body" onSubmit={(e) => handleSubmit(e, null)}>
-            <p className="wa-crmSend-hint">
-              O contato vira lead no CRM Avançado, com os dados do cliente (nome, telefone, e-mail e empresa) já preenchidos.
-              Pode acrescentar uma nota para a equipa comercial.
+
+          <div className="wa-crmSend-headerText">
+            <h2 className="wa-crmSend-title" id="wa-crmSend-title">Enviar ao CRM</h2>
+            <p className="wa-crmSend-subtitle">
+              O contato será criado como lead com nome, telefone, e-mail e empresa já preenchidos.
             </p>
-            <label className="wa-crmSend-label" htmlFor="wa-crmSend-obs">
-              Nota para o comercial (opcional)
-            </label>
-            <textarea
-              id="wa-crmSend-obs"
-              className="wa-crmSend-textarea"
-              rows={3}
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Contexto, próximos passos, objeções…"
-              disabled={loading}
-            />
+          </div>
+
+          <form className="wa-crmSend-form" onSubmit={(e) => handleSubmit(e, null)}>
+            <div className="wa-crmSend-fieldGroup">
+              <label className="wa-crmSend-label" htmlFor="wa-crmSend-obs">
+                Nota para o comercial
+                <span className="wa-crmSend-labelHint">opcional</span>
+              </label>
+              <textarea
+                id="wa-crmSend-obs"
+                className="wa-crmSend-textarea"
+                rows={3}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="Contexto, próximos passos, objeções…"
+                disabled={loading}
+              />
+            </div>
 
             {etapasLoading ? (
-              <p className="wa-crmSend-etapasLoading">Carregando etapas do CRM…</p>
+              <div className="wa-crmSend-etapasLoading">
+                <IconSpinnerMini />
+                <span>Carregando etapas…</span>
+              </div>
             ) : etapas.length > 0 ? (
-              <>
+              <div className="wa-crmSend-fieldGroup">
                 <div className="wa-crmSend-etapasLabel">Enviar para qual etapa?</div>
                 <div className="wa-crmSend-etapas">
                   {etapas.map((etapa) => {
@@ -285,19 +293,19 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
                     );
                   })}
                 </div>
-                <div className="wa-modal-row wa-modal-row--actions" style={{ marginTop: 12 }}>
-                  <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
+                <div className="wa-crmSend-actions">
+                  <button type="button" className="wa-crmSend-cancelBtn" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
                     Cancelar
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
-              <div className="wa-modal-row wa-modal-row--actions" style={{ marginTop: 12 }}>
-                <button type="button" className="wa-btn-secondary" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
+              <div className="wa-crmSend-actions wa-crmSend-actions--duo">
+                <button type="button" className="wa-crmSend-cancelBtn" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
                   Cancelar
                 </button>
-                <button type="submit" className="wa-btn-primary" disabled={loading} aria-busy={loading}>
-                  {loading ? "A enviar…" : "Confirmar envio"}
+                <button type="submit" className="wa-crmSend-submitBtn" disabled={loading} aria-busy={loading}>
+                  {loading ? <><IconSpinnerMini /> A enviar…</> : "Confirmar envio"}
                 </button>
               </div>
             )}
@@ -315,7 +323,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
       {!hideToolbarButton ? (
         <button
           type="button"
-          className={`wa-header-btn wa-crmSendBtn zap-action-btn ${successFlash ? "wa-crmSendBtn--successPulse" : ""}`}
+          className={`wa-crmSendBtn ${successFlash ? "wa-crmSendBtn--successPulse" : ""}`}
           onClick={openModal}
           disabled={!conversaId || headerBusy}
           title="Enviar conversa ao CRM"
@@ -325,7 +333,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
           <span className="wa-crmSendBtn-icon" aria-hidden>
             {iconEl}
           </span>
-          <span className="wa-crmSendBtn-label">{headerBusy ? "A enviar…" : "Enviar ao CRM"}</span>
+          <span className="wa-crmSendBtn-label">CRM</span>
         </button>
       ) : null}
       {modal}

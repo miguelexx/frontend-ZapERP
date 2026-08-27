@@ -395,6 +395,33 @@ export const useChatStore = create((set, get) => ({
     return true
   },
 
+  /** Rename explícito do atendente — sempre sobrescreve o nome visível (lista + header). */
+  renameChatContact: (conversaId, nome) => {
+    const n = String(nome || "").trim()
+    if (conversaId == null || conversaId === "" || !n) return false
+    const chats = get().chats || []
+    const idx = getChatsByIdIndex(chats).indexById.get(String(conversaId))
+    if (idx == null) return false
+    const cur = chats[idx]
+    const sameName =
+      String(cur?.contato_nome || "").trim() === n &&
+      String(cur?.nome_contato_cache || "").trim() === n &&
+      String(cur?.cliente_nome || "").trim() === n &&
+      String(cur?.cliente?.nome || "").trim() === n
+    if (sameName) return false
+    const next = [...chats]
+    next[idx] = {
+      ...cur,
+      contato_nome: n,
+      nome_contato_cache: n,
+      cliente_nome: n,
+      ...(cur?.cliente ? { cliente: { ...cur.cliente, nome: n } } : {}),
+      ...(cur?.clientes ? { clientes: { ...cur.clientes, nome: n } } : {}),
+    }
+    set(withUnreadTotal(next))
+    return true
+  },
+
   /** Atualiza nome/foto — SÓ quando vazios. Nome é imutável: nunca trocar o existente. */
   updateChatContato: (conversa_id, { contato_nome, foto_perfil }) => {
     if (conversa_id == null) return

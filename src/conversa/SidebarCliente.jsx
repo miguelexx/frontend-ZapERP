@@ -1,5 +1,6 @@
 import "./conversa.css";
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 import { salvarObservacao, vincularClienteConversa, atualizarNomeContatoConversa } from "./conversaService";
 import { useConversaStore } from "./conversaStore";
 import { useChatStore } from "../chats/chatsStore";
@@ -481,22 +482,33 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   const applyNomeContatoPatch = useCallback(
     (nomeTrim) => {
       if (!conversa?.id || !nomeTrim) return;
+      const nomeOk = String(nomeTrim).trim();
+      if (!nomeOk) return;
       const openConv = useConversaStore.getState().conversa;
       const sameOpen = openConv && String(openConv.id) === String(conversa.id);
       const patch = {
         id: conversa.id,
-        contato_nome: nomeTrim,
-        nome_contato_cache: nomeTrim,
-        cliente_nome: nomeTrim,
+        contato_nome: nomeOk,
+        nome_contato_cache: nomeOk,
+        cliente_nome: nomeOk,
       };
       if (sameOpen && openConv?.cliente) {
-        patch.cliente = { ...openConv.cliente, nome: nomeTrim };
+        patch.cliente = { ...openConv.cliente, nome: nomeOk };
       }
       if (sameOpen && openConv?.clientes) {
-        patch.clientes = { ...openConv.clientes, nome: nomeTrim };
+        patch.clientes = { ...openConv.clientes, nome: nomeOk };
       }
-      useConversaStore.getState().patchConversa(patch);
-      useChatStore.getState().updateChat(patch);
+      const apply = () => {
+        useConversaStore.getState().patchConversa(patch);
+        useChatStore.getState().renameChatContact(conversa.id, nomeOk);
+      };
+      if (typeof flushSync === "function") {
+        try {
+          flushSync(apply);
+          return;
+        } catch (_) {}
+      }
+      apply();
     },
     [conversa?.id]
   );

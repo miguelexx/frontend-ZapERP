@@ -727,11 +727,23 @@ function ConversaViewBody() {
   }, [conversa, fromChat, isGroup, showWhatsappInstanceUi]);
 
   // Nome idêntico à lista de conversas: usa getDisplayName do chatList quando disponível
+  const nomeLista = useChatStore((s) => {
+    if (conversaId == null || conversaId === "") return "";
+    const row = getChatByIdFromStore(conversaId, s.chats);
+    return row ? getDisplayName(row) : "";
+  });
+
   const nome = useMemo(() => {
-    const chatParaNome = fromChat ?? conversa;
-    if (chatParaNome) {
-      return getDisplayName(chatParaNome);
-    }
+    const valid = (v) => {
+      const s = String(v || "").trim();
+      if (!s || isLidValue(s) || s === "Contato") return "";
+      return s;
+    };
+    const aberto = valid(conversa ? getDisplayName(conversa) : "");
+    const lista = valid(nomeLista);
+    if (aberto && lista && aberto !== lista) return aberto;
+    if (lista) return lista;
+    if (aberto) return aberto;
     if (isGroup) {
       const g =
         conversa?.nome_grupo ||
@@ -740,16 +752,6 @@ function ConversaViewBody() {
         "Grupo";
       return isLidValue(g) ? "Grupo" : g;
     }
-    const raw =
-      conversa?.contato_nome ||
-      conversa?.nome_contato_cache ||
-      conversa?.cliente?.nome ||
-      conversa?.clientes?.nome ||
-      conversa?.cliente_nome ||
-      conversa?.nome ||
-      "";
-    const n = String(raw || "").trim();
-    if (n && !isLidValue(n)) return n;
     const tel =
       conversa?.telefone_exibivel ||
       conversa?.cliente_telefone ||
@@ -757,7 +759,7 @@ function ConversaViewBody() {
       "";
     if (tel && !isLidValue(tel)) return String(tel).trim();
     return "Contato";
-  }, [conversa, fromChat, conversaId, isGroup]);
+  }, [conversa, nomeLista, conversaId, isGroup]);
 
   const replyBarPreview = useMemo(() => {
     if (!replyTo) return null;

@@ -61,7 +61,7 @@ Limitações da validação: câmera e microfone foram exercitados com doubles d
 
 Abertura da conversa (CONFIRMADO 2026-08-24): máscara `.wa-messages--opening` fica até o snap assentar (`onOpenSnapReady` no `useAutoScroll`, ~6 frames no desktop / 1 rAF no mobile). Não tirar a máscara no mesmo layout em que `loading` vira false — isso pintava o thread no topo e depois “puxava” ao fim. Foto/nome do header preferem a row da lista (`fromChat`) para não trocar URL no GET. `zapMsgsInitialPassRef` reseta no render da troca. Bolha nova anima só com `.zap-message-enter` — nunca `animation` em todo `.wa-bubble` (ao sair da máscara isso reanimava o thread inteiro). `snapIfStickBottom` não corre enquanto a máscara está ativa.
 
-Painel **Detalhes do cliente** (`SidebarCliente`, 2026-08-27): Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica o patch na hora em `conversaStore`/`chatsStore` (`contato_nome`, `nome_contato_cache`, `cliente_nome`). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document`; no mobile o overlay já existia. Esc também fecha (`ConversaView`).
+Painel **Detalhes do cliente** (`SidebarCliente`, 2026-08-27): Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica na hora via `renameChatContact` (lista) + `patchConversa` (header). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document`; no mobile o overlay já existia. Esc também fecha (`ConversaView`).
 
 ## Envio otimista (CONFIRMADO)
 
