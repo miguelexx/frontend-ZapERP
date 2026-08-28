@@ -52,7 +52,7 @@ Sem `can()`. `internalChatService.js`. Socket `internal_chat:*`. Bridge global n
 | Wizard | `/disparo/campanhas/:id` | `DisparoWizardPage.jsx` + steps |
 | Execução | `.../execucao` | `DisparoExecucaoPage.jsx` |
 
-Wizard (6): Informações → Destinatários → Instâncias → Mensagens → Limites → Revisão. Services `disparo*.js`. Status: rascunho, configurando, pronta, agendada, em_execucao, pausada, concluida, cancelada, arquivada.
+Wizard (6): Informações → Destinatários → Instâncias → Mensagens → Limites → Revisão. Services `disparo*.js`. Status: rascunho, configurando, pronta, agendada, em_execucao, pausada, concluida, cancelada, arquivada. Destinatários (contatos ZapERP): marcar vários na tabela (a busca não zera a seleção) e só gravar na campanha com **Confirmar** + aceite LGPD.
 
 Execução: pausar/continuar/cancelar/emergência, exclusões, saúde worker (`GET /api/disparo/worker/saude`), Etapa 8 (opt-out/respostas/incertos). Banner de worker classifica `ativo` / `iniciando` / `sem heartbeat` / `desabilitado` / `offline` (`Nenhum worker ativo detectado`). Iniciar e Continuar ficam bloqueados se `saudavel !== true` — o FE não inventa worker ativo. Envio **real** exige worker + live + não dry-run no backend. O FE não deve “ligar produção”.
 

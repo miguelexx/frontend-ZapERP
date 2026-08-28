@@ -307,6 +307,10 @@ export function buildChatListFetchParams({
         params.status_atendimento = "fechada";
         params.finalizacao_motivo = "ausencia_cliente";
       }
+    } else if (tab === "campanhas") {
+      params.campanhas = "1";
+      delete params.status_atendimento;
+      delete params.atendente_id;
     } else if (aguardandoQuery) {
       params.aguardando_cliente = "1";
       delete params.status_atendimento;

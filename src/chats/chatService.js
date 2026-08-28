@@ -99,6 +99,7 @@ export async function fetchChats(params = {}, options = {}) {
     q.set("incluir_colaboradores_encaminhar", "1");
   }
   if (params.minha_fila === true || params.minha_fila === 1 || params.minha_fila === "1") q.set("minha_fila", "1");
+  if (params.campanhas === true || params.campanhas === 1 || params.campanhas === "1") q.set("campanhas", "1");
   if (params.finalizacao_motivo != null && String(params.finalizacao_motivo).trim()) {
     q.set("finalizacao_motivo", String(params.finalizacao_motivo).trim());
   }

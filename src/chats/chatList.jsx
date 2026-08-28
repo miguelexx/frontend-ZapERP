@@ -927,6 +927,7 @@ export default function ChatList() {
         const strictListTabs = new Set([
           "todas",
           "minha_fila",
+          "campanhas",
           "hoje",
           "abertas",
           "em_atendimento",

@@ -142,6 +142,7 @@ function ChatListBody({
     countEmAtraso,
     countAguardandoFuncionario,
     mensagensDisparadasCount: mensagensDisparadasFromServer,
+    campanhasCount,
     aguardandoFuncionarioVisualState,
   } = useChatListCounts({
     chatFilterCounts,
@@ -250,6 +251,7 @@ function ChatListBody({
   );
 
   const onTabMinhaFila = useCallback(() => activateMainTab("minha_fila"), [activateMainTab]);
+  const onTabCampanhas = useCallback(() => activateMainTab("campanhas"), [activateMainTab]);
   const onTabTodas = useCallback(() => activateMainTab("todas"), [activateMainTab]);
   const onTabAguardandoAtendente = useCallback(() => activateMainTab("aguardando_atendente"), [activateMainTab]);
   const onTabHoje = useCallback(() => activateMainTab("hoje"), [activateMainTab]);
@@ -391,6 +393,7 @@ function ChatListBody({
         countAguardandoFuncionario={countAguardandoFuncionario}
         aguardandoFuncionarioVisualState={aguardandoFuncionarioVisualState}
         mensagensDisparadasCount={mensagensDisparadasResolved}
+        campanhasCount={campanhasCount}
         listRefreshing={listRefreshing}
         loading={loading}
         hasStoreChats={hasStoreChats}
@@ -405,6 +408,7 @@ function ChatListBody({
         onAdminClear={clearAdminAtendenteFilter}
         onAdminBeforeOpen={onAdminBeforeOpen}
         onTabMinhaFila={onTabMinhaFila}
+        onTabCampanhas={onTabCampanhas}
         onTabTodas={onTabTodas}
         onTabAguardandoAtendente={onTabAguardandoAtendente}
         onTabHoje={onTabHoje}

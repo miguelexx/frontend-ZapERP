@@ -338,6 +338,7 @@ export function computeChatsFiltrados({
       "pagamentos_pendentes",
       "em_atraso",
       "mensagens_disparadas",
+      "campanhas",
       "hoje",
     ]);
     if (!backendFilteredTabs.has(tab)) {
@@ -346,6 +347,8 @@ export function computeChatsFiltrados({
       }
     } else if (tab === "aguardando_funcionario") {
       list = list.filter((c) => isConversaAguardandoFuncionario(c, pendentesFuncionarioSet));
+    } else if (tab === "campanhas") {
+      list = list.filter((c) => c?.aguardando_resposta_campanha === true && !isGroupConversation(c));
     }
   }
 
@@ -369,6 +372,7 @@ export function computeChatsFiltrados({
     tab === "em_atendimento" ||
     tab === "finalizadas" ||
     tab === "mensagens_disparadas" ||
+    tab === "campanhas" ||
     tab === "finalizadas_auto" ||
     onlyFinalizadasAusencia ||
     tab === "aguardando_cliente" ||
@@ -457,6 +461,7 @@ export function computeChatsFiltrados({
   }
 
   if (!adminPorFuncionario && !searchBypassesTabFilters && tab === "minha_fila") {
+    list = list.filter((c) => c?.aguardando_resposta_campanha !== true);
     list = clearGrupoSetorAutoPinNaMinhaFila(list);
     list = applyCotacaoFixadaNaMinhaFila(list, user);
   }

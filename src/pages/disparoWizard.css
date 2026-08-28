@@ -268,6 +268,54 @@
 }
 .dw-search-input::placeholder { color: #94a3b8; }
 
+.dw-select-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ds-text-muted, #64748b);
+}
+
+.dw-contacts-table tbody tr.is-pickable { cursor: pointer; }
+.dw-contacts-table tbody tr.is-disabled { cursor: default; opacity: 0.72; }
+.dw-contacts-table tbody tr.is-selected td {
+  background: color-mix(in srgb, var(--ds-primary, #128c7e) 10%, var(--ds-surface, #fff));
+}
+
+.dw-pending-tag {
+  font-size: 10.5px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dw-confirm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-top: 4px;
+  border-radius: 12px;
+  background: var(--ds-surface, #fff);
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 8px 22px rgba(8, 37, 54, 0.07);
+}
+.dw-confirm-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.dw-lgpd--inline {
+  margin: 0;
+  flex: 1 1 240px;
+  padding: 10px 12px;
+}
+
 /* ── Tabela de contatos — PREMIUM ────────────────────── */
 .dw-contacts-table {
   width: 100%;
@@ -3216,6 +3264,9 @@
 [data-theme="dark"] .msg-bubble { background: #1f3434; color: var(--dispatch-ink); }
 [data-theme="dark"] .msg-bubble__texto { color: #e8f4f1; }
 [data-theme="dark"] .dw-tab--active { box-shadow: 0 3px 12px rgba(0,0,0,.22); }
+[data-theme="dark"] .dw-confirm-bar { background: var(--ds-surface, #1a2332); border-color: rgba(6,207,156,.28); }
+[data-theme="dark"] .dw-pending-tag { background: rgba(59,130,246,.18); color: #93c5fd; }
+[data-theme="dark"] .dw-contacts-table tbody tr.is-selected td { background: rgba(0,168,132,.16); }
 
 @media (max-width: 900px) {
   .dw-step { min-width: 112px; padding-inline: 8px; }
@@ -3239,4 +3290,8 @@
   .dw-tabs { width: 100%; overflow-x: auto; }
   .dw-tab { flex: 1 0 auto; }
   .dw-footer { margin-inline: -4px; padding-inline: 4px; }
+  .dw-confirm-bar { flex-direction: column; align-items: stretch; }
+  .dw-confirm-bar__actions { margin-left: 0; }
+  .dw-confirm-bar__actions .disparo-btn-primary,
+  .dw-confirm-bar__actions .disparo-btn-secondary { flex: 1; justify-content: center; }
 }

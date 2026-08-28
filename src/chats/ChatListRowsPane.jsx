@@ -128,6 +128,11 @@ function ChatListRowsPane({
                 actionLabel="Criar novo contato"
                 action={onNovoContato}
               />
+            ) : tab === "campanhas" ? (
+              <EmptyState
+                title="Nenhuma campanha aguardando resposta"
+                description="Contatos que receberam um disparo e ainda não responderam aparecem aqui. Quando o cliente responder, a conversa vai para Minha fila."
+              />
             ) : (
               <EmptyState
                 title="Nenhuma conversa encontrada"

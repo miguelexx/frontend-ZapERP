@@ -92,19 +92,27 @@ function AbaContatos({ campanhaId, onAdded }) {
   useEffect(() => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      setPage(1); setSelected(new Set()); setSelectAll(false)
+      setPage(1)
+      setSelectAll(false)
       fetchContatos({ page: 1, search })
     }, 300)
     return () => clearTimeout(debounceRef.current)
   }, [search]) // eslint-disable-line
 
   function toggleSelect(id) {
+    if (!id) return
     setSelectAll(false)
     setSelected(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  function limparSelecao() {
+    setSelected(new Set())
+    setSelectAll(false)
+    setLgpdOk(false)
   }
 
   function toggleAllPage() {
@@ -128,7 +136,7 @@ function AbaContatos({ campanhaId, onAdded }) {
         : { cliente_ids: Array.from(selected) }
       const res = await addContatos(campanhaId, payload)
       setAddResult(res)
-      setSelected(new Set()); setSelectAll(false)
+      limparSelecao()
       fetchContatos({ page: 1 })
       onAdded?.()
     } catch (e) {
@@ -139,11 +147,17 @@ function AbaContatos({ campanhaId, onAdded }) {
   }
 
   const naoAdicionados = contatos.filter(c => !c.ja_na_campanha)
-  const todosPagina = naoAdicionados.every(c => selected.has(c.id))
-  const qtdSelecionados = selectAll ? total - contatos.filter(c => c.ja_na_campanha).length : selected.size
+  const todosPagina = naoAdicionados.length > 0 && naoAdicionados.every(c => selected.has(c.id))
+  const qtdSelecionados = selectAll
+    ? Math.max(0, total - contatos.filter(c => c.ja_na_campanha).length)
+    : selected.size
+  const temSelecao = qtdSelecionados > 0 || selectAll
 
   return (
     <div>
+      <p className="dw-select-hint">
+        Marque os contatos que deseja incluir. Nada entra na campanha até você clicar em <strong>Confirmar</strong>.
+      </p>
       {/* Barra de busca */}
       <div className="dw-search-bar">
         <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 0 }}>
@@ -164,7 +178,7 @@ function AbaContatos({ campanhaId, onAdded }) {
       {/* Barra "selecionar todos da busca" */}
       {selected.size > 0 && !selectAll && total > CONTACTS_PAGE_LIMIT && (
         <div className="dw-select-all-bar">
-          <span><strong>{selected.size}</strong> contato{selected.size !== 1 ? 's' : ''} selecionado{selected.size !== 1 ? 's' : ''} nesta página.</span>
+          <span><strong>{selected.size}</strong> contato{selected.size !== 1 ? 's' : ''} marcado{selected.size !== 1 ? 's' : ''} (a busca não apaga a seleção).</span>
           <button type="button" onClick={() => { setSelectAll(true); setSelected(new Set()) }}>
             Selecionar todos os {total} resultados desta busca
           </button>
@@ -172,7 +186,7 @@ function AbaContatos({ campanhaId, onAdded }) {
       )}
       {selectAll && (
         <div className="dw-select-all-bar">
-          <span>Todos os <strong>{total}</strong> resultados desta busca serão adicionados.</span>
+          <span>Todos os <strong>{total}</strong> resultados desta busca serão adicionados ao confirmar.</span>
           <button type="button" onClick={() => setSelectAll(false)}>Cancelar seleção total</button>
         </div>
       )}
@@ -209,19 +223,40 @@ function AbaContatos({ campanhaId, onAdded }) {
                     </td>
                   </tr>
                 )
-                : contatos.map(c => (
-                  <tr key={c.id}>
-                    <td>
-                      {c.ja_na_campanha
-                        ? <span title="Já na campanha" style={{ color: '#059669' }}>✓</span>
-                        : <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} aria-label={`Selecionar ${c.nome ?? c.pushname}`} />
-                      }
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{c.nome ?? c.pushname ?? '—'}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{maskPhone(c.telefone ?? c.wa_id)}</td>
-                    <td>{c.ja_na_campanha ? <span className="dw-already-tag">Já adicionado</span> : null}</td>
-                  </tr>
-                ))
+                : contatos.map(c => {
+                  const nome = c.nome ?? c.pushname
+                  const marcado = !c.ja_na_campanha && (selectAll || selected.has(c.id))
+                  return (
+                    <tr
+                      key={c.id}
+                      className={[
+                        c.ja_na_campanha ? 'is-already' : '',
+                        marcado ? 'is-selected' : '',
+                        c.ja_na_campanha ? 'is-disabled' : 'is-pickable',
+                      ].filter(Boolean).join(' ')}
+                      onClick={() => { if (!c.ja_na_campanha) toggleSelect(c.id) }}
+                    >
+                      <td onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          disabled={c.ja_na_campanha}
+                          onChange={() => toggleSelect(c.id)}
+                          aria-label={c.ja_na_campanha ? `${nome || 'Contato'} já na campanha` : `Selecionar ${nome || 'contato'}`}
+                        />
+                      </td>
+                      <td style={{ fontWeight: 500 }}>{nome || '—'}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{maskPhone(c.telefone ?? c.wa_id)}</td>
+                      <td>
+                        {c.ja_na_campanha
+                          ? <span className="dw-already-tag">Já adicionado</span>
+                          : marcado
+                            ? <span className="dw-pending-tag">Na seleção</span>
+                            : null}
+                      </td>
+                    </tr>
+                  )
+                })
             }
           </tbody>
         </table>
@@ -236,26 +271,29 @@ function AbaContatos({ campanhaId, onAdded }) {
         )}
       </div>
 
-      {/* LGPD */}
-      {(qtdSelecionados > 0 || selectAll) && (
-        <label className="dw-lgpd">
-          <input type="checkbox" checked={lgpdOk} onChange={e => setLgpdOk(e.target.checked)} />
-          <span>
-            Confirmo que os destinatários selecionados possuem autorização ou relação legítima para receber esta comunicação, em conformidade com a LGPD.
-          </span>
-        </label>
-      )}
-
-      {/* Botão adicionar */}
-      {(qtdSelecionados > 0 || selectAll) && (
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            className="disparo-btn-primary"
-            onClick={handleAdicionar}
-            disabled={adding || !lgpdOk}
-          >
-            {adding ? 'Adicionando…' : `Adicionar ${qtdSelecionados > 0 ? qtdSelecionados : 'todos'} contato${qtdSelecionados !== 1 ? 's' : ''}`}
-          </button>
+      {temSelecao && (
+        <div className="dw-confirm-bar">
+          <label className="dw-lgpd dw-lgpd--inline">
+            <input type="checkbox" checked={lgpdOk} onChange={e => setLgpdOk(e.target.checked)} />
+            <span>
+              Confirmo autorização/relação legítima (LGPD) para os {qtdSelecionados} selecionado{qtdSelecionados !== 1 ? 's' : ''}.
+            </span>
+          </label>
+          <div className="dw-confirm-bar__actions">
+            <button type="button" className="disparo-btn-secondary" onClick={limparSelecao} disabled={adding}>
+              Limpar seleção
+            </button>
+            <button
+              type="button"
+              className="disparo-btn-primary"
+              onClick={handleAdicionar}
+              disabled={adding || !lgpdOk}
+              title={!lgpdOk ? 'Marque o aceite LGPD para confirmar.' : undefined}
+            >
+              <IconCheck size={15} />
+              {adding ? 'Confirmando…' : `Confirmar ${qtdSelecionados} contato${qtdSelecionados !== 1 ? 's' : ''}`}
+            </button>
+          </div>
         </div>
       )}
     </div>

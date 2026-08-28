@@ -42,7 +42,9 @@ Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instanc
 
 ## Filtros, tabs, paginação, busca (CONFIRMADO)
 
-Tabs em `chatListFilters.js` (exemplos): `minha_fila`, `abertas`, `em_atendimento`, `aguardando_*`, `pagamentos_pendentes`, `em_atraso`, …
+Tabs em `chatListFilters.js` (exemplos): `minha_fila`, `campanhas`, `abertas`, `em_atendimento`, `aguardando_*`, `pagamentos_pendentes`, `em_atraso`, …
+
+O filtro **Campanhas** (`GET /chats?campanhas=1`) lista só conversas com `aguardando_resposta_campanha=true` (disparo enviado, contato ainda não respondeu). Não reutiliza `mensagem_disparada`. Na primeira resposta inbound a flag é limpa, a conversa entra em Minha fila e o chatbot/URA/boas-vindas não rodam. Atendimento humano já ativo não é reclassificado.
 
 Página: **80** desktop / **40** mobile (`CHAT_LIST_*_PAGE_LIMIT`). Cursor: `hasMore`, `nextCursor`, `nextCursorId` via `fetchChats` / `fetchChatsPages`.
 

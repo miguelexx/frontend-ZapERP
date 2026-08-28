@@ -56,7 +56,7 @@ export function useChatListFilterState({
   const [tempoParadoFilter, setTempoParadoFilter] = useState("");
 
   // tabs estilo WhatsApp (chip row)
-  // todas | hoje | abertas | minha_fila | em_atendimento | finalizadas | finalizadas_auto | aguardando_cliente | aguardando_funcionario
+  // todas | hoje | abertas | minha_fila | campanhas | em_atendimento | finalizadas | ...
   const [tab, setTab] = useState(() => getDefaultChatListTab(useAuthStore.getState().user));
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -84,7 +84,8 @@ export function useChatListFilterState({
       user?.atendimento_modo_simples &&
       tab !== "todas" &&
       tab !== "aguardando_atendente" &&
-      tab !== "aguardando_cliente"
+      tab !== "aguardando_cliente" &&
+      tab !== "campanhas"
     ) {
       setTab(getDefaultChatListTab(user));
     }

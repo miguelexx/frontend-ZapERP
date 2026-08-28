@@ -14,6 +14,7 @@ const EMPTY_COUNTS = {
   pagamentos_pendentes: 0,
   em_atraso: 0,
   mensagens_disparadas: 0,
+  campanhas: 0,
 };
 
 /**
@@ -40,6 +41,7 @@ export function useChatListCounts({
   const mensagensDisparadasCount = separarMensagensDisparadasLigado
     ? Number(counts.mensagens_disparadas) || 0
     : 0;
+  const campanhasCount = Number(counts.campanhas) || 0;
   const minhaFilaCount = Number(counts.minha_fila) || 0;
 
   const countAguardandoFuncionario = useMemo(
@@ -70,6 +72,7 @@ export function useChatListCounts({
     countEmAtraso,
     countAguardandoFuncionario,
     mensagensDisparadasCount,
+    campanhasCount,
     aguardandoFuncionarioVisualState,
   };
 }
@@ -106,6 +109,7 @@ export function getActiveFilterTotalCount({
     pagamentos_pendentes: Number(c.pagamentos_pendentes) || 0,
     em_atraso: Number(c.em_atraso) || 0,
     mensagens_disparadas: Number(c.mensagens_disparadas) || 0,
+    campanhas: Number(c.campanhas) || 0,
     aguardando_funcionario: Number(countAguardandoFuncionario) || 0,
   };
   if (Object.prototype.hasOwnProperty.call(byTab, tab)) {

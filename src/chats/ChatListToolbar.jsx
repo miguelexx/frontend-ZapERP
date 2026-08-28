@@ -38,6 +38,7 @@ function ChatListToolbar({
   countAguardandoFuncionario,
   aguardandoFuncionarioVisualState,
   mensagensDisparadasCount,
+  campanhasCount = 0,
   listRefreshing,
   loading,
   hasStoreChats,
@@ -52,6 +53,7 @@ function ChatListToolbar({
   onAdminClear,
   onAdminBeforeOpen,
   onTabMinhaFila,
+  onTabCampanhas,
   onTabTodas,
   onTabAguardandoAtendente,
   onTabHoje,
@@ -141,6 +143,9 @@ function ChatListToolbar({
                 Minha fila
               </Chip>
             ) : null}
+            <Chip active={isMainChipActive("campanhas")} onClick={onTabCampanhas} count={campanhasCount}>
+              Campanhas
+            </Chip>
             <Chip active={isMainChipActive("todas")} onClick={onTabTodas} count={total}>
               Todas
             </Chip>
@@ -326,6 +331,7 @@ function toolbarPropsAreEqual(prev, next) {
   if (prev.countEmAtraso !== next.countEmAtraso) return false;
   if (prev.countAguardandoFuncionario !== next.countAguardandoFuncionario) return false;
   if (prev.mensagensDisparadasCount !== next.mensagensDisparadasCount) return false;
+  if (prev.campanhasCount !== next.campanhasCount) return false;
   if (prev.aguardandoFuncionarioVisualState !== next.aguardandoFuncionarioVisualState) return false;
   if (prev.searchClearNonce !== next.searchClearNonce) return false;
   if (prev.searchInput !== next.searchInput) return false;
@@ -346,6 +352,7 @@ function toolbarPropsAreEqual(prev, next) {
   if (prev.onSearchDebounced !== next.onSearchDebounced) return false;
   if (prev.onSearchInputChange !== next.onSearchInputChange) return false;
   if (prev.onTabMinhaFila !== next.onTabMinhaFila) return false;
+  if (prev.onTabCampanhas !== next.onTabCampanhas) return false;
   if (prev.onTabTodas !== next.onTabTodas) return false;
   if (prev.onTabAguardandoAtendente !== next.onTabAguardandoAtendente) return false;
   if (prev.onTabHoje !== next.onTabHoje) return false;

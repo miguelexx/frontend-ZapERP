@@ -446,6 +446,7 @@ function payloadImpactaListaLateral(payload) {
   if (!payload || typeof payload !== "object") return false
   const lr = /** @type {any} */ (payload).lista_realtime
   if (lr && lr.minha_fila === true) return true
+  if (lr && lr.campanhas === true) return true
   if (lr && typeof lr === "object") {
     const m = lr.motivo ?? lr.motivo_lista ?? lr.motivos
     if (
@@ -468,6 +469,7 @@ function payloadImpactaListaLateral(payload) {
   if (Object.prototype.hasOwnProperty.call(payload, "atendente_id")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "departamento_id")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "aguardando_cliente_desde")) return true
+  if (Object.prototype.hasOwnProperty.call(payload, "aguardando_resposta_campanha")) return true
   if (Object.prototype.hasOwnProperty.call(payload, "modo_simples_aguardando")) return true
   return false
 }
@@ -475,7 +477,7 @@ function payloadImpactaListaLateral(payload) {
 /** GET /chats ainda necessário mesmo se o merge local não alterou o card (ex.: Minha fila). */
 function payloadForcaResyncLista(payload) {
   const lr = /** @type {any} */ (payload)?.lista_realtime
-  return !!(lr && lr.minha_fila === true)
+  return !!(lr && (lr.minha_fila === true || lr.campanhas === true))
 }
 
 /**
@@ -500,6 +502,7 @@ function isGroupPayload(payload) {
 
 function shouldBeInMinhaFilaForCurrentUser(payload) {
   if (!payload || isGroupPayload(payload)) return false
+  if (payload.aguardando_resposta_campanha === true) return false
   const myId = getCurrentUserId()
   const status = String(
     payload.status_atendimento_real ?? payload.status_atendimento ?? ""
