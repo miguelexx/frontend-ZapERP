@@ -12,7 +12,7 @@
 
 - Dedupe: `whatsapp_id` → `id` → `tempId`. Merge temp↔server no outbound.
 - Direção: normalizar `fromMe`/`from_me`/`isFromMe` → `direcao` in/out. Unread e notify só inbound.
-- Nome/foto sticky: nunca sobrescrever com vazio, “Conversa” ou chatName de outbound.
+- Nome/foto sticky: nunca sobrescrever com vazio, “Conversa” ou chatName de outbound. Foto http **pode** ser substituída por outra URL http (sync UltraMSG / correção).
 - Envio: bolha otimista imediata; reconciliar; outbox só texto; watchdog 45s/180s.
 - Drop mensagem se `conversa_id` ≠ conversa aberta.
 

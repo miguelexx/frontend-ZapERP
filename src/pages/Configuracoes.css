@@ -597,7 +597,72 @@
 }
 
 .config-geral-senha-campanhas {
+  flex: 1 1 220px;
   max-width: 360px;
+  margin: 0;
+}
+
+.config-geral-campanhas-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.config-geral-campanhas-btn {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.config-geral-campanhas-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #0f766e;
+  background: color-mix(in srgb, #14b8a6 16%, transparent);
+}
+
+.config-geral-senha-wrap {
+  position: relative;
+}
+
+.config-geral-senha-wrap .ia-input {
+  padding-right: 88px;
+}
+
+.config-geral-senha-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--dash-muted, var(--ds-text-secondary));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+  min-height: 32px;
+}
+
+.config-geral-senha-toggle:hover {
+  color: var(--dash-text, var(--ds-text));
+}
+
+@media (max-width: 640px) {
+  .config-geral-senha-campanhas {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+
+  .config-geral-campanhas-btn {
+    width: 100%;
+  }
 }
 
 .config-geral-toggle-text {

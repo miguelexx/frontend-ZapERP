@@ -60,7 +60,7 @@ Tela `/permissoes` (`SecaoPermissoes`) edita o catálogo real (grant / deny / de
 
 - **HelpDesk:** `Number(user?.company_id) === 1`. Não é permissão. Outras empresas nem veem o item.
 - **CRM:** item sempre visível. SSO em `CrmAvancadoRedirect`; 503 → UI local.
-- **Disparo:** exige `user.modulo_campanhas_ativo === true` (flag da empresa, default off) **e** `disparo.ver` ou admin. O admin liga o módulo em Configurações → Geral com senha de ativação (`PUT /config/empresa` + `senha_modulo_campanhas`; a senha não vai no bundle). Não ligar envio real pelo FE; o worker live é decisão de backend/ops.
+- **Disparo:** exige `user.modulo_campanhas_ativo === true` (flag da empresa, default off) **e** `disparo.ver` ou admin. O admin liga o módulo em Configurações → Geral com senha + botão **Ativar** (`PUT /config/empresa` + `senha_modulo_campanhas`; a senha não vai no bundle). O `authStore` é atualizado na hora para o menu/rota e o filtro da lista; em seguida a UI vai a `/disparo`. Não ligar envio real pelo FE; o worker live é decisão de backend/ops.
 - **Config modo respostas:** quem só tem `atendimentos.respostas_salvas` entra em `/configuracoes` mas a página restringe tabs — CONFIRMADO pela gate da rota.
 
 ## O que nunca fazer

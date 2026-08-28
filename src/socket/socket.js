@@ -985,9 +985,7 @@ export function initSocket(token) {
       : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
         ? String(msg.senderName).trim()
         : null
-    const fotoContato = (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim()
-      : (msg.photo && String(msg.photo).trim().startsWith("http")) ? String(msg.photo).trim()
-        : null
+    const fotoContato = (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim() : null
 
     if (!jaNaLista) {
       // Não adicionar row inventada pelo socket — fetch autorizado (setor/atendente).

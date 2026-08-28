@@ -65,7 +65,7 @@ Itens gated (CONFIRMADO no layout):
 | `/supervisao` | Supervisão | supervisor/admin |
 | `/permissoes` | Equipe | `usuarios_acessar` |
 | `/crm` | CRM | sempre |
-| `/disparo` | Disparo | `canAcessarDisparo` (some `user.modulo_campanhas_ativo`) |
+| `/disparo` | Campanhas | `canAcessarDisparo` (some `user.modulo_campanhas_ativo`) |
 | `/configuracoes` | Configurações | `config_acessar` |
 | atalho respostas | Respostas | só se **não** tem config e tem `atendimentos.respostas_salvas` |
 | `/dashboard/ia` | IA | `dashboard_acessar` |

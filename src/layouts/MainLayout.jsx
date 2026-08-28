@@ -154,8 +154,8 @@ export default function MainLayout() {
         },
         {
           to: "/disparo",
-          label: "Disparo",
-          title: "Disparo de Mensagens",
+          label: "Campanhas",
+          title: "Campanhas / Disparo de Mensagens",
           icon: IconSpeakerphone,
           show: canAccessDisparo,
         },

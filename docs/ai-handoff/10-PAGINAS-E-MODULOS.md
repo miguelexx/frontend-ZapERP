@@ -46,7 +46,7 @@ Sem `can()`. `internalChatService.js`. Socket `internal_chat:*`. Bridge global n
 
 ## Disparo (em evolução)
 
-Visível no menu/rotas só com `canAcessarDisparo`: módulo Campanhas ativo na empresa (`modulo_campanhas_ativo`) **e** admin/`disparo.ver`. Toggle em Configurações → Geral (somente admin); ativar pede senha enviada ao backend (não hardcode no FE).
+Visível no menu/rotas só com `canAcessarDisparo`: módulo Campanhas ativo na empresa (`modulo_campanhas_ativo`) **e** admin/`disparo.ver`. Em Configurações → Geral o admin informa a senha e clica **Ativar** (`PUT /config/empresa` + `senha_modulo_campanhas`; a senha não vai no bundle). A flag entra no `authStore` na hora: o item **Campanhas** do menu e o chip da lista aparecem sem F5, e a UI abre `/disparo`. Desativar também é imediato (sem senha). Não ligar envio real pelo FE; o worker live é decisão de backend/ops.
 
 | Peça | Rota | Arquivos |
 |------|------|----------|

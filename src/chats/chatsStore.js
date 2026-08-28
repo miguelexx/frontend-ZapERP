@@ -230,7 +230,12 @@ export const useChatStore = create((set, get) => ({
         ...existing,
         ...merged,
         contato_nome: manterNome ? nomeAtual : (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : existing.contato_nome ?? mergedNome),
-        foto_perfil: (existing.foto_perfil && String(existing.foto_perfil).trim()) || mergedFoto || existing.foto_perfil,
+        foto_perfil: (() => {
+          const prev = existing.foto_perfil != null ? String(existing.foto_perfil).trim() : ""
+          const next = mergedFoto != null ? String(mergedFoto).trim() : ""
+          if (next.startsWith("http") && next !== prev) return next
+          return prev || mergedFoto || existing.foto_perfil
+        })(),
         nome_grupo: nomeGrupoValido(merged.nome_grupo) ? merged.nome_grupo : (existing.nome_grupo ?? merged.nome_grupo),
         foto_grupo: (merged.foto_grupo && String(merged.foto_grupo).trim().startsWith("http")) ? merged.foto_grupo : (existing.foto_grupo ?? merged.foto_grupo),
         // Preservar metadados quando payload é parcial (envio otimista)
@@ -290,9 +295,14 @@ export const useChatStore = create((set, get) => ({
       merged.nome_contato_cache = partial.nome_contato_cache ?? partial.contato_nome
     }
     if (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "") {
-      // Sticky no card: se já há foto http, não trocar (envio/socket traz CDN/cache diferente → pulo).
-      const curFotoOk = cur.foto_perfil != null && String(cur.foto_perfil).trim().startsWith("http")
-      if (!curFotoOk) {
+      const nextFoto = String(partial.foto_perfil).trim()
+      const nextFotoOk = nextFoto.startsWith("http")
+      const curFoto = cur.foto_perfil != null ? String(cur.foto_perfil).trim() : ""
+      // Anti-flicker: não limpar. Troca URL http diferente (foto corrigida / contato_atualizado).
+      if (nextFotoOk && nextFoto !== curFoto) {
+        merged.foto_perfil = nextFoto
+        merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache ?? nextFoto
+      } else if (!curFoto.startsWith("http")) {
         merged.foto_perfil = partial.foto_perfil
         merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache ?? partial.foto_perfil
       }

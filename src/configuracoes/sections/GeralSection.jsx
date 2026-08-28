@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../auth/authStore";
 import { useEmpresaStore } from "../../auth/empresaStore";
@@ -28,22 +29,31 @@ function applyTheme(theme) {
   window.dispatchEvent(new CustomEvent("theme-change", { detail: theme }));
 }
 
-export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, onOpenConnectWhatsapp }) {
+export function SecaoGeral({
+  empresa,
+  empresasWhatsapp = [],
+  onSave,
+  onRefresh,
+  onOpenConnectWhatsapp,
+  onToggleModuloCampanhas,
+}) {
   const [v, setV] = useState(empresa || {});
   useEffect(() => setV(empresa || {}), [empresa]);
   const [saving, setSaving] = useState(false);
+  const [savingCampanhas, setSavingCampanhas] = useState(false);
   const [msg, setMsg] = useState(null); // { type: "ok"|"err", text }
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoMsg, setLogoMsg] = useState(null);
   const [senhaCampanhas, setSenhaCampanhas] = useState("");
+  const [mostrarSenhaCampanhas, setMostrarSenhaCampanhas] = useState(false);
 
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
   const showToast = useNotificationStore((s) => s.showToast);
+  const navigate = useNavigate();
   const isAdmin = String(user?.perfil || user?.role || "").toLowerCase() === "admin";
-  const campanhasJaAtivo = empresa?.modulo_campanhas_ativo === true;
-  const precisaSenhaCampanhas = isAdmin && !!v.modulo_campanhas_ativo && !campanhasJaAtivo;
+  const campanhasAtivo = empresa?.modulo_campanhas_ativo === true;
   const [mostrarNomeAoCliente, setMostrarNomeAoCliente] = useState(user?.mostrar_nome_ao_cliente !== false);
   const [mostrarNomeLoading, setMostrarNomeLoading] = useState(false);
 
@@ -77,6 +87,38 @@ export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, 
     const theme = on ? "dark" : "light";
     setDarkMode(on);
     applyTheme(theme);
+  };
+
+  const handleModuloCampanhas = async (ativo) => {
+    if (savingCampanhas) return;
+    if (ativo && !String(senhaCampanhas || "").trim()) {
+      setMsg({ type: "err", text: "Informe a senha de ativação do módulo Campanhas." });
+      return;
+    }
+    setSavingCampanhas(true);
+    setMsg(null);
+    try {
+      await onToggleModuloCampanhas({
+        ativo,
+        senha: ativo ? senhaCampanhas : undefined,
+      });
+      setSenhaCampanhas("");
+      setMostrarSenhaCampanhas(false);
+      showToast?.({
+        type: "success",
+        title: ativo ? "Módulo Campanhas ativado" : "Módulo Campanhas desativado",
+        message: ativo
+          ? "A página de campanhas e o filtro na lista já estão disponíveis."
+          : "O menu e o filtro de campanhas foram ocultados.",
+      });
+      if (ativo) navigate("/disparo");
+    } catch (e) {
+      const text = e?.response?.data?.error || "Não foi possível alterar o módulo Campanhas.";
+      setMsg({ type: "err", text });
+      showToast?.({ type: "error", title: "Erro", message: text });
+    } finally {
+      setSavingCampanhas(false);
+    }
   };
 
   if (!empresa) return <p className="ia-muted">Carregando...</p>;
@@ -192,32 +234,68 @@ export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, 
                   <div className="config-geral-toggle-text">
                     <span className="config-geral-toggle-label">Módulo Campanhas</span>
                     <span className="config-geral-toggle-hint">
-                      Quando ativado, o filtro Campanhas aparece na lista de conversas e o menu Disparo fica disponível para administradores. A ativação exige senha.
+                      {campanhasAtivo
+                        ? "Filtro Campanhas na lista de conversas e página de campanhas no menu já estão disponíveis."
+                        : "Informe a senha e clique em Ativar. O filtro Campanhas e a página de campanhas aparecem na hora."}
                     </span>
                   </div>
-                  <Switch
-                    checked={!!v.modulo_campanhas_ativo}
-                    onChange={(on) => {
-                      setV((c) => ({ ...c, modulo_campanhas_ativo: on }));
-                      if (!on) setSenhaCampanhas("");
-                    }}
-                    aria-label="Módulo Campanhas"
-                  />
+                  {campanhasAtivo ? (
+                    <span className="config-geral-campanhas-badge" aria-live="polite">Ativo</span>
+                  ) : null}
                 </div>
-                {precisaSenhaCampanhas ? (
-                  <div className="ia-field config-geral-senha-campanhas">
-                    <label htmlFor="senha-modulo-campanhas">Senha de ativação</label>
-                    <input
-                      id="senha-modulo-campanhas"
-                      type="password"
-                      className="ia-input"
-                      autoComplete="off"
-                      value={senhaCampanhas}
-                      onChange={(e) => setSenhaCampanhas(e.target.value)}
-                      placeholder="Informe a senha para ativar"
-                    />
+                {campanhasAtivo ? (
+                  <div className="config-geral-campanhas-actions">
+                    <button
+                      type="button"
+                      className="ia-btn ia-btn--outline config-geral-campanhas-btn"
+                      disabled={savingCampanhas}
+                      onClick={() => handleModuloCampanhas(false)}
+                    >
+                      {savingCampanhas ? "Desativando…" : "Desativar"}
+                    </button>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="config-geral-campanhas-actions">
+                    <div className="ia-field config-geral-senha-campanhas">
+                      <label htmlFor="senha-modulo-campanhas">Senha de ativação</label>
+                      <div className="config-geral-senha-wrap">
+                        <input
+                          id="senha-modulo-campanhas"
+                          type={mostrarSenhaCampanhas ? "text" : "password"}
+                          className="ia-input"
+                          autoComplete="off"
+                          value={senhaCampanhas}
+                          onChange={(e) => setSenhaCampanhas(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleModuloCampanhas(true);
+                            }
+                          }}
+                          placeholder="Informe a senha para ativar"
+                          disabled={savingCampanhas}
+                        />
+                        <button
+                          type="button"
+                          className="config-geral-senha-toggle"
+                          onClick={() => setMostrarSenhaCampanhas((on) => !on)}
+                          aria-label={mostrarSenhaCampanhas ? "Ocultar senha" : "Mostrar senha"}
+                          title={mostrarSenhaCampanhas ? "Ocultar senha" : "Mostrar senha"}
+                        >
+                          {mostrarSenhaCampanhas ? "Ocultar" : "Mostrar"}
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="ia-btn ia-btn--primary config-geral-campanhas-btn"
+                      disabled={savingCampanhas || !String(senhaCampanhas || "").trim()}
+                      onClick={() => handleModuloCampanhas(true)}
+                    >
+                      {savingCampanhas ? "Ativando…" : "Ativar"}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : null}
             {String(user?.perfil || user?.role || "").toLowerCase() === "admin" ? (
@@ -491,16 +569,10 @@ export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, 
             setSaving(true);
             setMsg(null);
             try {
-              if (precisaSenhaCampanhas && !String(senhaCampanhas || "").trim()) {
-                setMsg({ type: "err", text: "Informe a senha de ativação do módulo Campanhas." });
-                return;
-              }
               const payload = { ...v };
-              if (precisaSenhaCampanhas) {
-                payload.senha_modulo_campanhas = senhaCampanhas;
-              }
+              delete payload.modulo_campanhas_ativo;
+              delete payload.senha_modulo_campanhas;
               await onSave(payload);
-              setSenhaCampanhas("");
               setMsg({ type: "ok", text: "Configurações salvas com sucesso." });
             } catch (e) {
               setMsg({ type: "err", text: e?.response?.data?.error || "Erro ao salvar configurações." });
@@ -592,10 +664,30 @@ export default function GeralSection() {
   }, []);
   const resource = useSectionResource(load, { empresa: null, empresasWhatsapp: [] }, "Erro ao carregar configurações gerais.");
 
+  const aplicarFlagCampanhas = (flag) => {
+    resource.setData((current) => ({
+      ...current,
+      empresa: { ...(current.empresa || {}), modulo_campanhas_ativo: flag },
+    }));
+    const empresaAtual = useEmpresaStore.getState().empresa;
+    useEmpresaStore.getState().setEmpresa({ ...(empresaAtual || {}), modulo_campanhas_ativo: flag });
+    flushSync(() => {
+      useAuthStore.getState().updateUser({ modulo_campanhas_ativo: flag });
+    });
+  };
+
   const handleSave = async (values) => {
-    const { senha_modulo_campanhas: _senha, ...valuesSemSenha } = values || {};
-    const updated = await cfg.putEmpresa(values);
-    const nextEmpresa = { ...(valuesSemSenha || {}), ...(updated || {}) };
+    const { senha_modulo_campanhas: _senha, modulo_campanhas_ativo: _mod, ...valuesSemSenha } = values || {};
+    const updated = await cfg.putEmpresa(valuesSemSenha);
+    const flagAtual = updated?.modulo_campanhas_ativo !== undefined
+      ? updated.modulo_campanhas_ativo === true
+      : resource.data?.empresa?.modulo_campanhas_ativo === true;
+    const nextEmpresa = {
+      ...(resource.data?.empresa || {}),
+      ...(valuesSemSenha || {}),
+      ...(updated || {}),
+      modulo_campanhas_ativo: flagAtual,
+    };
     delete nextEmpresa.senha_modulo_campanhas;
     resource.setData((current) => ({ ...current, empresa: nextEmpresa }));
     useEmpresaStore.getState().setEmpresa(nextEmpresa);
@@ -603,12 +695,20 @@ export default function GeralSection() {
     if (nextEmpresa?.crm_habilitado !== undefined) authPatch.crm_habilitado = nextEmpresa.crm_habilitado;
     if (nextEmpresa?.separar_mensagens_disparadas !== undefined) authPatch.separar_mensagens_disparadas = nextEmpresa.separar_mensagens_disparadas;
     if (nextEmpresa?.atendimento_modo_simples !== undefined) authPatch.atendimento_modo_simples = nextEmpresa.atendimento_modo_simples;
-    if (nextEmpresa?.modulo_campanhas_ativo !== undefined) {
-      authPatch.modulo_campanhas_ativo = nextEmpresa.modulo_campanhas_ativo === true;
-    }
     if (Object.keys(authPatch).length > 0) {
       useAuthStore.getState().updateUser(authPatch);
     }
+    return updated;
+  };
+
+  const handleToggleModuloCampanhas = async ({ ativo, senha }) => {
+    const payload = { modulo_campanhas_ativo: !!ativo };
+    if (ativo) payload.senha_modulo_campanhas = senha;
+    const updated = await cfg.putEmpresa(payload);
+    const flag = updated?.modulo_campanhas_ativo !== undefined
+      ? updated.modulo_campanhas_ativo === true
+      : !!ativo;
+    aplicarFlagCampanhas(flag);
     return updated;
   };
 
@@ -619,6 +719,7 @@ export default function GeralSection() {
         empresasWhatsapp={resource.data.empresasWhatsapp}
         onOpenConnectWhatsapp={() => navigate("/configuracoes/whatsapp")}
         onSave={handleSave}
+        onToggleModuloCampanhas={handleToggleModuloCampanhas}
         onRefresh={() => resource.reload().catch(() => {})}
       />
     </SectionState>
