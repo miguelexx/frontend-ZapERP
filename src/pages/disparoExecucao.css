@@ -168,6 +168,17 @@
   border: 1px solid #fde68a;
 }
 
+.dpex-worker--info {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.dpex-worker__meta {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
 .dpex-worker__flag {
   margin-left: auto;
   font-size: 11px;
@@ -1425,6 +1436,7 @@
 [data-theme="dark"] .dpex-evento__time { color: #31d7ad; }
 [data-theme="dark"] .dpex-worker--ok { background: rgba(6,207,156,.12); color: #75e8c2; border-color: rgba(6,207,156,.22); }
 [data-theme="dark"] .dpex-worker--warn { background: rgba(251,191,36,.1); color: #fbd56f; border-color: rgba(251,191,36,.2); }
+[data-theme="dark"] .dpex-worker--info { background: rgba(59,130,246,.12); color: #93c5fd; border-color: rgba(59,130,246,.22); }
 [data-theme="dark"] .dpex8-disclaimer { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.2); color: #fbd56f; }
 
 @media (max-width: 1180px) {

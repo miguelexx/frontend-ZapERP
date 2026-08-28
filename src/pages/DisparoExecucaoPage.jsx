@@ -141,6 +141,25 @@ const FILA_PAGE_LIMIT = 25
 const EVENTOS_LIMIT = 30
 const EXCLUSOES_LIMIT = 20
 
+const WORKER_STATUS_LABEL = {
+  ativo: 'Worker ativo',
+  iniciando: 'Worker iniciando',
+  sem_heartbeat: 'Worker sem heartbeat',
+  desabilitado: 'Worker desabilitado — a fila não será processada',
+  offline: 'Nenhum worker ativo detectado',
+}
+
+function workerBannerModifier(status) {
+  if (status === 'ativo') return 'dpex-worker--ok'
+  if (status === 'iniciando') return 'dpex-worker--info'
+  return 'dpex-worker--warn'
+}
+
+function workerStatusLabel(saude) {
+  const status = saude?.status || 'offline'
+  return WORKER_STATUS_LABEL[status] || WORKER_STATUS_LABEL.offline
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtDateTime(iso) {
@@ -439,6 +458,10 @@ export default function DisparoExecucaoPage() {
   }
 
   async function handleIniciar() {
+    if (!workerSaude?.saudavel) {
+      setError(workerSaude?.motivo || 'Nenhum worker ativo detectado')
+      return
+    }
     await runAcao('iniciar', () => iniciarCampanha(campanhaId))
   }
 
@@ -449,6 +472,10 @@ export default function DisparoExecucaoPage() {
   }
 
   async function handleContinuar() {
+    if (!workerSaude?.saudavel) {
+      setError(workerSaude?.motivo || 'Nenhum worker ativo detectado')
+      return
+    }
     await runAcao('continuar', () => continuar(campanhaId))
   }
 
@@ -515,6 +542,8 @@ export default function DisparoExecucaoPage() {
 
   const campanhaStatus = campanha?.status ?? ''
   const execStatus = execucao?.status ?? null
+  const workerSaudavel = workerSaude?.saudavel === true
+  const workerStatus = workerSaude?.status || 'offline'
   const podeIniciar = campanhaStatus === 'pronta' || campanhaStatus === 'agendada'
   const podePausar = campanhaStatus === 'em_execucao'
   const podeContinuar = campanhaStatus === 'pausada'
@@ -630,19 +659,23 @@ export default function DisparoExecucaoPage() {
       {activeTab === 'execucao' && (
       <>
       {/* Worker saúde compacta */}
-      {workerSaude && (
-        <div className={`dpex-worker${workerSaude.workers_ativos > 0 ? ' dpex-worker--ok' : ' dpex-worker--warn'}`}>
-          <IconShieldBolt size={14} />
-          <span>
-            Worker: {workerSaude.workers_ativos > 0
-              ? `${workerSaude.workers_ativos} ativo(s) nos últimos ${workerSaude.janela_minutos} min`
-              : 'Nenhum worker ativo detectado'}
+      <div className={`dpex-worker ${workerBannerModifier(workerStatus)}`}>
+        <IconShieldBolt size={14} />
+        <span>
+          Worker: {workerStatusLabel(workerSaude)}
+        </span>
+        {workerSaude?.ultimo_heartbeat_em && (
+          <span className="dpex-worker__meta">
+            {fmtRelative(workerSaude.ultimo_heartbeat_em)}
           </span>
-          {workerSaude.flags?.live_enabled === false && (
-            <span className="dpex-worker__flag">Live desabilitado</span>
-          )}
-        </div>
-      )}
+        )}
+        {workerSaude?.flags?.liveEnabled === false && (
+          <span className="dpex-worker__flag">Live desabilitado</span>
+        )}
+        {workerSaude?.flags?.dryRun === true && (
+          <span className="dpex-worker__flag">Dry-run</span>
+        )}
+      </div>
 
       {/* Cards de progresso */}
       <section className="dpex-progress" aria-label="Progresso da execução">
@@ -693,7 +726,8 @@ export default function DisparoExecucaoPage() {
             type="button"
             className="disparo-btn-primary"
             onClick={handleIniciar}
-            disabled={!!acaoLoading}
+            disabled={!!acaoLoading || !workerSaudavel}
+            title={!workerSaudavel ? (workerSaude?.motivo || 'Nenhum worker ativo detectado') : undefined}
           >
             <IconPlayerPlay size={15} />
             {acaoLoading === 'iniciar' ? 'Iniciando…' : 'Iniciar campanha'}
@@ -715,7 +749,8 @@ export default function DisparoExecucaoPage() {
             type="button"
             className="disparo-btn-primary"
             onClick={handleContinuar}
-            disabled={!!acaoLoading}
+            disabled={!!acaoLoading || !workerSaudavel}
+            title={!workerSaudavel ? (workerSaude?.motivo || 'Nenhum worker ativo detectado') : undefined}
           >
             <IconPlayerPlay size={15} />
             {acaoLoading === 'continuar' ? 'Retomando…' : 'Continuar'}
