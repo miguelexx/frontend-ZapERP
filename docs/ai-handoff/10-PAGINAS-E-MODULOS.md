@@ -46,6 +46,8 @@ Sem `can()`. `internalChatService.js`. Socket `internal_chat:*`. Bridge global n
 
 ## Disparo (em evolução)
 
+Visível no menu/rotas só com `canAcessarDisparo`: módulo Campanhas ativo na empresa (`modulo_campanhas_ativo`) **e** admin/`disparo.ver`. Toggle em Configurações → Geral (somente admin); ativar pede senha enviada ao backend (não hardcode no FE).
+
 | Peça | Rota | Arquivos |
 |------|------|----------|
 | Lista | `/disparo` | `DisparoMensagens.jsx` |

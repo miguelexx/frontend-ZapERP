@@ -143,9 +143,11 @@ function ChatListToolbar({
                 Minha fila
               </Chip>
             ) : null}
-            <Chip active={isMainChipActive("campanhas")} onClick={onTabCampanhas} count={campanhasCount}>
-              Campanhas
-            </Chip>
+            {user?.modulo_campanhas_ativo === true ? (
+              <Chip active={isMainChipActive("campanhas")} onClick={onTabCampanhas} count={campanhasCount}>
+                Campanhas
+              </Chip>
+            ) : null}
             <Chip active={isMainChipActive("todas")} onClick={onTabTodas} count={total}>
               Todas
             </Chip>
@@ -342,6 +344,7 @@ function toolbarPropsAreEqual(prev, next) {
   if (prev.user?.role !== next.user?.role) return false;
   if (prev.user?.perfil !== next.user?.perfil) return false;
   if (prev.user?.atendimento_modo_simples !== next.user?.atendimento_modo_simples) return false;
+  if (prev.user?.modulo_campanhas_ativo !== next.user?.modulo_campanhas_ativo) return false;
   if (prev.atendentes !== next.atendentes) return false;
   if (prev.middleSlot !== next.middleSlot) return false;
   if (prev.filtersPanelSlot !== next.filtersPanelSlot) return false;

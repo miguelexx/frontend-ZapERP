@@ -20,6 +20,9 @@ function buildUsuarioMePatch(me) {
   if (me.atendimento_modo_simples !== undefined) {
     patch.atendimento_modo_simples = me.atendimento_modo_simples
   }
+  if (me.modulo_campanhas_ativo !== undefined) {
+    patch.modulo_campanhas_ativo = me.modulo_campanhas_ativo === true
+  }
   return Object.keys(patch).length > 0 ? patch : null
 }
 

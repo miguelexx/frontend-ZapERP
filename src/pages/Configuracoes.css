@@ -583,6 +583,23 @@
   border-top: 1px solid color-mix(in srgb, var(--dash-border) 70%, transparent);
 }
 
+.config-geral-toggle--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.config-geral-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.config-geral-senha-campanhas {
+  max-width: 360px;
+}
+
 .config-geral-toggle-text {
   flex: 1;
   min-width: 0;

@@ -36,10 +36,14 @@ export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, 
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoMsg, setLogoMsg] = useState(null);
+  const [senhaCampanhas, setSenhaCampanhas] = useState("");
 
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
   const showToast = useNotificationStore((s) => s.showToast);
+  const isAdmin = String(user?.perfil || user?.role || "").toLowerCase() === "admin";
+  const campanhasJaAtivo = empresa?.modulo_campanhas_ativo === true;
+  const precisaSenhaCampanhas = isAdmin && !!v.modulo_campanhas_ativo && !campanhasJaAtivo;
   const [mostrarNomeAoCliente, setMostrarNomeAoCliente] = useState(user?.mostrar_nome_ao_cliente !== false);
   const [mostrarNomeLoading, setMostrarNomeLoading] = useState(false);
 
@@ -182,6 +186,40 @@ export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, 
                 aria-label="Modo simples de atendimento"
               />
             </div>
+            {isAdmin ? (
+              <div className="config-geral-toggle config-geral-toggle--stack">
+                <div className="config-geral-toggle-row">
+                  <div className="config-geral-toggle-text">
+                    <span className="config-geral-toggle-label">Módulo Campanhas</span>
+                    <span className="config-geral-toggle-hint">
+                      Quando ativado, o filtro Campanhas aparece na lista de conversas e o menu Disparo fica disponível para administradores. A ativação exige senha.
+                    </span>
+                  </div>
+                  <Switch
+                    checked={!!v.modulo_campanhas_ativo}
+                    onChange={(on) => {
+                      setV((c) => ({ ...c, modulo_campanhas_ativo: on }));
+                      if (!on) setSenhaCampanhas("");
+                    }}
+                    aria-label="Módulo Campanhas"
+                  />
+                </div>
+                {precisaSenhaCampanhas ? (
+                  <div className="ia-field config-geral-senha-campanhas">
+                    <label htmlFor="senha-modulo-campanhas">Senha de ativação</label>
+                    <input
+                      id="senha-modulo-campanhas"
+                      type="password"
+                      className="ia-input"
+                      autoComplete="off"
+                      value={senhaCampanhas}
+                      onChange={(e) => setSenhaCampanhas(e.target.value)}
+                      placeholder="Informe a senha para ativar"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {String(user?.perfil || user?.role || "").toLowerCase() === "admin" ? (
               <div className="config-geral-toggle">
                 <div className="config-geral-toggle-text">
@@ -453,7 +491,16 @@ export function SecaoGeral({ empresa, empresasWhatsapp = [], onSave, onRefresh, 
             setSaving(true);
             setMsg(null);
             try {
-              await onSave(v);
+              if (precisaSenhaCampanhas && !String(senhaCampanhas || "").trim()) {
+                setMsg({ type: "err", text: "Informe a senha de ativação do módulo Campanhas." });
+                return;
+              }
+              const payload = { ...v };
+              if (precisaSenhaCampanhas) {
+                payload.senha_modulo_campanhas = senhaCampanhas;
+              }
+              await onSave(payload);
+              setSenhaCampanhas("");
               setMsg({ type: "ok", text: "Configurações salvas com sucesso." });
             } catch (e) {
               setMsg({ type: "err", text: e?.response?.data?.error || "Erro ao salvar configurações." });
@@ -546,14 +593,19 @@ export default function GeralSection() {
   const resource = useSectionResource(load, { empresa: null, empresasWhatsapp: [] }, "Erro ao carregar configurações gerais.");
 
   const handleSave = async (values) => {
+    const { senha_modulo_campanhas: _senha, ...valuesSemSenha } = values || {};
     const updated = await cfg.putEmpresa(values);
-    const nextEmpresa = { ...(values || {}), ...(updated || {}) };
+    const nextEmpresa = { ...(valuesSemSenha || {}), ...(updated || {}) };
+    delete nextEmpresa.senha_modulo_campanhas;
     resource.setData((current) => ({ ...current, empresa: nextEmpresa }));
     useEmpresaStore.getState().setEmpresa(nextEmpresa);
     const authPatch = {};
     if (nextEmpresa?.crm_habilitado !== undefined) authPatch.crm_habilitado = nextEmpresa.crm_habilitado;
     if (nextEmpresa?.separar_mensagens_disparadas !== undefined) authPatch.separar_mensagens_disparadas = nextEmpresa.separar_mensagens_disparadas;
     if (nextEmpresa?.atendimento_modo_simples !== undefined) authPatch.atendimento_modo_simples = nextEmpresa.atendimento_modo_simples;
+    if (nextEmpresa?.modulo_campanhas_ativo !== undefined) {
+      authPatch.modulo_campanhas_ativo = nextEmpresa.modulo_campanhas_ativo === true;
+    }
     if (Object.keys(authPatch).length > 0) {
       useAuthStore.getState().updateUser(authPatch);
     }

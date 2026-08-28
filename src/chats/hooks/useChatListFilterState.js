@@ -98,6 +98,12 @@ export function useChatListFilterState({
   }, [separarMensagensDisparadasLigado, tab, user?.atendimento_modo_simples]);
 
   useEffect(() => {
+    if (user?.modulo_campanhas_ativo !== true && tab === "campanhas") {
+      setTab(getDefaultChatListTab(user));
+    }
+  }, [user?.modulo_campanhas_ativo, tab, user]);
+
+  useEffect(() => {
     if (!isFinanceiroUser && (tab === "pagamentos_pendentes" || tab === "em_atraso")) {
       setTab(getDefaultChatListTab(user));
     }

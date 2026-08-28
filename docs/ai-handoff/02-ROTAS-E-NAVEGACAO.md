@@ -33,7 +33,7 @@
 | `/permissoes` | Permissoes | `usuarios_acessar` |
 | `/supervisao` | Supervisao | `isSupervisorOrAdmin(user)` (role, não catálogo) |
 | `/helpdesk` | HelpDesk | `Number(user?.company_id) === 1` |
-| `/disparo` | lista campanhas | `canAcessarDisparo` |
+| `/disparo` | lista campanhas | `canAcessarDisparo` (módulo Campanhas ativo na empresa + admin/`disparo.ver`) |
 | `/disparo/campanhas/:id` | wizard | idem |
 | `/disparo/campanhas/:id/execucao` | execução | idem |
 | `/campanhas` | redirect | `/atendimento` (módulo antigo morto) |
@@ -65,7 +65,7 @@ Itens gated (CONFIRMADO no layout):
 | `/supervisao` | Supervisão | supervisor/admin |
 | `/permissoes` | Equipe | `usuarios_acessar` |
 | `/crm` | CRM | sempre |
-| `/disparo` | Disparo | `canAcessarDisparo` |
+| `/disparo` | Disparo | `canAcessarDisparo` (some `user.modulo_campanhas_ativo`) |
 | `/configuracoes` | Configurações | `config_acessar` |
 | atalho respostas | Respostas | só se **não** tem config e tem `atendimentos.respostas_salvas` |
 | `/dashboard/ia` | IA | `dashboard_acessar` |

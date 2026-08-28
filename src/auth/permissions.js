@@ -113,8 +113,9 @@ export function canNotaInterna(user) {
   return ["admin", "supervisor", "atendente"].includes(role(user));
 }
 
-/** Apenas admin pode acessar o módulo Disparo de Mensagens */
+/** Apenas admin pode acessar o módulo Disparo de Mensagens, e só se a empresa ativou Campanhas. */
 export function canAcessarDisparo(user) {
+  if (user?.modulo_campanhas_ativo !== true) return false;
   const permissoes = usePermissoesStore.getState().permissoes;
   if (permissoes != null && Object.prototype.hasOwnProperty.call(permissoes, "disparo.ver")) {
     return !!permissoes["disparo.ver"];
