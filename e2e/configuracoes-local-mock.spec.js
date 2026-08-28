@@ -80,6 +80,51 @@ async function installConfigApi(page, options = {}) {
       return;
     }
 
+    if (path === "/clientes/importar/preview" || path === "/api/clientes/importar/preview") {
+      await route.fulfill({
+        json: {
+          headers: ["Nome", "Telefone", "Tags"],
+          mapping: { nome: 0, telefone: 1, serie: 2 },
+          auto: { nome: 0, telefone: 1, serie: 2 },
+          colunas_faltando: [],
+          stats: { totalLinhas: 2, validas: 2, ignoradas: 0, telefonesUnicos: 1, conflitos: 1, telefonesCompartilhados: 1 },
+          amostra: [{ nome: "ALEXIA CRISTINA MARCHEZAN DOS SANTOS", telefone: "5534999514579", tags: ["6º Ano do Ensino Fundamental II"], conflito: true, nomes_conflitantes: ["IRMAO"] }],
+          ignored: [],
+          conflicts: [{ telefone: "5534999514579", phoneKey: "5534999514579", nome: "ALEXIA CRISTINA MARCHEZAN DOS SANTOS", nomesConflitantes: ["ALEXIA CRISTINA MARCHEZAN DOS SANTOS", "IRMAO"], tags: ["6º Ano do Ensino Fundamental II"], alunos: [] }],
+          nome_sera_alterado: [{ telefone: "5534999514579", nome_planilha: "ALEXIA CRISTINA MARCHEZAN DOS SANTOS", nome_atual: "KELEN CRISTINA MARCHEZAN DOS SANTOS" }],
+          nomes_manuais_protegidos: [],
+          ja_existentes: [],
+        },
+      });
+      return;
+    }
+
+    if (path === "/clientes/importar" || path === "/api/clientes/importar") {
+      writes.push({ method, path });
+      await route.fulfill({
+        json: {
+          ok: true,
+          resumo: {
+            totalLinhas: 2,
+            telefonesUnicos: 1,
+            clientesCriados: 0,
+            clientesImportados: 0,
+            clientesAtualizados: 1,
+            clientesJaExistentes: 1,
+            nomesAlterados: 1,
+            nomesProtegidos: 1,
+            nomesManuaisPreservados: 0,
+            linhasIgnoradas: 0,
+            conflitos: 1,
+            falhas: 0,
+            tagsCriadas: 1,
+            tagsVinculadas: 1,
+          },
+        },
+      });
+      return;
+    }
+
     if (method !== "GET") {
       let body = null;
       try {
@@ -237,6 +282,27 @@ test.describe("Configuracoes - contratos protegidos", () => {
     await expect(page.getByRole("heading", { name: "Importar clientes por planilha" })).toBeVisible();
     await page.getByRole("button", { name: "Cancelar" }).click();
     expect(api.writes).toEqual([]);
+  });
+
+  test("importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo", async ({ page }) => {
+    const api = await installConfigApi(page);
+    await page.goto("/configuracoes?tab=clientes");
+    await page.getByRole("button", { name: "Importar clientes" }).click();
+    const fileInput = page.locator('input[type="file"][accept=".xlsx"]').first();
+    await fileInput.setInputFiles({
+      name: "Contatos_Alunos_ZapERP.xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      buffer: Buffer.from("PK\u0003\u0004"),
+    });
+    await expect(page.getByText("ALEXIA CRISTINA MARCHEZAN DOS SANTOS")).toBeVisible();
+    await expect(page.getByText("5534999514579")).toBeVisible();
+    const confirmar = page.getByRole("button", { name: /Confirmar importação/ });
+    await expect(confirmar).toBeEnabled();
+    await confirmar.click();
+    await expect(page.getByText("Nomes alterados")).toBeVisible();
+    await expect(page.getByText("Nomes protegidos")).toBeVisible();
+    await expect(page.getByText("Telefones únicos")).toBeVisible();
+    expect(api.writes.filter((item) => item.path.includes("/clientes/importar")).length).toBeGreaterThan(0);
   });
 
 });

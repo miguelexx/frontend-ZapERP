@@ -20,7 +20,7 @@ const tests = [
   "test-audio-stress.mjs",
   "test-chat-media-display.mjs",
   "test-chat-search-prefix.mjs",
-  "test-chat-list-fetch-params.mjs",
+  "test-importar-clientes-helpers.mjs",
   "test-contact-conversation-routing.mjs",
   "test-conversation-boundary.mjs",
   "test-conversa-bubble.mjs",

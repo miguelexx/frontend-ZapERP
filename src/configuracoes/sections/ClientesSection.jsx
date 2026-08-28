@@ -9,6 +9,11 @@ import * as chatService from "../../chats/chatService";
 import Switch from "../../components/ui/Switch";
 import SectionState from "../components/SectionState";
 import { useSectionResource } from "../hooks/useSectionResource";
+import {
+  confirmacaoDesabilitada,
+  nomesPrincipaisIniciais,
+  resumoImportacao,
+} from "../importarClientesHelpers";
 
 const CLIENTES_PAGE_LIMIT = 200;
 
@@ -593,29 +598,35 @@ function ModalCliente({ mode, cliente, onClose, onSaved, allTags = [] }) {
 
 /**
  * Importação de clientes por planilha (.xlsx).
- * Fluxo: selecionar arquivo → prévia (com mapeamento de colunas editável) → confirmar → resumo.
- * Colunas usadas: Nome do(a) Aluno(a) · Celular do(a) Responsável Pedagógico · Série (Ano).
+ * Fluxo: selecionar arquivo → prévia (mapeamento + irmãos) → confirmar → resumo.
  */
 function ModalImportarClientes({ onClose, onImported }) {
   const [file, setFile] = useState(null);
-  const [step, setStep] = useState("select"); // select | preview | done
+  const [step, setStep] = useState("select");
   const [loading, setLoading] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState("");
   const [preview, setPreview] = useState(null);
   const [mapping, setMapping] = useState({ nome: null, telefone: null, serie: null });
+  const [nomesPrincipais, setNomesPrincipais] = useState({});
+  const [confirmarNomesManuais, setConfirmarNomesManuais] = useState(false);
   const [resultado, setResultado] = useState(null);
 
-  const rodarPreview = async (arquivo, mapOverride) => {
+  const rodarPreview = async (arquivo, mapOverride, principaisOverride) => {
     setLoading(true);
     setErro("");
     try {
-      const data = await cfg.previewImportarClientes(arquivo, mapOverride || undefined);
+      const principais = principaisOverride || nomesPrincipais;
+      const data = await cfg.previewImportarClientes(arquivo, mapOverride || undefined, {
+        nomesPrincipais: principais,
+      });
       setPreview(data);
       setMapping({
         nome: data?.mapping?.nome ?? null,
         telefone: data?.mapping?.telefone ?? null,
         serie: data?.mapping?.serie ?? null,
       });
+      setNomesPrincipais((atual) => ({ ...nomesPrincipaisIniciais(data?.conflicts || []), ...atual }));
       setStep("preview");
     } catch (e) {
       setErro(e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao analisar a planilha.");
@@ -626,30 +637,44 @@ function ModalImportarClientes({ onClose, onImported }) {
 
   const handleFile = (e) => {
     const f = e.target.files?.[0];
-    e.target.value = ""; // permite re-selecionar o mesmo arquivo
+    e.target.value = "";
     if (!f) return;
     if (!/\.xlsx$/i.test(f.name)) {
-      setErro("Selecione um arquivo .xlsx (modelo da planilha de matrículas).");
+      setErro("Selecione um arquivo .xlsx.");
       return;
     }
     setFile(f);
     setResultado(null);
-    rodarPreview(f, null);
+    setNomesPrincipais({});
+    setConfirmarNomesManuais(false);
+    rodarPreview(f, null, {});
   };
 
   const handleMappingChange = (campo, valor) => {
     const idx = valor === "" ? null : Number(valor);
     const novo = { ...mapping, [campo]: idx };
     setMapping(novo);
-    if (file) rodarPreview(file, novo);
+    if (file) rodarPreview(file, novo, nomesPrincipais);
+  };
+
+  const handleNomePrincipal = (conflict, nome) => {
+    const key = conflict.phoneKey || conflict.telefone;
+    if (!key) return;
+    const novo = { ...nomesPrincipais, [key]: nome };
+    setNomesPrincipais(novo);
+    if (file) rodarPreview(file, mapping, novo);
   };
 
   const handleConfirmar = async () => {
-    if (!file) return;
+    if (!file || confirmando || loading) return;
+    setConfirmando(true);
     setLoading(true);
     setErro("");
     try {
-      const data = await cfg.confirmarImportarClientes(file, mapping);
+      const data = await cfg.confirmarImportarClientes(file, mapping, {
+        nomesPrincipais,
+        confirmarNomesManuais,
+      });
       setResultado(data);
       setStep("done");
       onImported?.();
@@ -657,6 +682,7 @@ function ModalImportarClientes({ onClose, onImported }) {
       setErro(e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao importar clientes.");
     } finally {
       setLoading(false);
+      setConfirmando(false);
     }
   };
 
@@ -696,9 +722,19 @@ function ModalImportarClientes({ onClose, onImported }) {
   };
 
   const headers = preview?.headers || [];
-  const faltaObrigatoria = mapping.nome == null || mapping.telefone == null;
   const stats = preview?.stats || {};
   const resumo = resultado?.resumo || {};
+  const counts = resumoImportacao(resumo);
+  const faltaObrigatoria = mapping.nome == null || mapping.telefone == null;
+  const confirmarOff = confirmacaoDesabilitada({
+    mapping,
+    loading,
+    confirmando,
+    telefonesUnicos: stats.telefonesUnicos,
+  });
+  const manuais = preview?.nomes_manuais_protegidos || [];
+  const alterados = preview?.nome_sera_alterado || [];
+  const conflicts = preview?.conflicts || [];
 
   const colSelect = (campo, label, obrigatorio) => (
     <div className="ia-field" style={{ marginBottom: 8 }}>
@@ -742,9 +778,9 @@ function ModalImportarClientes({ onClose, onImported }) {
       >
         <h4 style={{ margin: "0 0 4px 0" }}>Importar clientes por planilha</h4>
         <p className="ia-muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Envie o arquivo <strong>.xlsx</strong> no modelo de matrículas. Serão usadas as colunas
-          <strong> Nome do(a) Aluno(a)</strong>, <strong>Celular do(a) Responsável Pedagógico</strong> e
-          <strong> Série (Ano)</strong> — as demais são ignoradas. Nenhuma conversa é criada.
+          Escolha as colunas de <strong>nome</strong>, <strong>telefone</strong> e <strong>tags</strong>.
+          O nome da planilha fica protegido e não é alterado por WhatsApp, webhook ou sincronização.
+          Nenhuma conversa ou mensagem é criada.
         </p>
 
         {erro ? (
@@ -771,14 +807,16 @@ function ModalImportarClientes({ onClose, onImported }) {
                 </p>
                 {colSelect("nome", "Nome do cliente", true)}
                 {colSelect("telefone", "Telefone / WhatsApp", true)}
-                {colSelect("serie", "Série (tag)", false)}
+                {colSelect("serie", "Tags (série)", false)}
               </div>
               <div style={{ flex: "1 1 220px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 12px", fontSize: 13 }}>
                   <span className="ia-muted">Linhas na planilha</span><strong>{stats.totalLinhas ?? 0}</strong>
                   <span className="ia-muted">Contatos válidos</span><strong>{stats.telefonesUnicos ?? 0}</strong>
                   <span className="ia-muted">Linhas ignoradas</span><strong>{stats.ignoradas ?? 0}</strong>
-                  <span className="ia-muted">Conflitos (conferir)</span><strong>{stats.conflitos ?? 0}</strong>
+                  <span className="ia-muted">Telefones compartilhados</span><strong>{stats.telefonesCompartilhados ?? stats.conflitos ?? 0}</strong>
+                  <span className="ia-muted">Nomes que serão alterados</span><strong>{alterados.length}</strong>
+                  <span className="ia-muted">Nomes manuais protegidos</span><strong>{manuais.length}</strong>
                 </div>
               </div>
             </div>
@@ -790,7 +828,7 @@ function ModalImportarClientes({ onClose, onImported }) {
             ) : null}
 
             <p className="ia-muted" style={{ fontSize: 12, margin: "8px 0 4px" }}>
-              Prévia dos primeiros contatos:
+              Prévia dos primeiros contatos (nome que será salvo):
             </p>
             <div style={{ overflowX: "auto", border: "1px solid var(--ds-border, #e2e8f0)", borderRadius: 8, maxHeight: 260, overflowY: "auto" }}>
               <table className="ia-table" style={{ margin: 0 }}>
@@ -824,9 +862,70 @@ function ModalImportarClientes({ onClose, onImported }) {
               </table>
             </div>
 
+            {conflicts.length > 0 ? (
+              <div style={{ marginTop: 12, border: "1px solid rgba(234,88,12,0.35)", borderRadius: 8, padding: 12 }}>
+                <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600 }}>
+                  Telefone compartilhado ({conflicts.length}) — escolha o nome principal antes de confirmar
+                </p>
+                {conflicts.slice(0, 40).map((c) => {
+                  const key = c.phoneKey || c.telefone;
+                  const escolhido = nomesPrincipais[key] || c.nome;
+                  const nomes = c.nomesConflitantes || [];
+                  return (
+                    <div key={key} style={{ marginBottom: 10, fontSize: 13 }}>
+                      <div className="ia-muted" style={{ fontSize: 12 }}>
+                        {c.telefone} · {(c.alunos || []).length || nomes.length} alunos · {(c.tags || []).join(" · ")}
+                      </div>
+                      <select
+                        className="ia-input"
+                        value={escolhido}
+                        onChange={(e) => handleNomePrincipal(c, e.target.value)}
+                        disabled={loading}
+                      >
+                        {nomes.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {alterados.length > 0 ? (
+              <p className="ia-muted" style={{ fontSize: 12, marginTop: 10 }}>
+                {alterados.length} contato(s) existente(s) terão o nome automático substituído pelo nome da planilha e ficarão protegidos.
+              </p>
+            ) : null}
+
+            {manuais.length > 0 ? (
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={confirmarNomesManuais}
+                  onChange={(e) => setConfirmarNomesManuais(e.target.checked)}
+                  disabled={loading}
+                />
+                <span>
+                  Atualizar também {manuais.length} nome(s) editado(s) manualmente. Sem esta confirmação, o nome manual permanece.
+                </span>
+              </label>
+            ) : null}
+
+            {(preview.ignored || []).length > 0 ? (
+              <details style={{ marginTop: 10, fontSize: 12 }}>
+                <summary>Linhas rejeitadas ({preview.ignored.length})</summary>
+                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                  {(preview.ignored || []).slice(0, 30).map((i) => (
+                    <li key={i.linha}>Linha {i.linha}: {i.motivo}{i.nome ? ` — ${i.nome}` : ""}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+
             <div className="ia-btn-row" style={{ marginTop: 16 }}>
-              <button type="button" className="ia-btn ia-btn--primary" onClick={handleConfirmar} disabled={loading || faltaObrigatoria || (stats.telefonesUnicos ?? 0) === 0}>
-                {loading ? "Importando…" : `Confirmar importação (${stats.telefonesUnicos ?? 0})`}
+              <button type="button" className="ia-btn ia-btn--primary" onClick={handleConfirmar} disabled={confirmarOff}>
+                {confirmando ? "Importando…" : `Confirmar importação (${stats.telefonesUnicos ?? 0} telefones únicos)`}
               </button>
               <label className="ia-btn ia-btn--outline" style={{ cursor: "pointer" }}>
                 Trocar arquivo
@@ -843,16 +942,20 @@ function ModalImportarClientes({ onClose, onImported }) {
           <>
             <div style={{ background: "rgba(0,168,132,0.12)", border: "1px solid rgba(0,168,132,0.4)", borderRadius: 8, padding: 16, marginBottom: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "6px 12px", fontSize: 14 }}>
-                <span className="ia-muted">Linhas analisadas</span><strong>{resumo.totalLinhas ?? 0}</strong>
-                <span className="ia-muted">Clientes importados (novos)</span><strong>{resumo.clientesImportados ?? 0}</strong>
-                <span className="ia-muted">Clientes já existentes</span><strong>{resumo.clientesJaExistentes ?? 0}</strong>
+                <span className="ia-muted">Linhas analisadas</span><strong>{counts.linhas}</strong>
+                <span className="ia-muted">Telefones únicos</span><strong>{counts.telefonesUnicos}</strong>
+                <span className="ia-muted">Contatos criados</span><strong>{counts.criados}</strong>
+                <span className="ia-muted">Contatos atualizados</span><strong>{counts.atualizados}</strong>
+                <span className="ia-muted">Contatos já existentes</span><strong>{counts.jaExistentes}</strong>
+                <span className="ia-muted">Nomes alterados</span><strong>{counts.nomesAlterados}</strong>
+                <span className="ia-muted">Nomes protegidos</span><strong>{counts.nomesProtegidos}</strong>
+                <span className="ia-muted">Nomes manuais preservados</span><strong>{counts.nomesManuaisPreservados}</strong>
                 <span className="ia-muted">Tags criadas</span><strong>{resumo.tagsCriadas ?? 0}</strong>
                 <span className="ia-muted">Tags vinculadas</span><strong>{resumo.tagsVinculadas ?? 0}</strong>
-                <span className="ia-muted">Tags antigas removidas</span><strong>{resumo.tagsRemovidas ?? 0}</strong>
-                <span className="ia-muted">Linhas ignoradas</span><strong>{resumo.linhasIgnoradas ?? 0}</strong>
-                <span className="ia-muted">Conflitos (conferir)</span><strong>{resumo.conflitos ?? 0}</strong>
-                {(resumo.falhas ?? 0) > 0 ? (
-                  <><span style={{ color: "#ef4444" }}>Falhas</span><strong style={{ color: "#ef4444" }}>{resumo.falhas}</strong></>
+                <span className="ia-muted">Linhas ignoradas</span><strong>{counts.ignoradas}</strong>
+                <span className="ia-muted">Conflitos</span><strong>{counts.conflitos}</strong>
+                {counts.falhas > 0 ? (
+                  <><span style={{ color: "#ef4444" }}>Erros</span><strong style={{ color: "#ef4444" }}>{counts.falhas}</strong></>
                 ) : null}
               </div>
             </div>

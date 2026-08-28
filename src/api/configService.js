@@ -221,25 +221,30 @@ export async function excluirTodosClientes() {
  * @param {File} file
  * @param {{ nome?:number, telefone?:number, serie?:number }} [mapping] override de colunas (0-indexed)
  */
-function montarFormImport(file, mapping) {
+function montarFormImport(file, mapping, extras = {}) {
   const fd = new FormData()
   fd.append('arquivo', file)
   if (mapping && (mapping.nome != null || mapping.telefone != null || mapping.serie != null)) {
     fd.append('mapping', JSON.stringify(mapping))
   }
+  if (extras.nomesPrincipais && Object.keys(extras.nomesPrincipais).length > 0) {
+    fd.append('nomes_principais', JSON.stringify(extras.nomesPrincipais))
+  }
+  if (extras.confirmarNomesManuais) {
+    fd.append('confirmar_nomes_manuais', 'true')
+  }
   return fd
 }
 
 /** Analisa a planilha e devolve a prévia (não grava nada). */
-export async function previewImportarClientes(file, mapping) {
-  // Não forçar Content-Type: o browser precisa definir o boundary do multipart.
-  const { data } = await api.post('/clientes/importar/preview', montarFormImport(file, mapping))
+export async function previewImportarClientes(file, mapping, extras) {
+  const { data } = await api.post('/clientes/importar/preview', montarFormImport(file, mapping, extras))
   return data
 }
 
 /** Executa a importação (cria/reutiliza clientes e vincula as tags das séries). */
-export async function confirmarImportarClientes(file, mapping) {
-  const { data } = await api.post('/clientes/importar', montarFormImport(file, mapping))
+export async function confirmarImportarClientes(file, mapping, extras) {
+  const { data } = await api.post('/clientes/importar', montarFormImport(file, mapping, extras))
   return data
 }
 
