@@ -220,7 +220,7 @@ function PreviaBubble({ item }) {
   )
 }
 
-function VoltarEdicaoDialog({ onCancel, onConfirm, loading }) {
+function VoltarEdicaoDialog({ status, onCancel, onConfirm, loading }) {
   return (
     <div className="rev-modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget && !loading) onCancel() }}>
       <div className="rev-modal rev-modal--sm">
@@ -231,7 +231,9 @@ function VoltarEdicaoDialog({ onCancel, onConfirm, loading }) {
           <div>
             <h2 className="rev-modal__title">Voltar para edição?</h2>
             <p className="rev-modal__sub">
-              A confirmação será invalidada. Instâncias, mensagens e limites precisarão ser revisados novamente.
+              {status === 'pausada'
+                ? 'A execução pausada será encerrada. O que já foi enviado permanece; o que ainda não saiu será cancelado. Ajuste os limites, confirme essa etapa e publique de novo para a fila seguir o ritmo configurado.'
+                : 'A confirmação será invalidada. Ajuste e confirme os limites de novo antes de publicar a campanha.'}
             </p>
           </div>
         </div>
@@ -454,11 +456,11 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
             <div>
               <strong>Campanha congelada</strong>
               <p>
-                Status: {revisao?.campanha?.status === 'agendada' ? 'Agendada' : 'Pronta'}.
+                Status: {revisao?.campanha?.status === 'agendada' ? 'Agendada' : revisao?.campanha?.status === 'pausada' ? 'Pausada' : 'Pronta'}.
                 {revisao?.campanha?.confirmada_em && (
                   <> Confirmada em {fmtIsoLocal(revisao.campanha.confirmada_em)}.</>
                 )}
-                {' '}Nenhum envio ocorre nesta etapa.
+                {' '}Use Editar configurações no topo para alterar limites e demais etapas.
               </p>
               {EXEC_ACCESS_STATUSES.has(campanha?.status) && (
                 <p style={{ marginTop: 8 }}>
@@ -832,6 +834,7 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
 
       {showVoltarDialog && (
         <VoltarEdicaoDialog
+          status={campanha?.status}
           onCancel={() => setShowVoltarDialog(false)}
           onConfirm={handleVoltarEdicao}
           loading={voltandoEdicao}

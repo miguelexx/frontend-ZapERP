@@ -617,8 +617,8 @@ export default function DisparoExecucaoPage() {
             <IconRefresh size={15} className={refreshing ? 'dpex-spin' : ''} />
             {refreshing ? 'Atualizando…' : 'Atualizar'}
           </button>
-          <Link to={`/disparo/campanhas/${campanhaId}`} className="disparo-btn-secondary dpex-btn-link">
-            Wizard
+          <Link to={`/disparo/campanhas/${campanhaId}`} className="disparo-btn-secondary dpex-btn-link" title="Configurações">
+            Configurações
           </Link>
         </div>
       </header>

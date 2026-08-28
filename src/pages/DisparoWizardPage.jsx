@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  IconAlertTriangle,
   IconArrowLeft,
   IconCheck,
   IconChecks,
@@ -8,11 +9,13 @@ import {
   IconInfoCircle,
   IconMessage2,
   IconPlayerPlay,
+  IconSettings,
   IconSpeakerphone,
   IconUsers,
   IconWaveSawTool,
 } from '@tabler/icons-react'
 import { disparoApiError, editarCampanha, obterCampanha } from '../api/disparoService'
+import { voltarEdicao } from '../api/disparoRevisaoService'
 import DisparoDestinatariosStep from './DisparoDestinatariosStep'
 import DisparoInstanciasStep from './DisparoInstanciasStep'
 import DisparoLimitesStep from './DisparoLimitesStep'
@@ -25,6 +28,8 @@ import './disparoExecucao.css'
 const EXEC_ACCESS_STATUSES = new Set([
   'pronta', 'agendada', 'em_execucao', 'pausada', 'concluida', 'cancelada',
 ])
+
+const VOLTAR_EDICAO_STATUSES = new Set(['pronta', 'agendada', 'pausada'])
 
 // ── Wizard steps config ───────────────────────────────────────────────────────
 
@@ -169,6 +174,42 @@ function LockedStep({ label, message }) {
   )
 }
 
+function VoltarEdicaoWizardDialog({ status, onCancel, onConfirm, loading }) {
+  const pausada = status === 'pausada'
+  return (
+    <div
+      className="rev-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget && !loading) onCancel() }}
+    >
+      <div className="rev-modal rev-modal--sm">
+        <div className="rev-modal__header">
+          <div className="rev-modal__icon rev-modal__icon--warn">
+            <IconAlertTriangle size={20} />
+          </div>
+          <div>
+            <h2 className="rev-modal__title">Editar configurações?</h2>
+            <p className="rev-modal__sub">
+              {pausada
+                ? 'A execução pausada será encerrada. O que já foi enviado permanece; o que ainda não saiu será cancelado. Em seguida ajuste os limites, confirme essa etapa e publique de novo — a nova fila segue o ritmo configurado.'
+                : 'A confirmação será invalidada. Ajuste os limites, confirme essa etapa e publique a campanha de novo para aplicar o ritmo na fila.'}
+            </p>
+          </div>
+        </div>
+        <div className="rev-modal__footer">
+          <button type="button" className="disparo-btn-secondary" onClick={onCancel} disabled={loading}>
+            Cancelar
+          </button>
+          <button type="button" className="rev-btn-danger" onClick={onConfirm} disabled={loading}>
+            {loading ? 'Processando…' : 'Sim, editar configurações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Página do Wizard ──────────────────────────────────────────────────────────
 
 export default function DisparoWizardPage() {
@@ -180,6 +221,8 @@ export default function DisparoWizardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeStep, setActiveStep] = useState(0)
+  const [showVoltarEdicao, setShowVoltarEdicao] = useState(false)
+  const [voltandoEdicao, setVoltandoEdicao] = useState(false)
 
   const fetchCampanha = useCallback(async () => {
     setLoading(true); setError('')
@@ -194,6 +237,22 @@ export default function DisparoWizardPage() {
   }, [campanhaId])
 
   useEffect(() => { fetchCampanha() }, [fetchCampanha])
+
+  async function handleVoltarEdicao() {
+    setVoltandoEdicao(true)
+    setError('')
+    try {
+      const result = await voltarEdicao(campanhaId, { confirmacao: true })
+      setShowVoltarEdicao(false)
+      const data = await obterCampanha(campanhaId)
+      setCampanha(data)
+      if (result?.status) setActiveStep(4)
+    } catch (err) {
+      setError(disparoApiError(err))
+    } finally {
+      setVoltandoEdicao(false)
+    }
+  }
 
   const STATUS_LABEL = {
     rascunho: 'Rascunho', configurando: 'Configurando', pronta: 'Pronta', agendada: 'Agendada',
@@ -245,17 +304,31 @@ export default function DisparoWizardPage() {
         </div>
       </div>
 
-      {/* Banner execução */}
+      {/* Banner execução / edição */}
       {EXEC_ACCESS_STATUSES.has(campanha.status) && (
         <div className="dpex-wizard-banner">
           <span>
-            Esta campanha está em fase operacional ({STATUS_LABEL[campanha.status] ?? campanha.status}).
-            Acompanhe o progresso, fila e eventos em tempo real.
+            {VOLTAR_EDICAO_STATUSES.has(campanha.status)
+              ? `Esta campanha está ${STATUS_LABEL[campanha.status] ?? campanha.status}. Para mudar limites, mensagens ou destinatários, volte para edição.`
+              : `Esta campanha está em fase operacional (${STATUS_LABEL[campanha.status] ?? campanha.status}). Acompanhe o progresso, fila e eventos em tempo real.`}
           </span>
-          <Link to={`/disparo/campanhas/${campanhaId}/execucao`} className="dpex-wizard-banner__link">
-            <IconPlayerPlay size={14} />
-            Ir para execução
-          </Link>
+          <div className="dpex-wizard-banner__actions">
+            {VOLTAR_EDICAO_STATUSES.has(campanha.status) && (
+              <button
+                type="button"
+                className="dpex-wizard-banner__link"
+                onClick={() => setShowVoltarEdicao(true)}
+                disabled={voltandoEdicao}
+              >
+                <IconSettings size={14} />
+                Editar configurações
+              </button>
+            )}
+            <Link to={`/disparo/campanhas/${campanhaId}/execucao`} className="dpex-wizard-banner__link">
+              <IconPlayerPlay size={14} />
+              Ir para execução
+            </Link>
+          </div>
         </div>
       )}
 
@@ -267,11 +340,13 @@ export default function DisparoWizardPage() {
           const isDone = idx < activeStep
           const isLocked = step.locked
           return (
-            <div
+            <button
+              type="button"
               key={step.id}
               className={`dw-step${isActive ? ' dw-step--active' : isDone ? ' dw-step--done' : isLocked ? ' dw-step--locked' : ''}`}
               role="tab"
               aria-selected={isActive}
+              onClick={() => setActiveStep(idx)}
             >
               <div className="dw-step__circle">
                 {isDone ? <IconCheck size={15} stroke={2.5} /> : <StepIcon size={15} stroke={1.9} />}
@@ -280,7 +355,7 @@ export default function DisparoWizardPage() {
                 <span className="dw-step__label">{step.label}</span>
                 <span className="dw-step__hint">{step.hint}</span>
               </span>
-            </div>
+            </button>
           )
         })}
       </div>
@@ -334,6 +409,15 @@ export default function DisparoWizardPage() {
           />
         )}
       </div>
+
+      {showVoltarEdicao && (
+        <VoltarEdicaoWizardDialog
+          status={campanha.status}
+          onCancel={() => setShowVoltarEdicao(false)}
+          onConfirm={handleVoltarEdicao}
+          loading={voltandoEdicao}
+        />
+      )}
     </div>
   )
 }

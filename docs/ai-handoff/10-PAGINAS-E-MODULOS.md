@@ -54,9 +54,9 @@ Visível no menu/rotas só com `canAcessarDisparo`: módulo Campanhas ativo na e
 | Wizard | `/disparo/campanhas/:id` | `DisparoWizardPage.jsx` + steps |
 | Execução | `.../execucao` | `DisparoExecucaoPage.jsx` |
 
-Wizard (6): Informações → Destinatários → Instâncias → Mensagens → Limites → Revisão. Services `disparo*.js`. Status: rascunho, configurando, pronta, agendada, em_execucao, pausada, concluida, cancelada, arquivada. Destinatários (contatos ZapERP): marcar vários na tabela (a busca não zera a seleção) e só gravar na campanha com **Confirmar** + aceite LGPD.
+Wizard (6): Informações → Destinatários → Instâncias → Mensagens → Limites → Revisão. Services `disparo*.js`. Status: rascunho, configurando, pronta, agendada, em_execucao, pausada, concluida, cancelada, arquivada. Destinatários (contatos ZapERP): marcar vários na tabela (a busca não zera a seleção) e só gravar na campanha com **Confirmar** + aceite LGPD. Campanha **pronta/agendada/pausada**: o card tem **Configurações** (abre o wizard); o banner **Editar configurações** chama `POST /revisao/voltar-edicao` (na pausada encerra a execução atual e cancela itens ainda não enviados). O wizard abre na etapa **Limites**. Confirmar limites grava intervalo/hora/dia/janelas; ao publicar e iniciar, a fila nova usa esses valores em `planejado_para`. Em execução precisa pausar antes.
 
-Execução: pausar/continuar/cancelar/emergência, exclusões, saúde worker (`GET /api/disparo/worker/saude`), Etapa 8 (opt-out/respostas/incertos). Banner de worker classifica `ativo` / `iniciando` / `sem heartbeat` / `desabilitado` / `offline` (`Nenhum worker ativo detectado`). Iniciar e Continuar ficam bloqueados se `saudavel !== true` — o FE não inventa worker ativo. Envio **real** exige worker + live + não dry-run no backend. O FE não deve “ligar produção”.
+Execução: pausar/continuar/cancelar/emergência, exclusões, saúde worker (`GET /api/disparo/worker/saude`), Etapa 8 (opt-out/respostas/incertos). Banner de worker classifica `ativo` / `iniciando` / `sem heartbeat` / `desabilitado` / `offline` (`Nenhum worker ativo detectado`). Iniciar e Continuar ficam bloqueados se `saudavel !== true` — o FE não inventa worker ativo. O worker sobe com a API (`index.js`); envio **real** exige também live + não dry-run no backend. O FE não deve “ligar produção”.
 
 ## CRM — `crm/`
 

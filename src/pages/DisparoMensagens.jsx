@@ -5,6 +5,7 @@ import {
   IconArchiveOff,
   IconEdit,
   IconExternalLink,
+  IconSettings,
   IconSpeakerphone,
   IconPlus,
   IconRefresh,
@@ -74,6 +75,8 @@ const WIZARD_STEPS = [
 const EXEC_ACCESS_STATUSES = new Set([
   'pronta', 'agendada', 'em_execucao', 'pausada', 'concluida', 'cancelada',
 ])
+
+const CONFIG_ACCESS_STATUSES = new Set(['pronta', 'agendada', 'pausada'])
 
 const PAGE_LIMIT = 20
 
@@ -324,15 +327,19 @@ function CampanhaCard({ campanha, onEditar, onArquivar, onRestaurar, restaurando
   const navigate = useNavigate()
   const cfg = STATUS_CONFIG[campanha.status] ?? STATUS_CONFIG.rascunho
   const podeContinuar = campanha.status === 'rascunho' || campanha.status === 'configurando'
+  const podeConfigurar = CONFIG_ACCESS_STATUSES.has(campanha.status)
   const podeAcompanhar = EXEC_ACCESS_STATUSES.has(campanha.status)
+  const destinoCard = podeContinuar || podeConfigurar
+    ? `/disparo/campanhas/${campanha.id}`
+    : null
 
   return (
     <div
-      className={`dp-card${podeContinuar ? ' dp-card--clickable' : ''}`}
-      onClick={podeContinuar ? () => navigate(`/disparo/campanhas/${campanha.id}`) : undefined}
-      role={podeContinuar ? 'button' : undefined}
-      tabIndex={podeContinuar ? 0 : undefined}
-      onKeyDown={podeContinuar ? e => { if (e.key === 'Enter') navigate(`/disparo/campanhas/${campanha.id}`) } : undefined}
+      className={`dp-card${destinoCard ? ' dp-card--clickable' : ''}`}
+      onClick={destinoCard ? () => navigate(destinoCard) : undefined}
+      role={destinoCard ? 'button' : undefined}
+      tabIndex={destinoCard ? 0 : undefined}
+      onKeyDown={destinoCard ? e => { if (e.key === 'Enter') navigate(destinoCard) } : undefined}
     >
       {/* Acento lateral */}
       <div className="dp-card__accent" style={{ background: cfg.color }} />
@@ -403,6 +410,16 @@ function CampanhaCard({ campanha, onEditar, onArquivar, onRestaurar, restaurando
           >
             <IconExternalLink size={14} />
             <span>Abrir</span>
+          </button>
+        )}
+        {podeConfigurar && (
+          <button
+            className="dp-card__action-btn dp-card__action-btn--primary"
+            title="Configurações"
+            onClick={() => navigate(`/disparo/campanhas/${campanha.id}`)}
+          >
+            <IconSettings size={14} />
+            <span>Configurações</span>
           </button>
         )}
         {podeAcompanhar && (

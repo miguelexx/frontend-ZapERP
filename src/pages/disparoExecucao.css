@@ -747,6 +747,13 @@
   color: #065f46;
 }
 
+.dpex-wizard-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .dpex-wizard-banner__link {
   display: inline-flex;
   align-items: center;
@@ -754,16 +761,24 @@
   padding: 7px 14px;
   background: var(--ds-primary, #128c7e);
   color: #fff;
+  border: none;
   border-radius: 8px;
   font-weight: 600;
   font-size: 13px;
+  font-family: inherit;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
   transition: background 0.15s;
 }
 
 .dpex-wizard-banner__link:hover {
   background: var(--ds-primary-hover, #075e54);
+}
+
+.dpex-wizard-banner__link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .dpex-revisao-cta {
