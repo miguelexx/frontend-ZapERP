@@ -43,7 +43,8 @@ export function chatRowContactSurfaceKey(c) {
   const tagsKey = (c?.tags || []).map((t) => `${t.id ?? ""}:${t.nome ?? ""}:${t.cor ?? ""}`).join(",");
   const instanceLabel = String(c?.whatsapp_instance_nome ?? c?.whatsapp_instance_display_phone ?? "").trim();
   const assignees = getAtendimentoAssigneeNames(c).join(",");
-  return `${displayName}|${avatarUrl ?? ""}|${phone}|${empresa}|${setor}|${String(c?.departamento_id ?? "")}|${tagsKey}|${instanceLabel}|${assignees}`;
+  const encontradoPor = String(c?.encontrado_por ?? "").trim();
+  return `${displayName}|${avatarUrl ?? ""}|${phone}|${empresa}|${setor}|${String(c?.departamento_id ?? "")}|${tagsKey}|${instanceLabel}|${assignees}|${encontradoPor}`;
 }
 
 function chatRowNeedsMinuteTick(c, pendentesFuncionarioSet) {

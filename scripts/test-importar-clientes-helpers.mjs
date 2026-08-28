@@ -16,6 +16,9 @@ try {
     confirmacaoDesabilitada,
     nomesPrincipaisIniciais,
     resumoImportacao,
+    alunosVinculadosPreview,
+    deveExibirSwitchVincularAlunos,
+    labelAlunoVinculado,
   } = await vite.ssrLoadModule("/src/configuracoes/importarClientesHelpers.js");
 
   assert.equal(mapeamentoIncompleto({ nome: null, telefone: 1 }), true);
@@ -59,6 +62,19 @@ try {
   assert.equal(r.criados, 500);
   assert.equal(r.telefonesUnicos, 680);
   assert.notEqual(r.criados, 727);
+
+  const vinculados = alunosVinculadosPreview(
+    [
+      { nome: "Arthur Miguel de Oliveira", serie: "6º Ano" },
+      { nome: "Isabela Maria de Oliveira", serie: "1ª Série do Ensino Médio" },
+    ],
+    "Arthur Miguel de Oliveira"
+  );
+  assert.equal(vinculados.length, 1);
+  assert.equal(vinculados[0].nome, "Isabela Maria de Oliveira");
+  assert.equal(labelAlunoVinculado(vinculados[0]), "Isabela Maria de Oliveira — 1ª Série do Ensino Médio");
+  assert.equal(deveExibirSwitchVincularAlunos({ stats: { telefonesCompartilhados: 0, conflitos: 0 }, conflicts: [] }), false);
+  assert.equal(deveExibirSwitchVincularAlunos({ stats: { telefonesCompartilhados: 12 }, conflicts: [{}] }), true);
 
   console.log("OK — importarClientesHelpers");
 } finally {

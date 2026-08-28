@@ -15,6 +15,37 @@ export function confirmacaoDesabilitada({ mapping, loading, confirmando, telefon
   )
 }
 
+export function alunosVinculadosPreview(alunos, nomePrincipal) {
+  const list = Array.isArray(alunos) ? alunos : []
+  const principal = String(nomePrincipal || "").replace(/\s+/g, " ").trim().toLowerCase()
+  const seen = new Set()
+  const out = []
+  for (const aluno of list) {
+    const nome = String(aluno?.nome || "").replace(/\s+/g, " ").trim()
+    if (!nome) continue
+    const key = nome.toLowerCase()
+    if (principal && key === principal) continue
+    if (seen.has(key)) continue
+    seen.add(key)
+    const serie = String(aluno?.serie || "").trim()
+    out.push({ nome, serie: serie || null })
+  }
+  return out
+}
+
+export function deveExibirSwitchVincularAlunos(preview) {
+  const stats = preview?.stats || {}
+  const conflicts = Array.isArray(preview?.conflicts) ? preview.conflicts.length : 0
+  return Number(stats.telefonesCompartilhados || stats.conflitos || conflicts) > 0
+}
+
+export function labelAlunoVinculado(aluno) {
+  const nome = String(aluno?.nome || "").trim()
+  const serie = String(aluno?.serie || "").trim()
+  if (!nome) return ""
+  return serie ? `${nome} — ${serie}` : nome
+}
+
 export function nomesPrincipaisIniciais(conflicts) {
   const out = {}
   for (const c of Array.isArray(conflicts) ? conflicts : []) {
@@ -38,5 +69,7 @@ export function resumoImportacao(resumo) {
     conflitos: r.conflitos ?? 0,
     falhas: r.falhas ?? 0,
     telefonesUnicos: r.telefonesUnicos ?? 0,
+    nomesVinculados: r.nomesVinculados ?? 0,
+    nomesVinculadosAtualizados: r.nomesVinculadosAtualizados ?? 0,
   }
 }

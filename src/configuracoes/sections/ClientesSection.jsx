@@ -13,6 +13,9 @@ import {
   confirmacaoDesabilitada,
   nomesPrincipaisIniciais,
   resumoImportacao,
+  alunosVinculadosPreview,
+  deveExibirSwitchVincularAlunos,
+  labelAlunoVinculado,
 } from "../importarClientesHelpers";
 
 const CLIENTES_PAGE_LIMIT = 200;
@@ -344,7 +347,14 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
                       )}
                     </div>
                   </td>
-                  <td>{c.nome || "—"}</td>
+                  <td>
+                    <div>{c.nome || "—"}</div>
+                    {c.encontrado_por ? (
+                      <div className="ia-muted" style={{ fontSize: 11, marginTop: 2 }}>
+                        Encontrado por: {c.encontrado_por}
+                      </div>
+                    ) : null}
+                  </td>
                   <td>{c.telefone}</td>
                   <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{c.email || "—"}</td>
                   <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{c.empresa || "—"}</td>
@@ -610,6 +620,7 @@ function ModalImportarClientes({ onClose, onImported }) {
   const [mapping, setMapping] = useState({ nome: null, telefone: null, serie: null });
   const [nomesPrincipais, setNomesPrincipais] = useState({});
   const [confirmarNomesManuais, setConfirmarNomesManuais] = useState(false);
+  const [vincularAlunosMesmoTelefone, setVincularAlunosMesmoTelefone] = useState(false);
   const [resultado, setResultado] = useState(null);
 
   const rodarPreview = async (arquivo, mapOverride, principaisOverride) => {
@@ -647,6 +658,7 @@ function ModalImportarClientes({ onClose, onImported }) {
     setResultado(null);
     setNomesPrincipais({});
     setConfirmarNomesManuais(false);
+    setVincularAlunosMesmoTelefone(false);
     rodarPreview(f, null, {});
   };
 
@@ -674,6 +686,7 @@ function ModalImportarClientes({ onClose, onImported }) {
       const data = await cfg.confirmarImportarClientes(file, mapping, {
         nomesPrincipais,
         confirmarNomesManuais,
+        vincularAlunosMesmoTelefone,
       });
       setResultado(data);
       setStep("done");
@@ -735,6 +748,7 @@ function ModalImportarClientes({ onClose, onImported }) {
   const manuais = preview?.nomes_manuais_protegidos || [];
   const alterados = preview?.nome_sera_alterado || [];
   const conflicts = preview?.conflicts || [];
+  const mostrarSwitchVincular = deveExibirSwitchVincularAlunos(preview);
 
   const colSelect = (campo, label, obrigatorio) => (
     <div className="ia-field" style={{ marginBottom: 8 }}>
@@ -821,6 +835,34 @@ function ModalImportarClientes({ onClose, onImported }) {
               </div>
             </div>
 
+            {mostrarSwitchVincular ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  margin: "8px 0 12px",
+                  padding: "10px 12px",
+                  border: "1px solid var(--ds-border, #e2e8f0)",
+                  borderRadius: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>Vincular alunos que compartilham o mesmo telefone</div>
+                  <p className="ia-muted" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.4 }}>
+                    Salva os demais alunos como nomes vinculados e permite localizar esta conversa pelo nome de qualquer um deles.
+                  </p>
+                </div>
+                <Switch
+                  checked={vincularAlunosMesmoTelefone}
+                  onChange={setVincularAlunosMesmoTelefone}
+                  disabled={loading}
+                  aria-label="Vincular alunos que compartilham o mesmo telefone"
+                />
+              </div>
+            ) : null}
+
             {faltaObrigatoria ? (
               <div style={{ background: "rgba(245,158,11,0.14)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.4)", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
                 Selecione as colunas de <strong>nome</strong> e <strong>telefone</strong> para continuar.
@@ -843,7 +885,13 @@ function ModalImportarClientes({ onClose, onImported }) {
                   {(preview.amostra || []).length === 0 ? (
                     <tr><td colSpan={3} className="ia-muted">Nenhum contato válido encontrado.</td></tr>
                   ) : (
-                    (preview.amostra || []).map((a, i) => (
+                    (preview.amostra || []).map((a, i) => {
+                      const vinculados = vincularAlunosMesmoTelefone
+                        ? (a.alunos_a_vincular?.length
+                          ? a.alunos_a_vincular
+                          : alunosVinculadosPreview(a.alunos, a.nome))
+                        : [];
+                      return (
                       <tr key={i} style={a.conflito ? { background: "rgba(234,88,12,0.12)" } : undefined}>
                         <td>
                           <div>{a.nome}</div>
@@ -852,11 +900,17 @@ function ModalImportarClientes({ onClose, onImported }) {
                               ⚠ Mesmo telefone: {(a.nomes_conflitantes || []).join(", ")}
                             </div>
                           ) : null}
+                          {vinculados.length > 0 ? (
+                            <div className="ia-muted" style={{ fontSize: 11, marginTop: 2, lineHeight: 1.3 }}>
+                              Serão vinculados: {vinculados.map(labelAlunoVinculado).filter(Boolean).join("; ")}
+                            </div>
+                          ) : null}
                         </td>
                         <td>{a.telefone}</td>
                         <td>{(a.tags || []).join(", ") || "—"}</td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -871,6 +925,9 @@ function ModalImportarClientes({ onClose, onImported }) {
                   const key = c.phoneKey || c.telefone;
                   const escolhido = nomesPrincipais[key] || c.nome;
                   const nomes = c.nomesConflitantes || [];
+                  const vinculados = vincularAlunosMesmoTelefone
+                    ? alunosVinculadosPreview(c.alunos_a_vincular?.length ? c.alunos_a_vincular : c.alunos, escolhido)
+                    : [];
                   return (
                     <div key={key} style={{ marginBottom: 10, fontSize: 13 }}>
                       <div className="ia-muted" style={{ fontSize: 12 }}>
@@ -886,6 +943,11 @@ function ModalImportarClientes({ onClose, onImported }) {
                           <option key={n} value={n}>{n}</option>
                         ))}
                       </select>
+                      {vinculados.length > 0 ? (
+                        <div className="ia-muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.35 }}>
+                          Serão vinculados: {vinculados.map(labelAlunoVinculado).filter(Boolean).join("; ")}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -950,6 +1012,8 @@ function ModalImportarClientes({ onClose, onImported }) {
                 <span className="ia-muted">Nomes alterados</span><strong>{counts.nomesAlterados}</strong>
                 <span className="ia-muted">Nomes protegidos</span><strong>{counts.nomesProtegidos}</strong>
                 <span className="ia-muted">Nomes manuais preservados</span><strong>{counts.nomesManuaisPreservados}</strong>
+                <span className="ia-muted">Nomes vinculados</span><strong>{counts.nomesVinculados}</strong>
+                <span className="ia-muted">Vínculos atualizados</span><strong>{counts.nomesVinculadosAtualizados}</strong>
                 <span className="ia-muted">Tags criadas</span><strong>{resumo.tagsCriadas ?? 0}</strong>
                 <span className="ia-muted">Tags vinculadas</span><strong>{resumo.tagsVinculadas ?? 0}</strong>
                 <span className="ia-muted">Linhas ignoradas</span><strong>{counts.ignoradas}</strong>

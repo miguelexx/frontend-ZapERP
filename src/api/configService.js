@@ -233,6 +233,9 @@ function montarFormImport(file, mapping, extras = {}) {
   if (extras.confirmarNomesManuais) {
     fd.append('confirmar_nomes_manuais', 'true')
   }
+  if (Object.prototype.hasOwnProperty.call(extras, 'vincularAlunosMesmoTelefone')) {
+    fd.append('vincular_alunos_mesmo_telefone', extras.vincularAlunosMesmoTelefone ? 'true' : 'false')
+  }
   return fd
 }
 

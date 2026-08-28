@@ -46,7 +46,7 @@ Tabs em `chatListFilters.js` (exemplos): `minha_fila`, `abertas`, `em_atendiment
 
 Página: **80** desktop / **40** mobile (`CHAT_LIST_*_PAGE_LIMIT`). Cursor: `hasMore`, `nextCursor`, `nextCursorId` via `fetchChats` / `fetchChatsPages`.
 
-Busca: termo local no filho → debounce no pai → refetch ou filtro. Admin: `AdminAtendenteFilter`.
+Busca: termo local no filho → debounce no pai → refetch ou filtro. Admin: `AdminAtendenteFilter`. Match por nome principal ou nome vinculado (`encontrado_por` discreto no card; o título continua o nome principal).
 
 ## Cache de sidebar — `chatListSidebarCache.js`
 

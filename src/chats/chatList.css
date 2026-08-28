@@ -2159,6 +2159,17 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   min-width: 0;
 }
 
+.chat-list-encontrado-por {
+  margin-top: 1px;
+  font-size: var(--cl-font-size-xs);
+  color: var(--cl-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  opacity: .88;
+}
+
 .chat-list-whatsapp-instance {
   margin-top: 1px;
   font-size: var(--cl-font-size-xs);

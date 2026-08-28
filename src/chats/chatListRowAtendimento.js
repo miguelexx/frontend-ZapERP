@@ -503,8 +503,10 @@ export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = n
     ? Boolean(String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim())
     : false;
   const hasAssignee = showAssigneeNames && !isGroup && getAtendimentoAssigneeNames(chat).length > 0;
+  const hasEncontradoPor = !isGroup && Boolean(String(chat?.encontrado_por || "").trim());
 
   let titleBlock = titleLines * m.titleLine;
+  if (hasEncontradoPor) titleBlock += m.setor;
   if (hasSetor) titleBlock += m.setor;
   if (hasAssignee) titleBlock += m.assignee;
   if (hasEmpresa) titleBlock += m.empresa;
@@ -513,7 +515,7 @@ export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = n
   const mobileBadgeGrid = isMobileLayout && chatRowUsesMobileBadgeGrid(chat, pendentesIdSet);
   let topBlock = titleBlock;
   if (mobileBadgeGrid) {
-    topBlock = titleLines * m.titleLine + (hasSetor ? m.setor : 0) + (hasEmpresa ? m.empresa : 0) + m.badgeGridExtra;
+    topBlock = titleLines * m.titleLine + (hasEncontradoPor ? m.setor : 0) + (hasSetor ? m.setor : 0) + (hasEmpresa ? m.empresa : 0) + m.badgeGridExtra;
   } else if (metaCol > 0) {
     topBlock = Math.max(titleBlock, metaCol);
   }

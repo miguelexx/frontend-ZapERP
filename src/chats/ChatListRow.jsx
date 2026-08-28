@@ -1213,6 +1213,7 @@ function ChatRow({
       : "";
   const contact = getContactDisplay(chat);
   const { displayName, phone, isGroup } = contact;
+  const encontradoPor = !isGroup ? String(chat?.encontrado_por || "").trim() : "";
   // Trava URL do avatar por conversa: envio/entrega não pode trocar CDN antiga ↔ atual (pulo visual).
   const avatarIdentity =
     id != null && String(id).trim() !== ""
@@ -1445,6 +1446,11 @@ function ChatRow({
                 <span className="chat-list-badge-grupo" title="Conversa de grupo">Grupo</span>
               ) : null}
             </div>
+            {!isGroup && encontradoPor && encontradoPor !== displayName ? (
+              <div className="chat-list-encontrado-por" title={`Encontrado por: ${encontradoPor}`}>
+                Encontrado por: {encontradoPor}
+              </div>
+            ) : null}
             {!isGroup && setorLabelNome ? (
               <div className="chat-list-setor" title={`Setor: ${setorLabelNome}`}>
                 {setorLabelNome}

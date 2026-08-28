@@ -297,6 +297,27 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
 
   /** Nome alinhado com lista e cabeçalho: contato_nome (WhatsApp) primeiro, evitando trocar para cliente.nome ao enviar msg */
   const clienteNome = useMemo(() => getDisplayName(conversa), [conversa]);
+  const nomesVinculados = useMemo(() => {
+    const list = Array.isArray(cliente?.nomes_vinculados)
+      ? cliente.nomes_vinculados
+      : Array.isArray(conversa?.nomes_vinculados)
+        ? conversa.nomes_vinculados
+        : [];
+    const principal = String(clienteNome || cliente?.nome || "").replace(/\s+/g, " ").trim().toLowerCase();
+    const seen = new Set();
+    const out = [];
+    for (const item of list) {
+      const nome = String(item?.nome || item || "").replace(/\s+/g, " ").trim();
+      if (!nome) continue;
+      const key = nome.toLowerCase();
+      if (principal && key === principal) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const serie = String(item?.serie || "").trim();
+      out.push({ nome, serie: serie || null });
+    }
+    return out;
+  }, [cliente, conversa, clienteNome]);
 
   // Nunca exibir LID (lid:xxx) como telefone — é identificador interno do WhatsApp
   const telefone = useMemo(() => {
@@ -1032,6 +1053,15 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
                 </>
               ) : null}
             </div>
+            {nomesVinculados.length > 0 ? (
+              <div className="wa-sideCliente-vinculos" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.4 }}>
+                {nomesVinculados.map((v) => (
+                  <div key={v.nome} className="wa-sideCliente-muted">
+                    Também vinculado: {v.serie ? `${v.nome} — ${v.serie}` : v.nome}
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <div className="wa-sideCliente-heroMeta">
               <span className="wa-sideCliente-muted">Responsável:</span>{" "}
               <span className="wa-sideCliente-valueInline">{responsavelNome}</span>
