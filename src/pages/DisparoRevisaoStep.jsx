@@ -416,6 +416,11 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
       })
       await carregarRevisao()
     } catch (err) {
+      const duplicada =
+        err?.response?.status === 409 || err?.response?.data?.code === 'REVISAO_DUPLICADA'
+      if (duplicada) {
+        await carregarRevisao()
+      }
       setErro(disparoApiError(err))
     } finally {
       setConfirmando(false)

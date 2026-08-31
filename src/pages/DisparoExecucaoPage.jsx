@@ -675,6 +675,11 @@ export default function DisparoExecucaoPage() {
         {workerSaude?.flags?.dryRun === true && (
           <span className="dpex-worker__flag">Dry-run</span>
         )}
+        {workerSaude?.modos_divergentes === true && (
+          <span className="dpex-worker__flag">
+            Workers live/dry isolados · live: {workerSaude.workers_live_ativos ?? 0} · dry: {workerSaude.workers_dry_ativos ?? 0}
+          </span>
+        )}
       </div>
 
       {/* Cards de progresso */}
