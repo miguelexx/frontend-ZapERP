@@ -590,6 +590,7 @@ function TicketDetail({ ticket, departments, users, userMap, onChanged, onError,
         <div><span>Prioridade</span><strong>{PRIORITY_LABEL[ticket.prioridade]}</strong></div>
         <div><span>Departamento</span><strong>{ticket.departamento || 'Sem departamento'}</strong></div>
         <div><span>Responsável</span><strong>{ticket.responsavel_nome || userMap[ticket.responsavel_id] || 'Não atribuído'}</strong></div>
+        <div><span>Criado em</span><strong><time>{formatDate(ticket.criado_em)}</time></strong></div>
         <div><span>Avaliação</span><strong className={Number(ticket.avaliacao) > 0 ? 'helpdesk-rating' : undefined}>{Number(ticket.avaliacao) > 0 ? `${'★'.repeat(Number(ticket.avaliacao))}${'☆'.repeat(5 - Number(ticket.avaliacao))} (${ticket.avaliacao}/5)` : 'Não avaliado'}</strong></div>
       </div>
       <article className="helpdesk-description"><span>Descrição</span><p>{ticket.descricao}</p></article>
