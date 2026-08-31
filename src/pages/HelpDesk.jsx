@@ -40,6 +40,11 @@ const SORT_DIRECTION_LABEL = {
   empresa: { asc: 'A–Z', desc: 'Z–A' },
   numero: { asc: 'Menor primeiro', desc: 'Maior primeiro' },
 }
+const MOVEMENT_LABEL = {
+  transferencia: 'Transferência',
+  assumido: 'Chamado assumido',
+  encerrado: 'Chamado encerrado',
+}
 const HELPDESK_DEPARTAMENTO_NOMES = new Set([
   'Suporte',
   'Financeiro',
@@ -76,6 +81,14 @@ function loadStoredFilters(user) {
 function formatDate(value) {
   if (!value) return '—'
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+}
+
+function movementType(item) {
+  if (MOVEMENT_LABEL[item?.tipo]) return item.tipo
+  const reason = String(item?.motivo || '').trim().toLocaleLowerCase('pt-BR')
+  if (reason.startsWith('chamado assumido')) return 'assumido'
+  if (reason.startsWith('chamado encerrado')) return 'encerrado'
+  return 'transferencia'
 }
 
 function DateFilterInput({ value, onChange, ariaLabel }) {
@@ -577,28 +590,46 @@ function TicketDetail({ ticket, departments, users, userMap, onChanged, onError,
         <div><span>Prioridade</span><strong>{PRIORITY_LABEL[ticket.prioridade]}</strong></div>
         <div><span>Departamento</span><strong>{ticket.departamento || 'Sem departamento'}</strong></div>
         <div><span>Responsável</span><strong>{ticket.responsavel_nome || userMap[ticket.responsavel_id] || 'Não atribuído'}</strong></div>
+        <div><span>Criado em</span><strong><time>{formatDate(ticket.criado_em)}</time></strong></div>
         <div><span>Avaliação</span><strong className={Number(ticket.avaliacao) > 0 ? 'helpdesk-rating' : undefined}>{Number(ticket.avaliacao) > 0 ? `${'★'.repeat(Number(ticket.avaliacao))}${'☆'.repeat(5 - Number(ticket.avaliacao))} (${ticket.avaliacao}/5)` : 'Não avaliado'}</strong></div>
       </div>
       <article className="helpdesk-description"><span>Descrição</span><p>{ticket.descricao}</p></article>
       <section className="helpdesk-timeline">
         <h3>Histórico</h3>
         {timeline.length === 0 ? <p className="helpdesk-empty">Ainda não há movimentações neste chamado.</p> : null}
-        {timeline.map((item) => item.kind === 'message' ? (
-          <article className={`helpdesk-message${item.interna ? ' is-internal' : ''}`} key={`message-${item.id}`}>
-            <div><strong>{item.autor_nome || item.solicitante_nome || userMap[item.autor_usuario_id] || ticket.solicitante_nome || 'Usuário'}</strong>{item.interna ? <span>Nota interna</span> : null}<time>{formatDate(item.criado_em)}</time></div>
-            <p>{item.mensagem}</p>
-          </article>
-        ) : (
-          <article className="helpdesk-message helpdesk-transfer-event" key={`transfer-${item.id}`}>
-            <div><strong>{item.transferido_por_nome || userMap[item.transferido_por] || 'Usuário'}</strong><span>Transferência</span><time>{formatDate(item.criado_em)}</time></div>
-            <p>
-              Departamento: {item.de_departamento_nome || 'Sem departamento'} → {item.para_departamento_nome || 'Sem departamento'}
-              <br />
-              Responsável: {item.de_responsavel_nome || 'Não atribuído'} → {item.para_responsavel_nome || 'Não atribuído'}
-              {item.motivo ? <><br />Motivo: {item.motivo}</> : null}
-            </p>
-          </article>
-        ))}
+        {timeline.map((item) => {
+          if (item.kind === 'message') {
+            return (
+              <article className={`helpdesk-message${item.interna ? ' is-internal' : ''}`} key={`message-${item.id}`}>
+                <div><strong>{item.autor_nome || item.solicitante_nome || userMap[item.autor_usuario_id] || ticket.solicitante_nome || 'Usuário'}</strong>{item.interna ? <span>Nota interna</span> : null}<time>{formatDate(item.criado_em)}</time></div>
+                <p>{item.mensagem}</p>
+              </article>
+            )
+          }
+
+          const type = movementType(item)
+          return (
+            <article className={`helpdesk-message helpdesk-transfer-event is-${type}`} key={`movement-${item.id}`}>
+              <div><strong>{item.transferido_por_nome || userMap[item.transferido_por] || 'Usuário'}</strong><span>{MOVEMENT_LABEL[type]}</span><time>{formatDate(item.criado_em)}</time></div>
+              {type === 'assumido' ? (
+                <p>
+                  Responsável: {item.para_responsavel_nome || 'Não atribuído'}
+                  <br />
+                  Departamento: {item.para_departamento_nome || 'Sem departamento'}
+                </p>
+              ) : null}
+              {type === 'encerrado' ? <p>Status alterado para Resolvido.</p> : null}
+              {type === 'transferencia' ? (
+                <p>
+                  Departamento: {item.de_departamento_nome || 'Sem departamento'} → {item.para_departamento_nome || 'Sem departamento'}
+                  <br />
+                  Responsável: {item.de_responsavel_nome || 'Não atribuído'} → {item.para_responsavel_nome || 'Não atribuído'}
+                  {item.motivo ? <><br />Motivo: {item.motivo}</> : null}
+                </p>
+              ) : null}
+            </article>
+          )
+        })}
       </section>
       <form className="helpdesk-composer" onSubmit={sendMessage}>
         <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escreva uma atualização…" rows={3} />
