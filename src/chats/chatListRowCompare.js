@@ -89,6 +89,7 @@ export function chatRowPropsAreEqual(prev, next) {
     String(a.aguardando_cliente_desde ?? "") === String(b.aguardando_cliente_desde ?? "") &&
     String(a.ui_hint_reaberto_ausencia_cliente ?? "") === String(b.ui_hint_reaberto_ausencia_cliente ?? "") &&
     Boolean(a.exibir_badge_aberta) === Boolean(b.exibir_badge_aberta) &&
+    Boolean(a.aguardando_resposta_campanha) === Boolean(b.aguardando_resposta_campanha) &&
     pa.silenciado === pb.silenciado &&
     pa.fixada === pb.fixada &&
     pa.favorita === pb.favorita &&

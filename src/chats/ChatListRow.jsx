@@ -936,6 +936,28 @@ function StatusPill({
     Date.now() - chat.ui_hint_reaberto_ausencia_cliente < 120000;
   const reabertaFaltaInteracao = isReabertaPorFaltaInteracao(chat);
 
+  // A conversa da campanha permanece "aberta" no backend para preservar o
+  // roteamento. Enquanto ainda não houve resposta, porém, o card deve comunicar
+  // o que realmente aconteceu: o disparo foi enviado e aguarda o cliente.
+  if (chat?.aguardando_resposta_campanha === true) {
+    return (
+      <span className="chat-list-statusRow">
+        <span
+          className="chat-list-status dispatched chat-list-status--hud-dispatched"
+          title="Disparo enviado — aguardando resposta do cliente"
+        >
+          <span
+            className="chat-list-status-hud-prefix chat-list-status-hud-prefix--dispatch"
+            aria-hidden
+          >
+            ↯
+          </span>
+          <span className="chat-list-status-hud-text">Disparo enviado</span>
+        </span>
+      </span>
+    );
+  }
+
   if (chat?.atendimento_modo_simples && !isGroupConversation(chat)) {
     const ag = resolveModoSimplesAguardandoEffective(chat);
     if (ag === 'atendente' || ag === 'cliente') {
