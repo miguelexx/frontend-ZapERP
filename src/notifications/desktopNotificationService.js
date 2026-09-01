@@ -102,10 +102,9 @@ function dispatchOpenConversation(conversaId) {
 function dispatchOpenHelpDeskTicket(ticketId) {
   if (typeof window === "undefined") return
   const id = normalize(ticketId)
-  if (!id) return
   window.dispatchEvent(
     new CustomEvent(OPEN_HELPDESK_TICKET_EVENT, {
-      detail: { ticketId: id },
+      detail: id ? { ticketId: id } : {},
     })
   )
 }
@@ -297,7 +296,76 @@ export async function notifyHelpDeskDesktopNotification({ notification }) {
   }
 }
 
-async function tryShowViaServiceWorker(title, { body, icon, tag, data }) {
+/** Lembrete periódico da fila aberta do HelpDesk. O clique abre a listagem completa. */
+export async function notifyHelpDeskOpenTicketsReminder({ openCount }) {
+  if (!hasDesktopNotificationSupport()) {
+    return { shown: false, reason: "unsupported" }
+  }
+
+  const count = Math.max(0, Math.trunc(Number(openCount) || 0))
+  if (count === 0) return { shown: false, reason: "empty_queue" }
+  if (Notification.permission === "denied") {
+    return { shown: false, reason: "permission_denied" }
+  }
+  if (Notification.permission === "default") {
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== "granted") {
+        return { shown: false, reason: permission === "denied" ? "permission_denied" : "permission_blocked" }
+      }
+    } catch {
+      return { shown: false, reason: "permission_failed" }
+    }
+  }
+  if (!tryClaimHelpDeskDesktopSlot({
+    id: "open-tickets-reminder",
+    ticket_id: "queue",
+    tipo: "open_tickets_reminder",
+  })) {
+    return { shown: false, reason: "duplicate_desktop_guard" }
+  }
+
+  const title = count === 1
+    ? "1 chamado aberto no HelpDesk"
+    : `${count} chamados abertos no HelpDesk`
+  const body = count === 1
+    ? "Há um chamado aguardando atendimento."
+    : "Há chamados aguardando atendimento."
+  const openUrl = "/helpdesk"
+  const options = {
+    body,
+    icon: "/brand/pwa-192.png",
+    tag: "zaperp-helpdesk-open-tickets-reminder",
+    renotify: true,
+    requireInteraction: false,
+    silent: false,
+    data: { openUrl, url: openUrl },
+  }
+
+  try {
+    const desktopNotification = new Notification(title, options)
+    desktopNotification.onclick = () => {
+      focusAppWindow()
+      dispatchOpenHelpDeskTicket(null)
+      try {
+        desktopNotification.close()
+      } catch (_) {}
+    }
+    scheduleAutoClose(() => {
+      try {
+        desktopNotification.close()
+      } catch (_) {}
+    }, NOTIFICATION_AUTO_CLOSE_MS)
+    return { shown: true, reason: "ok" }
+  } catch {
+    const shownViaSw = await tryShowViaServiceWorker(title, options)
+    return shownViaSw
+      ? { shown: true, reason: "ok_service_worker" }
+      : { shown: false, reason: "creation_failed" }
+  }
+}
+
+async function tryShowViaServiceWorker(title, { body, icon, tag, data, renotify = false, silent = false }) {
   try {
     if (typeof navigator === "undefined" || !navigator.serviceWorker) return false
     const reg =
@@ -308,9 +376,9 @@ async function tryShowViaServiceWorker(title, { body, icon, tag, data }) {
       body,
       icon,
       tag,
-      renotify: false,
+      renotify,
       requireInteraction: false,
-      silent: false,
+      silent,
       data,
     })
     scheduleAutoClose(async () => {

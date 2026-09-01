@@ -8,11 +8,16 @@ import {
   markHelpDeskTicketNotificationsRead,
 } from '../api/helpDeskService'
 import { useHelpDeskNotifyStore } from './helpDeskNotifyStore'
-import { notifyHelpDeskDesktopNotification } from '../notifications/desktopNotificationService'
+import {
+  notifyHelpDeskDesktopNotification,
+  notifyHelpDeskOpenTicketsReminder,
+} from '../notifications/desktopNotificationService'
 
 const HELPDESK_NOTIFICATION_EVENT = 'helpdesk:notification'
 const HELPDESK_NOTIFICATIONS_CHANGED_EVENT = 'helpdesk:notifications_changed'
 const HELPDESK_QUEUE_CHANGED_EVENT = 'helpdesk:queue_changed'
+const OPEN_TICKETS_REMINDER_INTERVAL_MS = 5 * 60 * 1000
+const OPEN_TICKETS_REMINDER_STORAGE_PREFIX = 'zaperp_helpdesk_open_tickets_reminder'
 
 const TOAST_BY_TYPE = {
   ticket_created: { type: 'info', fallbackTitle: 'Novo chamado' },
@@ -32,6 +37,49 @@ async function markTicketRead(ticketId) {
     useHelpDeskNotifyStore.getState().markTicketRead(ticketId, result?.updated)
   } catch {
     /* a hidratação seguinte recupera o contador do backend */
+  }
+}
+
+function claimOpenTicketsReminder(user, now = Date.now()) {
+  if (typeof window === 'undefined') return true
+  const key = `${OPEN_TICKETS_REMINDER_STORAGE_PREFIX}:${user?.company_id || 'unknown'}:${user?.id || 'unknown'}`
+  try {
+    const lastReminderAt = Number(window.localStorage.getItem(key)) || 0
+    if (now - lastReminderAt < OPEN_TICKETS_REMINDER_INTERVAL_MS) return false
+    window.localStorage.setItem(key, String(now))
+    return true
+  } catch {
+    return true
+  }
+}
+
+function releaseOpenTicketsReminder(user, claimedAt) {
+  if (typeof window === 'undefined') return
+  const key = `${OPEN_TICKETS_REMINDER_STORAGE_PREFIX}:${user?.company_id || 'unknown'}:${user?.id || 'unknown'}`
+  try {
+    if (window.localStorage.getItem(key) === String(claimedAt)) {
+      window.localStorage.removeItem(key)
+    }
+  } catch {
+    /* retry on the next cycle */
+  }
+}
+
+function startReliableInterval(callback, intervalMs) {
+  if (typeof window === 'undefined') return () => {}
+  try {
+    const source = 'let timer;self.onmessage=function(e){clearInterval(timer);timer=setInterval(function(){self.postMessage(1)},e.data)}'
+    const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
+    const worker = new Worker(url)
+    worker.onmessage = callback
+    worker.postMessage(intervalMs)
+    return () => {
+      worker.terminate()
+      URL.revokeObjectURL(url)
+    }
+  } catch {
+    const timer = window.setInterval(callback, intervalMs)
+    return () => window.clearInterval(timer)
   }
 }
 
@@ -57,6 +105,55 @@ export default function HelpDeskGlobalSocketBridge() {
 
     return () => { cancelled = true }
   }, [user?.company_id, user?.id])
+
+  useEffect(() => {
+    if (!user?.id || Number(user?.company_id) !== 1) return undefined
+    let cancelled = false
+
+    const remindOpenTickets = async () => {
+      try {
+        const payload = await listHelpDeskNotifications({ limit: 100 })
+        if (cancelled) return
+        useHelpDeskNotifyStore.getState().hydrate(payload)
+
+        const openCount = Math.max(0, Number(payload?.queue_count) || 0)
+        const claimedAt = Date.now()
+        if (openCount === 0 || !claimOpenTicketsReminder(user, claimedAt)) return
+
+        const message = openCount === 1
+          ? 'Há 1 chamado aberto aguardando atendimento.'
+          : `Há ${openCount} chamados abertos aguardando atendimento.`
+        const notificationStore = useNotificationStore.getState()
+        let shown = false
+        if (!notificationStore.toast) {
+          notificationStore.showToast({
+            type: 'warning',
+            title: 'Lembrete do HelpDesk',
+            message,
+            actionLabel: 'Ver chamados',
+            onAction: () => navigate('/helpdesk'),
+          })
+          shown = true
+        }
+        const desktopResult = await notifyHelpDeskOpenTicketsReminder({ openCount })
+        if (!shown && desktopResult?.shown !== true) {
+          releaseOpenTicketsReminder(user, claimedAt)
+        }
+      } catch {
+        /* o próximo intervalo tenta sincronizar e avisar novamente */
+      }
+    }
+
+    void remindOpenTickets()
+    const stopReminderTimer = startReliableInterval(
+      () => { void remindOpenTickets() },
+      OPEN_TICKETS_REMINDER_INTERVAL_MS
+    )
+    return () => {
+      cancelled = true
+      stopReminderTimer()
+    }
+  }, [navigate, user?.company_id, user?.id])
 
   useEffect(() => {
     if (!user?.id || Number(user?.company_id) !== 1) return undefined
