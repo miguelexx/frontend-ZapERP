@@ -376,6 +376,44 @@ export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
 
 }
 
+/**
+ * Remove uma conversa de todos os snapshots de filtro (memória + sessionStorage).
+ * Evita que, ao trocar de aba, o cache de 15 min reapresente uma conversa já finalizada.
+ */
+export function removeChatIdFromFilterRowCaches(scopeKey, chatId) {
+  const id = String(chatId ?? "");
+  if (!id) return;
+
+  const memPrefix = scopeKey ? `${scopeKey}::` : "";
+  for (const key of [...filterRowsMemoryCache.keys()]) {
+    if (scopeKey && !key.startsWith(memPrefix)) continue;
+    const entry = filterRowsMemoryCache.get(key);
+    if (!entry?.rows?.length) continue;
+    const next = entry.rows.filter((row) => String(row?.id) !== id);
+    if (next.length === entry.rows.length) continue;
+    if (!next.length) filterRowsMemoryCache.delete(key);
+    else filterRowsMemoryCache.set(key, { t: entry.t || Date.now(), rows: next });
+  }
+
+  if (typeof sessionStorage === "undefined") return;
+  const sessPrefix = scopeKey
+    ? `${FILTER_ROWS_STORAGE_PREFIX}:${scopeKey}:`
+    : `${FILTER_ROWS_STORAGE_PREFIX}:`;
+  for (const key of safeSessionKeys()) {
+    if (!key.startsWith(sessPrefix)) continue;
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(key) || "null");
+      if (!parsed || !Array.isArray(parsed.rows)) continue;
+      const next = parsed.rows.filter((row) => String(row?.id) !== id);
+      if (next.length === parsed.rows.length) continue;
+      if (!next.length) sessionStorage.removeItem(key);
+      else sessionStorage.setItem(key, JSON.stringify({ ...parsed, rows: next }));
+    } catch {
+      /* quota / JSON */
+    }
+  }
+}
+
 export function persistChatListRowsForFilterToSession(scopeKey, filterKey, rows) {
   if (!scopeKey || !filterKey) return;
 

@@ -19,6 +19,7 @@ import { isSupervisorOrAdmin } from "../auth/permissions";
 import {
   isGroupConversation,
   getStatusAtendimentoEffective,
+  isClosedAttendance,
 } from "../utils/conversaUtils";
 import api from "../api/http";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -60,6 +61,7 @@ import {
   hydrateChatListSidebarFromSession,
   persistChatListSidebarToSession,
   persistChatListRowsForFilterToSession,
+  removeChatIdFromFilterRowCaches,
 } from "./chatListSidebarCache";
 import {
   resetAuxBadgeRequestsForScope,
@@ -82,12 +84,12 @@ import {
   countDistinctConversas,
   TABS_HIDE_OPTIMISTIC_CLOSED,
   shouldHideOptimisticClosedFromTab,
+  isClosedAttendancePatch,
   getOptimisticRemovedRow,
   pruneExpiredOptimisticRemoved,
   sortChatRowsByOrder,
   dedupeChatRowsByStableKey,
-  mergeChatRowsPreservingCurrent,
-  mergeEmAtendimentoBackgroundRows,
+  mergeActiveTabBackgroundRows,
   buildChatListPageState,
   buildCountsQueryParams,
   buildChatListFetchParams,
@@ -104,7 +106,7 @@ const MOBILE_FILTERS_PREWARM_DELAY_MS = 5200;
 const MOBILE_SUPERVISAO_POLL_DELAY_MS = 6000;
 const MOBILE_PENDENCIAS_INITIAL_DELAY_MS = 2600;
 const MOBILE_PENDENCIAS_RESYNC_DELAY_MS = 1400;
-const OPTIMISTIC_MINHA_FILA_REMOVE_TTL_MS = 12000;
+const OPTIMISTIC_MINHA_FILA_REMOVE_TTL_MS = 90_000;
 /** Contato oficial do Suporte ZapERP (DDD 34). */
 const SUPORTE_ZAPERP_WHATSAPP_URL = "https://wa.me/5534999911246";
 
@@ -340,6 +342,13 @@ export default function ChatList() {
     if (!removed.size) return arr;
     return arr.filter((c) => !removed.has(String(c?.id)));
   }, []);
+
+  useEffect(() => {
+    useChatStore.getState().setChatListView({
+      tab,
+      searchActive: Boolean(String(debouncedSearch || "").trim()),
+    });
+  }, [tab, debouncedSearch]);
   const [minhaFilaCount, setMinhaFilaCount] = useState(0);
   /** Contador do chip “Em atendimento”: sempre GET /chats?status_atendimento=em_atendimento (escopo backend). */
   const [emAtendimentoBadgeCount, setEmAtendimentoBadgeCount] = useState(0);
@@ -353,7 +362,12 @@ export default function ChatList() {
   useEffect(() => {
     const applyCachedFilterRows = (cachedRows) => {
       if (!Array.isArray(cachedRows) || !cachedRows.length) return false;
-      const cachedList = sortChatRowsByOrder(dedupeChatRowsByStableKey(cachedRows), order);
+      let cachedList = sortChatRowsByOrder(dedupeChatRowsByStableKey(cachedRows), order);
+      cachedList = filterOptimisticRemovedMinhaFila(cachedList);
+      if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""))) {
+        cachedList = cachedList.filter((c) => !isClosedAttendance(c));
+      }
+      if (!cachedList.length) return false;
       setChats(cachedList);
       if (tab === "minha_fila") setMinhaFilaList(cachedList);
       return true;
@@ -411,7 +425,7 @@ export default function ChatList() {
       setChats([]);
       if (tab === "minha_fila") setMinhaFilaList(null);
     }
-  }, [filterRequestKey, filterRequestBaseKey, debouncedSearch, tab, setChats, filterScopeKey, order]);
+  }, [filterRequestKey, filterRequestBaseKey, debouncedSearch, tab, setChats, filterScopeKey, order, filterOptimisticRemovedMinhaFila]);
 
   /** Hidratação antes da pintura: lista + Minha fila + filtros auxiliares (F5). */
   useLayoutEffect(() => {
@@ -873,6 +887,15 @@ export default function ChatList() {
       let list = Array.isArray(data) ? data : [];
       if (minhaFilaTab || TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
         list = filterOptimisticRemovedMinhaFila(list);
+        const removed = optimisticRemovedMinhaFilaRef.current;
+        if (removed?.size) {
+          const fromApi = new Set(list.map((c) => String(c?.id)).filter(Boolean));
+          for (const [hid, entry] of [...removed.entries()]) {
+            if (entry?.reason === "encerrar_conversa" && !fromApi.has(hid)) {
+              removed.delete(hid);
+            }
+          }
+        }
       }
       const pageState = buildChatListPageState(
         data,
@@ -887,7 +910,17 @@ export default function ChatList() {
       }
       // Desduplicar por id (conversas) ou por cliente_id (clientes sem conversa) — NÃO descartar itens com id null
       list = sortChatRowsByOrder(dedupeChatRowsByStableKey(list), order);
+      const hiddenIds = new Set(optimisticRemovedMinhaFilaRef.current.keys());
       if (!adminPorFuncionario && tabRef.current === "minha_fila" && !searchTerm) {
+        if (background) {
+          list = mergeActiveTabBackgroundRows(minhaFilaListRef.current || [], list, order, {
+            tab: "minha_fila",
+            user,
+            adminAtendenteFilterId,
+            pendentesFuncionarioSet,
+            hiddenIds,
+          });
+        }
         setMinhaFilaList(list);
       }
       // Merge defensivo: nunca sobrescrever contato_nome/foto_perfil com undefined ou string vazia. Preserva chats locais não retornados pela API.
@@ -939,11 +972,13 @@ export default function ChatList() {
           "pagamentos_pendentes",
           "em_atraso",
         ]);
-        if (tab === "em_atendimento" && background) {
-          return mergeEmAtendimentoBackgroundRows(arr, merged, order, {
+        if (strictListTabs.has(tab) && background) {
+          return mergeActiveTabBackgroundRows(arr, merged, order, {
+            tab,
             user,
             adminAtendenteFilterId,
             pendentesFuncionarioSet,
+            hiddenIds: new Set(optimisticRemovedMinhaFilaRef.current.keys()),
           });
         }
         if (strictListTabs.has(tab)) return sortChatListByRecent(merged);
@@ -1167,8 +1202,13 @@ export default function ChatList() {
     const id = String(mutation.id);
     const patch = mutation.patch && typeof mutation.patch === "object" ? mutation.patch : null;
     const hideClosedFromActiveList = shouldHideOptimisticClosedFromTab(tabRef.current, mutation);
+    const closedPatch = isClosedAttendancePatch(patch);
 
-    if (hideClosedFromActiveList) {
+    if (closedPatch) {
+      removeChatIdFromFilterRowCaches(filterScopeKey, id);
+    }
+
+    if (hideClosedFromActiveList || (closedPatch && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || "")))) {
       setChats((prev) => (Array.isArray(prev) ? prev.filter((c) => String(c?.id) !== id) : []));
     } else if (patch) {
       setChats((prev) =>
@@ -1253,7 +1293,7 @@ export default function ChatList() {
         }
       }
     }
-  }, [chatListOptimisticMutationNonce, setChats]);
+  }, [chatListOptimisticMutationNonce, setChats, filterScopeKey]);
 
   const applyFiltersDataToState = useCallback((data) => {
     setAllTags(data?.tags ?? []);

@@ -115,6 +115,5 @@ CRM: `crm/CrmAvancadoRedirect.jsx` + `crm/pages/*`. Dashboard: `dashboard/Dashbo
 ## Onde **não** procurar verdade
 
 - `frontend/dist/`
-- `backend/docs/_ANTIGOS/`
-- Prompts `PROMPT-FRONTEND-*` em `_ANTIGOS`
-- Relatórios `REVISAO_*` / `ANALISE_*` na raiz sem data desta semana
+- Pastas `backend/docs/_ANTIGOS/` e `backend/docs/_OFICIAL/` (não existem neste tree)
+- Relatórios pontuais antigos (já removidos da raiz do monorepo)

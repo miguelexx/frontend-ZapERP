@@ -53,6 +53,7 @@ export function buildPatchAguardandoPagamentoOptimista(conversaId, prazoOpts) {
     aguardando_cliente_desde: null,
     pagamento_concluido_em: null,
     exibir_badge_aberta: false,
+    ui_status_optimistic_at: Date.now(),
   }
 }
 

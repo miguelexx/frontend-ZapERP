@@ -18,6 +18,7 @@ export function chatRowListStoreKey(c) {
     String(c.cliente_id ?? ""),
     Boolean(c.sem_conversa),
     Number(c.unread_count ?? c.unread ?? 0),
+    String(c.ui_status_optimistic_at ?? ""),
     String(getStatusAtendimentoEffective(c)),
     String(c.status_atendimento_real ?? ""),
     String(c.finalizacao_motivo ?? ""),

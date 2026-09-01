@@ -8,6 +8,7 @@ import {
 } from "../utils/conversaUtils";
 import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance } from "./chatListRowAtendimento";
 import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
+import { chatRowIsStaleForTab } from "./chatListQueryHelpers";
 
 export function digitsOnly(v) {
   return String(v || "").replace(/\D/g, "");
@@ -350,6 +351,10 @@ export function computeChatsFiltrados({
     } else if (tab === "campanhas") {
       list = list.filter((c) => c?.aguardando_resposta_campanha === true && !isGroupConversation(c));
     }
+  }
+
+  if (!searchBypassesTabFilters) {
+    list = list.filter((c) => !chatRowIsStaleForTab(c, tab));
   }
 
   if (adminPorFuncionario && !searchBypassesTabFilters) {

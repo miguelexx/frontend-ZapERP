@@ -1,9 +1,17 @@
 import { isSupervisorOrAdmin } from "../auth/permissions";
-import { isGroupConversation } from "../utils/conversaUtils";
+import {
+  getStatusAtendimentoEffective,
+  isClosedAttendance,
+  isGroupConversation,
+  isModoSimplesAguardandoAtendente,
+  isModoSimplesAguardandoCliente,
+} from "../utils/conversaUtils";
 import {
   isConversaAguardandoCliente,
   isConversaAguardandoFuncionario,
   isConversaEmAtendimentoBadge,
+  isConversaEmAtrasoPagamento,
+  isConversaPagamentoPendente,
   getChatListSortTimestampMs,
   mergeChatRowListaAtividade,
 } from "./chatListRowAtendimento";
@@ -43,17 +51,175 @@ export const TABS_HIDE_OPTIMISTIC_CLOSED = new Set([
   "em_atraso",
 ]);
 
+/** Abas de fila/abertas: conversa fechada nunca pode permanecer visível (nem via cache/socket). */
+export const TABS_THAT_EXCLUDE_CLOSED = new Set([
+  ...TABS_HIDE_OPTIMISTIC_CLOSED,
+  "campanhas",
+  "mensagens_disparadas",
+]);
+
 export function isClosedAttendancePatch(patch) {
   const status = String(
     patch?.status_atendimento_real ?? patch?.status_atendimento ?? ""
   ).toLowerCase();
-  return status === "fechada" || status === "encerrada";
+  return status === "fechada" || status === "encerrada" || status === "finalizada" || status === "finalizado";
 }
 
 export function shouldHideOptimisticClosedFromTab(tab, mutation) {
-  if (mutation?.type !== "encerrar_conversa") return false;
-  if (!isClosedAttendancePatch(mutation?.patch)) return false;
+  if (mutation?.type === "encerrar_conversa_revert") return false;
+  const patch = mutation?.patch ?? mutation;
+  if (!isClosedAttendancePatch(patch)) return false;
   return TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""));
+}
+
+/**
+ * Exclusão de pertinência em tempo real: só remove o que definitivamente
+ * não pertence à aba. Não replica o GET (paginação/setor).
+ */
+export function chatRowIsStaleForTab(row, tab) {
+  if (!row || row.sem_conversa) return false;
+  const t = String(tab || "");
+  const closed = isClosedAttendance(row);
+
+  if (TABS_THAT_EXCLUDE_CLOSED.has(t) && closed) return true;
+
+  if (t === "finalizadas") return !closed;
+
+  if (t === "finalizadas_auto") {
+    if (!closed) return true;
+    return !(
+      String(row?.finalizacao_motivo || "") === "ausencia_cliente" ||
+      row?.finalizada_automaticamente === true
+    );
+  }
+
+  if (t === "minha_fila") {
+    if (row?.aguardando_resposta_campanha === true) return true;
+    const s = getStatusAtendimentoEffective(row);
+    return s === "mensagem_disparada";
+  }
+
+  if (t === "abertas") {
+    const s = getStatusAtendimentoEffective(row);
+    if (s && s !== "aberta") return true;
+    if (row?.exibir_badge_aberta === false) return true;
+    return false;
+  }
+
+  if (t === "em_atendimento") {
+    const s = getStatusAtendimentoEffective(row);
+    return (
+      s === "aberta" ||
+      s === "aguardando_cliente" ||
+      s === "mensagem_disparada" ||
+      s === "pagamento_pendente" ||
+      s === "em_atraso"
+    );
+  }
+
+  if (t === "aguardando_cliente") {
+    const s = getStatusAtendimentoEffective(row);
+    if (s === "aberta" || s === "mensagem_disparada" || s === "pagamento_pendente" || s === "em_atraso") return true;
+    if (s === "em_atendimento" && !isConversaAguardandoCliente(row)) return true;
+    return false;
+  }
+
+  if (t === "pagamentos_pendentes") {
+    const s = getStatusAtendimentoEffective(row);
+    return s !== "pagamento_pendente";
+  }
+
+  if (t === "em_atraso") {
+    const s = getStatusAtendimentoEffective(row);
+    return s !== "em_atraso";
+  }
+
+  if (t === "mensagens_disparadas") {
+    return getStatusAtendimentoEffective(row) !== "mensagem_disparada";
+  }
+
+  if (t === "campanhas") {
+    return row?.aguardando_resposta_campanha !== true || isGroupConversation(row);
+  }
+
+  return false;
+}
+
+/** Minha fila do usuário logado — mesma regra do socket (`lista_realtime`). */
+export function conversaPertenceAMinhaFila(row, userId) {
+  if (!row || isGroupConversation(row)) return false;
+  if (row.aguardando_resposta_campanha === true) return false;
+  const status = getStatusAtendimentoEffective(row);
+  const atendenteId = row.atendente_id;
+  if (status === "fechada" || status === "encerrada" || status === "mensagem_disparada") return false;
+  if (
+    status === "em_atendimento" ||
+    status === "aguardando_cliente" ||
+    status === "pagamento_pendente" ||
+    status === "em_atraso"
+  ) {
+    return userId != null && atendenteId != null && String(atendenteId) === String(userId);
+  }
+  if (status === "aberta") {
+    if (atendenteId != null && userId != null && String(atendenteId) !== String(userId)) return false;
+    return row.exibir_badge_aberta !== false;
+  }
+  return false;
+}
+
+export function rowStillBelongsToActiveTab(row, tab, opts = {}) {
+  if (!row || row.sem_conversa) return false;
+  if (chatRowIsStaleForTab(row, tab)) return false;
+  const t = String(tab || "");
+  const user = opts.user;
+  if (t === "todas" || t === "hoje") return true;
+  if (t === "minha_fila") return conversaPertenceAMinhaFila(row, user?.id);
+  if (t === "em_atendimento") return rowStillBelongsToEmAtendimentoLiveScope(row, opts);
+  if (t === "abertas") return getStatusAtendimentoEffective(row) === "aberta" && row?.exibir_badge_aberta !== false;
+  if (t === "aguardando_cliente") {
+    if (isModoSimplesAguardandoCliente(row, user)) return true;
+    return isConversaAguardandoCliente(row, user);
+  }
+  if (t === "aguardando_atendente") return isModoSimplesAguardandoAtendente(row, user);
+  if (t === "aguardando_funcionario") {
+    return isConversaAguardandoFuncionario(row, opts.pendentesFuncionarioSet, user);
+  }
+  if (t === "finalizadas") return isClosedAttendance(row);
+  if (t === "finalizadas_auto") {
+    return (
+      isClosedAttendance(row) &&
+      (String(row?.finalizacao_motivo || "") === "ausencia_cliente" || row?.finalizada_automaticamente === true)
+    );
+  }
+  if (t === "pagamentos_pendentes") return isConversaPagamentoPendente(row);
+  if (t === "em_atraso") return isConversaEmAtrasoPagamento(row);
+  if (t === "mensagens_disparadas") return getStatusAtendimentoEffective(row) === "mensagem_disparada";
+  if (t === "campanhas") return row?.aguardando_resposta_campanha === true && !isGroupConversation(row);
+  return true;
+}
+
+/**
+ * Socket/GET :id só podem inserir na lista visível se a row pertencer ao filtro ativo.
+ * Busca global e "Todas/Hoje" aceitam inserção (o GET da aba não é um recorte de status).
+ */
+export function shouldInsertChatRowInActiveList(row, view = {}) {
+  if (!row) return false;
+  if (view.searchActive) return true;
+  const tab = String(view.tab || "");
+  if (!tab || tab === "todas" || tab === "hoje") return true;
+  if (chatRowIsStaleForTab(row, tab)) return false;
+  if (tab === "em_atendimento") {
+    if (getStatusAtendimentoEffective(row) !== "em_atendimento" || row?.atendente_id == null) {
+      return false;
+    }
+  }
+  if (tab === "aguardando_funcionario") {
+    if (isModoSimplesAguardandoAtendente(row, view.user)) {
+      return rowStillBelongsToActiveTab(row, tab, view);
+    }
+    if (!view.pendentesFuncionarioSet?.has?.(String(row.id))) return false;
+  }
+  return rowStillBelongsToActiveTab(row, tab, view);
 }
 
 export function getOptimisticRemovedRow(entry) {
@@ -135,19 +301,29 @@ export function rowStillBelongsToEmAtendimentoLiveScope(row, { user, adminAtende
   );
 }
 
-export function mergeEmAtendimentoBackgroundRows(current, incoming, order, opts) {
+export function mergeActiveTabBackgroundRows(current, incoming, order, opts) {
+  const tab = String(opts?.tab || "");
   const incomingKeys = new Set(
     (Array.isArray(incoming) ? incoming : [])
       .map((row) => chatRowStableKey(row))
       .filter(Boolean)
   );
+  const hiddenIds = opts?.hiddenIds;
   const preserved = (Array.isArray(current) ? current : []).filter((row) => {
     const key = chatRowStableKey(row);
     if (!key || incomingKeys.has(key)) return false;
-    return rowStillBelongsToEmAtendimentoLiveScope(row, opts);
+    if (hiddenIds?.has?.(String(row?.id))) return false;
+    return rowStillBelongsToActiveTab(row, tab, opts);
   });
   if (!preserved.length) return incoming;
   return mergeChatRowsPreservingCurrent(preserved, incoming, order);
+}
+
+export function mergeEmAtendimentoBackgroundRows(current, incoming, order, opts) {
+  return mergeActiveTabBackgroundRows(current, incoming, order, {
+    ...opts,
+    tab: opts?.tab || "em_atendimento",
+  });
 }
 
 export function buildChatListPageState(data, pagesLoaded = 1) {

@@ -207,6 +207,24 @@ export function getChatListSortTimestampMs(c) {
   return Math.max(toChatListTimestampMs(c?.ultima_atividade), toChatListTimestampMs(c?.criado_em));
 }
 
+const LISTA_STATUS_MEMBERSHIP_KEYS = [
+  "status_atendimento",
+  "status_atendimento_real",
+  "aguardando_cliente_desde",
+  "exibir_badge_aberta",
+  "pagamento_prazo_ate",
+  "pagamento_prazo_origem",
+  "pagamento_concluido_em",
+  "finalizacao_motivo",
+  "finalizada_automaticamente",
+  "ui_status_optimistic_at",
+  "modo_simples_aguardando",
+  "atendimento_modo_simples",
+  "atendente_id",
+  "atendente_nome",
+  "departamento_id",
+];
+
 /** Mescla campos de preview/atividade preservando sempre o timestamp mais recente (socket > API stale). */
 export function mergeChatRowListaAtividade(apiRow, localRow) {
   const base = { ...(localRow && typeof localRow === "object" ? localRow : {}), ...(apiRow && typeof apiRow === "object" ? apiRow : {}) };
@@ -226,6 +244,13 @@ export function mergeChatRowListaAtividade(apiRow, localRow) {
     base.ultima_mensagem_preview = ultima;
   }
   if (ultimaAtividade) base.ultima_atividade = ultimaAtividade;
+  const localStatusMs = Number(localRow?.ui_status_optimistic_at || 0);
+  const apiStatusMs = Number(apiRow?.ui_status_optimistic_at || 0);
+  if (localRow && localStatusMs > apiStatusMs) {
+    for (const key of LISTA_STATUS_MEMBERSHIP_KEYS) {
+      if (localRow[key] !== undefined) base[key] = localRow[key];
+    }
+  }
   return base;
 }
 

@@ -18,6 +18,7 @@ const tests = [
   "test-audio-playback-recovery.mjs",
   "test-audio-recording-lifecycle.mjs",
   "test-audio-stress.mjs",
+  "test-chat-list-fetch-params.mjs",
   "test-chat-media-display.mjs",
   "test-chat-search-prefix.mjs",
   "test-importar-clientes-helpers.mjs",

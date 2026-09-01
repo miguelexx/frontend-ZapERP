@@ -117,6 +117,16 @@ export const useChatStore = create((set, get) => ({
   chatListResyncForce: false,
   chatListOptimisticMutation: null,
   chatListOptimisticMutationNonce: 0,
+  /** Aba/chip visível — o array `chats` é o recorte dessa aba, não a inbox global. */
+  chatListActiveTab: "minha_fila",
+  chatListSearchActive: false,
+
+  setChatListView: (view = {}) => {
+    const tab = view.tab != null ? String(view.tab) : get().chatListActiveTab
+    const searchActive = view.searchActive === true
+    if (get().chatListActiveTab === tab && get().chatListSearchActive === searchActive) return
+    set({ chatListActiveTab: tab, chatListSearchActive: searchActive })
+  },
 
   requestChatListScrollToTop: () =>
     set((s) => ({ chatListScrollToTopNonce: (s.chatListScrollToTopNonce || 0) + 1 })),

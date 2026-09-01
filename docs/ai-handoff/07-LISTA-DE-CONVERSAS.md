@@ -72,6 +72,43 @@ HTTP: `chats/chatService.js`, `conversationActionsService.js`, `whatsappInstance
 
 Socket que mexe na lista: `nova_mensagem`, `nova_conversa`, `conversa_atualizada` / `atualizar_conversa`, `conversa_apagada` / `encerrada` / `transferida` / `reaberta` / `atribuida`, tags, `contato_atualizado`. Sempre `shouldIgnoreByCompany` antes.
 
+## Pertinência em tempo real (CONFIRMADO 2026-09-01)
+
+Finalizar (e reabrir/transferir) não pode deixar a row no chip errado até um F5.
+
+Causas fechadas neste ciclo:
+
+1. Abas de fila não refiltrava status no client — GET antigo + cache de aba (memória até 15 min) reapresentava a conversa fechada.
+2. Hide otimista só com `mutation.type === "encerrar_conversa"`; o eco socket não tinha `type` e `patchEverywhere` podia **reinserir** a fechada via `addChatIfAuthorized`.
+3. `requestChatListResync` era ignorado se `updateChat` fosse noop, e o throttle de 2,5s do `useChatListResync` engolia o GET logo após um load.
+4. `mergeEmAtendimentoBackgroundRows` preservava rows do cache com status antigo.
+5. `atualizar_conversa` fazia `fetchChatById` + `addChat` e recolocava a fechada na aba atual.
+6. `nova_mensagem` / `addChatIfAuthorized` inseriam qualquer conversa autorizada no array da aba ativa; o GET seguinte tirava — “aparece e some”. Resync em background substituía a lista e apagava quem ainda pertencia.
+7. Revisão 2026-09-01: `atualizar_conversa` chegou a usar `wasInList`/`closed` sem declarar — o `catch` pedia GET da aba a cada evento (o flicker voltava). `conversa_atualizada` tratava “não está na lista” como mudança da lista. Payload sem `status` não pode tirar da Minha fila.
+
+Contrato atual:
+
+- `chatRowIsStaleForTab` / `computeChatsFiltrados` exclui fechada das abas de fila e também status claramente alheio (`aberta` / `aguardando_cliente` em Em atendimento, etc.).
+- Socket só insere row se `shouldInsertChatRowInActiveList` (aba + busca). Já na lista: só `updateChat`. Em atendimento só insere `status=em_atendimento` com atendente; Aguardando funcionário só insere se o id estiver no set de pendentes (não por lastDir).
+- Resync da aba **não** dispara só porque outra conversa atualizou. Dispara se inseriu na aba, se a row visível saiu do recorte, ou `lista_realtime` força.
+- Resync **background** usa `mergeActiveTabBackgroundRows`: mantém quem ainda pertence e não veio na página; descarta fantasma.
+- `chatsStore.chatListActiveTab` / `chatListSearchActive` dizem ao socket qual recorte está na tela. Default da store é `minha_fila` até o `ChatList` montar.
+- Tombstone de IDs (TTL 90s) vale na hidratação de cache e no merge; `removeChatIdFromFilterRowCaches` limpa as outras abas.
+- Encerrar/reabrir/assumir/transferir usam `requestChatListResync({ force: true })`.
+- `mergeChatRowListaAtividade` preserva membership se `ui_status_optimistic_at` local for mais novo que o do GET.
+
+Busca com termo continua global. Fechar a thread na UI continua ≠ encerrar.
+
+## Melhorias anotadas (não alteradas)
+
+- Cache em memória das rows por filtro ainda tem TTL de 15 min (sessionStorage 45 s). Não encolhemos o TTL — troca de aba continuaria a piscar; a correção foi remover o id das snapshots ao finalizar.
+- `useChatListResync` só faz `clearChatListRowsFilterSessionCache` no mobile. No desktop a limpeza agora é cirúrgica no encerrar.
+- Contadores dos chips (`GET /chats/counts`) ainda dependem do resync; podem atrasar um tick em relação à lista.
+- Filtro admin “por funcionário” continua sem `status_atendimento` na query da maioria das abas; a exclusão de fechada no client cobre o fantasma, não o GET amplo.
+- `mergeChatRowsPreservingCurrent` na paginação (“carregar mais”) não foi mexido — risco residual só se a página extra trouxer a fechada de volta (o tombstone + `chatRowIsStaleForTab` ainda escondem).
+- `getActiveChatListView()` no socket não leva `adminAtendenteFilterId` nem `pendentesFuncionarioSet`; insert em Em atendimento no modo admin-por-funcionário pode ser mais largo que o GET. Aguardando funcionário, sem o set, **não** insere.
+- Validação no browser (login + tráfego realtime nos chips) permanece **PENDENTE DE VALIDAÇÃO**.
+
 ## Invariantes
 
 - Unread só em inbound (`direcao` in / `fromMe` false).

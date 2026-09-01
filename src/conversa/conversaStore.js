@@ -1581,6 +1581,7 @@ export const useConversaStore = create((set, get) => {
         exibir_badge_aberta: false,
         mensagens_bloqueadas: false,
         atendente_nome: me?.nome ?? null,
+        ui_status_optimistic_at: Date.now(),
         ...(me?.id != null ? { atendente_id: me.id } : {}),
       }
       get().patchConversa(optimistic)
@@ -1591,7 +1592,7 @@ export const useConversaStore = create((set, get) => {
         const patch = { ...optimistic, ...payload, id: conversaId }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       } catch (err) {
         if (src) {
@@ -1620,7 +1621,7 @@ export const useConversaStore = create((set, get) => {
       withMessagesScrollPreserved(async () => {
         await transferirChat(conversaId, Number(novoAtendenteId), observacao)
         await get().refresh({ silent: true })
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       }),
 
@@ -1644,6 +1645,7 @@ export const useConversaStore = create((set, get) => {
         pagamento_prazo_ate: null,
         pagamento_prazo_origem: null,
         aguardando_cliente_desde: null,
+        ui_status_optimistic_at: Date.now(),
       }
       get().patchConversa(optimistic)
       chatStore.updateChat(optimistic)
@@ -1659,7 +1661,7 @@ export const useConversaStore = create((set, get) => {
         const patch = { ...optimistic, ...payload, id: conversaId }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       } catch (err) {
         if (src) {
@@ -1712,6 +1714,7 @@ export const useConversaStore = create((set, get) => {
         pagamento_concluido_em: null,
         pagamento_prazo_ate: null,
         pagamento_prazo_origem: null,
+        ui_status_optimistic_at: Date.now(),
       }
       get().patchConversa(optimistic)
       chatStore.updateChat(optimistic)
@@ -1728,7 +1731,7 @@ export const useConversaStore = create((set, get) => {
         const patch = { ...optimistic, ...payload, id: conversaId }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       } catch (err) {
         if (src) {
@@ -1786,7 +1789,7 @@ export const useConversaStore = create((set, get) => {
         const patch = { ...optimistic, ...payload, id: conversaId }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       } catch (err) {
         if (src) {
@@ -1825,7 +1828,7 @@ export const useConversaStore = create((set, get) => {
         const patch = { ...(optimistic || {}), ...payload, id: conversaId }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       } catch (err) {
         if (optimistic) {
@@ -1855,6 +1858,7 @@ export const useConversaStore = create((set, get) => {
           pagamento_prazo_ate: null,
           pagamento_prazo_origem: null,
           aguardando_cliente_desde: null,
+          ui_status_optimistic_at: Date.now(),
         }
       } else if (st === "aguardando_cliente") {
         optimistic = {
@@ -1862,6 +1866,7 @@ export const useConversaStore = create((set, get) => {
           status_atendimento: "em_atendimento",
           status_atendimento_real: "em_atendimento",
           aguardando_cliente_desde: null,
+          ui_status_optimistic_at: Date.now(),
         }
       }
 
@@ -1885,7 +1890,7 @@ export const useConversaStore = create((set, get) => {
         const patch = { ...(optimistic || {}), ...payload, id: conversaId }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
-        useChatStore.getState().requestChatListResync()
+        useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       } catch (err) {
         if (optimistic && src) {

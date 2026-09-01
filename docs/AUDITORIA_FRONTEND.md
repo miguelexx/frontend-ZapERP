@@ -36,7 +36,7 @@ Não foi encontrado um motivo seguro para uma “grande refatoração”. A reco
 
 ## 2. Método, limites e confiança
 
-Foram lidos `AI_CONTEXT.md`, `CLAUDE.md`, toda a pasta `docs`, toda a pasta `docs/ai-handoff` e os documentos históricos em `docs antigos`. O código foi tratado como fonte da verdade quando a documentação divergiu.
+Foram lidos `AI_CONTEXT.md`, `CLAUDE.md`, toda a pasta `docs` e toda a pasta `docs/ai-handoff`. O código foi tratado como fonte da verdade quando a documentação divergiu.
 
 As análises incluíram:
 
@@ -114,7 +114,6 @@ Exceção organizacional: as rotas filhas do CRM interno continuam declaradas e 
 ```text
 frontend/
 ├── docs/                 documentação atual e handoffs
-├── docs antigos/         documentação histórica; contém referências já superadas
 ├── e2e/                  3 specs Playwright
 ├── public/               manifest, service worker, sons e assets públicos
 ├── scripts/              diagnósticos/testes Node e utilitários de build

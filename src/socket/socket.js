@@ -12,13 +12,18 @@ import { hasActivePushSubscription } from "../push/webPushClient"
 import { shouldDeferLocalNotificationToWebPush } from "../push/pushPlatform"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById } from "../chats/chatService"
+import {
+  conversaPertenceAMinhaFila,
+  rowStillBelongsToActiveTab,
+  shouldInsertChatRowInActiveList,
+} from "../chats/chatListQueryHelpers"
 import { SOCKET_EVENTS } from "./events"
 import {
   enqueueStatusMensagemEvent,
   flushStatusMensagemBatch,
   resetStatusMensagemBatch,
 } from "./statusMensagemBatch"
-import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
+import { getStatusAtendimentoEffective, isClosedAttendance } from "../utils/conversaUtils"
 
 const TYPING_EXPIRY_MS = 5000
 const typingExpiryTimers = new Map()
@@ -238,17 +243,30 @@ function getCurrentCompanyId() {
   }
 }
 
-/** ID do usuário logado (string) para comparar com payloads do socket */
-function getCurrentUserId() {
+function getCurrentUserSnapshot() {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    const u = parsed?.user
-    const id = u?.id ?? u?.usuario_id
-    return id != null && id !== "" ? String(id) : null
+    return parsed?.user || null
   } catch {
     return null
+  }
+}
+
+/** ID do usuário logado (string) para comparar com payloads do socket */
+function getCurrentUserId() {
+  const u = getCurrentUserSnapshot()
+  const id = u?.id ?? u?.usuario_id
+  return id != null && id !== "" ? String(id) : null
+}
+
+function getActiveChatListView() {
+  const store = useChatStore.getState()
+  return {
+    tab: store.chatListActiveTab,
+    searchActive: store.chatListSearchActive === true,
+    user: getCurrentUserSnapshot(),
   }
 }
 
@@ -432,6 +450,8 @@ function unwrapSocketChatPayload(payload) {
     return {
       ...conv,
       id: cid,
+      company_id: conv.company_id ?? payload.company_id ?? conv.empresa_id ?? payload.empresa_id,
+      empresa_id: conv.empresa_id ?? payload.empresa_id ?? conv.company_id ?? payload.company_id,
       lista_realtime: /** @type {any} */ (payload).lista_realtime ?? conv.lista_realtime,
     }
   }
@@ -484,15 +504,23 @@ function payloadForcaResyncLista(payload) {
  * Pede GET /chats quando fila/setor/atendente exige alinhar lista + Minha fila.
  * @returns {boolean} true se requestChatListResync foi chamado
  */
-function requestChatListResyncIfLateralImpact(payload, listRowChanged) {
+function requestChatListResyncIfLateralImpact(payload, listRowChanged, opts = {}) {
+  if (!payloadImpactaListaLateral(payload)) return false
+  const membership =
+    Object.prototype.hasOwnProperty.call(payload, "status_atendimento") ||
+    Object.prototype.hasOwnProperty.call(payload, "status_atendimento_real") ||
+    Object.prototype.hasOwnProperty.call(payload, "atendente_id") ||
+    Object.prototype.hasOwnProperty.call(payload, "departamento_id")
   if (
-    payloadImpactaListaLateral(payload) &&
-    (listRowChanged !== false || payloadForcaResyncLista(payload))
+    listRowChanged === false &&
+    !payloadForcaResyncLista(payload) &&
+    !membership &&
+    opts.force !== true
   ) {
-    useChatStore.getState().requestChatListResync()
-    return true
+    return false
   }
-  return false
+  useChatStore.getState().requestChatListResync(opts.force === true ? { force: true } : {})
+  return true
 }
 
 function isGroupPayload(payload) {
@@ -502,22 +530,7 @@ function isGroupPayload(payload) {
 
 function shouldBeInMinhaFilaForCurrentUser(payload) {
   if (!payload || isGroupPayload(payload)) return false
-  if (payload.aguardando_resposta_campanha === true) return false
-  const myId = getCurrentUserId()
-  const status = String(
-    payload.status_atendimento_real ?? payload.status_atendimento ?? ""
-  ).toLowerCase()
-  const atendenteId = payload.atendente_id
-
-  if (status === "fechada" || status === "encerrada" || status === "mensagem_disparada") return false
-  if (status === "em_atendimento" || status === "aguardando_cliente" || status === "pagamento_pendente" || status === "em_atraso") {
-    return myId != null && atendenteId != null && String(atendenteId) === String(myId)
-  }
-  if (status === "aberta") {
-    if (atendenteId != null && myId != null && String(atendenteId) !== String(myId)) return false
-    return payload.exibir_badge_aberta !== false
-  }
-  return false
+  return conversaPertenceAMinhaFila(payload, getCurrentUserId())
 }
 
 function buildModoSimplesListRowFromPayload(payload, id) {
@@ -564,13 +577,14 @@ async function addChatIfAuthorized(chatStore, conversaId) {
     const data = await fetchChatById(conversaId)
     const chat = data?.conversa ?? data
     if (!chat?.id) return false
-    // Re-checar: outra race pode ter inserido enquanto o fetch rodava
-    const latest = chatStore.chats || []
+    const latestStore = useChatStore.getState()
+    const latest = latestStore.chats || []
     if (latest.some((c) => String(c?.id) === String(chat.id))) {
-      chatStore.updateChat(chat)
+      latestStore.updateChat(chat)
       return true
     }
-    chatStore.addChat(chat)
+    if (!shouldInsertChatRowInActiveList(chat, getActiveChatListView())) return false
+    latestStore.addChat(chat)
     return true
   } catch (_) {
     return false
@@ -605,10 +619,14 @@ function emitMinhaFilaOptimisticMutation(rawPayload) {
   const existingRow = (chatStore.chats || []).find((c) => String(c?.id) === String(id))
   const decisionRow = existingRow ? { ...existingRow, ...patch } : patch
   const inMinhaFila = shouldBeInMinhaFilaForCurrentUser(decisionRow)
+  const closed = isClosedAttendance(decisionRow)
+  const wasClosed = existingRow ? isClosedAttendance(existingRow) : false
+  const statusKnown = Boolean(getStatusAtendimentoEffective(decisionRow))
   useChatStore.getState().emitChatListOptimisticMutation({
     id,
     patch,
-    removeFromMinhaFila: !inMinhaFila,
+    type: closed ? "encerrar_conversa" : wasClosed && inMinhaFila ? "reabrir_conversa" : undefined,
+    removeFromMinhaFila: statusKnown && !inMinhaFila,
     restoreMinhaFila: inMinhaFila,
     row: decisionRow,
   })
@@ -1307,8 +1325,8 @@ export function initSocket(token) {
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(id))
-    let listRowChanged = idx < 0
-    if (idx < 0) {
+    let listRowChanged = false
+    if (idx < 0 && !isClosedAttendance(payload)) {
       listRowChanged = upsertModoSimplesListRowFromPayload(chatStore, payload, id) || listRowChanged
     }
     if (idx >= 0) {
@@ -1411,35 +1429,55 @@ export function initSocket(token) {
         mot === 'ausencia_cliente' &&
         (nextSt === 'aberta' || nextSt === 'em_atendimento')
       if (!skipResyncReaberturaAusencia) {
-        requestChatListResyncIfLateralImpact(payload, listRowChanged)
+        const view = getActiveChatListView()
+        const decisionRow = idx >= 0 ? { ...chats[idx], ...payload, id } : { ...payload, id }
+        const touchesCurrentTab =
+          idx >= 0 ||
+          view.searchActive === true ||
+          shouldInsertChatRowInActiveList(decisionRow, view)
+        if (touchesCurrentTab || payloadForcaResyncLista(payload)) {
+          requestChatListResyncIfLateralImpact(payload, listRowChanged)
+        }
       }
     }
   }
 
   /** @returns {Promise<boolean>} true se pediu resync da lista (GET /chats via ChatList) */
-  async function patchEverywhere(rawPayload) {
+  async function patchEverywhere(rawPayload, opts = {}) {
     const payload = unwrapSocketChatPayload(rawPayload)
     const rawId = payload?.id ?? payload?.conversa_id
     if (rawId == null || rawId === "") return false
+    if (shouldIgnoreByCompany(payload)) return false
     const p = { ...payload, id: rawId }
+    if (opts.treatAsClosed === true) {
+      if (!p.status_atendimento) p.status_atendimento = "fechada"
+      if (!("status_atendimento_real" in p)) p.status_atendimento_real = "fechada"
+    }
     logSocketConversaDebug("patch_everywhere", p)
     emitMinhaFilaOptimisticMutation(p)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(p.id))
-    let listRowChanged = idx < 0
+    const closed = isClosedAttendance(p)
+    let listRowChanged = false
     if (idx >= 0) {
       listRowChanged = chatStore.updateChat(p)
-    } else {
+    } else if (!closed) {
       try {
-        await addChatIfAuthorized(chatStore, p.id)
+        listRowChanged = (await addChatIfAuthorized(chatStore, p.id)) === true
       } catch (_) {}
     }
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(p.id)) {
       convStore.patchConversa(p)
     }
-    return requestChatListResyncIfLateralImpact(p, listRowChanged)
+    if (opts.forceResync !== true && idx < 0 && !listRowChanged) {
+      const view = getActiveChatListView()
+      const belongs =
+        view.searchActive === true || shouldInsertChatRowInActiveList(p, view)
+      if (!belongs && !payloadForcaResyncLista(p)) return false
+    }
+    return requestChatListResyncIfLateralImpact(p, listRowChanged, { force: opts.forceResync === true })
   }
 
   socket.on("conversa_atualizada", handleConversaAtualizada)
@@ -1460,7 +1498,7 @@ export function initSocket(token) {
   })
   socket.on("conversa_encerrada", (payload) => {
     logSocketConversaDebug("conversa_encerrada", payload)
-    patchEverywhere(payload)
+    void patchEverywhere(payload, { forceResync: true, treatAsClosed: true })
   })
   socket.on(SOCKET_EVENTS.CONVERSA_TRANSFERIDA, (payload) => {
     const myId = getCurrentUserId()
@@ -1469,18 +1507,18 @@ export function initSocket(token) {
       const cid = payload?.id ?? payload?.conversa_id
       markSuppressNovaMensagemSound(cid)
     }
-    patchEverywhere(payload)
+    patchEverywhere(payload, { forceResync: true })
   })
   socket.on("conversa_reaberta", (payload) => {
     logSocketConversaDebug("conversa_reaberta", payload)
-    patchEverywhere(payload)
+    void patchEverywhere(payload, { forceResync: true })
   })
   socket.on(SOCKET_EVENTS.CONVERSA_ATRIBUIDA, async (payload) => {
     const p0 = unwrapSocketChatPayload(payload)
     if (shouldIgnoreByCompany(p0)) return
     const convId = p0?.id ?? p0?.conversa_id
     if (convId != null && convId !== "") {
-      const resyncJaPedido = await patchEverywhere({ ...p0, id: convId })
+      const resyncJaPedido = await patchEverywhere({ ...p0, id: convId }, { forceResync: true })
       /* Fallback: merge local noop mas fila/setor/minha_fila ainda exigem GET /chats */
       if (!resyncJaPedido && payloadImpactaListaLateral(p0)) {
         useChatStore.getState().requestChatListResync()
@@ -1580,8 +1618,16 @@ export function initSocket(token) {
           return
         }
         emitMinhaFilaOptimisticMutation(chat)
-        const wasInList = (chatStore.chats || []).some((c) => String(c.id) === String(id))
-        chatStore.addChat(chat)
+        const latestStore = useChatStore.getState()
+        const view = getActiveChatListView()
+        const closed = isClosedAttendance(chat)
+        const wasInList = (latestStore.chats || []).some((c) => String(c.id) === String(id))
+        const canInsert = !closed && shouldInsertChatRowInActiveList(chat, view)
+        if (wasInList) {
+          latestStore.updateChat(chat)
+        } else if (canInsert) {
+          latestStore.addChat(chat)
+        }
         const selectedId = useConversaStore.getState().selectedId
         if (String(id) === String(selectedId)) {
           const meta = { id: chat.id }
@@ -1596,11 +1642,17 @@ export function initSocket(token) {
           if ("unread_count" in chat) meta.unread_count = chat.unread_count
           useConversaStore.getState().patchConversa(meta)
         }
-        /* fetchChatById + addChat bastam quando o sinal não impacta fila; senão alinha Minha fila */
+        const belongsNow =
+          view.searchActive === true ||
+          !view.tab ||
+          view.tab === "todas" ||
+          view.tab === "hoje" ||
+          rowStillBelongsToActiveTab(chat, view.tab, view)
+        /* Não disparar GET /chats só porque a conversa é de outro filtro — isso recarregava a aba e fazia cards piscarem. */
         needsListResync =
-          !wasInList ||
-          payloadImpactaListaLateral(rawPayload) ||
-          payloadForcaResyncLista(rawPayload)
+          payloadForcaResyncLista(rawPayload) ||
+          (!wasInList && canInsert) ||
+          (wasInList && !belongsNow)
       } catch (_) {
         needsListResync = true
       }
