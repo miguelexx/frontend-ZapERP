@@ -233,9 +233,15 @@ export default function MainLayout() {
   useEffect(() => {
     const eventName = getOpenHelpDeskNotificationEventName();
     const onOpenHelpDeskFromDesktopNotification = (event) => {
-      const ticketId = Number(event?.detail?.ticketId);
-      if (!Number.isInteger(ticketId) || ticketId <= 0) return;
-      navigate(`/helpdesk?ticket=${ticketId}`);
+      const rawTicketId = event?.detail?.ticketId;
+      if (rawTicketId == null || rawTicketId === "") {
+        navigate("/helpdesk");
+        return;
+      }
+      const ticketId = Number(rawTicketId);
+      if (Number.isInteger(ticketId) && ticketId > 0) {
+        navigate(`/helpdesk?ticket=${ticketId}`);
+      }
     };
     window.addEventListener(eventName, onOpenHelpDeskFromDesktopNotification);
     return () => window.removeEventListener(eventName, onOpenHelpDeskFromDesktopNotification);
