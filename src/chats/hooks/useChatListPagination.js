@@ -41,7 +41,7 @@ export function useChatListPagination({
   emAtendimentoBadgeCount,
   aguardandoClienteBadgeCount,
   mensagensDisparadasCount,
-  filterOptimisticRemovedMinhaFila,
+  filterOptimisticRemovedForTab,
 }) {
   const handleLoadMoreChats = useCallback(async () => {
     const page = chatListPageRef.current;
@@ -68,7 +68,7 @@ export function useChatListPagination({
         adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
       let list = Array.isArray(data) ? data : [];
       if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
-        list = filterOptimisticRemovedMinhaFila(list);
+        list = filterOptimisticRemovedForTab(list, tabRef.current);
       }
       if (!adminPorFuncionario && mineOnly && user?.id && !isAppAdmin(user)) {
         list = list.filter((c) => String(c.atendente_id) === String(user.id));
@@ -123,7 +123,7 @@ export function useChatListPagination({
     emAtendimentoBadgeCount,
     aguardandoClienteBadgeCount,
     mensagensDisparadasCount,
-    filterOptimisticRemovedMinhaFila,
+    filterOptimisticRemovedForTab,
     isMobileLayout,
   ]);
 

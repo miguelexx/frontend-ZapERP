@@ -346,6 +346,21 @@ export default function ChatList() {
     if (!removed.size) return arr;
     return arr.filter((c) => !removed.has(String(c?.id)));
   }, []);
+  /** Tombstone da Minha fila não pode esconder card em Em atendimento / outras abas (só encerrar). */
+  const filterOptimisticRemovedForTab = useCallback((list, activeTab) => {
+    const arr = Array.isArray(list) ? list : [];
+    const removed = optimisticRemovedMinhaFilaRef.current;
+    if (!removed?.size) return arr;
+    pruneExpiredOptimisticRemoved(removed);
+    if (!removed.size) return arr;
+    const minhaFila = String(activeTab || "") === "minha_fila";
+    return arr.filter((c) => {
+      const entry = removed.get(String(c?.id));
+      if (!entry) return true;
+      if (minhaFila) return false;
+      return entry.reason !== "encerrar_conversa";
+    });
+  }, []);
 
   useEffect(() => {
     useChatStore.getState().setChatListView({
@@ -367,7 +382,7 @@ export default function ChatList() {
     const applyCachedFilterRows = (cachedRows) => {
       if (!Array.isArray(cachedRows) || !cachedRows.length) return false;
       let cachedList = sortChatRowsByOrder(dedupeChatRowsByStableKey(cachedRows), order);
-      cachedList = filterOptimisticRemovedMinhaFila(cachedList);
+      cachedList = filterOptimisticRemovedForTab(cachedList, tab);
       if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""))) {
         cachedList = cachedList.filter((c) => !isClosedAttendance(c));
       }
@@ -419,6 +434,16 @@ export default function ChatList() {
       loading: false,
       error: "",
     });
+    chatListPageRef.current = {
+      ...(chatListPageRef.current || {}),
+      hasMore: false,
+      nextCursor: null,
+      nextCursorId: null,
+      totalCount: null,
+      pagesLoaded: 1,
+      loading: false,
+      error: "",
+    };
     if (preserveRowsDuringSearch) {
       setZapFilterSkeleton(false);
     } else if (hasCachedNextFilter) {
@@ -429,7 +454,7 @@ export default function ChatList() {
       setChats([]);
       if (tab === "minha_fila") setMinhaFilaList(null);
     }
-  }, [filterRequestKey, filterRequestBaseKey, debouncedSearch, tab, setChats, filterScopeKey, order, filterOptimisticRemovedMinhaFila]);
+  }, [filterRequestKey, filterRequestBaseKey, debouncedSearch, tab, setChats, filterScopeKey, order, filterOptimisticRemovedForTab]);
 
   /** Hidratação antes da pintura: lista + Minha fila + filtros auxiliares (F5). */
   useLayoutEffect(() => {
@@ -889,7 +914,7 @@ export default function ChatList() {
           : await fetchChats(params, { signal: abortController.signal });
       if (requestId !== loadRequestIdRef.current) return;
       let list = Array.isArray(data) ? data : [];
-      if (minhaFilaTab || TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
+      if (minhaFilaTab) {
         list = filterOptimisticRemovedMinhaFila(list);
         const removed = optimisticRemovedMinhaFilaRef.current;
         if (removed?.size) {
@@ -900,6 +925,8 @@ export default function ChatList() {
             }
           }
         }
+      } else if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
+        list = filterOptimisticRemovedForTab(list, tabRef.current);
       }
       const pageState = buildChatListPageState(
         data,
@@ -1122,7 +1149,7 @@ export default function ChatList() {
     emAtendimentoBadgeCount,
     aguardandoClienteBadgeCount,
     mensagensDisparadasCount,
-    filterOptimisticRemovedMinhaFila,
+    filterOptimisticRemovedForTab,
   });
 
   useEffect(() => {

@@ -283,9 +283,9 @@ export function shouldInsertChatRowInActiveList(row, view = {}) {
   if (!tab || tab === "todas" || tab === "hoje") return true;
   if (chatRowIsStaleForTab(row, tab)) return false;
   if (tab === "em_atendimento") {
-    if (getStatusAtendimentoEffective(row) !== "em_atendimento" || row?.atendente_id == null) {
-      return false;
-    }
+    if (row?.atendente_id == null) return false;
+    const s = getStatusAtendimentoEffective(row);
+    if (s !== "em_atendimento" && s !== "aguardando_cliente") return false;
   }
   if (tab === "aguardando_funcionario") {
     if (isModoSimplesAguardandoAtendente(row, view.user)) {
@@ -366,13 +366,8 @@ export function rowStillBelongsToEmAtendimentoLiveScope(row, { user, adminAtende
     return row.atendente_id != null && String(row.atendente_id) === String(adminAtendenteFilterId);
   }
 
-  if (isAppAdmin(user)) return true;
-
-  return (
-    row.atendente_id != null &&
-    user?.id != null &&
-    String(row.atendente_id) === String(user.id)
-  );
+  // Chip "Em atendimento": todos os atendimentos visíveis da empresa/setor, não só os meus.
+  return row.atendente_id != null;
 }
 
 export function mergeActiveTabBackgroundRows(current, incoming, order, opts) {

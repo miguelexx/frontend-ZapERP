@@ -38,6 +38,10 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 
 Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRESHOLD`); senão lista estática. Medir mídia **durante** scroll de histórico não pode soltar a âncora do fundo.
 
+**Texto longo sem espaço (CONFIRMADO 2026-09-02):** token/hash/URL esticava a bolha (`overflow-wrap: break-word` não reduz min-content). Bolha/texto/legenda usam `overflow-wrap: anywhere`. Texto + hora inline vai em `.wa-bubble-textBody`.
+
+**Cores da nota interna e do modal de atendentes (CONFIRMADO 2026-09-02):** a nota usava texto âmbar claro (`prefers-color-scheme: dark` sem guard de `data-theme`) em card beige — contraste baixo. Card/composer agora têm tokens `--note-*` opacos no próprio card; dark só com `[data-theme=dark]` ou `html:not([data-theme=light])`. Modal `AtendentesModal` (`atendentes.css`): avatares/busca/botão Adicionar no verde `--ds-accent` (sumiu o roxo `#7c3aed`); cargo/empty usam `--ds-text-secondary` / `#cbd5e1` no dark. CSS em `conversa.css` (`.wa-internalNote-*`, `.wa-footer--nota`, `.wa-notaBadge`) e `atendimento/atendentes.css`.
+
 ## Composer modularizado (CONFIRMADO 2026-08-27)
 
 `ConversaComposer.jsx` permanece no mesmo path e export default, mas agora tem 1 linha e funciona apenas como fachada. A implementação saiu de um arquivo de 2.551 linhas, 24 `useState`, 27 `useEffect` e 36 `useRef` para módulos de domínio. `ConversaComposerShell.jsx` tem 730 linhas, 2 estados locais, 6 efeitos passivos e 2 layout effects; os demais estados/efeitos ficam nos hooks que possuem o respectivo ciclo de vida. A interface de 44 props com `ConversaView.jsx` e os métodos do ref (`focusInput`, `setText`, `appendText`, `getInputElement`, `isRecording`, `cancelRecording`, `closePanels`, `getText`) foram preservados.

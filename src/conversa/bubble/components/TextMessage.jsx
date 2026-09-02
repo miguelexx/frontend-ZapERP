@@ -6,7 +6,7 @@ export default function TextMessage({ texto, inlineMeta, msg, isGroup }) {
   if (inlineMeta) {
     return (
       <span className="wa-bubble-text wa-bubble-textInline">
-        {renderTextWithLinks(texto)}
+        <span className="wa-bubble-textBody">{renderTextWithLinks(texto)}</span>
         <span className="wa-inlineMeta" aria-label="Horário e status">
           <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
           <MessageStatus msg={msg} isGroup={Boolean(isGroup)} />

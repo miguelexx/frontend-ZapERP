@@ -139,8 +139,13 @@ try {
   );
   assert.equal(
     shouldInsertChatRowInActiveList(otherAttendant, { tab: "em_atendimento", user }),
+    true,
+    "Em atendimento lista todos os atendimentos visiveis da empresa, nao so os meus"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, { tab: "em_atendimento", user }),
     false,
-    "conversa de outro atendente nao entra em Em atendimento"
+    "atendimento de outro atendente permanece no chip Em atendimento"
   );
   assert.equal(
     shouldInsertChatRowInActiveList(closed, { tab: "em_atendimento", user }),
@@ -343,6 +348,18 @@ try {
     filaFiltrada.map((c) => c.id),
     [11],
     "conversa finalizada nao pode permanecer em Minha fila"
+  );
+
+  const emAtendimentoEmpresa = computeChatsFiltrados({
+    ...filterBase,
+    chats: [openMine, otherAttendant],
+    tab: "em_atendimento",
+    minhaFilaList: null,
+  });
+  assert.deepEqual(
+    emAtendimentoEmpresa.map((c) => c.id).sort((a, b) => a - b),
+    [11, 13],
+    "Em atendimento mostra atendimentos de todos os atendentes visiveis"
   );
 
   const emAtendimentoFiltrada = computeChatsFiltrados({

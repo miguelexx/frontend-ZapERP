@@ -66,7 +66,7 @@ export default function ComposerFooter({
             <TablerNote size={11} strokeWidth={2.5} />
             NOTA INTERNA
           </span>
-          <span style={{ fontSize: 11.5, color: "var(--wa-text-muted)", flex: 1 }}>
+          <span className="wa-composerModeBar-hint">
             Visível apenas para a equipe
           </span>
         </div>

@@ -2715,6 +2715,7 @@ html:not([data-theme="dark"]) .wa-closedAttendance-reopenBtn {
 /* Evita flex encolher a bolha abaixo da largura do texto (“Boa tarde” em duas linhas finas) */
 .wa-swipeReplyShift > .wa-bubble {
   flex-shrink: 0;
+  max-width: 100%;
 }
 
 .wa-row > .wa-bubble {
@@ -2751,8 +2752,8 @@ html:not([data-theme="dark"]) .wa-closedAttendance-reopenBtn {
   line-height: 1.4;
   font-size: 14px;
 
-  overflow-wrap: break-word;
-  word-break: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 
   box-sizing: border-box;
 
@@ -2903,8 +2904,8 @@ html:not([data-theme="dark"]) .wa-bubble-out {
   max-width:100%;
   min-width:0;
 
-  word-break:normal;
-  overflow-wrap:break-word;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   white-space:pre-wrap;
 
   padding-bottom:0;
@@ -2927,8 +2928,8 @@ html:not([data-theme="dark"]) .wa-bubble-out {
 
   color:var(--wa-text);
 
-  word-break:normal;
-  overflow-wrap:break-word;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   min-width:0;
 }
 
@@ -2974,6 +2975,13 @@ html:not([data-theme="dark"]) .wa-bubble-out {
 
 .wa-bubble-textInline > .wa-link{
   min-width:0;
+}
+
+.wa-bubble-textInline > .wa-bubble-textBody{
+  min-width:0;
+  max-width:100%;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 
 /* =========================================================
@@ -3978,8 +3986,8 @@ html:not([data-theme="dark"]) .wa-bubble-out {
   line-height: 1.3;
   color: var(--wa-text);
   white-space: pre-wrap;
-  word-break: normal;
-  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   padding-right: 0;
 }
 
@@ -9552,6 +9560,7 @@ html:not([data-theme="dark"]) .wa-footer .wa-iconBtn:hover:not(:disabled) {
 .wa-link {
   color: #0284c7;
   text-decoration: none;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 .wa-link:hover {
@@ -14313,7 +14322,8 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 /* ==========================================================================
-   NOTA INTERNA — card âmbar, visível apenas para a equipe
+   NOTA INTERNA — card âmbar opaco, visível apenas para a equipe
+   Cores no próprio card (não no OS) para não misturar tema claro + texto dark.
    ========================================================================== */
 
 .wa-row-internalNote {
@@ -14324,14 +14334,22 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 .wa-internalNote-card {
-  background: rgba(251, 191, 36, 0.10);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  border-left: 3px solid #f59e0b;
+  --note-bg: #FFF4D6;
+  --note-border: #E8B84A;
+  --note-accent: #C2410C;
+  --note-kicker: #9A3412;
+  --note-meta: #7C2D12;
+  --note-body: #1C1917;
+  --note-footer: #9A3412;
+  background: var(--note-bg);
+  border: 1px solid var(--note-border);
+  border-left: 3px solid var(--note-accent);
   border-radius: 8px;
   padding: 8px 12px;
   max-width: 480px;
   width: 100%;
   font-size: 13px;
+  box-shadow: 0 1px 2px rgba(124, 45, 18, 0.08);
 }
 
 .wa-internalNote-head {
@@ -14343,7 +14361,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 .wa-internalNote-icon {
-  color: #d97706;
+  color: var(--note-accent);
   display: flex;
   align-items: center;
 }
@@ -14353,26 +14371,28 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #b45309;
+  color: var(--note-kicker);
 }
 
 .wa-internalNote-autor {
   font-size: 11.5px;
-  color: #92400e;
-  font-weight: 500;
+  color: var(--note-meta);
+  font-weight: 600;
 }
 
 .wa-internalNote-time {
   margin-left: auto;
   font-size: 11px;
-  color: #a16207;
+  color: var(--note-meta);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .wa-internalNote-body {
-  color: #78350f;
+  color: var(--note-body);
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
   margin-bottom: 6px;
 }
@@ -14382,48 +14402,60 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #a16207;
-  opacity: 0.8;
+  color: var(--note-footer);
+  font-weight: 500;
 }
 
-/* Dark mode */
+:root[data-theme="dark"] .wa-internalNote-card,
+html[data-theme="dark"] .wa-internalNote-card {
+  --note-bg: #2B2214;
+  --note-border: rgba(251, 191, 36, 0.42);
+  --note-accent: #F59E0B;
+  --note-kicker: #FCD34D;
+  --note-meta: #FDE68A;
+  --note-body: #FFFBEB;
+  --note-footer: #FBBF24;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
+}
+
 @media (prefers-color-scheme: dark) {
-  .wa-internalNote-card {
-    background: rgba(120, 53, 15, 0.20);
-    border-color: rgba(245, 158, 11, 0.30);
-    border-left-color: #d97706;
+  html:not([data-theme="light"]) .wa-internalNote-card {
+    --note-bg: #2B2214;
+    --note-border: rgba(251, 191, 36, 0.42);
+    --note-accent: #F59E0B;
+    --note-kicker: #FCD34D;
+    --note-meta: #FDE68A;
+    --note-body: #FFFBEB;
+    --note-footer: #FBBF24;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
   }
-  .wa-internalNote-kicker { color: #fbbf24; }
-  .wa-internalNote-autor { color: #fcd34d; }
-  .wa-internalNote-time { color: #fbbf24; }
-  .wa-internalNote-body { color: #fef3c7; }
-  .wa-internalNote-footer { color: #fbbf24; }
 }
-:root[data-theme="dark"] .wa-internalNote-card {
-  background: rgba(120, 53, 15, 0.20);
-  border-color: rgba(245, 158, 11, 0.30);
-  border-left-color: #d97706;
-}
-:root[data-theme="dark"] .wa-internalNote-body { color: #fef3c7; }
 
 /* ==========================================================================
    COMPOSER MODO NOTA INTERNA — footer âmbar + split-send-button
    ========================================================================== */
 
-/* Footer âmbar quando nota ativa */
-.wa-footer--nota {
-  background: rgba(254, 243, 199, 0.4);
+.wa-composerModeBar {
+  background: #FFF8E7;
+}
+.wa-composerModeBar-hint {
+  font-size: 11.5px;
+  color: #7C2D12;
+  flex: 1;
 }
 
-/* Textarea âmbar */
+.wa-footer--nota {
+  background: #FFF4D6;
+}
+
 .wa-input--nota {
-  background: rgba(254, 243, 199, 0.35) !important;
-  border-color: rgba(245, 158, 11, 0.4) !important;
-  color: #78350f !important;
+  background: #FFFBEB !important;
+  border-color: #E8B84A !important;
+  color: #1C1917 !important;
 }
 .wa-input--nota::placeholder {
-  color: #a16207 !important;
-  opacity: 0.7;
+  color: #9A3412 !important;
+  opacity: 0.72;
 }
 
 /* Botão de envio nota — âmbar */
@@ -14687,9 +14719,9 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   gap: 4px;
   padding: 3px 8px;
   border-radius: 20px;
-  background: rgba(251,191,36,0.18);
-  border: 1px solid rgba(245,158,11,0.4);
-  color: #92400e;
+  background: #FDE68A;
+  border: 1px solid #D97706;
+  color: #7C2D12;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -14699,23 +14731,50 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   align-self: center;
 }
 
-/* Dark mode */
+:root[data-theme="dark"] .wa-composerModeBar,
+html[data-theme="dark"] .wa-composerModeBar {
+  background: #1F180C;
+  border-top-color: rgba(251, 191, 36, 0.22) !important;
+}
+:root[data-theme="dark"] .wa-composerModeBar-hint,
+html[data-theme="dark"] .wa-composerModeBar-hint {
+  color: #FDE68A;
+}
+:root[data-theme="dark"] .wa-footer--nota,
+html[data-theme="dark"] .wa-footer--nota {
+  background: #2B2214;
+}
+:root[data-theme="dark"] .wa-input--nota,
+html[data-theme="dark"] .wa-input--nota {
+  background: #3A2E18 !important;
+  color: #FFFBEB !important;
+  border-color: rgba(251, 191, 36, 0.45) !important;
+}
+:root[data-theme="dark"] .wa-input--nota::placeholder,
+html[data-theme="dark"] .wa-input--nota::placeholder {
+  color: #FCD34D !important;
+  opacity: 0.7;
+}
 @media (prefers-color-scheme: dark) {
-  .wa-footer--nota {
-    background: rgba(120,53,15,0.15);
+  html:not([data-theme="light"]) .wa-composerModeBar {
+    background: #1F180C;
+    border-top-color: rgba(251, 191, 36, 0.22) !important;
   }
-  .wa-input--nota {
-    background: rgba(120,53,15,0.25) !important;
-    color: #fef3c7 !important;
-    border-color: rgba(245,158,11,0.35) !important;
+  html:not([data-theme="light"]) .wa-composerModeBar-hint {
+    color: #FDE68A;
   }
-}
-:root[data-theme="dark"] .wa-input--nota {
-  background: rgba(120,53,15,0.25) !important;
-  color: #fef3c7 !important;
-}
-:root[data-theme="dark"] .wa-footer--nota {
-  background: rgba(120,53,15,0.15);
+  html:not([data-theme="light"]) .wa-footer--nota {
+    background: #2B2214;
+  }
+  html:not([data-theme="light"]) .wa-input--nota {
+    background: #3A2E18 !important;
+    color: #FFFBEB !important;
+    border-color: rgba(251, 191, 36, 0.45) !important;
+  }
+  html:not([data-theme="light"]) .wa-input--nota::placeholder {
+    color: #FCD34D !important;
+    opacity: 0.7;
+  }
 }
 :root[data-theme="dark"] .wa-modePicker {
   background: var(--zaperp-card-bg, #1e293b);
@@ -14732,10 +14791,18 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   background: rgba(120,53,15,0.28);
   color: #fbbf24;
 }
-:root[data-theme="dark"] .wa-notaBadge {
-  background: rgba(120,53,15,0.25);
-  border-color: rgba(245,158,11,0.35);
-  color: #fbbf24;
+:root[data-theme="dark"] .wa-notaBadge,
+html[data-theme="dark"] .wa-notaBadge {
+  background: #3A2E18;
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #FCD34D;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .wa-notaBadge {
+    background: #3A2E18;
+    border-color: rgba(251, 191, 36, 0.55);
+    color: #FCD34D;
+  }
 }
 :root[data-theme="dark"] .wa-sendGroup-chevron {
   background: var(--zaperp-card-bg, #1e293b);
