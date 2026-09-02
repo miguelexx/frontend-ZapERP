@@ -11,13 +11,20 @@ import { notifyIncomingDesktopMessage } from "../notifications/desktopNotificati
 import { hasActivePushSubscription } from "../push/webPushClient"
 import { shouldDeferLocalNotificationToWebPush } from "../push/pushPlatform"
 import { getApiBaseUrl } from "../api/baseUrl"
-import { fetchChatById } from "../chats/chatService"
+import { fetchChatById, fetchUnreadSnapshot } from "../chats/chatService"
+import { createUnreadSnapshotSync } from "../chats/unreadSnapshotSync"
+import { clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
+import { buildChatListFiltersScopeKey } from "../chats/chatListFiltersData"
+import { createReconnectRecovery } from "./reconnectRecovery"
+import { useInternalChatNotifyStore } from "../internal-chat/internalChatNotifyStore"
+import { useHelpDeskNotifyStore } from "../helpdesk/helpDeskNotifyStore"
 import {
   conversaPertenceAMinhaFila,
-  rowStillBelongsToActiveTab,
+  getAdminAtendenteFilterScope,
   shouldBlockHiddenClosedReinsert,
   shouldInsertChatRowInActiveList,
   shouldRemoveChatFromViewerList,
+  buildActiveChatListViewFromStore,
 } from "../chats/chatListQueryHelpers"
 import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers"
 import { closeSelectedConversation } from "../atendimento/closeSelectedConversation"
@@ -31,6 +38,22 @@ import { getStatusAtendimentoEffective, isClosedAttendance } from "../utils/conv
 
 const TYPING_EXPIRY_MS = 5000
 const typingExpiryTimers = new Map()
+let unreadSnapshotSync = null
+let unsubscribeUnreadChanges = null
+let reconnectRecovery = null
+const FILTER_CACHE_EVENTS = new Set([
+  "nova_mensagem", "mensagem_interna_atendimento", "nova_conversa", "mensagens_lidas",
+  "mensagem_excluida", "mensagem_editada", "mensagem_oculta", "conversa_atualizada",
+  "atualizar_conversa", "conversa_apagada", "conversa_transferida", "conversa_atribuida",
+  "conversa_encerrada", "conversa_reaberta", "conversa_prefs_atualizada",
+  "tag_adicionada", "tag_removida", "contato_atualizado", "zapi_sync_contatos",
+  "whatsapp_sync_mensagens_antigas",
+])
+
+function invalidateActiveFilterCaches() {
+  const user = getCurrentUserSnapshot()
+  if (user) clearChatListRowsFilterSessionCache(buildChatListFiltersScopeKey(user))
+}
 
 /** Evita som duplo: após transferência, o destinatário ouve o som de handoff e suprime o beep de nova_mensagem uma vez. */
 const suppressDefaultMessageSoundUntil = new Map()
@@ -62,7 +85,9 @@ function consumeSuppressNovaMensagemSound(conversaId) {
 function applyDocumentTitle(unreadTotal) {
   if (typeof document === "undefined") return
   const base = "ZapERP — Atendimento inteligente"
-  document.title = unreadTotal > 0 ? `(${unreadTotal}) ${base}` : base
+  const total = (Number(unreadTotal) || 0) + useInternalChatNotifyStore.getState().getTotal() +
+    (Number(useHelpDeskNotifyStore.getState().unreadTotal) || 0)
+  document.title = total > 0 ? `(${total}) ${base}` : base
 }
 
 let documentTitleRaf = null
@@ -266,13 +291,7 @@ function getCurrentUserId() {
 }
 
 function getActiveChatListView() {
-  const store = useChatStore.getState()
-  return {
-    tab: store.chatListActiveTab,
-    searchActive: store.chatListSearchActive === true,
-    user: getCurrentUserSnapshot(),
-    hiddenClosed: store.chatListHiddenClosed,
-  }
+  return buildActiveChatListViewFromStore(useChatStore.getState(), getCurrentUserSnapshot())
 }
 
 /** Sai da lista visível. Fecha a thread só se o setor ficou inacessível (não ao mudar de aba). */
@@ -280,6 +299,12 @@ function dropChatFromViewerListIfNeeded(chatStore, row, id) {
   const view = getActiveChatListView()
   if (!shouldRemoveChatFromViewerList(row, view)) return false
   chatStore.removeChat(id)
+  chatStore.emitChatListOptimisticMutation({
+    id,
+    removeFromMinhaFila: true,
+    row,
+    patch: row,
+  })
   if (!viewerCanSeeConversationRow(row, view.user)) {
     if (String(useConversaStore.getState().selectedId) === String(id)) {
       closeSelectedConversation()
@@ -880,6 +905,37 @@ export function initSocket(token) {
 
   resetStatusMensagemBatch()
 
+  unreadSnapshotSync = createUnreadSnapshotSync({
+    fetchSnapshot: fetchUnreadSnapshot,
+    getStore: useChatStore.getState,
+    onApplied: updateDocumentTitleFromChats,
+  })
+  unsubscribeUnreadChanges = useChatStore.subscribe((state, prev) => {
+    if (state.unreadRevision !== prev.unreadRevision) unreadSnapshotSync?.request()
+    if (state.unreadTotal !== prev.unreadTotal) updateDocumentTitleFromChats()
+  })
+  unreadSnapshotSync.request({ immediate: true })
+  reconnectRecovery = createReconnectRecovery({
+    recover: async () => {
+      unreadSnapshotSync?.request({ immediate: true })
+      useChatStore.getState().requestChatListResync?.({ force: true })
+      // Lê a seleção ao executar: não reabre uma conversa trocada/fechada na espera.
+      const current = useConversaStore.getState()
+      if (current.selectedId) await current.refresh?.({ silent: true })
+    },
+  })
+
+  // Mudanças de acesso/status e leituras em outro dispositivo reconciliam o mesmo escopo.
+  socket.onAny((event, payload) => {
+    if (shouldIgnoreByCompany(payload)) return
+    if (FILTER_CACHE_EVENTS.has(event)) invalidateActiveFilterCaches()
+    if (["nova_mensagem", "nova_conversa", "mensagens_lidas", "mensagem_excluida",
+      "conversa_atualizada", "atualizar_conversa", "conversa_apagada", "conversa_transferida",
+      "conversa_atribuida", "conversa_encerrada", "conversa_reaberta"].includes(event)) {
+      unreadSnapshotSync?.request()
+    }
+  })
+
   // Listeners idempotentes: remove antes de registrar (evita duplicar ao re-init)
   const off = (ev) => { try { socket?.off(ev) } catch (_) {} }
   off("typing_start")
@@ -909,6 +965,7 @@ export function initSocket(token) {
   off("contato_atualizado")
 
   socket.on("connect", () => {
+    invalidateActiveFilterCaches()
     currentConversationId = null
     const companyId = getCurrentCompanyId()
     if (companyId != null) {
@@ -919,13 +976,11 @@ export function initSocket(token) {
     const convId = useConversaStore.getState().selectedId
     if (convId) {
       joinConversaIfNeeded(convId)
-      try {
-        useConversaStore.getState().refresh?.({ silent: true })
-      } catch (_) {}
     }
-    useChatStore.getState().requestChatListResync?.({ force: true })
+    reconnectRecovery?.request()
     updateDocumentTitleFromChats()
   })
+  socket.on("disconnect", () => reconnectRecovery?.suspend())
 
   /* ===========================
      INDICADOR DE DIGITAÇÃO
@@ -1045,25 +1100,10 @@ export function initSocket(token) {
       void addChatIfAuthorized(chatStore, conversaId).then((added) => {
         if (!added) return
         const store = useChatStore.getState()
-        // O GET /chats/:id acabou de trazer unread_count do servidor; se a ultima_mensagem
-        // retornada já é esta msg, o contador já a inclui — incrementar duplicaria o badge.
-        const fetchedRow = (store.chats || []).find((c) => String(c?.id) === String(conversaId))
-        const um = fetchedRow?.ultima_mensagem
-        const serverJaContou = !!um && (
-          (msg?.id != null && um?.id != null && String(um.id) === String(msg.id)) ||
-          (msg?.whatsapp_id && um?.whatsapp_id && String(um.whatsapp_id) === String(msg.whatsapp_id))
-        )
         if (typeof store.setUltimaMensagemEBump === "function") {
           store.setUltimaMensagemEBump(conversaId, msg)
         }
-        if (!msg.fromMe && msg.direcao === "in" && !serverJaContou) {
-          const isOpen =
-            useConversaStore.getState().selectedId &&
-            String(useConversaStore.getState().selectedId) === String(conversaId)
-          if (!isOpen && typeof store.incUnreadComBadge === "function") {
-            store.incUnreadComBadge(conversaId, 1)
-          }
-        }
+        // O snapshot autorizado reconcilia unread, inclusive fora da aba visível.
         updateDocumentTitleFromChats()
       })
     } else {
@@ -1139,13 +1179,8 @@ export function initSocket(token) {
        incUnread só para direcao 'in' (mensagem recebida)
     ---------------------------------- */
     if (!isAberta) {
-      if (jaNaLista && !msg.fromMe && msg.direcao === "in") {
-        if (typeof chatStore.incUnreadComBadge === "function") {
-          chatStore.incUnreadComBadge(conversaId, 1)
-        } else {
-          chatStore.incUnread(conversaId, 1)
-        }
-      }
+      // Contagem absoluta do servidor: não incrementa IDs ainda não autorizados,
+      // nem soma duas vezes um evento recebido por salas/reconexões diferentes.
       updateDocumentTitleFromChats()
       return
     }
@@ -1662,7 +1697,7 @@ export function initSocket(token) {
         const view = getActiveChatListView()
         const closed = isClosedAttendance(chat)
         const wasInList = (latestStore.chats || []).some((c) => String(c.id) === String(id))
-        const canInsert = !closed && shouldInsertChatRowInActiveList(chat, view)
+        const canInsert = (!closed || getAdminAtendenteFilterScope(view) != null) && shouldInsertChatRowInActiveList(chat, view)
         if (wasInList) {
           latestStore.updateChat(chat)
           if (dropChatFromViewerListIfNeeded(latestStore, chat, id)) {
@@ -1685,13 +1720,7 @@ export function initSocket(token) {
           if ("unread_count" in chat) meta.unread_count = chat.unread_count
           useConversaStore.getState().patchConversa(meta)
         }
-        const belongsNow =
-          viewerCanSeeConversationRow(chat, view.user) &&
-          (view.searchActive === true ||
-            !view.tab ||
-            view.tab === "todas" ||
-            view.tab === "hoje" ||
-            rowStillBelongsToActiveTab(chat, view.tab, view))
+        const belongsNow = !shouldRemoveChatFromViewerList(chat, view)
         /* Não disparar GET /chats só porque a conversa é de outro filtro — isso recarregava a aba e fazia cards piscarem. */
         needsListResync =
           payloadForcaResyncLista(rawPayload) ||
@@ -1753,6 +1782,13 @@ export function getSocket() {
 }
 
 export function disconnectSocket() {
+  reconnectRecovery?.stop()
+  reconnectRecovery = null
+  unreadSnapshotSync?.stop()
+  unreadSnapshotSync = null
+  unsubscribeUnreadChanges?.()
+  unsubscribeUnreadChanges = null
+  socket?.offAny?.()
   flushStatusMensagemBatch(applyStatusMensagemEvent)
 
   try {

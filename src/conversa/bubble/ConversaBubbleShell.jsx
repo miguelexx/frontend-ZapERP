@@ -17,6 +17,7 @@ import MessageStatus from "./components/MessageStatus";
 import QuotedReply from "./components/QuotedReply";
 import MessageMenu from "./components/MessageMenu";
 import MessageRetry from "./components/MessageRetry";
+import { LOCAL_MEDIA_LOSS_NOTICE, shouldShowLocalMediaNotice } from "../localMediaNotice";
 import BubbleTypedContent from "./components/BubbleTypedContent";
 import { ReactionPicker, ReactionButton, ReactionBadge } from "./components/MessageReactions";
 
@@ -345,6 +346,9 @@ const Bubble = memo(function Bubble({
           ) : (
             <BubbleTypedContent includeAudioAndCall requireVideoUrl {...typedProps} />
           )}
+          {shouldShowLocalMediaNotice(msg) ? (
+            <p className="wa-local-media-notice" role="note">{LOCAL_MEDIA_LOSS_NOTICE}</p>
+          ) : null}
           {retry.canShowRetry && !isAudioOrVoice ? (
             <MessageRetry
               isRetrying={retry.isRetrying}

@@ -119,22 +119,19 @@ export function useMobileKeyboardViewport({
         shell.classList.toggle("wa-keyboard-visible", keyboardOpen);
         mobileKeyboardWasVisibleRef.current = keyboardOpen;
         mobileKeyboardInsetRef.current = kbInset;
-        if (!keyboardOpen && wasKeyboard && !recordingActiveRef.current) {
-          // Se o teclado fechou porque a gravação começou, NÃO solta a âncora ao fim —
-          // o handleRecordingStateChange mantém a tela fixa nas últimas mensagens.
-          shouldStickToBottomRef.current = false;
-        }
         /*
-         * Só reancora quando o teclado ABRE ou a inset muda de forma relevante.
+         * Abrir/fechar o teclado não muda a intenção de acompanhar as últimas mensagens.
+         * Quem está no histórico mantém sua âncora; gravação tem seu próprio ciclo de snap.
          * Antes: cada syncHeaderLayout (incl. troca de conversaId → sync + rAF + 3 timers)
          * disparava snap enquanto o teclado estivesse aberto, competindo com o useAutoScroll
          * na abertura e produzindo “pulos” em cascata.
          */
         const keyboardJustOpened = keyboardOpen && !wasKeyboard;
+        const keyboardJustClosed = !keyboardOpen && wasKeyboard && !recordingActiveRef.current;
         const insetChangedWhileOpen =
           keyboardOpen && wasKeyboard && Math.abs(kbInset - prevInset) > 8;
         if (
-          (keyboardJustOpened || insetChangedWhileOpen) &&
+          (keyboardJustOpened || keyboardJustClosed || insetChangedWhileOpen) &&
           shouldStickToBottomRef.current &&
           !userScrollLockRef.current
         ) {

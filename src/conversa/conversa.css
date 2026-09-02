@@ -7495,6 +7495,17 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 }
 
 /* Nome do atendente acima da mensagem enviada pelo sistema — discreto, premium */
+.wa-local-media-notice {
+  max-width: 30rem;
+  margin: 8px 0 4px;
+  padding-top: 6px;
+  border-top: 1px solid currentColor;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.85;
+  white-space: normal;
+}
+
 .wa-bubble-atendente {
   font-size: 10px;
   font-weight: 500;

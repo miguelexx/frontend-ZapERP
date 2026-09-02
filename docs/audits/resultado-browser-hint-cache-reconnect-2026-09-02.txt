@@ -1,0 +1,28 @@
+
+Running 14 tests using 1 worker
+
+(node:30960) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30960) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium-desktop] › e2e\hint-cache-reconnect.spec.js:60:1 › hint conserva 6 de 2 e caches são invalidados por resync e eventos no escopo correto (26.9s)
+  ok  2 [chromium-desktop] › e2e\hint-cache-reconnect.spec.js:86:1 › rajadas de reconexão agrupam GETs e recuperam evento durante HTTP lento sem concorrência (12.1s)
+  ok  3 [chromium-desktop] › e2e\search-keyboard-media.spec.js:50:1 › busca da Minha fila inclui finalizadas de outro atendente e preserva paginação (4.3s)
+  ok  4 [chromium-desktop] › e2e\search-keyboard-media.spec.js:75:1 › falha de mídia mostra aviso de F5 sem prometer envio automático e limpa após confirmação (3.7s)
+  -   5 [chromium-desktop] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (12 mensagens)
+  -   6 [chromium-desktop] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (60 mensagens)
+  ok  7 [chromium-desktop] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (4.0s)
+(node:34580) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:34580) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  8 [chromium-mobile] › e2e\hint-cache-reconnect.spec.js:60:1 › hint conserva 6 de 2 e caches são invalidados por resync e eventos no escopo correto (3.8s)
+  ok  9 [chromium-mobile] › e2e\hint-cache-reconnect.spec.js:86:1 › rajadas de reconexão agrupam GETs e recuperam evento durante HTTP lento sem concorrência (10.1s)
+  ok 10 [chromium-mobile] › e2e\search-keyboard-media.spec.js:50:1 › busca da Minha fila inclui finalizadas de outro atendente e preserva paginação (4.5s)
+  ok 11 [chromium-mobile] › e2e\search-keyboard-media.spec.js:75:1 › falha de mídia mostra aviso de F5 sem prometer envio automático e limpa após confirmação (4.8s)
+  ok 12 [chromium-mobile] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (12 mensagens) (4.6s)
+  ok 13 [chromium-mobile] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (60 mensagens) (4.5s)
+  ok 14 [chromium-mobile] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (4.9s)
+
+  2 skipped
+  12 passed (1.7m)

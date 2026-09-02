@@ -1,0 +1,15 @@
+
+Running 2 tests using 1 worker
+
+(node:22776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [chromium-desktop] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (3.3s)
+(node:14380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 2 [chromium-mobile] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (2.6s)
+
+  2 passed (9.7s)

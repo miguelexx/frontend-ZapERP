@@ -1,0 +1,24 @@
+
+Running 10 tests using 1 worker
+
+(node:4180) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4180) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium-desktop] › e2e\search-keyboard-media.spec.js:50:1 › busca da Minha fila inclui finalizadas de outro atendente e preserva paginação (3.6s)
+  ok  2 [chromium-desktop] › e2e\search-keyboard-media.spec.js:75:1 › falha de mídia mostra aviso de F5 sem prometer envio automático e limpa após confirmação (2.1s)
+  -   3 [chromium-desktop] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (12 mensagens)
+  -   4 [chromium-desktop] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (60 mensagens)
+  ok  5 [chromium-desktop] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (2.4s)
+(node:28068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  6 [chromium-mobile] › e2e\search-keyboard-media.spec.js:50:1 › busca da Minha fila inclui finalizadas de outro atendente e preserva paginação (3.5s)
+  ok  7 [chromium-mobile] › e2e\search-keyboard-media.spec.js:75:1 › falha de mídia mostra aviso de F5 sem prometer envio automático e limpa após confirmação (2.2s)
+  ok  8 [chromium-mobile] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (12 mensagens) (2.2s)
+  ok  9 [chromium-mobile] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (60 mensagens) (2.4s)
+  ok 10 [chromium-mobile] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (2.2s)
+
+  2 skipped
+  8 passed (24.3s)

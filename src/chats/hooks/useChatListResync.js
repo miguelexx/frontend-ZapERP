@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useChatStore } from "../chatsStore";
 import { clearChatListRowsFilterSessionCache } from "../chatListSidebarCache";
+
+const CHAT_LIST_RESYNC_THROTTLE_MS = 2500;
 
 /**
  * Resync silencioso da lista: nonce do socket (debounce no store), auto-refresh 5 min,
@@ -14,10 +16,20 @@ export function useChatListResync({
   lastLoadFinishedAtRef,
   tabRef,
   refreshChatFilterCounts,
-  isMobileLayout,
   filterScopeKey,
   atendimentoModoSimples,
 }) {
+  const throttleLoadTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (throttleLoadTimerRef.current) {
+        clearTimeout(throttleLoadTimerRef.current);
+        throttleLoadTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // Atualização automática da lista (nomes, novas conversas) a cada 5 min — evita "refresh" constante
   useEffect(() => {
     const interval = setInterval(() => loadRef.current?.(), 300_000);
@@ -31,10 +43,14 @@ export function useChatListResync({
     if (forceResync) {
       useChatStore.setState({ chatListResyncForce: false });
     }
+    clearChatListRowsFilterSessionCache(filterScopeKey);
     if (loadInFlightRef.current) {
+      if (throttleLoadTimerRef.current) {
+        clearTimeout(throttleLoadTimerRef.current);
+        throttleLoadTimerRef.current = null;
+      }
       loadQueuedRef.current = { background: true };
       void refreshChatFilterCounts({ silent: true });
-      if (isMobileLayout) clearChatListRowsFilterSessionCache(filterScopeKey);
       return;
     }
     const hasVisibleChats = (useChatStore.getState().chats?.length ?? 0) > 0;
@@ -46,20 +62,35 @@ export function useChatListResync({
       (modoSimplesAtivo && (tabAtual === "aguardando_cliente" || tabAtual === "todas"));
     const throttleResync =
       hasVisibleChats &&
-      Date.now() - lastLoadFinishedAtRef.current < 2500 &&
+      Date.now() - lastLoadFinishedAtRef.current < CHAT_LIST_RESYNC_THROTTLE_MS &&
       !bypassResyncThrottle;
     if (throttleResync) {
       void refreshChatFilterCounts({ silent: true });
-      if (isMobileLayout) clearChatListRowsFilterSessionCache(filterScopeKey);
+      if (!throttleLoadTimerRef.current) {
+        const waitMs = Math.max(
+          0,
+          CHAT_LIST_RESYNC_THROTTLE_MS - (Date.now() - lastLoadFinishedAtRef.current)
+        );
+        throttleLoadTimerRef.current = setTimeout(() => {
+          throttleLoadTimerRef.current = null;
+          if (loadInFlightRef.current) {
+            loadQueuedRef.current = { background: true };
+            return;
+          }
+          loadRef.current?.({ background: true });
+        }, waitMs);
+      }
       return;
+    }
+    if (throttleLoadTimerRef.current) {
+      clearTimeout(throttleLoadTimerRef.current);
+      throttleLoadTimerRef.current = null;
     }
     loadRef.current?.({ background: true });
     void refreshChatFilterCounts({ silent: true });
-    if (isMobileLayout) clearChatListRowsFilterSessionCache(filterScopeKey);
   }, [
     chatListResyncNonce,
     refreshChatFilterCounts,
-    isMobileLayout,
     filterScopeKey,
     atendimentoModoSimples,
     loadRef,

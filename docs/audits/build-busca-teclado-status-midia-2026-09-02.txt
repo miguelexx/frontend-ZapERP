@@ -1,0 +1,140 @@
+vite v5.4.21 building for production...
+
+(!) outDir C:\Users\Miguel\AppData\Local\Temp\zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+transforming...
+✓ 8637 modules transformed.
+rendering chunks...
+warnings when minifying css:
+▲ [WARNING] Expected ")" to end URL token [css-syntax-error]
+
+    <stdin>:52:47:
+      52 │ ...rl(“data:image/svg+xml,%3Csvg width='60' height='60' viewBox=...
+         ╵                                  ^
+
+  The unbalanced "(" is here:
+
+    <stdin>:52:17:
+      52 │   background: url(“data:image/svg+xml,%3Csvg width='60' height='...
+         ╵                  ^
+
+
+computing gzip size...
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/index.html                                                  2.01 kB │ gzip:  0.81 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/switch-Cxuk6wsx.css                                  0.86 kB │ gzip:  0.39 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/skeleton-CBv1J9_H.css                                1.07 kB │ gzip:  0.48 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/MainLayout-BJ277UiF.css                              2.37 kB │ gzip:  0.97 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/toast-D0vA9LAd.css                                   2.87 kB │ gzip:  0.94 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ImageSendPreviewMobile-D4wcebRk.css                  5.02 kB │ gzip:  1.19 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Atendimento-BwyXY0Bw.css                            11.69 kB │ gzip:  2.95 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ManualZapERP-B9MFoU_Y.css                           15.39 kB │ gzip:  3.26 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Supervisao-BT_oazX3.css                             16.47 kB │ gzip:  3.40 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/HelpDesk-Dh3Rimhp.css                               17.41 kB │ gzip:  3.47 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DashboardIA-D6JijFUB.css                            18.10 kB │ gzip:  4.38 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Configuracoes-D4VdJb5L.css                          19.43 kB │ gzip:  3.61 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Dashboard-CpvguEq2.css                              27.68 kB │ gzip:  4.98 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/disparoExecucao-N3gGmKpZ.css                        31.49 kB │ gzip:  5.83 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/InternalChat-CkwsdjVl.css                           34.18 kB │ gzip:  5.77 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/disparo-DKXsGz-W.css                                38.21 kB │ gzip:  7.29 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/index-BSDdAaH9.css                                  39.23 kB │ gzip:  8.48 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/IA-C_3m4IzN.css                                     39.73 kB │ gzip:  6.62 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DisparoWizardPage-BjL-91D4.css                      83.45 kB │ gzip: 14.76 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/chatList-rfeutw31.css                              142.35 kB │ gzip: 23.12 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ConversaView-Dq1evpUd.css                          291.49 kB │ gzip: 47.89 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Mensagens-Yawd9Evw.js                                0.18 kB │ gzip:  0.16 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Atalhos-4ipzHtow.js                                  0.18 kB │ gzip:  0.16 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/NovoContato-CLGRjkci.js                              0.21 kB │ gzip:  0.18 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Switch-B7IXxCBY.js                                   0.29 kB │ gzip:  0.23 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/useMatchMedia-C8mq4r7I.js                            0.31 kB │ gzip:  0.23 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/resourceCache-CmR_3Usl.js                            0.40 kB │ gzip:  0.24 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/scheduleAfterInitialPaint-C5Gor1vE.js                0.46 kB │ gzip:  0.25 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/useClienteOptions-Bq5Gu1IS.js                        0.55 kB │ gzip:  0.37 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/NovoGrupo-7g6vVCVD.js                                0.62 kB │ gzip:  0.39 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/NovaComunidade-DSZmVipF.js                           0.64 kB │ gzip:  0.40 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/BotSection-B_mt4Okm.js                               0.66 kB │ gzip:  0.38 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/IA-G8uOCXsw.js                                       0.69 kB │ gzip:  0.32 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/PermissoesSection-BnCjOqDe.js                        0.76 kB │ gzip:  0.46 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/disparoService-CQfVvEc-.js                           0.87 kB │ gzip:  0.35 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/useSectionResource-Hew5iLuT.js                       0.90 kB │ gzip:  0.53 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/helpDeskService-BTfNHcR9.js                          1.00 kB │ gzip:  0.37 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/AuditoriaSection-a2tJId-B.js                         1.22 kB │ gzip:  0.70 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmPipelinePicker-CQ2ztCt6.js                        1.27 kB │ gzip:  0.72 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/crmFormatters-B_ZzUEmj.js                            1.44 kB │ gzip:  0.67 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/skeleton-BgbS9sH1.js                                 1.46 kB │ gzip:  0.56 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/SavedRepliesPanel-B84pmIOZ.js                        1.67 kB │ gzip:  0.76 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/StickerPicker-DVNf3uhp.js                            1.83 kB │ gzip:  0.85 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/EmojiPicker-9oMTe2lZ.js                              1.87 kB │ gzip:  0.91 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Permissoes-BS5U_W7e.js                               1.94 kB │ gzip:  1.01 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CameraCapture-C_cb2k__.js                            1.94 kB │ gzip:  0.87 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/internalChatMessagePing-D_WG1jVk.js                  1.95 kB │ gzip:  0.76 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/supervisaoService-Bq43afiF.js                        1.99 kB │ gzip:  0.89 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/LogsSection-C8FZiMM4.js                              2.07 kB │ gzip:  1.08 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/AddToGroupModal-dmY93Bth.js                          2.10 kB │ gzip:  0.96 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmAvancadoRedirect-B-Af3MeO.js                      2.14 kB │ gzip:  1.04 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/iaService-DPNIzzEe.js                                2.16 kB │ gzip:  0.86 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/MsgInfoModal-1DxFdsK8.js                             2.34 kB │ gzip:  0.90 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ShareContactModal-B5BCI90O.js                        2.35 kB │ gzip:  1.05 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/imageCropExport-BU9sD0_a.js                          2.37 kB │ gzip:  1.13 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CallModal-BhvzqBY4.js                                2.38 kB │ gzip:  1.07 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/toast-Ds0JEO_D.js                                    2.70 kB │ gzip:  0.86 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmOrigens-BVEoI0bd.js                               2.94 kB │ gzip:  1.19 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/useIaConfigSection-BuYS_q1K.js                       2.95 kB │ gzip:  1.33 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ShareLocationModal-2cHyTHOV.js                       3.12 kB │ gzip:  1.14 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/configDefaults-mIJqmvUp.js                           3.23 kB │ gzip:  1.46 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/PixConfigModal-B9Aj1Zho.js                           3.23 kB │ gzip:  1.21 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/audioRecordingLifecycle-DsKnnYVM.js                  3.54 kB │ gzip:  1.42 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/MediaViewerOverlay-XDgfwlHU.js                       3.95 kB │ gzip:  1.63 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/TagsSection-C5PW55ut.js                              3.95 kB │ gzip:  1.57 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/IA-C1P9z1ZH.js                                       4.02 kB │ gzip:  1.59 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-state-MTVZNGFo.js                             4.14 kB │ gzip:  1.76 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/crmService-Bjv6JQPc.js                               4.69 kB │ gzip:  1.13 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmPipelines-DRXVnmkE.js                             4.79 kB │ gzip:  1.73 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/IaSettingsSectionController-BOvyslwJ.js              4.88 kB │ gzip:  1.97 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmStages-B9TbGnaW.js                                4.95 kB │ gzip:  1.66 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/AutomacoesSectionController-Dq3k7v_6.js              5.57 kB │ gzip:  1.87 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Configuracoes-CJfqbADt.js                            5.90 kB │ gzip:  2.20 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DepartamentosSection-ByGLDU24.js                     6.08 kB │ gzip:  2.16 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmDashboard-BfiUwRXU.js                             6.54 kB │ gzip:  2.14 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmAgenda-FP5WFv5r.js                                6.92 kB │ gzip:  2.29 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/UsuariosSection-62KfAkY5.js                          7.07 kB │ gzip:  2.49 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/SecaoPermissoes-BrX9EtG0.js                          7.57 kB │ gzip:  2.69 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/RespostasAutomaticasSectionController-BjgQ2bVh.js    7.96 kB │ gzip:  2.57 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ProdutoConsultaPanel-PGqutOFY.js                     8.33 kB │ gzip:  3.10 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmLeads-CkIWqBLP.js                                 8.82 kB │ gzip:  2.62 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ForwardModal-7uimH7Hx.js                             9.26 kB │ gzip:  2.96 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/RespostasSection-CkdAAuiO.js                        10.09 kB │ gzip:  3.18 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmKanban-BOT2QdJs.js                               10.70 kB │ gzip:  3.90 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/LimitesSection-DyIaooWb.js                          10.73 kB │ gzip:  3.17 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Atendimento-fpthRhhB.js                             11.32 kB │ gzip:  4.16 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/internalChatService-SZg6fi4I.js                     13.12 kB │ gzip:  4.41 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/MainLayout-BSQkrFUs.js                              14.30 kB │ gzip:  5.13 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/CrmLeadDetail-BsyFoCeL.js                           14.43 kB │ gzip:  4.16 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-tanstack-B_9lxc0E.js                         16.50 kB │ gzip:  5.21 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ConnectWhatsApp-c5bce4L3.js                         17.23 kB │ gzip:  4.80 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Supervisao-BoTPr7zd.js                              18.09 kB │ gzip:  4.98 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DisparoMensagens-CegPqofB.js                        18.52 kB │ gzip:  5.39 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ImageSendPreviewMobile-C8Vx3Apr.js                  18.79 kB │ gzip:  5.64 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-router-Ckc8Ui4k.js                           23.29 kB │ gzip:  8.59 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/HelpDesk-CSzyqCPY.js                                24.42 kB │ gzip:  7.04 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/AlertasAtendimentoSection-DKn8enBa.js               24.83 kB │ gzip:  6.59 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/GeralSection-C1EqjwyW.js                            25.31 kB │ gzip:  6.80 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/SidebarCliente-Dhxe1_t5.js                          30.34 kB │ gzip:  8.13 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ClientesSection-sXQ0iSBw.js                         31.56 kB │ gzip:  9.18 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/TriagemSectionController-CEWheisQ.js                35.93 kB │ gzip:  9.45 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-socket-dm1FmSOd.js                           41.59 kB │ gzip: 13.02 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/InternalChat-CK1e_Yp9.js                            42.06 kB │ gzip: 12.71 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ManualZapERP-DrMvmuyj.js                            44.66 kB │ gzip: 12.14 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-axios-DNeoPP0G.js                            45.57 kB │ gzip: 17.70 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DisparoExecucaoPage-DguxU2Fc.js                     46.15 kB │ gzip: 11.44 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-dnd-4F-3BVht.js                              49.78 kB │ gzip: 16.53 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-icons-DOlndoWm.js                            51.44 kB │ gzip:  8.95 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/Dashboard-B9BD_w1G.js                               53.96 kB │ gzip: 14.59 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DashboardIA-B3Rm8uoe.js                             63.50 kB │ gzip: 19.18 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-markdown-DliPyBHn.js                        117.58 kB │ gzip: 36.15 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/DisparoWizardPage-B-_ePGIi.js                      140.99 kB │ gzip: 36.29 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/vendor-react-DOBzNqAb.js                           142.35 kB │ gzip: 45.62 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/chatList-DUQPrhH9.js                               155.35 kB │ gzip: 44.02 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/index-NiU9cgvF.js                                  300.38 kB │ gzip: 82.73 kB
+../../../AppData/Local/Temp/zaperp-busca-teclado-status-midia-4e3f08abdf404b45aa92c16afda57dda/assets/ConversaView-BVmtWZSl.js                           335.79 kB │ gzip: 98.39 kB
+✓ built in 37.52s

@@ -62,6 +62,16 @@ function parseHeaderInt(value) {
 }
 
 /** GET /chats/counts — totais reais por filtro (chips/KPIs). */
+export async function fetchUnreadSnapshot(options = {}) {
+  const { data } = await api.get('/chats/counts?unread=1', {
+    signal: options.signal, silent: true, skipGlobal500Toast: true,
+  });
+  if (!data || data.unread_by_id == null || typeof data.unread_by_id !== 'object' || Array.isArray(data.unread_by_id)) {
+    throw new Error('Snapshot de não lidas inválido');
+  }
+  return data;
+}
+
 export async function fetchChatCounts(params = {}, options = {}) {
   const q = new URLSearchParams();
   if (params.tag_id != null && params.tag_id !== "" && params.tag_id !== "todas") q.set("tag_id", params.tag_id);
@@ -250,6 +260,11 @@ export async function fetchChatsPages(params = {}, options = {}) {
  * Usado na aba "Minha fila" para não exigir "Carregar mais conversas".
  */
 export async function fetchMinhaFilaChatsCompleto(params = {}, options = {}) {
+  // Defesa para callers antigos: busca é global e mantém a paginação normal.
+  if (String(params.palavra || "").trim()) {
+    const { minha_fila: _minhaFila, ...searchParams } = params;
+    return fetchChats(searchParams, options);
+  }
   const result = await fetchChatsPages(
     { ...params, minha_fila: "1" },
     {

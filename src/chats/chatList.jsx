@@ -37,11 +37,6 @@ import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
 const ProdutoConsultaPanel = lazy(() => import("../conversa/ProdutoConsultaPanel"));
 export { getDisplayName };
 import {
-  isConversaAguardandoCliente,
-  isConversaAguardandoFuncionario,
-  isConversaEmAtendimentoBadge,
-  isConversaPagamentoPendente,
-  isConversaEmAtrasoPagamento,
   sortChatListByRecent,
   mergeChatRowListaAtividade,
   applyNewerOptimisticMembershipTo,
@@ -63,6 +58,7 @@ import {
   persistChatListSidebarToSession,
   persistChatListRowsForFilterToSession,
   removeChatIdFromFilterRowCaches,
+  getChatListRowsCacheRevision,
 } from "./chatListSidebarCache";
 import {
   resetAuxBadgeRequestsForScope,
@@ -86,6 +82,7 @@ import {
   TABS_HIDE_OPTIMISTIC_CLOSED,
   shouldHideOptimisticClosedFromTab,
   shouldRemoveChatFromViewerList,
+  shouldInsertChatRowInActiveList,
   isClosedAttendancePatch,
   getOptimisticRemovedRow,
   pruneExpiredOptimisticRemoved,
@@ -95,6 +92,8 @@ import {
   buildChatListPageState,
   buildCountsQueryParams,
   buildChatListFetchParams,
+  buildActiveChatListViewFromStore,
+  getAdminAtendenteFilterScope,
   isAbortError,
   isNetworkError,
   chatRowChipCountKeys,
@@ -349,6 +348,7 @@ export default function ChatList() {
   /** Tombstone da Minha fila não pode esconder card em Em atendimento / outras abas (só encerrar). */
   const filterOptimisticRemovedForTab = useCallback((list, activeTab) => {
     const arr = Array.isArray(list) ? list : [];
+    if (getAdminAtendenteFilterScope({ adminAtendenteFilterId })) return arr;
     const removed = optimisticRemovedMinhaFilaRef.current;
     if (!removed?.size) return arr;
     pruneExpiredOptimisticRemoved(removed);
@@ -360,35 +360,27 @@ export default function ChatList() {
       if (minhaFila) return false;
       return entry.reason !== "encerrar_conversa";
     });
-  }, []);
+  }, [adminAtendenteFilterId]);
 
-  useEffect(() => {
-    useChatStore.getState().setChatListView({
-      tab,
-      searchActive: Boolean(String(debouncedSearch || "").trim()),
-    });
-  }, [tab, debouncedSearch]);
   const [minhaFilaCount, setMinhaFilaCount] = useState(0);
-  /** Contador do chip “Em atendimento”: sempre GET /chats?status_atendimento=em_atendimento (escopo backend). */
+  /** Fallback de sessão / delta otimista. Fonte dos chips: GET /chats/counts. */
   const [emAtendimentoBadgeCount, setEmAtendimentoBadgeCount] = useState(0);
-  /** Contador do chip “Aguardando cliente”: sempre GET /chats?aguardando_cliente=1 (escopo do backend), nunca length de “Todas”. */
   const [aguardandoClienteBadgeCount, setAguardandoClienteBadgeCount] = useState(0);
   const [pagamentosPendentesBadgeCount, setPagamentosPendentesBadgeCount] = useState(0);
   const [emAtrasoBadgeCount, setEmAtrasoBadgeCount] = useState(0);
-  /** Contador do chip “Mensagens Disparadas”: GET /chats?status_atendimento=mensagem_disparada (escopo backend). */
   const [mensagensDisparadasCount, setMensagensDisparadasCount] = useState(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const applyCachedFilterRows = (cachedRows) => {
-      if (!Array.isArray(cachedRows) || !cachedRows.length) return false;
+      if (!Array.isArray(cachedRows)) return false;
       let cachedList = sortChatRowsByOrder(dedupeChatRowsByStableKey(cachedRows), order);
-      cachedList = filterOptimisticRemovedForTab(cachedList, tab);
-      if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""))) {
+      const searchActive = Boolean(String(debouncedSearch || "").trim());
+      if (!searchActive) cachedList = filterOptimisticRemovedForTab(cachedList, tab);
+      if (!searchActive && !getAdminAtendenteFilterScope({ adminAtendenteFilterId }) && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""))) {
         cachedList = cachedList.filter((c) => !isClosedAttendance(c));
       }
-      if (!cachedList.length) return false;
       setChats(cachedList);
-      if (tab === "minha_fila") setMinhaFilaList(cachedList);
+      if (!searchActive && tab === "minha_fila") setMinhaFilaList(cachedList);
       return true;
     };
 
@@ -396,10 +388,9 @@ export default function ChatList() {
       filterRequestKeyRef.current = filterRequestKey;
       filterRequestBaseKeyRef.current = filterRequestBaseKey;
       filterRequestSearchRef.current = debouncedSearch;
-      if (!(useChatStore.getState().chats?.length > 0)) {
-        applyCachedFilterRows(
-          hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey)
-        );
+      if (!applyCachedFilterRows(hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey))) {
+        setChats([]);
+        setZapFilterSkeleton(true);
       }
       return;
     }
@@ -420,7 +411,7 @@ export default function ChatList() {
     const cachedNextFilterRows = !preserveRowsDuringSearch
       ? hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey)
       : null;
-    const hasCachedNextFilter = Array.isArray(cachedNextFilterRows) && cachedNextFilterRows.length > 0;
+    const hasCachedNextFilter = Array.isArray(cachedNextFilterRows);
     filterRequestKeyRef.current = filterRequestKey;
     filterRequestBaseKeyRef.current = filterRequestBaseKey;
     filterRequestSearchRef.current = debouncedSearch;
@@ -473,10 +464,8 @@ export default function ChatList() {
     if (sessionBootRef.current === filterScopeKey) return;
     sessionBootRef.current = filterScopeKey;
     const boot = hydrateChatListSidebarFromSession(filterScopeKey);
-    if (!boot?.chats?.length) return;
-    if (!(useChatStore.getState().chats?.length > 0)) {
-      setChats(boot.chats);
-    }
+    // Rows vêm apenas do cache identificado por filterRequestKey acima.
+    if (!boot) return;
     if (boot.minhaFila != null) {
       setMinhaFilaList((prev) => (prev == null ? filterOptimisticRemovedMinhaFila(boot.minhaFila) : prev));
     }
@@ -503,6 +492,19 @@ export default function ChatList() {
   );
   const pendentesFuncionarioIdsRef = useRef(pendentesFuncionarioIds);
   pendentesFuncionarioIdsRef.current = pendentesFuncionarioIds;
+
+  useEffect(() => {
+    useChatStore.getState().setChatListView({
+      tab,
+      searchActive: Boolean(String(searchInput || "").trim()),
+      searchDebounced: Boolean(String(debouncedSearch || "").trim()),
+      adminAtendenteFilterId,
+      pendentesFuncionarioIds,
+      departamentoFilter,
+      onlyFinalizadasAusencia,
+      aguardandoClienteOnly,
+    });
+  }, [tab, searchInput, debouncedSearch, adminAtendenteFilterId, pendentesFuncionarioIds, departamentoFilter, onlyFinalizadasAusencia, aguardandoClienteOnly]);
 
   const showToast = useNotificationStore((s) => s.showToast);
 
@@ -575,212 +577,6 @@ export default function ChatList() {
     adminAtendenteFilterId,
   ]);
 
-  const refreshMinhaFila = useCallback(async () => {
-    try {
-      const t = tabRef.current;
-      const finalAutoQuery = t === "finalizadas_auto" || onlyFinalizadasAusencia;
-      /** Só minha_fila=1 aqui — nunca misturar com aguardando_cliente (endpoint com escopo próprio). */
-      const params = {
-        minha_fila: true,
-        tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-        departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-        atendente_id: atendenteFilter !== "todos" ? atendenteFilter : undefined,
-        data_inicio: dataInicio || undefined,
-        data_fim: dataFim || undefined,
-        incluir_todos_clientes: undefined,
-      };
-      if (finalAutoQuery) {
-        params.status_atendimento = "fechada";
-        params.finalizacao_motivo = "ausencia_cliente";
-      }
-      if (tempoParadoFilter) params.tempo_parado = tempoParadoFilter;
-      const data = await fetchMinhaFilaChatsCompleto(params, { silent: true });
-      const list = filterOptimisticRemovedMinhaFila(Array.isArray(data) ? data : []);
-      const pageMeta = getChatsPageMeta(data);
-      const count = pageMeta.totalCount ?? countDistinctConversas(list);
-      setMinhaFilaCount((prev) => (prev === count ? prev : count));
-      if (tabRef.current === "minha_fila") {
-        setMinhaFilaList(list);
-      }
-      persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
-        minhaFila: list,
-        minhaFilaCount: count,
-      });
-    } catch (e) {
-      console.error("Erro ao carregar Minha fila:", e);
-    }
-  }, [tagFilter, departamentoFilter, atendenteFilter, dataInicio, dataFim, onlyFinalizadasAusencia, tempoParadoFilter, filterScopeKey, filterOptimisticRemovedMinhaFila, isMobileLayout]);
-
-  const refreshEmAtendimentoBadge = useCallback(async () => {
-    try {
-      const adminPorFuncionario =
-        adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-      let params;
-      if (adminPorFuncionario) {
-        const aid = Number(adminAtendenteFilterId);
-        const atendenteIdQuery =
-          Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
-        params = {
-          status_atendimento: "em_atendimento",
-          atendente_id: atendenteIdQuery,
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          incluir_todos_clientes: undefined,
-        };
-      } else {
-        params = {
-          status_atendimento: "em_atendimento",
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          incluir_todos_clientes: undefined,
-        };
-      }
-      const data = await fetchChats(params);
-      const list = Array.isArray(data) ? data : [];
-      const apenasEmAtendimento = list.filter((c) => isConversaEmAtendimentoBadge(c));
-      const n = countDistinctConversas(apenasEmAtendimento);
-      setEmAtendimentoBadgeCount((prev) => (prev === n ? prev : n));
-      persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
-        emAtendimentoBadgeCount: n,
-      });
-    } catch (e) {
-      console.error("Erro ao carregar contagem Em atendimento:", e);
-    }
-  }, [
-    adminAtendenteFilterId,
-    tagFilter,
-    departamentoFilter,
-    dataInicio,
-    dataFim,
-    filterScopeKey,
-  ]);
-
-  const refreshAguardandoClienteBadge = useCallback(async () => {
-    try {
-      const adminPorFuncionario =
-        adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-      let params;
-      if (adminPorFuncionario) {
-        const aid = Number(adminAtendenteFilterId);
-        const atendenteIdQuery =
-          Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
-        params = {
-          aguardando_cliente: "1",
-          atendente_id: atendenteIdQuery,
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          incluir_todos_clientes: undefined,
-        };
-      } else {
-        // Sem "Por funcionário": respeitar escopo padrão da sessão no backend.
-        params = {
-          aguardando_cliente: "1",
-          tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-          departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-          data_inicio: dataInicio || undefined,
-          data_fim: dataFim || undefined,
-          incluir_todos_clientes: undefined,
-        };
-      }
-      const data = await fetchChats(params);
-      const list = Array.isArray(data) ? data : [];
-      const apenasAguardando = list.filter((c) => isConversaAguardandoCliente(c));
-      const n = countDistinctConversas(apenasAguardando);
-      setAguardandoClienteBadgeCount((prev) => (prev === n ? prev : n));
-      persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
-        aguardandoClienteBadgeCount: n,
-      });
-    } catch (e) {
-      console.error("Erro ao carregar contagem Aguardando cliente:", e);
-    }
-  }, [
-    adminAtendenteFilterId,
-    tagFilter,
-    departamentoFilter,
-    atendenteFilter,
-    dataInicio,
-    dataFim,
-    filterScopeKey,
-  ]);
-
-  const refreshPagamentosPendentesBadge = useCallback(async () => {
-    if (!isFinanceiroUser) {
-      setPagamentosPendentesBadgeCount((prev) => (prev === 0 ? prev : 0));
-      return;
-    }
-    try {
-      const params = {
-        pagamento_pendente: "1",
-        tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-        departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-        data_inicio: dataInicio || undefined,
-        data_fim: dataFim || undefined,
-        incluir_todos_clientes: undefined,
-      };
-      const data = await fetchChats(params);
-      const list = Array.isArray(data) ? data : [];
-      const n = countDistinctConversas(list.filter((c) => isConversaPagamentoPendente(c)));
-      setPagamentosPendentesBadgeCount((prev) => (prev === n ? prev : n));
-    } catch (e) {
-      console.error("Erro ao carregar contagem Pagamentos pendentes:", e);
-    }
-  }, [isFinanceiroUser, tagFilter, departamentoFilter, dataInicio, dataFim]);
-
-  const refreshEmAtrasoBadge = useCallback(async () => {
-    if (!isFinanceiroUser) {
-      setEmAtrasoBadgeCount((prev) => (prev === 0 ? prev : 0));
-      return;
-    }
-    try {
-      const params = {
-        em_atraso: "1",
-        tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-        departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-        data_inicio: dataInicio || undefined,
-        data_fim: dataFim || undefined,
-        incluir_todos_clientes: undefined,
-      };
-      const data = await fetchChats(params);
-      const list = Array.isArray(data) ? data : [];
-      const n = countDistinctConversas(list.filter((c) => isConversaEmAtrasoPagamento(c)));
-      setEmAtrasoBadgeCount((prev) => (prev === n ? prev : n));
-    } catch (e) {
-      console.error("Erro ao carregar contagem Em atraso:", e);
-    }
-  }, [isFinanceiroUser, tagFilter, departamentoFilter, dataInicio, dataFim]);
-
-  const refreshMensagensDisparadasBadge = useCallback(async () => {
-    if (!separarMensagensDisparadasLigado) {
-      setMensagensDisparadasCount((prev) => (prev === 0 ? prev : 0));
-      return;
-    }
-    try {
-      const params = {
-        status_atendimento: "mensagem_disparada",
-        tag_id: tagFilter !== "todas" ? tagFilter : undefined,
-        departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
-        data_inicio: dataInicio || undefined,
-        data_fim: dataFim || undefined,
-        incluir_todos_clientes: "0",
-      };
-      const data = await fetchChats(params);
-      const list = Array.isArray(data) ? data : [];
-      const n = countDistinctConversas(list);
-      setMensagensDisparadasCount((prev) => (prev === n ? prev : n));
-      persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
-        mensagensDisparadasCount: n,
-      });
-    } catch (e) {
-      console.error("Erro ao carregar contagem Mensagens Disparadas:", e);
-    }
-  }, [tagFilter, departamentoFilter, dataInicio, dataFim, separarMensagensDisparadasLigado, filterScopeKey]);
-
   const refreshSupervisaoData = useCallback(async () => {
     if (!isSupervisorOrAdmin(user)) {
       setSupervisaoResumo(null);
@@ -832,6 +628,7 @@ export default function ChatList() {
     }
     loadInFlightRef.current = true;
     const requestId = ++loadRequestIdRef.current;
+    const cacheRevision = getChatListRowsCacheRevision(filterScopeKey);
     loadAbortRef.current?.abort();
     const abortController = new AbortController();
     loadAbortRef.current = abortController;
@@ -884,7 +681,7 @@ export default function ChatList() {
         separarMensagensDisparadasLigado &&
         String(params.status_atendimento || "").toLowerCase() === "mensagem_disparada";
 
-      const minhaFilaTab = !adminPorFuncionario && tab === "minha_fila";
+      const minhaFilaTab = !adminPorFuncionario && tab === "minha_fila" && !searchTerm;
       if (!background) {
         const cachedRows = hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey);
         if (cachedRows?.length) {
@@ -925,7 +722,7 @@ export default function ChatList() {
             }
           }
         }
-      } else if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
+      } else if (!searchTerm && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
         list = filterOptimisticRemovedForTab(list, tabRef.current);
       }
       const pageState = buildChatListPageState(
@@ -950,6 +747,7 @@ export default function ChatList() {
             adminAtendenteFilterId,
             pendentesFuncionarioSet,
             hiddenIds,
+            incomingIsComplete: true,
           });
         }
         setMinhaFilaList(list);
@@ -1003,13 +801,20 @@ export default function ChatList() {
           "pagamentos_pendentes",
           "em_atraso",
         ]);
+        // Busca substitui o resultado anterior; extras da aba não pertencem ao termo.
+        if (searchTerm) return sortChatRowsByOrder(merged, order);
         if (strictListTabs.has(tab) && background) {
           return mergeActiveTabBackgroundRows(arr, merged, order, {
             tab,
             user,
             adminAtendenteFilterId,
             pendentesFuncionarioSet,
-            hiddenIds: new Set(optimisticRemovedMinhaFilaRef.current.keys()),
+            departamentoFilter,
+            onlyFinalizadasAusencia,
+            aguardandoClienteOnly,
+            searchActive: Boolean(searchTerm),
+            hiddenIds: adminPorFuncionario ? undefined : new Set(optimisticRemovedMinhaFilaRef.current.keys()),
+            incomingIsComplete: minhaFilaTab,
           });
         }
         if (strictListTabs.has(tab)) return sortChatListByRecent(merged);
@@ -1022,10 +827,8 @@ export default function ChatList() {
       });
       if (requestId === loadRequestIdRef.current) {
         if (!background) markPushEntryReady();
-        if (list.length > 0) {
-          persistChatListRowsForFilterToSession(filterScopeKey, filterRequestKey, list);
-        }
         const storeChats = useChatStore.getState().chats || [];
+        persistChatListRowsForFilterToSession(filterScopeKey, filterRequestKey, storeChats, { revision: cacheRevision });
         persistChatListSidebarToSession(filterScopeKey, storeChats, {
           emAtendimentoBadgeCount,
           aguardandoClienteBadgeCount,
@@ -1034,7 +837,8 @@ export default function ChatList() {
       }
       const rid = requestId;
       const minhaFilaAuxPrimed =
-        !adminPorFuncionario && tabRef.current === "minha_fila";
+        minhaFilaTab;
+      /** Lista já veio deste load(); chips/Minha fila no badge vêm só de GET /chats/counts. */
       const runSecondaryRefreshes = () => {
         if (rid !== loadRequestIdRef.current) return;
         const scope = filterScopeKey;
@@ -1121,7 +925,6 @@ export default function ChatList() {
     lastLoadFinishedAtRef,
     tabRef,
     refreshChatFilterCounts,
-    isMobileLayout,
     filterScopeKey,
     atendimentoModoSimples: user?.atendimento_modo_simples,
   });
@@ -1232,7 +1035,8 @@ export default function ChatList() {
     if (!mutation?.id) return;
     const id = String(mutation.id);
     const patch = mutation.patch && typeof mutation.patch === "object" ? mutation.patch : null;
-    const hideClosedFromActiveList = shouldHideOptimisticClosedFromTab(tabRef.current, mutation);
+    const activeView = buildActiveChatListViewFromStore(useChatStore.getState(), user);
+    const hideClosedFromActiveList = shouldHideOptimisticClosedFromTab(tabRef.current, mutation, activeView);
     const closedPatch = isClosedAttendancePatch(patch);
     const isReopen =
       mutation.type === "encerrar_conversa_revert" || mutation.type === "reabrir_conversa";
@@ -1242,7 +1046,10 @@ export default function ChatList() {
     const dropAssumedFromActiveList =
       !isAssumeRevert &&
       membershipAfter &&
-      shouldRemoveChatFromViewerList(membershipAfter, { tab: tabRef.current, user });
+      shouldRemoveChatFromViewerList(
+        membershipAfter,
+        activeView
+      );
 
     const bumpChipCounts = (row, delta) => {
       const keys = chatRowChipCountKeys(row);
@@ -1309,8 +1116,15 @@ export default function ChatList() {
       removeChatIdFromFilterRowCaches(filterScopeKey, id);
     }
 
-    if (hideClosedFromActiveList || (closedPatch && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || "")))) {
+    const dropFromMinhaFilaList = (chatId) => {
+      const current = Array.isArray(minhaFilaListRef.current) ? minhaFilaListRef.current : null;
+      if (!current?.some((c) => String(c?.id) === String(chatId))) return;
+      setMinhaFilaList(current.filter((c) => String(c?.id) !== String(chatId)));
+    };
+
+    if (hideClosedFromActiveList) {
       setChats((prev) => (Array.isArray(prev) ? prev.filter((c) => String(c?.id) !== id) : []));
+      dropFromMinhaFilaList(id);
     } else if (isAssumeRevert && mutation.previousRow) {
       setChats((prev) => {
         const list = Array.isArray(prev) ? prev : [];
@@ -1321,6 +1135,7 @@ export default function ChatList() {
       });
     } else if (dropAssumedFromActiveList) {
       setChats((prev) => (Array.isArray(prev) ? prev.filter((c) => String(c?.id) !== id) : []));
+      dropFromMinhaFilaList(id);
     } else if (patch) {
       const mergePatched = (c) => {
         if (String(c?.id) !== id) return c;
@@ -1388,6 +1203,10 @@ export default function ChatList() {
       if (!current.some((c) => String(c?.id) === id)) {
         const restored = mutation.row || getOptimisticRemovedRow(removedEntry);
         if (restored) {
+          const activeView = buildActiveChatListViewFromStore(useChatStore.getState(), user);
+          if (activeView.tab === "minha_fila" && shouldInsertChatRowInActiveList(restored, activeView)) {
+            useChatStore.getState().addChat(restored);
+          }
           const next = [restored, ...current];
           setMinhaFilaList(next);
           const nextCount = countDistinctConversas(next);

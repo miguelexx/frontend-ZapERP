@@ -37,7 +37,6 @@ import {
   clearStaleOutboundWaitFlags,
   hasRenderableUrl,
   isOutgoingLike,
-  toMillis,
   stripTempIdWhenPersisted,
   stripPersistedIdIfConflictsWithList,
 } from "./conversaOutboundMediaMerge.js"
@@ -171,26 +170,7 @@ function applyMensagemPatchToList(list, mensagemId, partial, opts, currentConver
     else if (partial?.tempId && String(m.tempId) === String(partial.tempId)) indices.add(i)
   })
 
-  if (indices.size === 0 && hasStatus && convId && list.length > 0) {
-    const now = Date.now()
-    const recentMs = 60_000
-    let fallbackIdx = -1
-    for (let i = list.length - 1; i >= 0; i--) {
-      const m = list[i]
-      if (!isOutgoingLike(m)) continue
-      const ts = toMillis(m?.criado_em)
-      if (!Number.isFinite(ts) || now - ts > recentMs) break
-      const hasMatch =
-        (waId && String(m.whatsapp_id) === String(waId)) ||
-        (mensagemId != null && mensagemId !== "" && String(m.id) === String(mensagemId))
-      if (hasMatch) {
-        fallbackIdx = i
-        break
-      }
-    }
-    if (fallbackIdx >= 0) indices.add(fallbackIdx)
-  }
-
+  // Identidade exata dentro da conversa. Tempo/proximidade nunca escolhem uma bolha.
   if (indices.size === 0) return empty
   const next = [...list]
   let changed = false
@@ -295,6 +275,8 @@ function persistCurrentConversaToCache(state) {
 
 let carregarConversaGeneration = 0
 let carregarConversaAbortController = null
+let carregarConversaCompletion = null
+let refreshConversaAbortController = null
 let conversaStoreGetState = null
 
 function isAbortError(err) {
@@ -304,13 +286,17 @@ function isAbortError(err) {
   return false
 }
 
-function cancelCarregarConversaInFlight() {
+function cancelConversationRequests() {
+  refreshConversaAbortController?.abort()
+  refreshConversaAbortController = null
   if (carregarConversaAbortController) {
     try {
       carregarConversaAbortController.abort()
     } catch (_) {}
     carregarConversaAbortController = null
   }
+  carregarConversaCompletion?.resolve()
+  carregarConversaCompletion = null
 }
 
 function isMobileViewport() {
@@ -624,7 +610,7 @@ export const useConversaStore = create((set, get) => {
     setSelectedId: (id) => {
       if (id == null || id === "") {
         const prevId = get().selectedId
-        cancelCarregarConversaInFlight()
+        cancelConversationRequests()
         carregarConversaGeneration += 1
         persistCurrentConversaToCache(get())
         set({
@@ -647,6 +633,12 @@ export const useConversaStore = create((set, get) => {
             leaveConversa(pid)
           }
         }
+        return
+      }
+      if (String(get().selectedId) !== String(id)) {
+        cancelConversationRequests()
+        carregarConversaGeneration += 1
+        set({ selectedId: id, loading: false })
         return
       }
       set({ selectedId: id })
@@ -712,10 +704,13 @@ export const useConversaStore = create((set, get) => {
 
       const cachedEarly = readConversaMensagensCache(normalizedId)
 
-      cancelCarregarConversaInFlight()
+      cancelConversationRequests()
       const generation = ++carregarConversaGeneration
       const abortController = new AbortController()
       carregarConversaAbortController = abortController
+      const completion = {}
+      completion.promise = new Promise((resolve) => { completion.resolve = resolve })
+      carregarConversaCompletion = completion
 
       const prevId = get().selectedId
       if (prevId && String(prevId) !== String(normalizedId)) {
@@ -945,6 +940,8 @@ export const useConversaStore = create((set, get) => {
         }
         set({ loading: false, loadError: msg, conversa: conversaShellWithId })
       } finally {
+        completion.resolve()
+        if (carregarConversaCompletion === completion) carregarConversaCompletion = null
         if (carregarConversaAbortController === abortController) {
           carregarConversaAbortController = null
         }
@@ -990,12 +987,25 @@ export const useConversaStore = create((set, get) => {
       const id = get().selectedId
       if (!id) return
 
+      const generation = carregarConversaGeneration
+      refreshConversaAbortController?.abort()
+      const abortController = new AbortController()
+      refreshConversaAbortController = abortController
+      const isCurrent = () =>
+        !abortController.signal.aborted &&
+        refreshConversaAbortController === abortController &&
+        generation === carregarConversaGeneration &&
+        String(get().selectedId) === String(id)
       const silent = opts?.silent === true
-      if (!silent) set({ loading: true })
 
       try {
-        const data = await getChatById(id, { limit: PAGE_LIMIT })
-        if (String(get().selectedId) !== String(id)) return
+        // A abertura conclui seus cursores/locks antes de um refresh mais recente.
+        // A identidade do controller também ordena refreshes na mesma geração.
+        if (carregarConversaCompletion) await carregarConversaCompletion.promise
+        if (!isCurrent()) return
+        if (!silent) set({ loading: true })
+        const data = await getChatById(id, { limit: PAGE_LIMIT, signal: abortController.signal })
+        if (!isCurrent()) return
 
         let conversa = data?.conversa ? data.conversa : (data ?? null)
         const apiMensagens = data?.mensagens ?? conversa?.mensagens ?? []
@@ -1045,6 +1055,7 @@ export const useConversaStore = create((set, get) => {
 
         takeAndApplyAnexarBatch()
         set((state) => {
+          if (!isCurrent()) return state
           const existing = state.mensagens || []
           let mensagens = mensagens_bloqueadas ? [] : get()._mergeMensagensFromApi(existing, apiMensagens, id)
           // Fila offline sobrevive ao F5/refresh: reinstala bolhas que ainda nao tem linha no banco.
@@ -1061,6 +1072,7 @@ export const useConversaStore = create((set, get) => {
           }
         })
 
+        if (!isCurrent()) return
         if (
           merged?.status_atendimento != null ||
           merged?.status_atendimento_real != null ||
@@ -1088,8 +1100,13 @@ export const useConversaStore = create((set, get) => {
           })
         }
       } catch (err) {
-        console.error("Erro ao atualizar conversa:", err)
-        set({ loading: false })
+        if (!isCurrent()) return
+        if (!isAbortError(err)) console.error("Erro ao atualizar conversa:", err)
+      } finally {
+        if (isCurrent()) {
+          refreshConversaAbortController = null
+          set({ loading: false })
+        }
       }
     },
 
@@ -2011,7 +2028,7 @@ export const useConversaStore = create((set, get) => {
     },
 
     limpar: () => {
-      cancelCarregarConversaInFlight()
+      cancelConversationRequests()
       carregarConversaGeneration += 1
       discardPendingAnexar(null)
       clearConversaSessionCaches()

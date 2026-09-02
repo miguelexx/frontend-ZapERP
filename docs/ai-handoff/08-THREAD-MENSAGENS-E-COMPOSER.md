@@ -10,6 +10,8 @@ Cache in-memory de mensagens: Map TTL ~20 min, teto ~48 conversas.
 
 `carregarConversa`: abort + generation → shell da lista → `GET` chat → `mapDedupeKey` → merge com otimistas → `hydrateOutboxBubblesForConversa` → `join_conversa` + `marcar_conversa_lida` → `clearUnread`.
 
+**Refresh concorrente (corrigido em 2026-09-02):** `refresh` captura a geração da abertura e possui seu próprio AbortController. Um novo refresh cancela o anterior; trocar/fechar a seleção ou limpar a store cancela ambos os tipos de GET. Uma resposta ou erro antigo não pode alterar mensagens, metadados, cursores nem loading da geração atual. Refresh solicitado durante a abertura aguarda sua conclusão, e apenas o mais recente segue. Teste `scripts/test-conversa-refresh-races.mjs`: 11 cenários, incluindo A→B→A, fechamento/reabertura da UI, erros atrasados, reset, concorrência e preservação de bolha otimista.
+
 Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMensagem`, remover, marcar temp erro / envio incerto / aguardando conexão, `applyPendingOutgoingWatchdog`, assumir/transferir/encerrar/reabrir/aguardar, `patchConversa` / `patchLock`.
 
 **Auto-assumir no envio (CONFIRMADO 2026-09-02):** `applyOutgoingStatusOptimistic` em `ConversaView.jsx` assume na hora se a conversa está **Aberta** (sem outro dono). Falha do POST reverte. Detalhe da lista: `07-LISTA-DE-CONVERSAS.md`.
@@ -96,6 +98,8 @@ Validação da sessão (CONFIRMADO 2026-08-27):
 - Playwright mock: 11 passaram e 1 cenário desktop-only foi ignorado no projeto mobile; reprodução de áudio 8/8 (play, fallback de fonte no mesmo clique, indisponível + retry, pause/resume).
 
 Limitações: smoke visual de long press/swipe, teclado iOS e áudio em aparelho físico continuam **PENDENTE DE VALIDAÇÃO** no browser real.
+
+**Correções de status, teclado e mídia em 2026-09-02:** removida a segunda varredura de status por janela de 60 segundos; o patch usa identidade exata com guarda de conversa. Fechar o teclado preserva a intenção anterior de acompanhar o final ou ler o histórico. Mídia local com falha/incerteza exibe aviso de perda da cópia ao recarregar/fechar a página; a outbox de texto permanece e arquivos não ganharam persistência. Testes Node e navegador controlado passaram; teclado em celular físico continua pendente. Detalhes em `../audits/correcoes-busca-teclado-status-midia-2026-09-02.md`.
 
 ## ConversaView modularizado — etapa 1 (CONFIRMADO 2026-08-27)
 

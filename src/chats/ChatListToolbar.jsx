@@ -78,7 +78,6 @@ function ChatListToolbar({
     activeFilterTotalCount != null && Number.isFinite(Number(activeFilterTotalCount))
       ? Number(activeFilterTotalCount)
       : null;
-  const displayedTotalForHint = totalForHint != null ? Math.max(totalForHint, filteredCount) : null;
   const searchActive = Boolean(String(searchInput || "").trim());
   const hintText = hintLoading
     ? "Carregando…"
@@ -88,8 +87,8 @@ function ChatListToolbar({
         ? `${filteredCount} ${filteredCount === 1 ? "resultado" : "resultados"}`
       : adminPorFuncionarioAtivo
         ? `${filteredCount} conversas`
-        : displayedTotalForHint != null
-          ? `${filteredCount} de ${displayedTotalForHint}`
+        : totalForHint != null
+          ? `${filteredCount} de ${totalForHint}`
           : `${filteredCount} conversas`;
 
   return (

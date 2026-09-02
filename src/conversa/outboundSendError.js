@@ -39,7 +39,7 @@ export function isAxiosCancelError(err) {
 /**
  * @returns {{ kind: string, uncertain: boolean, httpStatus: number|null, message: string }}
  */
-export function classifyOutboundAxiosError(err) {
+export function classifyOutboundAxiosError(err, { media = false } = {}) {
   if (!err) {
     return { kind: OUTBOUND_ERROR_KIND.UNKNOWN, uncertain: true, httpStatus: null, message: "Falha desconhecida" };
   }
@@ -64,7 +64,9 @@ export function classifyOutboundAxiosError(err) {
       kind: OUTBOUND_ERROR_KIND.OFFLINE,
       uncertain: true,
       httpStatus: null,
-      message: "Aguardando conexão. A mensagem será enviada automaticamente quando a internet voltar.",
+      message: media
+        ? "Sem conexão. O envio do arquivo não foi confirmado. Recarregar (F5) ou fechar a página pode perder a cópia local. Ao reconectar, confira a conversa antes de reenviar."
+        : "Aguardando conexão. A mensagem será enviada automaticamente quando a internet voltar.",
     };
   }
 

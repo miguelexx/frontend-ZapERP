@@ -8,7 +8,7 @@ import {
 } from "../utils/conversaUtils";
 import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance } from "./chatListRowAtendimento";
 import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
-import { chatRowIsStaleForTab } from "./chatListQueryHelpers";
+import { chatRowIsStaleForTab, conversaPertenceAMinhaFila, getAdminAtendenteFilterScope, rowMatchesPublishedListFilters } from "./chatListQueryHelpers";
 import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
 
 export function digitsOnly(v) {
@@ -149,6 +149,11 @@ export function mergeMinhaFilaPrefsFromChats(rows, chatsCanon) {
         "tem_novas_mensagens_em_atendimento",
       ]);
     }
+    copyDefined(live, c, [
+      "atendente_id",
+      "atendente_nome",
+      "departamento_id",
+    ]);
     if (canonHasNewerActivity || hasNewerOptimisticStatus) {
       copyDefined(live, c, [
         "status_atendimento",
@@ -164,6 +169,13 @@ export function mergeMinhaFilaPrefsFromChats(rows, chatsCanon) {
         "modo_simples_aguardando",
         "atendimento_modo_simples",
       ]);
+    } else {
+      copyDefined(live, c, [
+        "status_atendimento",
+        "status_atendimento_real",
+        "exibir_badge_aberta",
+        "ui_status_optimistic_at",
+      ]);
     }
     return {
       ...row,
@@ -177,22 +189,21 @@ export function mergeMinhaFilaPrefsFromChats(rows, chatsCanon) {
   });
 }
 
+/**
+ * Pertinência visível da Minha fila.
+ * `chats` é a única fonte visível (GET da consulta ativa + socket).
+ * Snapshot local só pode hidratar a store explicitamente, nunca decidir pertinência.
+ */
+export function resolveMinhaFilaPaintRows(minhaFilaList, chats) {
+  return Array.isArray(chats) ? chats.slice() : [];
+}
+
 /** Chip “Abertas”: apenas conversas com `status_atendimento === aberta` (fila / não assumidas). */
 export function conversaContaComoAbertaNoChip(c) {
   const s = getStatusAtendimentoEffective(c);
   if (s !== "aberta") return false;
   if (c?.exibir_badge_aberta === false) return false;
   return true;
-}
-
-/**
- * Modo admin por funcionário (payload pode ter vários status_atendimento).
- * Inclui só conversas assumidas por esse utilizador; grupos e itens sem atendente_id ficam de fora.
- */
-export function conversaMatchesAdminAtendenteFilter(c, selectedUserId) {
-  if (isGroupConversation(c)) return false;
-  if (c?.atendente_id == null) return false;
-  return String(c.atendente_id) === String(selectedUserId);
 }
 
 function isAppAdmin(user) {
@@ -311,18 +322,20 @@ export function computeChatsFiltrados({
   /**
    * Filtro admin por funcionário (GET só com atendente_id): ignora chips de aba e minha_fila — prioridade única no fetch e aqui.
    */
-  const adminPorFuncionario =
-    adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
   // B01: termo ativo → lista vem da busca global; não reaplicar aba/chip nem usar minhaFilaList.
   const searchBypassesTabFilters = Boolean(String(debouncedSearch || "").trim());
+  const view = {
+    tab, user, adminAtendenteFilterId, departamentoFilter,
+    onlyFinalizadasAusencia, aguardandoClienteOnly,
+    searchActive: searchBypassesTabFilters,
+  };
+  const adminPorFuncionario = getAdminAtendenteFilterScope(view) != null;
 
   let list =
     adminPorFuncionario || searchBypassesTabFilters
       ? [...(Array.isArray(chats) ? chats : [])]
       : tab === "minha_fila"
-        ? minhaFilaList == null
-          ? []
-          : mergeMinhaFilaPrefsFromChats([...minhaFilaList], chats)
+        ? resolveMinhaFilaPaintRows(minhaFilaList, chats)
         : Array.isArray(chats)
           ? [...chats]
           : [];
@@ -356,21 +369,8 @@ export function computeChatsFiltrados({
     }
   }
 
-  if (!searchBypassesTabFilters) {
+  if (!adminPorFuncionario && !searchBypassesTabFilters) {
     list = list.filter((c) => !chatRowIsStaleForTab(c, tab));
-  }
-
-  if (adminPorFuncionario && !searchBypassesTabFilters) {
-    if (tab === "abertas") {
-      list = list.filter((c) => conversaContaComoAbertaNoChip(c));
-    }
-    if (tab === "finalizadas_auto" || onlyFinalizadasAusencia) {
-      list = list.filter(
-        (c) =>
-          getStatusAtendimentoEffective(c) === "fechada" &&
-          (String(c?.finalizacao_motivo) === "ausencia_cliente" || c?.finalizada_automaticamente === true)
-      );
-    }
   }
 
   const skipStatusFilterRow =
@@ -393,7 +393,7 @@ export function computeChatsFiltrados({
 
   // filtros avançados — status (no modo admin: omitir status na API; aqui não reaplicar o select para não esconder estados)
   if (adminPorFuncionario) {
-    list = list.filter((c) => conversaMatchesAdminAtendenteFilter(c, adminAtendenteFilterId));
+    list = list.filter((c) => rowMatchesPublishedListFilters(c, view));
   } else if (statusFilter !== "todos" && !skipStatusFilterRow) {
     list = list.filter((c) => getStatusAtendimentoEffective(c) === statusFilter);
   }
@@ -469,6 +469,7 @@ export function computeChatsFiltrados({
   }
 
   if (!adminPorFuncionario && !searchBypassesTabFilters && tab === "minha_fila") {
+    list = list.filter((c) => conversaPertenceAMinhaFila(c, user?.id));
     list = list.filter((c) => c?.aguardando_resposta_campanha !== true);
     list = clearGrupoSetorAutoPinNaMinhaFila(list);
     list = applyCotacaoFixadaNaMinhaFila(list, user);

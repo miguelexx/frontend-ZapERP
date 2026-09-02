@@ -66,7 +66,8 @@ export function isClosedAttendancePatch(patch) {
   return status === "fechada" || status === "encerrada" || status === "finalizada" || status === "finalizado";
 }
 
-export function shouldHideOptimisticClosedFromTab(tab, mutation) {
+export function shouldHideOptimisticClosedFromTab(tab, mutation, view = {}) {
+  if (getAdminAtendenteFilterScope(view)) return false;
   if (mutation?.type === "encerrar_conversa_revert") return false;
   const patch = mutation?.patch ?? mutation;
   if (!isClosedAttendancePatch(patch)) return false;
@@ -76,10 +77,13 @@ export function shouldHideOptimisticClosedFromTab(tab, mutation) {
 /**
  * Após assumir (envio ou botão), a row sai das abas de fila que não são o recorte novo.
  * "Todas/Hoje" e busca global mantêm o card — só muda o badge.
+ * Filtro admin por funcionário / setor da lista visível vale em qualquer aba.
  */
 export function shouldDropChatFromActiveList(row, view = {}) {
   if (!row) return false;
+  if (!rowMatchesPublishedListFilters(row, view)) return true;
   if (view.searchActive === true) return false;
+  if (getAdminAtendenteFilterScope(view)) return false;
   const tab = String(view.tab || "");
   if (!tab || tab === "todas" || tab === "hoje") return false;
   return !rowStillBelongsToActiveTab(row, tab, view);
@@ -93,6 +97,69 @@ export function shouldRemoveChatFromViewerList(row, view = {}) {
   if (!row) return false;
   if (!viewerCanSeeConversationRow(row, view.user)) return true;
   return shouldDropChatFromActiveList(row, view);
+}
+
+/** Visão única da lista visível — store + user. Socket e ChatList consomem o mesmo objeto. */
+export function buildActiveChatListViewFromStore(store, user) {
+  const ids = store?.chatListPendentesFuncionarioIds || [];
+  return {
+    tab: store?.chatListActiveTab,
+    searchActive: store?.chatListSearchActive === true,
+    searchDebounced: store?.chatListSearchDebounced === true,
+    user: user ?? null,
+    hiddenClosed: store?.chatListHiddenClosed || {},
+    adminAtendenteFilterId: store?.chatListAdminAtendenteFilterId ?? null,
+    pendentesFuncionarioSet: new Set((Array.isArray(ids) ? ids : []).map((x) => String(x))),
+    departamentoFilter: store?.chatListDepartamentoFilter || "todos",
+    onlyFinalizadasAusencia: store?.chatListOnlyFinalizadasAusencia === true,
+    aguardandoClienteOnly: store?.chatListAguardandoClienteOnly === true,
+  };
+}
+
+/** Funcionário substitui a aba; preserva os refinamentos já enviados pelo GET. */
+export function getAdminAtendenteFilterScope(view = {}) {
+  const raw = view.adminAtendenteFilterId;
+  if (raw == null || String(raw).trim() === "") return null;
+  const id = Number(raw);
+  return {
+    atendenteId: Number.isFinite(id) && id > 0 ? id : raw,
+    finalAutoQuery: !view.searchActive && (view.tab === "finalizadas_auto" || view.onlyFinalizadasAusencia === true),
+    aguardandoQuery: !view.searchActive && (view.tab === "aguardando_cliente" || view.aguardandoClienteOnly === true),
+  };
+}
+
+function rowMatchesAdminAtendenteFilter(row, adminAtendenteFilterId) {
+  if (adminAtendenteFilterId == null || String(adminAtendenteFilterId).trim() === "") return true;
+  if (!row || isGroupConversation(row)) return false;
+  if (row.atendente_id == null) return false;
+  return String(row.atendente_id) === String(adminAtendenteFilterId);
+}
+
+function rowMatchesDepartamentoFilter(row, departamentoFilter) {
+  if (
+    departamentoFilter == null ||
+    String(departamentoFilter).trim() === "" ||
+    String(departamentoFilter) === "todos"
+  ) {
+    return true;
+  }
+  return String(row?.departamento_id ?? "") === String(departamentoFilter);
+}
+
+/** Filtros publicados na store que recortam a lista visível (além da aba). */
+export function rowMatchesPublishedListFilters(row, view = {}) {
+  if (!row) return false;
+  const adminScope = getAdminAtendenteFilterScope(view);
+  if (adminScope) {
+    if (!rowMatchesAdminAtendenteFilter(row, adminScope.atendenteId)) return false;
+    if (adminScope.finalAutoQuery && (
+      !isClosedAttendance(row) ||
+      (String(row.finalizacao_motivo || "") !== "ausencia_cliente" && row.finalizada_automaticamente !== true)
+    )) return false;
+    if (adminScope.aguardandoQuery && !isConversaAguardandoCliente(row, view.user)) return false;
+  }
+  if (!rowMatchesDepartamentoFilter(row, view.departamentoFilter)) return false;
+  return true;
 }
 
 export const CHAT_LIST_HIDDEN_CLOSED_TTL_MS = 90_000;
@@ -117,15 +184,18 @@ export function shouldBlockHiddenClosedReinsert(hiddenMap, row, now = Date.now()
   return Number.isFinite(expiresAt) && expiresAt > now;
 }
 
+/**
+ * Classificação exclusiva dos chips de filtro (não do badge do card).
+ * "Aguardando cliente" é subcondição de atendimento: a row pode continuar
+ * `em_atendimento`, mas o chip conta só em um lado.
+ */
 export function chatRowChipCountKeys(row) {
   if (!row) return [];
   const s = getStatusAtendimentoEffective(row);
-  if (s === "em_atendimento" && row.atendente_id != null) {
-    const keys = ["em_atendimento"];
-    if (isConversaAguardandoCliente(row)) keys.push("aguardando_cliente");
-    return keys;
+  if (isConversaAguardandoCliente(row) || s === "aguardando_cliente") {
+    return ["aguardando_cliente"];
   }
-  if (s === "aguardando_cliente") return ["aguardando_cliente"];
+  if (s === "em_atendimento" && row.atendente_id != null) return ["em_atendimento"];
   if (s === "aberta" && row.exibir_badge_aberta !== false) return ["abertas"];
   if (s === "pagamento_pendente") return ["pagamentos_pendentes"];
   if (s === "em_atraso") return ["em_atraso"];
@@ -241,6 +311,8 @@ export function conversaPertenceAMinhaFila(row, userId) {
 
 export function rowStillBelongsToActiveTab(row, tab, opts = {}) {
   if (!row || row.sem_conversa) return false;
+  const view = { ...opts, tab };
+  if (getAdminAtendenteFilterScope(view)) return rowMatchesPublishedListFilters(row, view);
   if (chatRowIsStaleForTab(row, tab)) return false;
   const t = String(tab || "");
   const user = opts.user;
@@ -278,7 +350,11 @@ export function shouldInsertChatRowInActiveList(row, view = {}) {
   if (!row) return false;
   if (!viewerCanSeeConversationRow(row, view.user)) return false;
   if (shouldBlockHiddenClosedReinsert(view.hiddenClosed, row)) return false;
-  if (view.searchActive) return true;
+  if (!rowMatchesPublishedListFilters(row, view)) return false;
+  // Janela de debounce: não inserir pela aba nem pela busca global (evita contaminar).
+  if (view.searchActive && !view.searchDebounced) return false;
+  if (view.searchDebounced) return true;
+  if (getAdminAtendenteFilterScope(view)) return true;
   const tab = String(view.tab || "");
   if (!tab || tab === "todas" || tab === "hoje") return true;
   if (chatRowIsStaleForTab(row, tab)) return false;
@@ -372,6 +448,9 @@ export function rowStillBelongsToEmAtendimentoLiveScope(row, { user, adminAtende
 
 export function mergeActiveTabBackgroundRows(current, incoming, order, opts) {
   const tab = String(opts?.tab || "");
+  // Minha fila busca todas as páginas: o GET é a lista inteira. Preservar extras
+  // locais recolocava cards já assumidos/encerrados até o F5.
+  if (opts?.incomingIsComplete === true) return incoming;
   const incomingKeys = new Set(
     (Array.isArray(incoming) ? incoming : [])
       .map((row) => chatRowStableKey(row))
@@ -483,8 +562,11 @@ export function buildChatListFetchParams({
   pendentesFuncionarioIds,
   isSupervisorOrAdminFn,
 }) {
-  const adminPorFuncionario =
-    adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
+  const adminScope = getAdminAtendenteFilterScope({
+    adminAtendenteFilterId, tab, onlyFinalizadasAusencia, aguardandoClienteOnly,
+    searchActive: Boolean(String(debouncedSearch || "").trim()),
+  });
+  const adminPorFuncionario = adminScope != null;
   const finalAutoQuery = tab === "finalizadas_auto" || onlyFinalizadasAusencia;
   const aguardandoQuery = tab === "aguardando_cliente" || aguardandoClienteOnly;
   const aguardandoAtendenteQuery = tab === "aguardando_atendente";
@@ -508,18 +590,13 @@ export function buildChatListFetchParams({
       limit: pageLimit,
     };
     if (adminPorFuncionario) {
-      const aid = Number(adminAtendenteFilterId);
-      params.atendente_id =
-        Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
+      params.atendente_id = adminScope.atendenteId;
     } else if (atendenteFilter !== "todos") {
       params.atendente_id = atendenteFilter;
     }
   } else if (adminPorFuncionario) {
-    const aid = Number(adminAtendenteFilterId);
-    const atendenteIdQuery =
-      Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
     params = {
-      atendente_id: atendenteIdQuery,
+      atendente_id: adminScope.atendenteId,
       tag_id: tagFilter !== "todas" ? tagFilter : undefined,
       departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
       data_inicio: dataInicio || undefined,
@@ -528,10 +605,10 @@ export function buildChatListFetchParams({
       incluir_todos_clientes: includeAllForSearch,
       limit: pageLimit,
     };
-    if (finalAutoQuery) {
+    if (adminScope.finalAutoQuery) {
       params.finalizacao_motivo = "ausencia_cliente";
     }
-    if (aguardandoQuery) {
+    if (adminScope.aguardandoQuery) {
       params.aguardando_cliente = "1";
     }
   } else {

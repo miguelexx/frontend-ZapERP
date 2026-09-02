@@ -8,6 +8,8 @@
 - Reconnect “awake”: `focus`, `online`, `pageshow`, `visibilitychange` → `connect()`; `pagehide` → `disconnect`
 - **INFERÊNCIA:** `reconnection` default do client permanece `true`
 
+**Recuperação HTTP (2026-09-02):** `reconnectRecovery.js` agrupa conexões numa janela fixa de 600 ms, com intervalo mínimo de 2,5 s entre inícios. Lista e snapshot de não lidas continuam sendo recuperados; refresh da thread é serializado e usa a seleção atual. Reconexão durante um refresh gera uma recuperação posterior, sem cancelar/reiniciar o mesmo GET a cada `connect`. `disconnect` suspende timers e logout/troca de token cancela pendências. Entrada nas rooms permanece imediata. O debounce de resync da store cancela ambos os timers ao descarregar, evitando um segundo nonce pelo max-wait.
+
 ## Rooms / emits
 
 No `connect`: `join_empresa` com `{ company_id, empresa_id }` do `user`.

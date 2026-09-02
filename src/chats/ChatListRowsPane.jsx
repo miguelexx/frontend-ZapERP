@@ -43,7 +43,7 @@ function ChatListRowsPane({
   const filteredLen = chatsFiltrados.length;
   const loadMoreSentinelRef = useRef(null);
   const showPaginationFooter =
-    tab !== "minha_fila" &&
+    (tab !== "minha_fila" || searchAtivo) &&
     !loading &&
     (canLoadMoreChats || loadingMoreChats || loadMoreChatsError);
 
@@ -100,8 +100,6 @@ function ChatListRowsPane({
     <>
       <div ref={scrollRef} className="chat-list-list chat-list-scroll">
         {loading && !hasStoreChats ? (
-          <SkeletonChatList />
-        ) : !adminPorFuncionarioAtivo && tab === "minha_fila" && minhaFilaList === null ? (
           <SkeletonChatList />
         ) : zapFilterSkeleton ? (
           <div className="zap-skeleton-list" aria-hidden="true">
@@ -180,6 +178,7 @@ function rowsPanePropsAreEqual(prev, next) {
   if (prev.loading !== next.loading) return false;
   if (prev.hasStoreChats !== next.hasStoreChats) return false;
   if (prev.tab !== next.tab) return false;
+  if (prev.searchAtivo !== next.searchAtivo) return false;
   if (prev.minhaFilaList !== next.minhaFilaList) return false;
   if (prev.adminPorFuncionarioAtivo !== next.adminPorFuncionarioAtivo) return false;
   if (prev.zapFilterSkeleton !== next.zapFilterSkeleton) return false;

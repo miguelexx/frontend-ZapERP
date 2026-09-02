@@ -1,0 +1,140 @@
+vite v5.4.21 building for production...
+
+(!) outDir C:\Users\Miguel\AppData\Local\Temp\zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6 is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+transforming...
+✓ 8638 modules transformed.
+rendering chunks...
+warnings when minifying css:
+▲ [WARNING] Expected ")" to end URL token [css-syntax-error]
+
+    <stdin>:52:47:
+      52 │ ...rl(“data:image/svg+xml,%3Csvg width='60' height='60' viewBox=...
+         ╵                                  ^
+
+  The unbalanced "(" is here:
+
+    <stdin>:52:17:
+      52 │   background: url(“data:image/svg+xml,%3Csvg width='60' height='...
+         ╵                  ^
+
+
+computing gzip size...
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/index.html                                                  2.01 kB │ gzip:  0.81 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/switch-Cxuk6wsx.css                                  0.86 kB │ gzip:  0.39 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/skeleton-CBv1J9_H.css                                1.07 kB │ gzip:  0.48 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/MainLayout-BJ277UiF.css                              2.37 kB │ gzip:  0.97 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/toast-D0vA9LAd.css                                   2.87 kB │ gzip:  0.94 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ImageSendPreviewMobile-D4wcebRk.css                  5.02 kB │ gzip:  1.19 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Atendimento-BwyXY0Bw.css                            11.69 kB │ gzip:  2.95 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ManualZapERP-B9MFoU_Y.css                           15.39 kB │ gzip:  3.26 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Supervisao-BT_oazX3.css                             16.47 kB │ gzip:  3.40 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/HelpDesk-Dh3Rimhp.css                               17.41 kB │ gzip:  3.47 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DashboardIA-D6JijFUB.css                            18.10 kB │ gzip:  4.38 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Configuracoes-D4VdJb5L.css                          19.43 kB │ gzip:  3.61 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Dashboard-CpvguEq2.css                              27.68 kB │ gzip:  4.98 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/disparoExecucao-N3gGmKpZ.css                        31.49 kB │ gzip:  5.83 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/InternalChat-CkwsdjVl.css                           34.18 kB │ gzip:  5.77 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/disparo-DKXsGz-W.css                                38.21 kB │ gzip:  7.29 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/index-BSDdAaH9.css                                  39.23 kB │ gzip:  8.48 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/IA-C_3m4IzN.css                                     39.73 kB │ gzip:  6.62 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DisparoWizardPage-BjL-91D4.css                      83.45 kB │ gzip: 14.76 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/chatList-rfeutw31.css                              142.35 kB │ gzip: 23.12 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ConversaView-Dq1evpUd.css                          291.49 kB │ gzip: 47.89 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Mensagens-Yawd9Evw.js                                0.18 kB │ gzip:  0.16 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Atalhos-4ipzHtow.js                                  0.18 kB │ gzip:  0.16 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/NovoContato-CLGRjkci.js                              0.21 kB │ gzip:  0.18 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Switch-B7IXxCBY.js                                   0.29 kB │ gzip:  0.23 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/useMatchMedia-C8mq4r7I.js                            0.31 kB │ gzip:  0.23 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/resourceCache-CmR_3Usl.js                            0.40 kB │ gzip:  0.24 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/scheduleAfterInitialPaint-C5Gor1vE.js                0.46 kB │ gzip:  0.25 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/useClienteOptions-CDT8F0VF.js                        0.55 kB │ gzip:  0.37 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/NovoGrupo-CzR7I3cF.js                                0.62 kB │ gzip:  0.39 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/NovaComunidade-B8BBI7hD.js                           0.64 kB │ gzip:  0.40 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/BotSection-B_mt4Okm.js                               0.66 kB │ gzip:  0.38 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/IA-G8uOCXsw.js                                       0.69 kB │ gzip:  0.32 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/PermissoesSection-BiaxDLR_.js                        0.76 kB │ gzip:  0.46 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/disparoService-BJkTu7dX.js                           0.87 kB │ gzip:  0.35 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/useSectionResource-Hew5iLuT.js                       0.90 kB │ gzip:  0.53 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/helpDeskService-BRukJXV8.js                          1.00 kB │ gzip:  0.37 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/AuditoriaSection-CeL805Ow.js                         1.22 kB │ gzip:  0.70 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmPipelinePicker-Dst2kJhb.js                        1.27 kB │ gzip:  0.71 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/crmFormatters-B_ZzUEmj.js                            1.44 kB │ gzip:  0.67 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/skeleton-BgbS9sH1.js                                 1.46 kB │ gzip:  0.56 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/SavedRepliesPanel-B84pmIOZ.js                        1.67 kB │ gzip:  0.76 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/StickerPicker-DVNf3uhp.js                            1.83 kB │ gzip:  0.85 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/EmojiPicker-CkCMf7lh.js                              1.87 kB │ gzip:  0.91 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Permissoes-DiYtCUcX.js                               1.94 kB │ gzip:  1.01 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CameraCapture-DQNOQDqq.js                            1.94 kB │ gzip:  0.87 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/internalChatMessagePing-WFfCY5FJ.js                  1.95 kB │ gzip:  0.76 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/supervisaoService-DRfwAkUD.js                        1.99 kB │ gzip:  0.89 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/LogsSection-HLM_z4y4.js                              2.07 kB │ gzip:  1.09 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/AddToGroupModal-BwTVeYzM.js                          2.10 kB │ gzip:  0.96 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmAvancadoRedirect-CBdyy22I.js                      2.14 kB │ gzip:  1.04 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/iaService-CPWqzFdF.js                                2.16 kB │ gzip:  0.86 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/MsgInfoModal-BWqLDPMm.js                             2.34 kB │ gzip:  0.90 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ShareContactModal-xhX4wMfT.js                        2.35 kB │ gzip:  1.05 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/imageCropExport-BU9sD0_a.js                          2.37 kB │ gzip:  1.13 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CallModal-Bma0Su7j.js                                2.38 kB │ gzip:  1.07 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/toast-Ds0JEO_D.js                                    2.70 kB │ gzip:  0.86 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmOrigens-wRQ5U3dI.js                               2.94 kB │ gzip:  1.19 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/useIaConfigSection-BlznD3Gr.js                       2.95 kB │ gzip:  1.34 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ShareLocationModal-BrsoTZmk.js                       3.12 kB │ gzip:  1.14 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/configDefaults-mIJqmvUp.js                           3.23 kB │ gzip:  1.46 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/PixConfigModal-DHuFrV9n.js                           3.23 kB │ gzip:  1.20 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/audioRecordingLifecycle-DsKnnYVM.js                  3.54 kB │ gzip:  1.42 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/MediaViewerOverlay-CrHAdxzi.js                       3.95 kB │ gzip:  1.63 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/TagsSection-DwbmLDzb.js                              3.95 kB │ gzip:  1.56 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/IA-BqjQy3Fk.js                                       4.02 kB │ gzip:  1.60 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-state-MTVZNGFo.js                             4.14 kB │ gzip:  1.76 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/crmService-DyqtueUb.js                               4.69 kB │ gzip:  1.13 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmPipelines-DZZ0NL96.js                             4.79 kB │ gzip:  1.73 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/IaSettingsSectionController-BFmEPVEm.js              4.88 kB │ gzip:  1.97 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmStages-CUenlDEL.js                                4.95 kB │ gzip:  1.66 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/AutomacoesSectionController-DJdtjM3G.js              5.57 kB │ gzip:  1.87 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Configuracoes-Ygp6mlEl.js                            5.90 kB │ gzip:  2.20 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DepartamentosSection-BPhpiJGf.js                     6.08 kB │ gzip:  2.16 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmDashboard-BB7yRa2y.js                             6.54 kB │ gzip:  2.14 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmAgenda-lMua6rWC.js                                6.92 kB │ gzip:  2.28 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/UsuariosSection-h9fAbqRr.js                          7.07 kB │ gzip:  2.49 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/SecaoPermissoes-ITBQLqad.js                          7.57 kB │ gzip:  2.69 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/RespostasAutomaticasSectionController-BZItoN9D.js    7.96 kB │ gzip:  2.57 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ProdutoConsultaPanel-BHPzlCnm.js                     8.33 kB │ gzip:  3.10 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmLeads-BwyNp2x3.js                                 8.82 kB │ gzip:  2.62 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ForwardModal-JwbVxesP.js                             9.26 kB │ gzip:  2.95 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/RespostasSection-C4dKxbzK.js                        10.09 kB │ gzip:  3.18 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmKanban-DOd16W_M.js                               10.70 kB │ gzip:  3.90 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/LimitesSection-B_VO1TpD.js                          10.73 kB │ gzip:  3.17 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Atendimento-93O54Nek.js                             11.32 kB │ gzip:  4.16 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/internalChatService-Bw7_QsxI.js                     13.12 kB │ gzip:  4.41 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/MainLayout-D92V8djT.js                              14.30 kB │ gzip:  5.13 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/CrmLeadDetail-vGepVEyX.js                           14.43 kB │ gzip:  4.16 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-tanstack-B_9lxc0E.js                         16.50 kB │ gzip:  5.21 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ConnectWhatsApp-DTA3_tlz.js                         17.23 kB │ gzip:  4.80 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Supervisao-C69Dd8Br.js                              18.09 kB │ gzip:  4.98 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DisparoMensagens-DY-xw-9c.js                        18.52 kB │ gzip:  5.39 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ImageSendPreviewMobile-C8Vx3Apr.js                  18.79 kB │ gzip:  5.64 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-router-Ckc8Ui4k.js                           23.29 kB │ gzip:  8.59 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/HelpDesk-Bkq7VNfQ.js                                24.42 kB │ gzip:  7.05 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/AlertasAtendimentoSection-B33vPBIx.js               24.83 kB │ gzip:  6.59 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/GeralSection-CxH5ofv4.js                            25.31 kB │ gzip:  6.80 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/SidebarCliente-BZuF4ZIy.js                          30.34 kB │ gzip:  8.13 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ClientesSection-ykcJ8qex.js                         31.56 kB │ gzip:  9.18 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/TriagemSectionController-DJWpwqAp.js                35.93 kB │ gzip:  9.45 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-socket-dm1FmSOd.js                           41.59 kB │ gzip: 13.02 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/InternalChat-DaaMNyX1.js                            42.06 kB │ gzip: 12.71 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ManualZapERP-DrMvmuyj.js                            44.66 kB │ gzip: 12.14 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-axios-DNeoPP0G.js                            45.57 kB │ gzip: 17.70 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DisparoExecucaoPage-Da0ETgJy.js                     46.15 kB │ gzip: 11.44 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-dnd-4F-3BVht.js                              49.78 kB │ gzip: 16.53 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-icons-DOlndoWm.js                            51.44 kB │ gzip:  8.95 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/Dashboard-rVOhnypx.js                               53.96 kB │ gzip: 14.59 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DashboardIA-BfP-wFBl.js                             63.50 kB │ gzip: 19.18 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-markdown-DliPyBHn.js                        117.58 kB │ gzip: 36.15 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/DisparoWizardPage-CwcqMcAH.js                      140.99 kB │ gzip: 36.29 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/vendor-react-DOBzNqAb.js                           142.35 kB │ gzip: 45.62 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/chatList-DNtcE3Zi.js                               153.44 kB │ gzip: 43.36 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/index-BhPqbn66.js                                  303.70 kB │ gzip: 83.72 kB
+../../../AppData/Local/Temp/zaperp-hint-cache-reconnect-5269535251b0497f8c512346b4f018a6/assets/ConversaView-sC8zdHaC.js                           335.79 kB │ gzip: 98.38 kB
+✓ built in 1m

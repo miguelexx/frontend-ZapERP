@@ -239,6 +239,7 @@ export function useConversationOutboundMedia({
         applyOutboundSendFailure(tempId, err, {
           toastTitle: "Falha ao enviar",
           mensagemId: persistedFailure?.id ?? null,
+          media: true,
         });
         // Mantém o File retido apenas durante esta sessão; o botão de retry usa o mensagem_id
         // persistido e o arquivo salvo no servidor.
@@ -414,7 +415,7 @@ export function useConversationOutboundMedia({
                 : apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar as fotos. Tente novamente."),
           });
         } else {
-          const classified = classifyOutboundAxiosError(err);
+          const classified = classifyOutboundAxiosError(err, { media: true });
           tempIds.forEach((tid) => {
             if (classified.uncertain) {
               marcarMensagemEnvioIncerto(tid, { erro_mensagem: classified.message });
@@ -603,7 +604,7 @@ export function useConversationOutboundMedia({
                 : apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar os documentos. Tente novamente."),
           });
         } else {
-          const classified = classifyOutboundAxiosError(err);
+          const classified = classifyOutboundAxiosError(err, { media: true });
           tempIds.forEach((tid) => {
             if (classified.uncertain) {
               marcarMensagemEnvioIncerto(tid, { erro_mensagem: classified.message });

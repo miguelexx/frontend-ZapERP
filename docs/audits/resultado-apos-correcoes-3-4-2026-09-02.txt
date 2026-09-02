@@ -1,0 +1,29 @@
+OK: nao lidas conhecidas sobrevivem a troca de aba
+OK: GET completo da Minha fila remove extras antigos
+OK: chip Aguardando cliente nao duplica Em atendimento
+OK: filtro por funcionario em Finalizadas aceita o mesmo recorte do GET
+FALHA: limpar busca restaura imediatamente a regra da aba
+o debounce anterior ainda permite inserir conversa aberta em Finalizadas
+
+true !== false
+
+OK: Minha fila vazia no store nao restaura snapshot antigo
+OK: Minha fila com IDs completamente renovados usa o store atual
+OK: snapshot HTTP atrasado nao faz perder nao lidas no evento seguinte
+FALHA: busca na aba Minha fila nao acrescenta minha_fila ao GET global
+a funcao de busca completa restringe novamente a busca global
+
+'1' !== null
+
+FALHA: reconcile de video revoga a URL blob substituida
+Expected values to be strictly deep-equal:
++ actual - expected
+
++ []
+- [
+-   'blob:audit-video'
+- ]
+
+OK: refresh antigo nao sobrescreve conversa reaberta apos A-B-A
+
+3 cenario(s) com falha de corretude.

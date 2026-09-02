@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { fetchChats, CHAT_LIST_PRESERVE_MAX_PAGES } from "../chatService";
 import { useChatStore } from "../chatsStore";
-import { persistChatListRowsForFilterToSession, persistChatListSidebarToSession } from "../chatListSidebarCache";
+import { getChatListRowsCacheRevision, persistChatListRowsForFilterToSession, persistChatListSidebarToSession } from "../chatListSidebarCache";
 import {
   isAppAdmin,
   getChatListPageLimit,
@@ -49,6 +49,7 @@ export function useChatListPagination({
     if (!baseParams || !page?.hasMore || !page?.nextCursor || page.loading) return;
 
     const requestId = loadRequestIdRef.current;
+    const cacheRevision = getChatListRowsCacheRevision(filterScopeKey);
     setChatListPage((prev) => ({ ...prev, loading: true, error: "" }));
     const loadMoreAbort = new AbortController();
 
@@ -67,7 +68,8 @@ export function useChatListPagination({
       const adminPorFuncionario =
         adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
       let list = Array.isArray(data) ? data : [];
-      if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
+      const searchActive = Boolean(String(baseParams.palavra || "").trim());
+      if (!searchActive && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
         list = filterOptimisticRemovedForTab(list, tabRef.current);
       }
       if (!adminPorFuncionario && mineOnly && user?.id && !isAppAdmin(user)) {
@@ -80,7 +82,9 @@ export function useChatListPagination({
       );
       setChatListPage(buildChatListPageState(data, nextPagesLoaded));
 
-      if (!adminPorFuncionario && tabRef.current === "minha_fila") {
+      if (!searchActive && !adminPorFuncionario && tabRef.current === "minha_fila") {
+        setChats((prev) => mergeChatRowsPreservingCurrent(prev || [], list, order));
+        persistChatListRowsForFilterToSession(filterScopeKey, filterRequestKey, useChatStore.getState().chats || [], { revision: cacheRevision });
         setMinhaFilaList((prev) => {
           const merged = mergeChatRowsPreservingCurrent(prev || [], list, order);
           persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
@@ -95,7 +99,8 @@ export function useChatListPagination({
       persistChatListRowsForFilterToSession(
         filterScopeKey,
         filterRequestKey,
-        useChatStore.getState().chats || []
+        useChatStore.getState().chats || [],
+        { revision: cacheRevision }
       );
       persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
         emAtendimentoBadgeCount,
@@ -129,7 +134,7 @@ export function useChatListPagination({
 
   // Página SQL filtrada ficou vazia mas ainda há has_more: avança sozinho (senão a lista parece “sumida”).
   useEffect(() => {
-    if (tab === "minha_fila") {
+    if (tab === "minha_fila" && !String(lastListParamsRef.current?.palavra || "").trim()) {
       emptyPageAdvanceRef.current = 0;
       return;
     }

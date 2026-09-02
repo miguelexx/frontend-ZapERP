@@ -1,5 +1,5 @@
 /**
- * Coalescência de GETs auxiliares de badges/chips (GET /chats com query distinta).
+ * Coalescência dos GETs auxiliares da ChatList (counts + supervisão).
  * Escopo por empresa:usuário — não reutiliza entre tenants.
  */
 const AUX_BADGE_TTL_MS = 25_000;
@@ -7,16 +7,7 @@ const AUX_BADGE_TTL_MS = 25_000;
 /** @type {Map<string, Record<string, { fetchedAt: number, inFlight: Promise<void>|null }>>} */
 const scopeState = new Map();
 
-const KINDS = [
-  "chatCounts",
-  "minhaFila",
-  "emAtendimento",
-  "aguardandoCliente",
-  "pagamentosPendentes",
-  "emAtraso",
-  "mensagensDisparadas",
-  "supervisao",
-];
+const KINDS = ["chatCounts", "supervisao"];
 
 function ensureScope(scopeKey) {
   const key = scopeKey != null ? String(scopeKey) : "";

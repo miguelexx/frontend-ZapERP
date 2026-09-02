@@ -10,9 +10,24 @@
 
 const SIDEBAR_TTL_MS = 2 * 60 * 1000;
 const FILTER_ROWS_TTL_MS = 45 * 1000;
-const FILTER_ROWS_MEMORY_TTL_MS = 15 * 60 * 1000;
 const FILTER_ROWS_MEMORY_MAX = 24;
 const filterRowsMemoryCache = new Map();
+let cacheRevision = 0;
+let allScopesRevision = 0;
+const scopeRevisions = new Map();
+
+export function getChatListRowsCacheRevision(scopeKey) {
+  return scopeRevisions.get(scopeKey) ?? allScopesRevision;
+}
+
+function invalidateCacheRevision(scopeKey) {
+  cacheRevision += 1;
+  if (scopeKey) scopeRevisions.set(scopeKey, cacheRevision);
+  else {
+    allScopesRevision = cacheRevision;
+    scopeRevisions.clear();
+  }
+}
 
 const STORAGE_PREFIX = "zap_erp_chat_sidebar_v1";
 const FILTER_ROWS_STORAGE_PREFIX = "zap_erp_chat_rows_by_filter_v1";
@@ -28,19 +43,19 @@ function readFilterRowsMemory(scopeKey, filterKey) {
   const key = filterRowsMemoryKey(scopeKey, filterKey);
   const entry = filterRowsMemoryCache.get(key);
   if (!entry) return null;
-  if (Date.now() - (entry.t || 0) > FILTER_ROWS_MEMORY_TTL_MS) {
+  if (Date.now() - (entry.t || 0) > FILTER_ROWS_TTL_MS) {
     filterRowsMemoryCache.delete(key);
     return null;
   }
-  if (!entry.rows?.length) return null;
+  if (!Array.isArray(entry.rows)) return null;
   return entry.rows.slice();
 }
 
-function writeFilterRowsMemory(scopeKey, filterKey, rows) {
-  if (!scopeKey || !filterKey || !rows?.length) return;
+function writeFilterRowsMemory(scopeKey, filterKey, rows, timestamp = Date.now()) {
+  if (!scopeKey || !filterKey || !Array.isArray(rows)) return;
   const key = filterRowsMemoryKey(scopeKey, filterKey);
   filterRowsMemoryCache.delete(key);
-  filterRowsMemoryCache.set(key, { t: Date.now(), rows });
+  filterRowsMemoryCache.set(key, { t: timestamp, rows });
   while (filterRowsMemoryCache.size > FILTER_ROWS_MEMORY_MAX) {
     const oldest = filterRowsMemoryCache.keys().next().value;
     if (oldest == null) break;
@@ -340,7 +355,7 @@ export function hydrateChatListSidebarFromSession(scopeKey) {
 export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
   if (!scopeKey || !filterKey) return null;
   const fromMemory = readFilterRowsMemory(scopeKey, filterKey);
-  if (fromMemory?.length) return fromMemory;
+  if (Array.isArray(fromMemory)) return fromMemory;
 
   if (typeof sessionStorage === "undefined") return null;
 
@@ -364,9 +379,9 @@ export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
 
     const rows = Array.isArray(parsed.rows) ? parsed.rows.slice(0, MAX_CHATS) : [];
 
-    if (rows.length) writeFilterRowsMemory(scopeKey, filterKey, rows);
+    writeFilterRowsMemory(scopeKey, filterKey, rows, parsed.t);
 
-    return rows.length ? rows : null;
+    return rows;
 
   } catch {
 
@@ -378,11 +393,12 @@ export function hydrateChatListRowsForFilterFromSession(scopeKey, filterKey) {
 
 /**
  * Remove uma conversa de todos os snapshots de filtro (memória + sessionStorage).
- * Evita que, ao trocar de aba, o cache de 15 min reapresente uma conversa já finalizada.
+ * Evita que, ao trocar de aba, o snapshot reapresente uma conversa já finalizada.
  */
 export function removeChatIdFromFilterRowCaches(scopeKey, chatId) {
   const id = String(chatId ?? "");
   if (!id) return;
+  invalidateCacheRevision(scopeKey);
 
   const memPrefix = scopeKey ? `${scopeKey}::` : "";
   for (const key of [...filterRowsMemoryCache.keys()]) {
@@ -414,12 +430,13 @@ export function removeChatIdFromFilterRowCaches(scopeKey, chatId) {
   }
 }
 
-export function persistChatListRowsForFilterToSession(scopeKey, filterKey, rows) {
+export function persistChatListRowsForFilterToSession(scopeKey, filterKey, rows, options = {}) {
   if (!scopeKey || !filterKey) return;
+  // Um GET iniciado antes de um evento/resync não pode repovoar um cache invalidado.
+  if (options.revision != null && options.revision !== getChatListRowsCacheRevision(scopeKey)) return;
 
   const slim = slimList(rows);
 
-  if (!slim.length) return;
   writeFilterRowsMemory(scopeKey, filterKey, slim);
 
   if (typeof sessionStorage === "undefined") return;
@@ -443,6 +460,7 @@ export function persistChatListRowsForFilterToSession(scopeKey, filterKey, rows)
 }
 
 export function clearChatListRowsFilterSessionCache(scopeKey) {
+  invalidateCacheRevision(scopeKey);
   clearFilterRowsMemory(scopeKey);
 
   if (typeof sessionStorage === "undefined") return;
@@ -474,6 +492,7 @@ export function clearChatListRowsFilterSessionCache(scopeKey) {
 }
 
 export function clearChatListSidebarSessionCache() {
+  clearChatListRowsFilterSessionCache();
 
   if (typeof sessionStorage === "undefined") return;
 

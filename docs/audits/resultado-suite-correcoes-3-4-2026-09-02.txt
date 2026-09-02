@@ -1,0 +1,42 @@
+OK - acoes de atendimento mantem o scroll ancorado (14 cenarios).
+OK — regressão de merge de áudios passou (13 cenários).
+OK — regressão de mídia/arquivos passou (9 cenários).
+OK — regressão de recuperação/token do player passou (34 asserts).
+OK — regressão de cleanupAudioRecording passou (5 cenários).
+🎤 Teste de estresse - múltiplos áudios
+📝 Enviando 5 áudios otimistas...
+📡 Confirmações HTTP fora de ordem...
+🔌 Atualizações de status via socket...
+✅ Confirmando áudios restantes...
+✅ Teste de estresse passou - 5 áudios mantidos com integridade
+🎯 Testando nomes genéricos idênticos...
+✅ Todos os cenários de estresse passaram!
+🎉 Sistema de áudios está robusto contra duplicação/desaparecimento
+chat list fetch params: ok
+chat list tab membership: ok
+unread global + chat list view: ok
+OK — filtro por funcionário: HTTP, insert/drop, pintura, resync e refinamentos alinhados.
+OK — contagem canônica, snapshots, rajadas, leitura, reconexão e Minha fila.
+OK - regressão de fotos e URLs de mídia passou (5 cenários).
+chat search prefix: ok
+OK — importarClientesHelpers
+OK — cartão de contato abre a conversa correta e preserva a instância WhatsApp.
+OK - regressao de fronteira de conversas passou (5 cenarios).
+OK — refresh de conversa: 11 cenários de concorrência.
+OK — Bubble modular: tipos, status, retry, reply, gestos e áudio passaram.
+OK — Composer modular: helpers, drafts, teclado, typing, anexos e áudio passaram.
+OK — ordem do Escape da conversa passou (19 cenários).
+deploy recovery and finalization config: ok
+OK — regressão de mídia recebida em sequência passou (4 cenários).
+ok: lockCardAvatarUrl (anti-null + refresh)
+manual-retry-ui: 17 passed, 0 failed
+OK - regressao de merge de midias passou (6 cenarios).
+OK - regressao de midia duplicada no refresh/F5 passou (5 cenarios: PDF + audio).
+OK — regressão do ciclo de vida do microfone passou (5 cenários).
+OK: fila offline persistente (16 cenarios)
+pending-timeout-watchdog: 33 passed, 0 failed
+OK - ordem realtime canonica passou (4 cenarios).
+OK - regressao de mensagens sequenciais passou (11 cenarios).
+specialty-outbound-accept: 16 passed, 0 failed
+OK - regressao de batching de status_mensagem passou (21 asserts).
+OK — 31/31 scripts Node passaram.

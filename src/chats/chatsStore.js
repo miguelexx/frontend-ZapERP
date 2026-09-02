@@ -49,14 +49,50 @@ export function getChatsByIdIndex(chats) {
   return chatsByIdIndexCache
 }
 
-function sumUnreadCount(chats) {
+function sumUnreadMap(map) {
   let total = 0
-  for (const c of chats || []) total += Number(c.unread_count) || 0
+  if (!map || typeof map !== "object") return 0
+  for (const v of Object.values(map)) {
+    const n = Number(v) || 0
+    if (n > 0) total += n
+  }
   return total
 }
 
-function withUnreadTotal(chats) {
-  return { chats, unreadTotal: sumUnreadCount(chats) }
+/** Rows só inicializam IDs desconhecidos antes do primeiro snapshot autorizado. */
+function mergeUnreadFromChats(prevMap, chats, hydrated = false) {
+  const next = { ...(prevMap && typeof prevMap === "object" ? prevMap : {}) }
+  for (const c of chats || []) {
+    if (c?.id == null) continue
+    if (c.unread_count == null && c.unread == null) continue
+    const key = String(c.id)
+    const n = Math.max(0, Number(c.unread_count ?? c.unread) || 0)
+    if (!hydrated && !Object.prototype.hasOwnProperty.call(next, key)) next[key] = n
+  }
+  return next
+}
+
+function patchUnreadMap(prevMap, conversaId, count) {
+  const next = { ...(prevMap && typeof prevMap === "object" ? prevMap : {}) }
+  const key = String(conversaId)
+  const n = Math.max(0, Number(count) || 0)
+  // Zero também é conhecido: um GET atrasado não pode desfazer uma leitura.
+  next[key] = n
+  return next
+}
+
+function syncUnreadRows(chats, map) {
+  return chats.map((row) => {
+    if (row?.id == null) return row
+    const count = Math.max(0, Number(map[String(row.id)]) || 0)
+    if (row.unread_count === count && (row.unread == null || row.unread === count)) return row
+    return { ...row, unread_count: count, ...(row.unread != null ? { unread: count } : {}) }
+  })
+}
+
+function withUnreadTotal(chats, state) {
+  const map = mergeUnreadFromChats(state.unreadById, chats, state.unreadHydrated)
+  return { chats: syncUnreadRows(chats, map), unreadById: map, unreadTotal: sumUnreadMap(map) }
 }
 
 /** Debounce + teto: vários eventos socket seguidos → no máximo um GET /chats por janela */
@@ -111,12 +147,18 @@ export const useChatStore = create((set, get) => ({
   ========================================= */
   chats: [],
   unreadTotal: 0,
+  /** unread por conversa, independente da aba visível em `chats`. */
+  unreadById: {},
+  unreadHydrated: false,
+  unreadRevision: 0,
+  unreadRevisionById: {},
+  unreadResetRevision: 0,
   loading: false,
   /** Incrementado após assumir/encerrar — ChatList rola ao topo (últimas conversas). */
   chatListScrollToTopNonce: 0,
   /**
    * Incrementado após eventos em tempo real que alteram fila / setor / atendente.
-   * ChatList escuta e chama `load()` (que também atualiza Minha fila via refreshMinhaFila).
+   * ChatList escuta e chama `load()` (lista da aba). Minha fila no chip vem de GET /chats/counts.
    */
   chatListResyncNonce: 0,
   /** Quando true, o próximo effect de resync em chatList ignora o throttle de 2,5s (ex.: reconnect). */
@@ -128,12 +170,61 @@ export const useChatStore = create((set, get) => ({
   /** Aba/chip visível — o array `chats` é o recorte dessa aba, não a inbox global. */
   chatListActiveTab: "minha_fila",
   chatListSearchActive: false,
+  chatListSearchDebounced: false,
+  chatListAdminAtendenteFilterId: null,
+  chatListPendentesFuncionarioIds: [],
+  chatListDepartamentoFilter: "todos",
+  chatListOnlyFinalizadasAusencia: false,
+  chatListAguardandoClienteOnly: false,
 
   setChatListView: (view = {}) => {
-    const tab = view.tab != null ? String(view.tab) : get().chatListActiveTab
+    const prev = get()
+    const tab = view.tab != null ? String(view.tab) : prev.chatListActiveTab
     const searchActive = view.searchActive === true
-    if (get().chatListActiveTab === tab && get().chatListSearchActive === searchActive) return
-    set({ chatListActiveTab: tab, chatListSearchActive: searchActive })
+    const onlyFinalizadasAusencia = view.onlyFinalizadasAusencia ?? prev.chatListOnlyFinalizadasAusencia
+    const aguardandoClienteOnly = view.aguardandoClienteOnly ?? prev.chatListAguardandoClienteOnly
+    const hasSearchDebounced = Object.prototype.hasOwnProperty.call(view, "searchDebounced")
+    const searchDebounced = hasSearchDebounced
+      ? view.searchDebounced === true
+      : prev.chatListSearchDebounced === true
+    const hasAdmin = Object.prototype.hasOwnProperty.call(view, "adminAtendenteFilterId")
+    const adminRaw = hasAdmin ? view.adminAtendenteFilterId : prev.chatListAdminAtendenteFilterId
+    const adminAtendenteFilterId =
+      adminRaw != null && String(adminRaw).trim() !== "" ? adminRaw : null
+    const hasPendentes = Object.prototype.hasOwnProperty.call(view, "pendentesFuncionarioIds")
+    const pendentesSrc = hasPendentes ? view.pendentesFuncionarioIds : prev.chatListPendentesFuncionarioIds
+    const chatListPendentesFuncionarioIds = (Array.isArray(pendentesSrc) ? pendentesSrc : [])
+      .map((x) => String(x))
+      .filter(Boolean)
+    const hasDept = Object.prototype.hasOwnProperty.call(view, "departamentoFilter")
+    const deptRaw = hasDept ? view.departamentoFilter : prev.chatListDepartamentoFilter
+    const chatListDepartamentoFilter =
+      deptRaw != null && String(deptRaw).trim() !== "" ? String(deptRaw) : "todos"
+    const samePendentes =
+      chatListPendentesFuncionarioIds.length === (prev.chatListPendentesFuncionarioIds || []).length &&
+      chatListPendentesFuncionarioIds.every((id, i) => id === String(prev.chatListPendentesFuncionarioIds[i] ?? ""))
+    if (
+      prev.chatListActiveTab === tab &&
+      prev.chatListSearchActive === searchActive &&
+      prev.chatListSearchDebounced === searchDebounced &&
+      prev.chatListOnlyFinalizadasAusencia === onlyFinalizadasAusencia &&
+      prev.chatListAguardandoClienteOnly === aguardandoClienteOnly &&
+      String(prev.chatListAdminAtendenteFilterId ?? "") === String(adminAtendenteFilterId ?? "") &&
+      samePendentes &&
+      String(prev.chatListDepartamentoFilter || "todos") === chatListDepartamentoFilter
+    ) {
+      return
+    }
+    set({
+      chatListActiveTab: tab,
+      chatListSearchActive: searchActive,
+      chatListSearchDebounced: searchDebounced,
+      chatListOnlyFinalizadasAusencia: onlyFinalizadasAusencia,
+      chatListAguardandoClienteOnly: aguardandoClienteOnly,
+      chatListAdminAtendenteFilterId: adminAtendenteFilterId,
+      chatListPendentesFuncionarioIds,
+      chatListDepartamentoFilter,
+    })
   },
 
   requestChatListScrollToTop: () =>
@@ -145,6 +236,8 @@ export const useChatStore = create((set, get) => ({
     if (!chatListResyncWindowStart) chatListResyncWindowStart = now
 
     const flushResync = () => {
+      if (chatListResyncDebounceTimer) clearTimeout(chatListResyncDebounceTimer)
+      if (chatListResyncMaxWaitTimer) clearTimeout(chatListResyncMaxWaitTimer)
       chatListResyncDebounceTimer = null
       chatListResyncMaxWaitTimer = null
       chatListResyncWindowStart = 0
@@ -206,13 +299,15 @@ export const useChatStore = create((set, get) => ({
     const arr = typeof chats === "function" ? null : (chats || [])
     if (arr) {
       const next = sortConversasByRecent(dedupeConversas(arr))
-      if (chatListsStoreEquivalent(get().chats, next)) return
-      set(withUnreadTotal(next))
+      set((state) => {
+        if (chatListsStoreEquivalent(state.chats, next)) return state
+        return withUnreadTotal(next, state)
+      })
     } else {
       set((state) => {
         const next = sortConversasByRecent(dedupeConversas(chats(state.chats || []) || []))
         if (chatListsStoreEquivalent(state.chats, next)) return state
-        return withUnreadTotal(next)
+        return withUnreadTotal(next, state)
       })
     }
   },
@@ -232,10 +327,12 @@ export const useChatStore = create((set, get) => ({
     const idx = chats.findIndex(c => String(c.id) === String(chat.id))
     const existing = idx >= 0 ? chats[idx] : null
     // Preserva unread_count local quando o servidor não envia (ex.: resposta de fetchChatById) — evita zerar badge após nova_mensagem
-    const unread =
-      chat.unread_count != null || chat.unread != null
-        ? Number(chat.unread_count ?? chat.unread) || 0
-        : (existing ? Number(existing.unread_count ?? existing.unread) || 0 : 0)
+    const hasServerUnread = chat.unread_count != null || chat.unread != null
+    const unread = hasServerUnread
+      ? Number(chat.unread_count ?? chat.unread) || 0
+      : (existing
+          ? Number(existing.unread_count ?? existing.unread) || 0
+          : Math.max(0, Number(get().unreadById?.[String(chat.id)]) || 0))
     const merged = { ...chat, unread_count: unread }
     if (chat.cliente_id != null) {
       const chatInstance = chat?.whatsapp_instance_id ?? chat?.whatsappInstanceId ?? null
@@ -283,7 +380,7 @@ export const useChatStore = create((set, get) => ({
       next[newIdx] = updated
       const sorted = sortConversasByRecent(dedupeConversas(next))
       if (chatListsStoreEquivalent(chats, sorted)) return false
-      set(withUnreadTotal(sorted))
+      set((state) => withUnreadTotal(sorted, state))
       return true
     } else {
       const newChat = {
@@ -291,7 +388,10 @@ export const useChatStore = create((set, get) => ({
         contato_nome: mergedNome ?? merged.contato_nome ?? undefined,
         foto_perfil: mergedFoto ?? merged.foto_perfil ?? undefined
       }
-      set(withUnreadTotal(sortConversasByRecent(dedupeConversas([newChat, ...chats]))))
+      set((state) => withUnreadTotal(
+        sortConversasByRecent(dedupeConversas([newChat, ...chats])),
+        state
+      ))
       return true
     }
   },
@@ -442,7 +542,7 @@ export const useChatStore = create((set, get) => ({
     const tsUnchanged = getChatListSortTimestampMs(cur) === getChatListSortTimestampMs(merged)
     const sorted = tsUnchanged ? next : sortConversasByRecent(next)
     if (chatListsStoreEquivalent(chats, sorted)) return false
-    set(withUnreadTotal(sorted))
+    set((state) => withUnreadTotal(sorted, state))
     return true
   },
 
@@ -469,7 +569,7 @@ export const useChatStore = create((set, get) => ({
       ...(cur?.cliente ? { cliente: { ...cur.cliente, nome: n } } : {}),
       ...(cur?.clientes ? { clientes: { ...cur.clientes, nome: n } } : {}),
     }
-    set(withUnreadTotal(next))
+    set((state) => withUnreadTotal(next, state))
     return true
   },
 
@@ -488,7 +588,7 @@ export const useChatStore = create((set, get) => ({
     if (Object.keys(patch).length === 0) return
     const next = [...chats]
     next[idx] = { ...cur, ...patch, nome_contato_cache: patch.contato_nome ?? cur.nome_contato_cache }
-    set(withUnreadTotal(sortConversasByRecent(next)))
+    set((state) => withUnreadTotal(sortConversasByRecent(next), state))
   },
 
   /** Só preenche nome/foto quando vazio — evita sobrescrever com dados inconsistentes */
@@ -504,7 +604,7 @@ export const useChatStore = create((set, get) => ({
     if (Object.keys(patch).length === 0) return
     const next = [...chats]
     next[idx] = { ...cur, ...patch }
-    set(withUnreadTotal(next))
+    set((state) => withUnreadTotal(next, state))
   },
 
   /* =========================================
@@ -520,7 +620,7 @@ export const useChatStore = create((set, get) => ({
                 : [...(c.tags || []), tag]
             }
           : c
-      ))),
+      ), state)),
 
   removerTag: (conversa_id, tag_id) =>
     set((state) => withUnreadTotal(state.chats.map(c =>
@@ -530,7 +630,7 @@ export const useChatStore = create((set, get) => ({
               tags: (c.tags || []).filter(t => String(t.id) !== String(tag_id))
             }
           : c
-      ))),
+      ), state)),
 
   /* =========================================
      🔥 MENSAGEM / PREVIEW
@@ -562,11 +662,11 @@ export const useChatStore = create((set, get) => ({
       const next = [...state.chats]
       next[idx] = mergedRow
       if (!atividadeChanged) {
-        return withUnreadTotal(next)
+        return withUnreadTotal(next, state)
       }
       const sorted = sortConversasByRecent(next)
       if (chatListsStoreEquivalent(state.chats, sorted)) return state
-      return withUnreadTotal(sorted)
+      return withUnreadTotal(sorted, state)
     }),
 
   /* =========================================
@@ -582,7 +682,7 @@ export const useChatStore = create((set, get) => ({
     // evita conversa mais antiga no topo quando o bump não atualizou o timestamp.
     const sorted = sortConversasByRecent(chats)
     if (chatListsStoreEquivalent(chats, sorted)) return
-    set(withUnreadTotal(sorted))
+    set((state) => withUnreadTotal(sorted, state))
   },
 
   /** Atualiza ultima_mensagem E move para o topo em uma única operação — evita contato "sumir" */
@@ -629,69 +729,71 @@ export const useChatStore = create((set, get) => ({
       const nextSortTs = getChatListSortTimestampMs(next[idx])
       const sorted = prevTs === nextSortTs ? next : sortConversasByRecent(next)
       if (chatListsStoreEquivalent(state.chats, sorted)) return state
-      return withUnreadTotal(sorted)
+      return withUnreadTotal(sorted, state)
     })
   },
 
   /* =========================================
      🔥 UNREAD (PADRÃO BACKEND)
-     usa unread_count (não unread)
+     usa unread_count (não unread). Total global vem de unreadById,
+     não da soma da aba visível.
   ========================================= */
+  /** Snapshot completo: IDs ausentes têm zero; nunca depende da aba carregada. */
+  applyUnreadSnapshot: (snapshot, expectedRevision) => {
+    const current = get()
+    if (expectedRevision < current.unreadResetRevision) return false
+    const unreadById = {}
+    for (const [id, value] of Object.entries(snapshot || {})) {
+      const count = Number(value)
+      if (Number.isFinite(count) && count > 0) unreadById[id] = count
+    }
+    // Preserva leituras/incrementos locais posteriores ao início do GET sem bloquear
+    // a atualização das outras conversas durante uma rajada na thread aberta.
+    for (const [id, revision] of Object.entries(current.unreadRevisionById)) {
+      if (revision > expectedRevision) unreadById[id] = Number(current.unreadById[id]) || 0
+    }
+    set((state) => ({
+      unreadById,
+      unreadTotal: sumUnreadMap(unreadById),
+      unreadHydrated: true,
+      chats: syncUnreadRows(state.chats, unreadById),
+    }))
+    return current.unreadRevision === expectedRevision
+  },
+
   setUnread: (conversa_id, count) =>
     set((state) => {
-      const target = Number(count) || 0
-      const idx = getChatsByIdIndex(state.chats).indexById.get(String(conversa_id))
-      if (idx == null) return state
-      if (Number(state.chats[idx]?.unread_count ?? 0) === target) return state
-      const chats = state.chats.slice()
-      chats[idx] = { ...chats[idx], unread_count: target }
-      return withUnreadTotal(chats)
-    }),
-
-  incUnread: (conversa_id, inc = 1) =>
-    set((state) => {
-      const idx = getChatsByIdIndex(state.chats).indexById.get(String(conversa_id))
-      if (idx == null) return state
-      const chats = state.chats.slice()
-      const cur = chats[idx]
-      const delta = Number(inc) || 0
-      chats[idx] = { ...cur, unread_count: Number(cur.unread_count || 0) + delta }
-      return withUnreadTotal(chats)
-    }),
-
-  /** Para nova_mensagem direcao 'in': incrementa unread + tem_novas_mensagens + lida=false */
-  incUnreadComBadge: (conversa_id, inc = 1) =>
-    set((state) => {
-      const idx = getChatsByIdIndex(state.chats).indexById.get(String(conversa_id))
-      if (idx == null) return state
-      const chats = state.chats.slice()
-      const cur = chats[idx]
-      const delta = Number(inc) || 0
-      chats[idx] = {
-        ...cur,
-        unread_count: Number(cur.unread_count || 0) + delta,
-        tem_novas_mensagens: true,
-        lida: false,
+      const unreadById = patchUnreadMap(state.unreadById, conversa_id, count)
+      return {
+        unreadById,
+        unreadTotal: sumUnreadMap(unreadById),
+        unreadRevision: state.unreadRevision + 1,
+        unreadRevisionById: { ...state.unreadRevisionById, [String(conversa_id)]: state.unreadRevision + 1 },
+        chats: syncUnreadRows(state.chats, unreadById),
       }
-      return withUnreadTotal(chats)
     }),
 
-  clearUnread: (conversa_id) =>
-    set((state) => {
-      const idx = getChatsByIdIndex(state.chats).indexById.get(String(conversa_id))
-      if (idx == null) return state
-      const cur = state.chats[idx]
-      if (Number(cur?.unread_count ?? 0) === 0) return state
-      const chats = state.chats.slice()
-      chats[idx] = { ...cur, unread_count: 0 }
-      return withUnreadTotal(chats)
-    }),
+  incUnread: (conversa_id, inc = 1) => {
+    const delta = Number(inc) || 0
+    if (delta) get().setUnread(conversa_id, (Number(get().unreadById[String(conversa_id)]) || 0) + delta)
+  },
 
+  /** Incremento local explícito; eventos socket reconciliam o snapshot autorizado. */
+  incUnreadComBadge: (conversa_id, inc = 1) => {
+    if (!(Number(inc) || 0)) return
+    get().incUnread(conversa_id, inc)
+    get().updateChat({ id: conversa_id, tem_novas_mensagens: true, lida: false })
+  },
+
+  clearUnread: (conversa_id) => get().setUnread(conversa_id, 0),
   /* =========================================
      🔥 REMOVER CHAT (opcional futuro)
   ========================================= */
   removeChat: (conversa_id) =>
-    set((state) => withUnreadTotal(state.chats.filter(c => String(c.id) !== String(conversa_id)))),
+    set((state) => withUnreadTotal(
+      state.chats.filter(c => String(c.id) !== String(conversa_id)),
+      state
+    )),
 
   /* =========================================
      RESET
@@ -700,6 +802,11 @@ export const useChatStore = create((set, get) => ({
     set({
       chats: [],
       unreadTotal: 0,
+      unreadById: {},
+      unreadHydrated: false,
+      unreadRevision: get().unreadRevision + 1,
+      unreadRevisionById: {},
+      unreadResetRevision: get().unreadRevision + 1,
       loading: false,
       chatListResyncNonce: 0,
       chatListResyncForce: false,

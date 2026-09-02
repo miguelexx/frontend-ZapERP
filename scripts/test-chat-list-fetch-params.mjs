@@ -23,11 +23,14 @@ try {
     shouldBlockHiddenClosedReinsert,
     chatRowChipCountKeys,
     applyChatFilterCountsDelta,
+    buildActiveChatListViewFromStore,
+    rowMatchesPublishedListFilters,
   } = await vite.ssrLoadModule("/src/chats/chatListQueryHelpers.js");
-  const { computeChatsFiltrados } = await vite.ssrLoadModule("/src/chats/chatListFilters.js");
+  const { computeChatsFiltrados, mergeMinhaFilaPrefsFromChats, resolveMinhaFilaPaintRows } = await vite.ssrLoadModule("/src/chats/chatListFilters.js");
   const { mergeChatRowListaAtividade, preserveNewerOptimisticMembership, applyNewerOptimisticMembershipTo } = await vite.ssrLoadModule(
     "/src/chats/chatListRowAtendimento.js"
   );
+  const { useChatStore } = await vite.ssrLoadModule("/src/chats/chatsStore.js");
 
   const base = {
     tab: "minha_fila",
@@ -350,6 +353,79 @@ try {
     "conversa finalizada nao pode permanecer em Minha fila"
   );
 
+  const filaComAssumidaPorOutro = computeChatsFiltrados({
+    ...filterBase,
+    tab: "minha_fila",
+    chats: [openMine, otherAttendant, stillOpen],
+    minhaFilaList: [openMine, otherAttendant, stillOpen],
+  });
+  assert.deepEqual(
+    filaComAssumidaPorOutro.map((c) => c.id).sort((a, b) => a - b),
+    [11, 16],
+    "Minha fila nao pinta atendimento assumido por outro mesmo se o cache local ainda tiver o card"
+  );
+
+  const filaGhostAposRemoveChat = computeChatsFiltrados({
+    ...filterBase,
+    tab: "minha_fila",
+    chats: [openMine, stillOpen],
+    minhaFilaList: [openMine, otherAttendant, stillOpen],
+  });
+  assert.deepEqual(
+    filaGhostAposRemoveChat.map((c) => c.id).sort((a, b) => a - b),
+    [11, 16],
+    "socket removeu de chats: sidecar nao pode manter o card assumido por outro"
+  );
+
+  const filaInsertViaChats = computeChatsFiltrados({
+    ...filterBase,
+    tab: "minha_fila",
+    chats: [openMine, stillOpen],
+    minhaFilaList: [openMine],
+  });
+  assert.deepEqual(
+    filaInsertViaChats.map((c) => c.id).sort((a, b) => a - b),
+    [11, 16],
+    "addChat na store entra na Minha fila mesmo se o sidecar ainda nao tiver o id"
+  );
+
+  const filaTrocaDeAba = computeChatsFiltrados({
+    ...filterBase,
+    tab: "minha_fila",
+    chats: [closed],
+    minhaFilaList: [openMine, stillOpen],
+  });
+  assert.deepEqual(
+    filaTrocaDeAba.map((c) => c.id).sort((a, b) => a - b),
+    [],
+    "snapshot local nunca substitui a store da consulta ativa"
+  );
+
+  assert.deepEqual(
+    resolveMinhaFilaPaintRows(null, [openMine]).map((c) => c.id),
+    [11],
+    "snapshot local nulo nao bloqueia a lista atual da store"
+  );
+
+  const keepStaleMinhaFila = mergeActiveTabBackgroundRows(
+    [openMine, otherAttendant, stillOpen],
+    [openMine],
+    "recentes",
+    { tab: "minha_fila", user, incomingIsComplete: true }
+  );
+  assert.deepEqual(
+    keepStaleMinhaFila.map((c) => c.id),
+    [11],
+    "resync completo da Minha fila nao preserva cards que o GET ja tirou"
+  );
+
+  const mergedFilaLive = mergeMinhaFilaPrefsFromChats(
+    [{ ...stillOpen, atendente_id: null, status_atendimento: "aberta" }],
+    [{ ...stillOpen, atendente_id: 2, status_atendimento: "em_atendimento", status_atendimento_real: "em_atendimento" }]
+  );
+  assert.equal(mergedFilaLive[0].atendente_id, 2);
+  assert.equal(mergedFilaLive[0].status_atendimento, "em_atendimento");
+
   const emAtendimentoEmpresa = computeChatsFiltrados({
     ...filterBase,
     chats: [openMine, otherAttendant],
@@ -529,6 +605,36 @@ try {
 
   assert.deepEqual(chatRowChipCountKeys(openMine), ["em_atendimento"]);
   assert.deepEqual(chatRowChipCountKeys(closed), ["finalizadas"]);
+  const waitingAuto = {
+    ...openMine,
+    aguardando_cliente_desde: "2026-09-01T12:00:00.000Z",
+  };
+  assert.deepEqual(
+    chatRowChipCountKeys(waitingAuto),
+    ["aguardando_cliente"],
+    "espera automatica conta so no chip Aguardando cliente"
+  );
+  assert.deepEqual(
+    chatRowChipCountKeys({
+      ...openMine,
+      status_atendimento: "aguardando_cliente",
+      status_atendimento_real: "aguardando_cliente",
+    }),
+    ["aguardando_cliente"]
+  );
+  assert.equal(
+    chatRowIsStaleForTab(waitingAuto, "em_atendimento"),
+    false,
+    "lista Em atendimento continua podendo mostrar espera automatica (status segue em_atendimento)"
+  );
+  assert.equal(chatRowIsStaleForTab(waitingAuto, "aguardando_cliente"), false);
+  const afterWaitingDelta = applyChatFilterCountsDelta(
+    { em_atendimento: 4, aguardando_cliente: 1 },
+    chatRowChipCountKeys(waitingAuto),
+    1
+  );
+  assert.equal(afterWaitingDelta.em_atendimento, 4);
+  assert.equal(afterWaitingDelta.aguardando_cliente, 2);
   assert.equal(
     applyChatFilterCountsDelta({ em_atendimento: 4, finalizadas: 1 }, ["em_atendimento"], -1)
       .em_atendimento,
@@ -539,8 +645,144 @@ try {
     0
   );
 
+  const adminViewA = {
+    tab: "todas",
+    user: adminUser,
+    adminAtendenteFilterId: 1,
+  };
+  assert.equal(
+    rowMatchesPublishedListFilters(openMine, adminViewA),
+    true,
+    "filtro admin por A aceita conversa do atendente A"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(otherAttendant, adminViewA),
+    false,
+    "evento do atendente B nao insere na lista filtrada por A"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, adminViewA),
+    true,
+    "card do atendente B sai da lista filtrada por A"
+  );
+  const transferredToB = { ...openMine, atendente_id: 2 };
+  assert.equal(
+    shouldDropChatFromActiveList(transferredToB, adminViewA),
+    true,
+    "transferencia A→B remove o card da lista filtrada por A"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(transferredToB, { ...adminViewA, adminAtendenteFilterId: 2 }),
+    true,
+    "conversa que passa a pertencer ao filtro entra sem F5"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(otherAttendant, {
+      tab: "aguardando_funcionario",
+      user: adminUser,
+      pendentesFuncionarioSet: new Set(),
+    }),
+    false,
+    "aba pendentes sem o id nao insere"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(otherAttendant, {
+      tab: "aguardando_funcionario",
+      user: adminUser,
+      pendentesFuncionarioSet: new Set(["13"]),
+    }),
+    true,
+    "aba pendentes insere quando o id esta no set"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(otherAttendant, {
+      tab: "todas",
+      user: adminUser,
+      departamentoFilter: "10",
+    }),
+    false,
+    "filtro de setor recusa conversa de outro departamento"
+  );
+
+  assert.equal(
+    shouldInsertChatRowInActiveList(openMine, {
+      tab: "finalizadas",
+      user,
+      searchActive: true,
+    }),
+    false,
+    "digitando busca (antes do debounce) o socket nao insere card pela aba nem pela busca"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, {
+      tab: "minha_fila",
+      user,
+      searchActive: true,
+    }),
+    false,
+    "busca ativa imediata nao aplica drop da aba"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(openMine, {
+      tab: "finalizadas",
+      user,
+      searchActive: true,
+      searchDebounced: true,
+    }),
+    true,
+    "apos debounce a busca global pode inserir"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, { tab: "minha_fila", user }),
+    true,
+    "limpar busca: drop da aba volta imediatamente"
+  );
+
+  useChatStore.getState().setChatListView({
+    tab: "finalizadas",
+    searchActive: true,
+    searchDebounced: false,
+    adminAtendenteFilterId: 7,
+    pendentesFuncionarioIds: [13, 14],
+    departamentoFilter: "10",
+  });
+  const published = buildActiveChatListViewFromStore(useChatStore.getState(), adminUser);
+  assert.equal(published.tab, "finalizadas");
+  assert.equal(published.searchActive, true);
+  assert.equal(published.searchDebounced, false);
+  assert.equal(String(published.adminAtendenteFilterId), "7");
+  assert.equal(published.pendentesFuncionarioSet.has("13"), true);
+  assert.equal(published.departamentoFilter, "10");
+
+  useChatStore.getState().limpar();
+  useChatStore.getState().setChats([
+    { id: 11, unread_count: 2, status_atendimento: "em_atendimento", atendente_id: 1 },
+  ]);
+  assert.equal(useChatStore.getState().unreadTotal, 2);
+  useChatStore.getState().setChats([
+    { id: 99, unread_count: 0, status_atendimento: "fechada" },
+  ]);
+  assert.equal(
+    useChatStore.getState().unreadTotal,
+    2,
+    "trocar para Finalizadas nao zera unread de conversa fora da aba"
+  );
+  useChatStore.getState().incUnreadComBadge(11, 1);
+  assert.equal(
+    useChatStore.getState().unreadTotal,
+    3,
+    "mensagem fora da aba incrementa unread global"
+  );
+  useChatStore.getState().incUnreadComBadge(11, 1);
+  useChatStore.getState().incUnreadComBadge(11, 1);
+  assert.equal(useChatStore.getState().unreadTotal, 5, "rajada incrementa 1 por evento");
+  useChatStore.getState().clearUnread(11);
+  assert.equal(useChatStore.getState().unreadTotal, 0, "abrir/ler zera o id no mapa global");
+  useChatStore.getState().limpar();
+
   console.log("chat list fetch params: ok");
   console.log("chat list tab membership: ok");
+  console.log("unread global + chat list view: ok");
 } finally {
   await vite.close();
 }

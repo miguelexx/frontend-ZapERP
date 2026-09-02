@@ -1025,8 +1025,8 @@ function ConversaViewBody() {
    * Falha confirmada: erro. Preserva client_temp_id; não cria segunda mensagem.
    */
   const applyOutboundSendFailure = useCallback(
-    (tempId, err, { toastTitle = "Falha ao enviar", mensagemId = null } = {}) => {
-      const classified = classifyOutboundAxiosError(err);
+    (tempId, err, { toastTitle = "Falha ao enviar", mensagemId = null, media = false } = {}) => {
+      const classified = classifyOutboundAxiosError(err, { media });
       const toastKey = `out-${tempId || mensagemId || "x"}-${classified.kind}`;
       if (classified.uncertain) {
         marcarMensagemEnvioIncerto(tempId, {

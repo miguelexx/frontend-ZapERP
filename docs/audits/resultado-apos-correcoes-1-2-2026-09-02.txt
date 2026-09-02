@@ -1,0 +1,54 @@
+OK: nao lidas conhecidas sobrevivem a troca de aba
+OK: GET completo da Minha fila remove extras antigos
+OK: chip Aguardando cliente nao duplica Em atendimento
+OK: filtro por funcionario em Finalizadas aceita o mesmo recorte do GET
+FALHA: limpar busca restaura imediatamente a regra da aba
+o debounce anterior ainda permite inserir conversa aberta em Finalizadas
+
+true !== false
+
+FALHA: Minha fila vazia no store nao restaura snapshot antigo
+Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   {
++     atendente_id: 1,
++     id: 11,
++     status_atendimento: 'em_atendimento',
++     unread_count: 0
++   }
++ ]
+- []
+
+FALHA: Minha fila com IDs completamente renovados usa o store atual
+Expected values to be strictly deep-equal:
++ actual - expected
+
+  [
++   11
+-   33
+  ]
+
+FALHA: snapshot HTTP atrasado nao faz perder nao lidas no evento seguinte
+o mapa tinha 3 mas o incremento usa a row com 1
+
+2 !== 4
+
+FALHA: busca na aba Minha fila nao acrescenta minha_fila ao GET global
+a funcao de busca completa restringe novamente a busca global
+
+'1' !== null
+
+FALHA: reconcile de video revoga a URL blob substituida
+Expected values to be strictly deep-equal:
++ actual - expected
+
++ []
+- [
+-   'blob:audit-video'
+- ]
+
+OK: refresh antigo nao sobrescreve conversa reaberta apos A-B-A
+
+6 cenario(s) com falha de corretude.
