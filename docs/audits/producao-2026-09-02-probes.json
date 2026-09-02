@@ -1,0 +1,40 @@
+{
+  "at": "2026-09-02T17:56:57.723Z",
+  "base": "http://127.0.0.1:5187",
+  "results": [
+    {
+      "name": "build-abertura-envio",
+      "status": "aprovado",
+      "scriptsMinificadosCarregados": 24,
+      "sends": 1,
+      "runtimeErrors": []
+    },
+    {
+      "name": "clientes-abertura",
+      "status": "falha_reproduzida",
+      "historyVisible": false,
+      "threadGetCount": 0,
+      "runtimeErrors": []
+    },
+    {
+      "name": "participantes-troca",
+      "status": "falha_reproduzida",
+      "enabledBeforeMembership": true,
+      "disabledAfterMembership": true,
+      "runtimeErrors": []
+    },
+    {
+      "name": "outbox-troca-conta",
+      "status": "falha_reproduzida",
+      "remainingAfterLogout": 1,
+      "capturedMockSends": [
+        {
+          "conversation": 11,
+          "text": "Texto offline exclusivo do usuário A",
+          "session": "B"
+        }
+      ],
+      "runtimeErrors": []
+    }
+  ]
+}

@@ -32,6 +32,9 @@ import "./chatList.css";
 import "./chatList.chips-premium.css";
 import "../styles/zap-animations.css";
 import NovoContatoModal from "./NovoContatoModal";
+import { criarCliente } from "../api/configService";
+import { parsePostClientesResponse } from "../api/parseCriarClienteResponse";
+import { OPEN_CONVERSA_BY_PHONE_EVENT } from "./openConversaByPhoneBridge";
 import { ZAPERP_FOCUS_CHAT_SEARCH_EVENT } from "../atendimento/atendimentoUiEvents";
 import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
 const ProdutoConsultaPanel = lazy(() => import("../conversa/ProdutoConsultaPanel"));
@@ -200,6 +203,7 @@ export default function ChatList() {
 
   const scrollRef = useRef(null);
   const scrollSaveRef = useRef(0);
+  const openByPhoneBusyRef = useRef(false);
   const scrollTopNoncePrevRef = useRef(0);
   const loadRequestIdRef = useRef(0);
   const loadAbortRef = useRef(null);
@@ -1555,6 +1559,78 @@ export default function ChatList() {
       console.error("Erro ao abrir conversa do cliente:", e);
     }
   }, [addChat, carregarConversa]);
+
+  /**
+   * Clicou num telefone dentro de um balão → abre (ou cria) a conversa desse número.
+   * Reutiliza o get-or-create do POST /clientes com abrir_conversa e a mesma lógica de
+   * sucesso do NovoContatoModal. O ChatList está sempre montado na página de atendimento,
+   * então o evento chega tanto no desktop como no mobile.
+   */
+  useEffect(() => {
+    async function onOpenByPhone(event) {
+      const telefone = event?.detail?.telefone;
+      if (!telefone) return;
+      if (openByPhoneBusyRef.current) return;
+      openByPhoneBusyRef.current = true;
+      try {
+        const data = await criarCliente({ telefone, abrir_conversa: true });
+        const parsed = parsePostClientesResponse(data);
+
+        if (data?.codigo === "SELECIONE_WHATSAPP_INSTANCE") {
+          showToast({
+            type: "warning",
+            title: "Conversa",
+            message: "Este número pode usar mais de um WhatsApp. Abra por “Novo contato” para escolher.",
+          });
+          return;
+        }
+
+        let conversa = parsed.conversa?.id != null ? parsed.conversa : null;
+        if (!conversa && parsed.cliente?.id != null) {
+          try {
+            const res = await abrirConversaCliente(parsed.cliente.id);
+            if (res?.conversa?.id != null) conversa = res.conversa;
+          } catch (_) {
+            /* cai no aviso abaixo */
+          }
+        }
+
+        if (conversa?.id != null) {
+          addChat(conversa);
+          loadRef.current?.();
+          if (isMobileLayout) {
+            scrollSaveRef.current = 0;
+            if (scrollRef.current) scrollRef.current.scrollTop = 0;
+          }
+          carregarConversa(conversa.id);
+          setUnread(conversa.id, 0);
+          if (parsed.conversa_aviso) {
+            showToast({ type: "warning", title: "Conversa", message: parsed.conversa_aviso });
+          }
+          return;
+        }
+
+        showToast({
+          type: "warning",
+          title: "Conversa",
+          message: "Não foi possível abrir a conversa deste número.",
+        });
+      } catch (err) {
+        const status = err?.response?.status;
+        const msg =
+          err?.response?.data?.erro ||
+          err?.response?.data?.error ||
+          err?.response?.data?.detalhe ||
+          (status ? `Erro ${status}` : err?.message) ||
+          "Não foi possível abrir a conversa deste número.";
+        showToast({ type: "error", title: "Abrir conversa", message: String(msg) });
+      } finally {
+        openByPhoneBusyRef.current = false;
+      }
+    }
+    window.addEventListener(OPEN_CONVERSA_BY_PHONE_EVENT, onOpenByPhone);
+    return () => window.removeEventListener(OPEN_CONVERSA_BY_PHONE_EVENT, onOpenByPhone);
+  }, [addChat, carregarConversa, setUnread, showToast, isMobileLayout]);
 
   const onRequestConfirmClear = useCallback((payload) => {
     setConfirmClear(payload);

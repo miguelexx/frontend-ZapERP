@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-02T18:01:56.463Z",
+  "base": "http://127.0.0.1:5187",
+  "results": [
+    {
+      "name": "contraprova-emoji",
+      "status": "aprovado",
+      "runtimeErrors": []
+    },
+    {
+      "name": "contraprova-ia",
+      "status": "aprovado",
+      "runtimeErrors": []
+    },
+    {
+      "name": "contraprova-atendente",
+      "status": "aprovado",
+      "runtimeErrors": []
+    }
+  ]
+}

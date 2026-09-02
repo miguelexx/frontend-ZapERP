@@ -1,0 +1,359 @@
+
+Running 78 tests using 1 worker
+
+(node:14672) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14672) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium-desktop] › e2e\audio-playback.spec.js:181:3 › reprodução de áudio › áudio recebido carrega, tem a duração certa e toca de verdade (27.7s)
+  ok  2 [chromium-desktop] › e2e\audio-playback.spec.js:211:3 › reprodução de áudio › primeira fonte quebrada: cai para a próxima e toca no mesmo clique (5.2s)
+  ok  3 [chromium-desktop] › e2e\audio-playback.spec.js:228:3 › reprodução de áudio › todas as fontes quebradas: avisa e o botão recupera quando a fonte volta (11.8s)
+  ok  4 [chromium-desktop] › e2e\audio-playback.spec.js:250:3 › reprodução de áudio › pause e play retomam a partir da posição (não recomeçam do zero) (7.6s)
+  x   5 [chromium-desktop] › e2e\audit-local-mock.spec.js:152:1 › composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos (23.2s)
+(node:23828) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23828) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  6 [chromium-desktop] › e2e\audit-local-mock.spec.js:269:1 › mensagens consecutivas entram na fila sem duplo envio (7.1s)
+[metricas:audio:chromium-desktop] bolhas=2 uploads=2 tempIdsUnicos=2 uploadsConcorrentes=1 pendingDuranteFila=2
+  ok  7 [chromium-desktop] › e2e\audit-local-mock.spec.js:391:1 › áudios consecutivos aparecem imediatamente e mantêm upload FIFO (4.6s)
+  ok  8 [chromium-desktop] › e2e\audit-local-mock.spec.js:524:1 › troca rápida ignora resposta antiga e mantém thread longo virtualizado (6.5s)
+[metricas:scroll:chromium-desktop] frames=39 deslocados=1 gapMax=15 gapFinal=0
+  ok  9 [chromium-desktop] › e2e\audit-local-mock.spec.js:625:1 › abertura e envio mantêm o thread visualmente estável (3.9s)
+[metricas:midia:chromium-desktop] framesAbertura=67 deslocados=0 gapMax=0 gapFinal=0 ancoraDelta=0 bolhasRenderizadas=14 gapPosEnvio=0
+  ok 10 [chromium-desktop] › e2e\audit-local-mock.spec.js:764:1 › historico com muitas midias abre e envia sem saltos tardios (6.1s)
+  ok 11 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:185:3 › Configuracoes - contratos protegidos › sincroniza a aba com a URL e preserva a navegacao entre secoes (1.8s)
+  ok 12 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:203:3 › Configuracoes - contratos protegidos › abre a aba geral por padrao e exibe loading e estado vazio por secao (2.3s)
+  ok 13 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:217:3 › Configuracoes - contratos protegidos › abre e fecha modal de usuario sem alterar o contrato do payload (1.6s)
+  ok 14 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:244:3 › Configuracoes - contratos protegidos › preserva endpoints e payloads de criar, editar e excluir tag (1.8s)
+  x  15 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:272:3 › Configuracoes - contratos protegidos › abre e fecha os modais principais de clientes sem chamadas de escrita (1.5m)
+(node:20080) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20080) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  16 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:287:3 › Configuracoes - contratos protegidos › importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo (2.2s)
+(node:1936) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1936) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 17 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:315:3 › Configuracoes - regressões alvo › carrega somente os endpoints exigidos pela aba aberta (1.7s)
+  x  18 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:330:3 › Configuracoes - regressões alvo › redireciona usuario sem permissao e restringe atendente ao modo respostas (17.8s)
+(node:24736) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24736) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 19 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:347:3 › Configuracoes - regressões alvo › mantem erro de uma secao isolado e permite navegar para outra (2.3s)
+  ok 20 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:358:3 › Configuracoes - regressões alvo › ignora resposta antiga de busca de clientes (6.6s)
+  -  21 [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:403:3 › Configuracoes - evidencias visuais › captura geral, tabela e modal nas larguras acordadas
+  ok 22 [chromium-desktop] › e2e\hint-cache-reconnect.spec.js:60:1 › hint conserva 6 de 2 e caches são invalidados por resync e eventos no escopo correto (4.9s)
+  ok 23 [chromium-desktop] › e2e\hint-cache-reconnect.spec.js:86:1 › rajadas de reconexão agrupam GETs e recuperam evento durante HTTP lento sem concorrência (13.8s)
+  x  24 [chromium-desktop] › e2e\ia-local-mock.spec.js:162:3 › IA - shell, contratos e carga sob demanda › abre a pagina, navega entre secoes e mantem a fachada da rota (1.4s)
+(node:17080) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17080) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 25 [chromium-desktop] › e2e\ia-local-mock.spec.js:174:3 › IA - shell, contratos e carga sob demanda › nega a pagina sem as permissoes atuais (5.4s)
+  ok 26 [chromium-desktop] › e2e\ia-local-mock.spec.js:183:3 › IA - shell, contratos e carga sob demanda › carrega apenas os dados exigidos pela secao ativa (6.6s)
+  ok 27 [chromium-desktop] › e2e\ia-local-mock.spec.js:197:3 › IA - shell, contratos e carga sob demanda › isola a falha de logs e permite abrir outra secao (2.9s)
+  ok 28 [chromium-desktop] › e2e\ia-local-mock.spec.js:205:3 › IA - shell, contratos e carga sob demanda › carrega e salva configuracoes de IA com o payload exato (4.0s)
+  ok 29 [chromium-desktop] › e2e\ia-local-mock.spec.js:216:3 › IA - shell, contratos e carga sob demanda › preserva o payload de automacoes (2.8s)
+  ok 30 [chromium-desktop] › e2e\ia-local-mock.spec.js:227:3 › IA - shell, contratos e carga sob demanda › renderiza e atualiza o preview da triagem (5.3s)
+  ok 31 [chromium-desktop] › e2e\ia-local-mock.spec.js:235:3 › IA - shell, contratos e carga sob demanda › preserva o payload completo da triagem (3.3s)
+  ok 32 [chromium-desktop] › e2e\ia-local-mock.spec.js:248:3 › IA - shell, contratos e carga sob demanda › preserva o payload de respostas automaticas (3.1s)
+  ok 33 [chromium-desktop] › e2e\ia-local-mock.spec.js:265:3 › IA - shell, contratos e carga sob demanda › uma busca antiga de gestor nao sobrescreve a mais recente (4.3s)
+  ok 34 [chromium-desktop] › e2e\ia-local-mock.spec.js:285:3 › IA - shell, contratos e carga sob demanda › carrega alertas e logs somente quando cada secao e aberta (3.7s)
+  ok 35 [chromium-desktop] › e2e\search-keyboard-media.spec.js:50:1 › busca da Minha fila inclui finalizadas de outro atendente e preserva paginação (4.9s)
+  ok 36 [chromium-desktop] › e2e\search-keyboard-media.spec.js:75:1 › falha de mídia mostra aviso de F5 sem prometer envio automático e limpa após confirmação (10.5s)
+  -  37 [chromium-desktop] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (12 mensagens)
+  -  38 [chromium-desktop] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (60 mensagens)
+  ok 39 [chromium-desktop] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (3.9s)
+(node:8796) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8796) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 40 [chromium-mobile] › e2e\audio-playback.spec.js:181:3 › reprodução de áudio › áudio recebido carrega, tem a duração certa e toca de verdade (4.1s)
+  ok 41 [chromium-mobile] › e2e\audio-playback.spec.js:211:3 › reprodução de áudio › primeira fonte quebrada: cai para a próxima e toca no mesmo clique (7.5s)
+  ok 42 [chromium-mobile] › e2e\audio-playback.spec.js:228:3 › reprodução de áudio › todas as fontes quebradas: avisa e o botão recupera quando a fonte volta (6.7s)
+  ok 43 [chromium-mobile] › e2e\audio-playback.spec.js:250:3 › reprodução de áudio › pause e play retomam a partir da posição (não recomeçam do zero) (5.0s)
+  ok 44 [chromium-mobile] › e2e\audit-local-mock.spec.js:152:1 › composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos (5.9s)
+  ok 45 [chromium-mobile] › e2e\audit-local-mock.spec.js:269:1 › mensagens consecutivas entram na fila sem duplo envio (7.6s)
+[metricas:audio:chromium-mobile] bolhas=2 uploads=2 tempIdsUnicos=2 uploadsConcorrentes=1 pendingDuranteFila=2
+  ok 46 [chromium-mobile] › e2e\audit-local-mock.spec.js:391:1 › áudios consecutivos aparecem imediatamente e mantêm upload FIFO (6.1s)
+  -  47 [chromium-mobile] › e2e\audit-local-mock.spec.js:524:1 › troca rápida ignora resposta antiga e mantém thread longo virtualizado
+[metricas:scroll:chromium-mobile] frames=36 deslocados=1 gapMax=23 gapFinal=0
+  ok 48 [chromium-mobile] › e2e\audit-local-mock.spec.js:625:1 › abertura e envio mantêm o thread visualmente estável (4.8s)
+[metricas:midia:chromium-mobile] framesAbertura=68 deslocados=0 gapMax=0 gapFinal=0 ancoraDelta=0 bolhasRenderizadas=7 gapPosEnvio=0
+  ok 49 [chromium-mobile] › e2e\audit-local-mock.spec.js:764:1 › historico com muitas midias abre e envia sem saltos tardios (9.3s)
+  ok 50 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:185:3 › Configuracoes - contratos protegidos › sincroniza a aba com a URL e preserva a navegacao entre secoes (2.5s)
+  ok 51 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:203:3 › Configuracoes - contratos protegidos › abre a aba geral por padrao e exibe loading e estado vazio por secao (3.4s)
+  ok 52 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:217:3 › Configuracoes - contratos protegidos › abre e fecha modal de usuario sem alterar o contrato do payload (2.5s)
+  ok 53 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:244:3 › Configuracoes - contratos protegidos › preserva endpoints e payloads de criar, editar e excluir tag (3.4s)
+  x  54 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:272:3 › Configuracoes - contratos protegidos › abre e fecha os modais principais de clientes sem chamadas de escrita (1.5m)
+(node:14236) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14236) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  55 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:287:3 › Configuracoes - contratos protegidos › importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo (3.7s)
+(node:34944) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:34944) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 56 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:315:3 › Configuracoes - regressões alvo › carrega somente os endpoints exigidos pela aba aberta (8.0s)
+  x  57 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:330:3 › Configuracoes - regressões alvo › redireciona usuario sem permissao e restringe atendente ao modo respostas (20.8s)
+(node:4088) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4088) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 58 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:347:3 › Configuracoes - regressões alvo › mantem erro de uma secao isolado e permite navegar para outra (6.8s)
+  ok 59 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:358:3 › Configuracoes - regressões alvo › ignora resposta antiga de busca de clientes (3.2s)
+  -  60 [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:403:3 › Configuracoes - evidencias visuais › captura geral, tabela e modal nas larguras acordadas
+  ok 61 [chromium-mobile] › e2e\hint-cache-reconnect.spec.js:60:1 › hint conserva 6 de 2 e caches são invalidados por resync e eventos no escopo correto (6.7s)
+  ok 62 [chromium-mobile] › e2e\hint-cache-reconnect.spec.js:86:1 › rajadas de reconexão agrupam GETs e recuperam evento durante HTTP lento sem concorrência (14.9s)
+  ok 63 [chromium-mobile] › e2e\ia-local-mock.spec.js:162:3 › IA - shell, contratos e carga sob demanda › abre a pagina, navega entre secoes e mantem a fachada da rota (4.6s)
+  ok 64 [chromium-mobile] › e2e\ia-local-mock.spec.js:174:3 › IA - shell, contratos e carga sob demanda › nega a pagina sem as permissoes atuais (1.9s)
+  ok 65 [chromium-mobile] › e2e\ia-local-mock.spec.js:183:3 › IA - shell, contratos e carga sob demanda › carrega apenas os dados exigidos pela secao ativa (2.3s)
+  ok 66 [chromium-mobile] › e2e\ia-local-mock.spec.js:197:3 › IA - shell, contratos e carga sob demanda › isola a falha de logs e permite abrir outra secao (2.4s)
+  ok 67 [chromium-mobile] › e2e\ia-local-mock.spec.js:205:3 › IA - shell, contratos e carga sob demanda › carrega e salva configuracoes de IA com o payload exato (2.4s)
+  ok 68 [chromium-mobile] › e2e\ia-local-mock.spec.js:216:3 › IA - shell, contratos e carga sob demanda › preserva o payload de automacoes (2.4s)
+  ok 69 [chromium-mobile] › e2e\ia-local-mock.spec.js:227:3 › IA - shell, contratos e carga sob demanda › renderiza e atualiza o preview da triagem (2.2s)
+  ok 70 [chromium-mobile] › e2e\ia-local-mock.spec.js:235:3 › IA - shell, contratos e carga sob demanda › preserva o payload completo da triagem (2.8s)
+  ok 71 [chromium-mobile] › e2e\ia-local-mock.spec.js:248:3 › IA - shell, contratos e carga sob demanda › preserva o payload de respostas automaticas (2.6s)
+  ok 72 [chromium-mobile] › e2e\ia-local-mock.spec.js:265:3 › IA - shell, contratos e carga sob demanda › uma busca antiga de gestor nao sobrescreve a mais recente (3.6s)
+  ok 73 [chromium-mobile] › e2e\ia-local-mock.spec.js:285:3 › IA - shell, contratos e carga sob demanda › carrega alertas e logs somente quando cada secao e aberta (2.7s)
+  ok 74 [chromium-mobile] › e2e\search-keyboard-media.spec.js:50:1 › busca da Minha fila inclui finalizadas de outro atendente e preserva paginação (4.1s)
+  ok 75 [chromium-mobile] › e2e\search-keyboard-media.spec.js:75:1 › falha de mídia mostra aviso de F5 sem prometer envio automático e limpa após confirmação (4.9s)
+  ok 76 [chromium-mobile] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (12 mensagens) (4.3s)
+  ok 77 [chromium-mobile] › e2e\search-keyboard-media.spec.js:110:3 › teclado: fechar preserva acompanhamento e leitura do histórico (60 mensagens) (4.6s)
+  ok 78 [chromium-mobile] › e2e\unread-minha-fila.spec.js:19:1 › snapshot global, replay de socket, reconexão e Minha fila sem cards antigos (5.0s)
+
+
+  1) [chromium-desktop] › e2e\audit-local-mock.spec.js:152:1 › composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('dialog', { name: 'Selecionar emoji' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 15000ms[22m
+    [2m  - waiting for getByRole('dialog', { name: 'Selecionar emoji' })[22m
+    [2m    - waiting for" http://127.0.0.1:5186/atendimento?__zaperp_chunk_reload=1788371576995" navigation to finish...[22m
+    [2m    - navigated to "http://127.0.0.1:5186/atendimento?__zaperp_chunk_reload=1788371576995"[22m
+
+
+      229 |   if (!testInfo.project.name.includes("mobile")) {
+      230 |     await page.getByRole("button", { name: "Emojis" }).click();
+    > 231 |     await expect(page.getByRole("dialog", { name: "Selecionar emoji" })).toBeVisible();
+          |                                                                          ^
+      232 |     await page.getByRole("listitem", { name: "Emoji 😀" }).click();
+      233 |     await expect(composer).toHaveValue(/😀/);
+      234 |   }
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\audit-local-mock.spec.js:231:74
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\audit-local-mock-composer--bea4c-rs-e-cancelamento-de-anexos-chromium-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\audit-local-mock-composer--bea4c-rs-e-cancelamento-de-anexos-chromium-desktop\error-context.md
+
+  2) [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:272:3 › Configuracoes - contratos protegidos › abre e fecha os modais principais de clientes sem chamadas de escrita 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for getByRole('button', { name: 'Cancelar' })[22m
+
+
+      281 |     await page.getByRole("button", { name: "Importar clientes" }).click();
+      282 |     await expect(page.getByRole("heading", { name: "Importar clientes por planilha" })).toBeVisible();
+    > 283 |     await page.getByRole("button", { name: "Cancelar" }).click();
+          |                                                          ^
+      284 |     expect(api.writes).toEqual([]);
+      285 |   });
+      286 |
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\configuracoes-local-mock.spec.js:283:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\configuracoes-local-mock-C-22983-tes-sem-chamadas-de-escrita-chromium-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\configuracoes-local-mock-C-22983-tes-sem-chamadas-de-escrita-chromium-desktop\error-context.md
+
+  3) [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:287:3 › Configuracoes - contratos protegidos › importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('ALEXIA CRISTINA MARCHEZAN DOS SANTOS')
+    Expected: visible
+    Error: strict mode violation: getByText('ALEXIA CRISTINA MARCHEZAN DOS SANTOS') resolved to 2 elements:
+        1) <div>ALEXIA CRISTINA MARCHEZAN DOS SANTOS</div> aka locator('div').filter({ hasText: /^ALEXIA CRISTINA MARCHEZAN DOS SANTOS$/ })
+        2) <option value="ALEXIA CRISTINA MARCHEZAN DOS SANTOS">ALEXIA CRISTINA MARCHEZAN DOS SANTOS</option> aka getByRole('combobox').nth(3)
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 15000ms[22m
+    [2m  - waiting for getByText('ALEXIA CRISTINA MARCHEZAN DOS SANTOS')[22m
+
+
+      295 |       buffer: Buffer.from("PK\u0003\u0004"),
+      296 |     });
+    > 297 |     await expect(page.getByText("ALEXIA CRISTINA MARCHEZAN DOS SANTOS")).toBeVisible();
+          |                                                                          ^
+      298 |     await expect(page.getByText("5534999514579")).toBeVisible();
+      299 |     const confirmar = page.getByRole("button", { name: /Confirmar importação/ });
+      300 |     await expect(confirmar).toBeEnabled();
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\configuracoes-local-mock.spec.js:297:74
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\configuracoes-local-mock-C-d4249-e-confirma-sem-clique-duplo-chromium-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\configuracoes-local-mock-C-d4249-e-confirma-sem-clique-duplo-chromium-desktop\error-context.md
+
+  4) [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:330:3 › Configuracoes - regressões alvo › redireciona usuario sem permissao e restringe atendente ao modo respostas 
+
+    Error: [2mexpect([22m[31mpage[39m[2m).[22mtoHaveURL[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Expected pattern: [32m/tab=respostas/[39m
+    Received string:  [31m"http://127.0.0.1:5186/atendimento"[39m
+    Timeout: 15000ms
+
+    Call log:
+    [2m  - Expect "toHaveURL" with timeout 15000ms[22m
+    [2m    3 × unexpected value "http://127.0.0.1:5186/configuracoes?tab=tags"[22m
+    [2m    29 × unexpected value "http://127.0.0.1:5186/atendimento"[22m
+
+
+      340 |     }, atendente);
+      341 |     await page.goto("/configuracoes?tab=tags");
+    > 342 |     await expect(page).toHaveURL(/tab=respostas/);
+          |                        ^
+      343 |     await expect(page.getByRole("heading", { name: "Respostas salvas", level: 1 })).toBeVisible();
+      344 |     await expect(page.getByRole("button", { name: "Tags" })).toHaveCount(0);
+      345 |   });
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\configuracoes-local-mock.spec.js:342:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\configuracoes-local-mock-C-c6e62-atendente-ao-modo-respostas-chromium-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\configuracoes-local-mock-C-c6e62-atendente-ao-modo-respostas-chromium-desktop\error-context.md
+
+  5) [chromium-desktop] › e2e\ia-local-mock.spec.js:162:3 › IA - shell, contratos e carga sob demanda › abre a pagina, navega entre secoes e mantem a fachada da rota 
+
+    Error: page.goto: net::ERR_CONNECTION_RESET at http://127.0.0.1:5186/ia?tab=logs
+    Call log:
+    [2m  - navigating to "http://127.0.0.1:5186/ia?tab=logs", waiting until "load"[22m
+
+
+      162 |   test("abre a pagina, navega entre secoes e mantem a fachada da rota", async ({ page }) => {
+      163 |     await installIaApi(page);
+    > 164 |     await page.goto("/ia?tab=logs");
+          |                ^
+      165 |     await expect(page.getByRole("heading", { name: "IA / Bot / Automação" })).toBeVisible();
+      166 |     await expect(page.getByRole("heading", { name: "6. Logs do bot" })).toBeVisible();
+      167 |
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\ia-local-mock.spec.js:164:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\ia-local-mock-IA---shell-c-0c25d--e-mantem-a-fachada-da-rota-chromium-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\ia-local-mock-IA---shell-c-0c25d--e-mantem-a-fachada-da-rota-chromium-desktop\error-context.md
+
+  6) [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:272:3 › Configuracoes - contratos protegidos › abre e fecha os modais principais de clientes sem chamadas de escrita 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for getByRole('button', { name: 'Cancelar' })[22m
+
+
+      281 |     await page.getByRole("button", { name: "Importar clientes" }).click();
+      282 |     await expect(page.getByRole("heading", { name: "Importar clientes por planilha" })).toBeVisible();
+    > 283 |     await page.getByRole("button", { name: "Cancelar" }).click();
+          |                                                          ^
+      284 |     expect(api.writes).toEqual([]);
+      285 |   });
+      286 |
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\configuracoes-local-mock.spec.js:283:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\configuracoes-local-mock-C-22983-tes-sem-chamadas-de-escrita-chromium-mobile\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\configuracoes-local-mock-C-22983-tes-sem-chamadas-de-escrita-chromium-mobile\error-context.md
+
+  7) [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:287:3 › Configuracoes - contratos protegidos › importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('ALEXIA CRISTINA MARCHEZAN DOS SANTOS')
+    Expected: visible
+    Error: strict mode violation: getByText('ALEXIA CRISTINA MARCHEZAN DOS SANTOS') resolved to 2 elements:
+        1) <div>ALEXIA CRISTINA MARCHEZAN DOS SANTOS</div> aka locator('div').filter({ hasText: /^ALEXIA CRISTINA MARCHEZAN DOS SANTOS$/ })
+        2) <option value="ALEXIA CRISTINA MARCHEZAN DOS SANTOS">ALEXIA CRISTINA MARCHEZAN DOS SANTOS</option> aka getByRole('combobox').nth(3)
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 15000ms[22m
+    [2m  - waiting for getByText('ALEXIA CRISTINA MARCHEZAN DOS SANTOS')[22m
+
+
+      295 |       buffer: Buffer.from("PK\u0003\u0004"),
+      296 |     });
+    > 297 |     await expect(page.getByText("ALEXIA CRISTINA MARCHEZAN DOS SANTOS")).toBeVisible();
+          |                                                                          ^
+      298 |     await expect(page.getByText("5534999514579")).toBeVisible();
+      299 |     const confirmar = page.getByRole("button", { name: /Confirmar importação/ });
+      300 |     await expect(confirmar).toBeEnabled();
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\configuracoes-local-mock.spec.js:297:74
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\configuracoes-local-mock-C-d4249-e-confirma-sem-clique-duplo-chromium-mobile\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\configuracoes-local-mock-C-d4249-e-confirma-sem-clique-duplo-chromium-mobile\error-context.md
+
+  8) [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:330:3 › Configuracoes - regressões alvo › redireciona usuario sem permissao e restringe atendente ao modo respostas 
+
+    Error: [2mexpect([22m[31mpage[39m[2m).[22mtoHaveURL[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Expected pattern: [32m/tab=respostas/[39m
+    Received string:  [31m"http://127.0.0.1:5186/atendimento"[39m
+    Timeout: 15000ms
+
+    Call log:
+    [2m  - Expect "toHaveURL" with timeout 15000ms[22m
+    [2m    5 × unexpected value "http://127.0.0.1:5186/configuracoes?tab=tags"[22m
+    [2m    26 × unexpected value "http://127.0.0.1:5186/atendimento"[22m
+
+
+      340 |     }, atendente);
+      341 |     await page.goto("/configuracoes?tab=tags");
+    > 342 |     await expect(page).toHaveURL(/tab=respostas/);
+          |                        ^
+      343 |     await expect(page.getByRole("heading", { name: "Respostas salvas", level: 1 })).toBeVisible();
+      344 |     await expect(page.getByRole("button", { name: "Tags" })).toHaveCount(0);
+      345 |   });
+        at C:\Users\Miguel\Documents\whatsapp-plataforma\frontend\e2e\configuracoes-local-mock.spec.js:342:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\configuracoes-local-mock-C-c6e62-atendente-ao-modo-respostas-chromium-mobile\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\configuracoes-local-mock-C-c6e62-atendente-ao-modo-respostas-chromium-mobile\error-context.md
+
+  8 failed
+    [chromium-desktop] › e2e\audit-local-mock.spec.js:152:1 › composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos 
+    [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:272:3 › Configuracoes - contratos protegidos › abre e fecha os modais principais de clientes sem chamadas de escrita 
+    [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:287:3 › Configuracoes - contratos protegidos › importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo 
+    [chromium-desktop] › e2e\configuracoes-local-mock.spec.js:330:3 › Configuracoes - regressões alvo › redireciona usuario sem permissao e restringe atendente ao modo respostas 
+    [chromium-desktop] › e2e\ia-local-mock.spec.js:162:3 › IA - shell, contratos e carga sob demanda › abre a pagina, navega entre secoes e mantem a fachada da rota 
+    [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:272:3 › Configuracoes - contratos protegidos › abre e fecha os modais principais de clientes sem chamadas de escrita 
+    [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:287:3 › Configuracoes - contratos protegidos › importar clientes mapeia Nome/Telefone/Tags e confirma sem clique duplo 
+    [chromium-mobile] › e2e\configuracoes-local-mock.spec.js:330:3 › Configuracoes - regressões alvo › redireciona usuario sem permissao e restringe atendente ao modo respostas 
+  5 skipped
+  65 passed (11.4m)

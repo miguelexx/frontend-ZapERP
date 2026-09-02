@@ -9578,6 +9578,34 @@ html:not([data-theme="dark"]) .wa-footer .wa-iconBtn:hover:not(:disabled) {
   text-decoration: underline;
 }
 
+/* Telefone clicável dentro do balão: abre a conversa daquele número. Reset de <button> + cara de link. */
+.wa-phoneLink {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  color: #0284c7;
+  cursor: pointer;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: inline;
+  vertical-align: baseline;
+  text-align: inherit;
+}
+.wa-phoneLink:hover {
+  text-decoration: underline;
+}
+.wa-phoneLink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
 /* Wrapper do botão + e menu de anexos (estilo WhatsApp) */
 .wa-attachWrap {
   position: relative;
