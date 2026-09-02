@@ -185,7 +185,7 @@ export default function HelpDesk() {
         status: status || undefined,
         prioridade: priority || undefined,
         q: search.trim() || undefined,
-        responsavel_id: myQueue ? user?.id : undefined,
+        minha_fila: myQueue || undefined,
         data_inicio: startDate || undefined,
         data_fim: endDate || undefined,
         ordenar_por: orderBy,
@@ -199,7 +199,7 @@ export default function HelpDesk() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [endDate, myQueue, orderBy, orderDirection, priority, search, startDate, status, user?.id])
+  }, [endDate, myQueue, orderBy, orderDirection, priority, search, startDate, status])
 
   const loadDetail = useCallback(async (id, { silent = false } = {}) => {
     if (!id) {
@@ -366,7 +366,7 @@ export default function HelpDesk() {
                   <option value="">Todas as prioridades</option>
                   {Object.entries(PRIORITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
-                <label className="helpdesk-my-queue"><input type="checkbox" checked={myQueue} onChange={(event) => setMyQueue(event.target.checked)} /><span>Somente minha fila</span></label>
+                <label className="helpdesk-my-queue"><input type="checkbox" checked={myQueue} onChange={(event) => setMyQueue(event.target.checked)} /><span>Minha fila</span></label>
                 <div className="helpdesk-sort-controls">
                   <label>
                     <span>Ordenar por</span>
