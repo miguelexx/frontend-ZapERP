@@ -412,6 +412,36 @@ export function reconcileForwardOptimisticTemps(tempIds, apiOutcome, reconciliar
   }
 }
 
+/**
+ * Primeiro envio em conversa Aberta: o atendente assume na hora.
+ * Sem isso o card fica "Aberta", o preview não segue o outbound e a fila
+ * dos outros atendentes não esvazia até um F5.
+ */
+export function shouldAutoAssumirOnOutgoingSend(source, user, opts = {}) {
+  if (!source || opts.isGroup === true) return false;
+  if (!user?.id || !canAssumirUser(user)) return false;
+  const status = String(
+    source.status_atendimento_real ?? source.status_atendimento ?? ""
+  )
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  if (status === "fechada" || status === "encerrada" || status === "finalizada" || status === "finalizado") {
+    return false;
+  }
+  const atendenteId = source.atendente_id ?? source.responsavel_id ?? null;
+  if (atendenteId != null && atendenteId !== "" && String(atendenteId) !== String(user.id)) {
+    return false;
+  }
+  if (status === "em_atendimento" || status === "aguardando_cliente") return false;
+  return status === "aberta" || status === "ociosa" || !status;
+}
+
+function canAssumirUser(user) {
+  const role = String(user?.role || user?.perfil || "").toLowerCase();
+  return role === "admin" || role === "supervisor" || role === "atendente";
+}
+
 /** Atualiza preview na lista lateral (mesma regra do envio de texto). */
 export function bumpChatListWithOptimisticMessage(conversaId, optimisticMsg, conversaMeta, rowPatch = null) {
   if (!conversaId || !optimisticMsg) return;

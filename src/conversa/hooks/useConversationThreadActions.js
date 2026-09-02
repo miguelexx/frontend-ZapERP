@@ -141,11 +141,6 @@ export function useConversationThreadActions({
       if ((useConversaStore.getState().mensagens || []).length === 0) {
         await refresh({ silent: true });
       }
-      showToast({
-        type: "success",
-        title: "Conversa assumida",
-        message: "Você já pode enviar mensagens.",
-      });
     } catch (e) {
       showToast({
         type: "error",

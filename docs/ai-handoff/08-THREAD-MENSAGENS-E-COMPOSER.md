@@ -12,6 +12,8 @@ Cache in-memory de mensagens: Map TTL ~20 min, teto ~48 conversas.
 
 Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMensagem`, remover, marcar temp erro / envio incerto / aguardando conexão, `applyPendingOutgoingWatchdog`, assumir/transferir/encerrar/reabrir/aguardar, `patchConversa` / `patchLock`.
 
+**Auto-assumir no envio (CONFIRMADO 2026-09-02):** `applyOutgoingStatusOptimistic` em `ConversaView.jsx` assume na hora se a conversa está **Aberta** (sem outro dono). Falha do POST reverte. Detalhe da lista: `07-LISTA-DE-CONVERSAS.md`.
+
 ## UI
 
 | Arquivo | Papel |
@@ -133,7 +135,9 @@ Redução estrutural para o coordenador ficar **abaixo de 3000 linhas** (4456 �
 - `hooks/useConversationHeaderIdentity.js` — nome/avatar/badge/instância WhatsApp/`fromChat` (sticky da lista);
 - `hooks/useConversationSelection.js` — pins/stars/seleção (âncora de scroll da barra sticky **inalterada**);
 - `hooks/useConversationReactions.js` — reagir/remover reação;
-- `hooks/useConversationThreadActions.js` — CTAs assumir/reabrir/histórico antigo/marcar lida (modo simples);
+- `hooks/useConversationThreadActions.js` — CTAs assumir/reabrir/histórico antigo/marcar lida (modo simples). Sucesso de assumir **não** dispara toast (o badge já confirma; no mobile o aviso cobria o header);
+
+**Toasts de assumir/encerrar (CONFIRMADO 2026-09-02):** `AtendimentoActions` não mostra toast de sucesso ao assumir nem ao encerrar. Erros continuam. O estado aparece no badge / painel de encerrado.
 - `hooks/usePendingOutgoingLifecycle.js` — tick do watchdog + flush da outbox (mesmo intervalo, mesmos payloads);
 - `hooks/useConversationOutboundMedia.js` — `handleEnviarArquivo`, lotes fototeca/documentos, sticker, preview confirm (FIFO de áudio **idêntico**; import dinâmico do crop aponta para `../utils/imageCropExport.js`);
 - `components/ConversaViewOverlays.jsx` + `ConversaDropOverlay` / `ConversaSetorPanel` / `ConversaTagsPanel` — JSX de painéis/modais fora do coordenador. Timeline permanece entre header e mensagens (fluxo de layout).

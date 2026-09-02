@@ -6,7 +6,7 @@
 
 - `company_id` no `user` do JWT/localStorage. Socket: `join_empresa` e `shouldIgnoreByCompany` em **todo** handler.
 - Identidade de conversa inclui `whatsapp_instance_id`. Dedupe de row: `chatRowStableKey`.
-- Não inventar row a partir de socket de outro setor (`updateChat` não cria; `addChatIfAuthorized`).
+- Não inventar row a partir de socket de outro setor (`updateChat` não cria; `addChatIfAuthorized`). Se o cliente escolhe/transfere setor e o viewer não pertence, `shouldRemoveChatFromViewerList` tira o card na hora. Admin vê tudo.
 
 ## Mensagens
 

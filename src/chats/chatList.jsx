@@ -85,6 +85,7 @@ import {
   countDistinctConversas,
   TABS_HIDE_OPTIMISTIC_CLOSED,
   shouldHideOptimisticClosedFromTab,
+  shouldRemoveChatFromViewerList,
   isClosedAttendancePatch,
   getOptimisticRemovedRow,
   pruneExpiredOptimisticRemoved,
@@ -1208,6 +1209,13 @@ export default function ChatList() {
     const closedPatch = isClosedAttendancePatch(patch);
     const isReopen =
       mutation.type === "encerrar_conversa_revert" || mutation.type === "reabrir_conversa";
+    const isAssumeRevert = mutation.type === "assumir_conversa_revert";
+    const membershipAfter =
+      patch && mutation.previousRow ? { ...mutation.previousRow, ...patch, id } : patch ? { id, ...patch } : null;
+    const dropAssumedFromActiveList =
+      !isAssumeRevert &&
+      membershipAfter &&
+      shouldRemoveChatFromViewerList(membershipAfter, { tab: tabRef.current, user });
 
     const bumpChipCounts = (row, delta) => {
       const keys = chatRowChipCountKeys(row);
@@ -1247,13 +1255,44 @@ export default function ChatList() {
       }
       const after = mutation.row || patch;
       if (after && !isClosedAttendance(after)) bumpChipCounts(after, 1);
+    } else if (patch && mutation.previousRow && !isAssumeRevert) {
+      const after = { ...mutation.previousRow, ...patch, id };
+      const beforeKeys = chatRowChipCountKeys(mutation.previousRow);
+      const afterKeys = chatRowChipCountKeys(after);
+      const lost = beforeKeys.filter((k) => !afterKeys.includes(k));
+      const myId = user?.id;
+      const afterMine =
+        after.atendente_id != null && myId != null && String(after.atendente_id) === String(myId);
+      const gained = afterKeys.filter(
+        (k) => !beforeKeys.includes(k) && (k !== "em_atendimento" || afterMine)
+      );
+      if (lost.length) setChatFilterCounts((prev) => applyChatFilterCountsDelta(prev, lost, -1));
+      if (gained.length) {
+        setChatFilterCounts((prev) => applyChatFilterCountsDelta(prev, gained, 1));
+        if (gained.includes("em_atendimento")) {
+          setEmAtendimentoBadgeCount((n) => Math.max(0, (Number(n) || 0) + 1));
+        }
+        if (gained.includes("aguardando_cliente")) {
+          setAguardandoClienteBadgeCount((n) => Math.max(0, (Number(n) || 0) + 1));
+        }
+      }
     }
 
-    if (closedPatch) {
+    if (closedPatch || dropAssumedFromActiveList) {
       removeChatIdFromFilterRowCaches(filterScopeKey, id);
     }
 
     if (hideClosedFromActiveList || (closedPatch && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || "")))) {
+      setChats((prev) => (Array.isArray(prev) ? prev.filter((c) => String(c?.id) !== id) : []));
+    } else if (isAssumeRevert && mutation.previousRow) {
+      setChats((prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        if (list.some((c) => String(c?.id) === id)) {
+          return list.map((c) => (String(c?.id) === id ? { ...c, ...mutation.previousRow, id } : c));
+        }
+        return [mutation.previousRow, ...list];
+      });
+    } else if (dropAssumedFromActiveList) {
       setChats((prev) => (Array.isArray(prev) ? prev.filter((c) => String(c?.id) !== id) : []));
     } else if (patch) {
       const mergePatched = (c) => {
@@ -1331,7 +1370,7 @@ export default function ChatList() {
         }
       }
     }
-  }, [chatListOptimisticMutationNonce, setChats, filterScopeKey]);
+  }, [chatListOptimisticMutationNonce, setChats, filterScopeKey, user]);
 
   const applyFiltersDataToState = useCallback((data) => {
     setAllTags(data?.tags ?? []);

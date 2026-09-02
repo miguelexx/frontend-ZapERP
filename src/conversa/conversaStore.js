@@ -1586,6 +1586,14 @@ export const useConversaStore = create((set, get) => {
       }
       get().patchConversa(optimistic)
       chatStore.updateChat(optimistic)
+      chatStore.emitChatListOptimisticMutation?.({
+        type: "assumir_conversa",
+        id: conversaId,
+        patch: optimistic,
+        previousRow: src || null,
+        restoreMinhaFila: true,
+        row: src ? { ...src, ...optimistic } : optimistic,
+      })
       try {
         const data = await assumirChat(conversaId)
         const payload = data?.conversa ?? data ?? {}
@@ -1607,6 +1615,14 @@ export const useConversaStore = create((set, get) => {
           }
           get().patchConversa(revert)
           useChatStore.getState().updateChat(revert)
+          useChatStore.getState().emitChatListOptimisticMutation?.({
+            type: "assumir_conversa_revert",
+            id: conversaId,
+            patch: revert,
+            previousRow: src || null,
+            restoreMinhaFila: true,
+            row: src || null,
+          })
         }
         throw err
       }

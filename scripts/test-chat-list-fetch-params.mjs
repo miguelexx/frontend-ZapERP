@@ -16,6 +16,8 @@ try {
     chatRowIsStaleForTab,
     shouldHideOptimisticClosedFromTab,
     shouldInsertChatRowInActiveList,
+    shouldDropChatFromActiveList,
+    shouldRemoveChatFromViewerList,
     mergeEmAtendimentoBackgroundRows,
     mergeActiveTabBackgroundRows,
     shouldBlockHiddenClosedReinsert,
@@ -152,6 +154,137 @@ try {
     shouldInsertChatRowInActiveList(closed, { tab: "minha_fila", user }),
     false
   );
+
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, { tab: "minha_fila", user }),
+    true,
+    "assumida por outro some da Minha fila em tempo real"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, { tab: "abertas", user }),
+    true,
+    "assumida some de Abertas em tempo real"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(otherAttendant, { tab: "todas", user }),
+    false,
+    "Todas mantem o card apos assumir"
+  );
+  assert.equal(
+    shouldDropChatFromActiveList(openMine, { tab: "minha_fila", user }),
+    false
+  );
+  const stillOpen = {
+    id: 16,
+    status_atendimento: "aberta",
+    status_atendimento_real: "aberta",
+    exibir_badge_aberta: true,
+    atendente_id: null,
+  };
+  assert.equal(shouldDropChatFromActiveList(stillOpen, { tab: "abertas", user }), false);
+  const assumedByMe = {
+    ...stillOpen,
+    status_atendimento: "em_atendimento",
+    status_atendimento_real: "em_atendimento",
+    exibir_badge_aberta: false,
+    atendente_id: 1,
+  };
+  assert.equal(
+    shouldDropChatFromActiveList(assumedByMe, { tab: "abertas", user }),
+    true,
+    "depois de assumir no envio, Abertas nao mantem o card"
+  );
+  assert.equal(shouldDropChatFromActiveList(assumedByMe, { tab: "minha_fila", user }), false);
+
+  const attendantUser = { id: 1, role: "atendente", departamento_ids: [10] };
+  const adminUser = { id: 99, role: "admin", departamento_ids: [10] };
+  const supervisorUser = { id: 2, role: "supervisor", departamento_ids: [10] };
+  const otherSectorChat = {
+    id: 21,
+    status_atendimento: "aberta",
+    status_atendimento_real: "aberta",
+    exibir_badge_aberta: true,
+    departamento_id: 20,
+    atendente_id: null,
+  };
+  const sameSectorChat = { ...otherSectorChat, id: 22, departamento_id: 10 };
+  const noSectorChat = { ...otherSectorChat, id: 23, departamento_id: null };
+  const assignedToMeOtherSector = {
+    ...otherSectorChat,
+    id: 24,
+    status_atendimento: "em_atendimento",
+    status_atendimento_real: "em_atendimento",
+    atendente_id: 1,
+  };
+
+  assert.equal(
+    shouldDropChatFromActiveList(otherSectorChat, { tab: "todas", user: attendantUser }),
+    false,
+    "Todas nao dropa so por aba/status"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(otherSectorChat, { tab: "todas", user: attendantUser }),
+    true,
+    "atendente de outro setor perde o card em tempo real, inclusive em Todas"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(otherSectorChat, { tab: "todas", user: attendantUser }),
+    false,
+    "socket nao reinsere conversa de outro setor"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(otherSectorChat, {
+      tab: "todas",
+      user: attendantUser,
+      searchActive: true,
+    }),
+    false,
+    "busca tambem nao reinsere conversa de outro setor"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(otherSectorChat, { tab: "todas", user: adminUser }),
+    false,
+    "admin continua vendo conversa de qualquer setor"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(otherSectorChat, { tab: "todas", user: supervisorUser }),
+    true,
+    "supervisor nao e admin de visibilidade — so o setor dele"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(noSectorChat, { tab: "todas", user: attendantUser }),
+    false,
+    "sem setor, todos veem"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(sameSectorChat, { tab: "todas", user: attendantUser }),
+    false
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(assignedToMeOtherSector, { tab: "todas", user: attendantUser }),
+    false,
+    "conversa assumida por mim permanece mesmo com setor alheio"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(otherSectorChat, { tab: "abertas", user: attendantUser }),
+    true
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(otherSectorChat, { tab: "minha_fila", user: attendantUser }),
+    true
+  );
+
+  const keepOtherSector = mergeActiveTabBackgroundRows(
+    [sameSectorChat, otherSectorChat],
+    [sameSectorChat],
+    "recentes",
+    { tab: "todas", user: attendantUser }
+  );
+  assert.deepEqual(
+    keepOtherSector.map((c) => c.id),
+    [22],
+    "resync nao deve preservar conversa de setor inacessivel"
+  );
   const inboundMine = {
     ...openMine,
     id: 15,
@@ -244,6 +377,32 @@ try {
     finalizadasFiltrada.map((c) => c.id),
     [10],
     "conversa finalizada deve aparecer em Finalizadas"
+  );
+
+  const setorFiltradaTodas = computeChatsFiltrados({
+    ...filterBase,
+    chats: [openMine, otherSectorChat, sameSectorChat, noSectorChat],
+    tab: "todas",
+    user: attendantUser,
+    minhaFilaList: null,
+  });
+  assert.deepEqual(
+    setorFiltradaTodas.map((c) => c.id).sort((a, b) => a - b),
+    [11, 22, 23],
+    "Todas esconde conversa de setor que o atendente nao pertence"
+  );
+
+  const setorFiltradaAdmin = computeChatsFiltrados({
+    ...filterBase,
+    chats: [openMine, otherSectorChat],
+    tab: "todas",
+    user: adminUser,
+    minhaFilaList: null,
+  });
+  assert.equal(
+    setorFiltradaAdmin.some((c) => c.id === 21),
+    true,
+    "admin ve conversa de setor alheio em Todas"
   );
 
   const mergedAtividade = mergeChatRowListaAtividade(

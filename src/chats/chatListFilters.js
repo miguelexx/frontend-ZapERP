@@ -9,6 +9,7 @@ import {
 import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance } from "./chatListRowAtendimento";
 import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
 import { chatRowIsStaleForTab } from "./chatListQueryHelpers";
+import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
 
 export function digitsOnly(v) {
   return String(v || "").replace(/\D/g, "");
@@ -325,6 +326,8 @@ export function computeChatsFiltrados({
         : Array.isArray(chats)
           ? [...chats]
           : [];
+
+  list = list.filter((c) => viewerCanSeeConversationRow(c, user));
 
   // tabs rápidas — quando o backend já filtrou (GET com params), não re-filtrar client-side
   if (!adminPorFuncionario && !searchBypassesTabFilters) {

@@ -17,6 +17,7 @@ import {
 } from "./chatListRowAtendimento";
 import { chatRowStableKey } from "./chatRowStableKey";
 import { getChatsPageMeta } from "./chatService";
+import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
 
 /** Admin UI (filtro lateral por funcionário): aceita role/perfil legado. */
 export function isAppAdmin(user) {
@@ -70,6 +71,28 @@ export function shouldHideOptimisticClosedFromTab(tab, mutation) {
   const patch = mutation?.patch ?? mutation;
   if (!isClosedAttendancePatch(patch)) return false;
   return TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""));
+}
+
+/**
+ * Após assumir (envio ou botão), a row sai das abas de fila que não são o recorte novo.
+ * "Todas/Hoje" e busca global mantêm o card — só muda o badge.
+ */
+export function shouldDropChatFromActiveList(row, view = {}) {
+  if (!row) return false;
+  if (view.searchActive === true) return false;
+  const tab = String(view.tab || "");
+  if (!tab || tab === "todas" || tab === "hoje") return false;
+  return !rowStillBelongsToActiveTab(row, tab, view);
+}
+
+/**
+ * Remove da lista visível: outro setor (atendente) OU aba que não comporta o status.
+ * Admin nunca cai no recorte de setor.
+ */
+export function shouldRemoveChatFromViewerList(row, view = {}) {
+  if (!row) return false;
+  if (!viewerCanSeeConversationRow(row, view.user)) return true;
+  return shouldDropChatFromActiveList(row, view);
 }
 
 export const CHAT_LIST_HIDDEN_CLOSED_TTL_MS = 90_000;
@@ -253,6 +276,7 @@ export function rowStillBelongsToActiveTab(row, tab, opts = {}) {
  */
 export function shouldInsertChatRowInActiveList(row, view = {}) {
   if (!row) return false;
+  if (!viewerCanSeeConversationRow(row, view.user)) return false;
   if (shouldBlockHiddenClosedReinsert(view.hiddenClosed, row)) return false;
   if (view.searchActive) return true;
   const tab = String(view.tab || "");
@@ -363,6 +387,7 @@ export function mergeActiveTabBackgroundRows(current, incoming, order, opts) {
     const key = chatRowStableKey(row);
     if (!key || incomingKeys.has(key)) return false;
     if (hiddenIds?.has?.(String(row?.id))) return false;
+    if (!viewerCanSeeConversationRow(row, opts?.user)) return false;
     return rowStillBelongsToActiveTab(row, tab, opts);
   });
   if (!preserved.length) return incoming;

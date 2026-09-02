@@ -456,7 +456,8 @@ export default function AtendimentoActions({
       if (typeof assumirConversa === "function") {
         await assumirConversa(conversa.id);
         logActionScroll("assumir", "depois");
-        if (showToast) showToast({ title: "Conversa assumida", message: "Você está atendendo esta conversa." });
+        // Sem toast de sucesso: o badge "Em atendimento" já confirma.
+        // No mobile o aviso cobre header e thread.
       }
     } catch (e) {
       console.error("Erro ao assumir conversa:", e);
@@ -474,7 +475,7 @@ export default function AtendimentoActions({
       if (typeof encerrarConversa === "function") {
         await encerrarConversa(conversa.id);
         logActionScroll("encerrar", "depois");
-        if (showToast) showToast({ title: "Conversa encerrada", message: "Você pode reabrir quando precisar." });
+        // Sem toast de sucesso: o painel de encerrado já confirma. Toast cobria o header no mobile.
       }
     } catch (e) {
       console.error("Erro ao encerrar conversa:", e);

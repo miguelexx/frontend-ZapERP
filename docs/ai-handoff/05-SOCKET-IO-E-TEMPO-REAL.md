@@ -16,7 +16,7 @@ Por conversa aberta: `join_conversa` / `leave_conversa` (`joinConversaIfNeeded`,
 
 Leitura: `marcar_conversa_lida` `{ conversa_id }`.
 
-Filtro: `shouldIgnoreByCompany(payload)` compara `payload.company_id|empresa_id` com o user. Evento de outro tenant **não** deve mutar stores. Isso é defesa de UI, não segurança.
+Filtro: `shouldIgnoreByCompany(payload)` compara `payload.company_id|empresa_id` com o user. Evento de outro tenant **não** deve mutar stores. Isso é defesa de UI, não segurança. Recorte de setor no client: `shouldRemoveChatFromViewerList` (admin vê tudo; atendente só o próprio departamento).
 
 ## Constantes `SOCKET_EVENTS` (`events.js`) — CONFIRMADO
 

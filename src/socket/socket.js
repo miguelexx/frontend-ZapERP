@@ -17,7 +17,10 @@ import {
   rowStillBelongsToActiveTab,
   shouldBlockHiddenClosedReinsert,
   shouldInsertChatRowInActiveList,
+  shouldRemoveChatFromViewerList,
 } from "../chats/chatListQueryHelpers"
+import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers"
+import { closeSelectedConversation } from "../atendimento/closeSelectedConversation"
 import { SOCKET_EVENTS } from "./events"
 import {
   enqueueStatusMensagemEvent,
@@ -270,6 +273,19 @@ function getActiveChatListView() {
     user: getCurrentUserSnapshot(),
     hiddenClosed: store.chatListHiddenClosed,
   }
+}
+
+/** Sai da lista visível. Fecha a thread só se o setor ficou inacessível (não ao mudar de aba). */
+function dropChatFromViewerListIfNeeded(chatStore, row, id) {
+  const view = getActiveChatListView()
+  if (!shouldRemoveChatFromViewerList(row, view)) return false
+  chatStore.removeChat(id)
+  if (!viewerCanSeeConversationRow(row, view.user)) {
+    if (String(useConversaStore.getState().selectedId) === String(id)) {
+      closeSelectedConversation()
+    }
+  }
+  return true
 }
 
 function getCurrentUserRole() {
@@ -1431,6 +1447,9 @@ export function initSocket(token) {
         next.ui_hint_reaberto_ausencia_cliente = Date.now()
       }
       listRowChanged = chatStore.updateChat({ id, ...next })
+      if (dropChatFromViewerListIfNeeded(chatStore, { ...next, id }, id)) {
+        listRowChanged = true
+      }
     }
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(id)) {
@@ -1480,6 +1499,9 @@ export function initSocket(token) {
     let listRowChanged = false
     if (idx >= 0) {
       listRowChanged = chatStore.updateChat(p)
+      if (dropChatFromViewerListIfNeeded(chatStore, { ...(chats[idx] || {}), ...p, id: p.id }, p.id)) {
+        listRowChanged = true
+      }
     } else if (!closed) {
       try {
         listRowChanged = (await addChatIfAuthorized(chatStore, p.id)) === true
@@ -1643,6 +1665,9 @@ export function initSocket(token) {
         const canInsert = !closed && shouldInsertChatRowInActiveList(chat, view)
         if (wasInList) {
           latestStore.updateChat(chat)
+          if (dropChatFromViewerListIfNeeded(latestStore, chat, id)) {
+            /* setor inacessível ou aba que não comporta o status */
+          }
         } else if (canInsert) {
           latestStore.addChat(chat)
         }
@@ -1661,17 +1686,26 @@ export function initSocket(token) {
           useConversaStore.getState().patchConversa(meta)
         }
         const belongsNow =
-          view.searchActive === true ||
-          !view.tab ||
-          view.tab === "todas" ||
-          view.tab === "hoje" ||
-          rowStillBelongsToActiveTab(chat, view.tab, view)
+          viewerCanSeeConversationRow(chat, view.user) &&
+          (view.searchActive === true ||
+            !view.tab ||
+            view.tab === "todas" ||
+            view.tab === "hoje" ||
+            rowStillBelongsToActiveTab(chat, view.tab, view))
         /* Não disparar GET /chats só porque a conversa é de outro filtro — isso recarregava a aba e fazia cards piscarem. */
         needsListResync =
           payloadForcaResyncLista(rawPayload) ||
           (!wasInList && canInsert) ||
           (wasInList && !belongsNow)
-      } catch (_) {
+      } catch (err) {
+        const status = Number(err?.response?.status)
+        if (status === 403 || status === 404) {
+          const latestStore = useChatStore.getState()
+          latestStore.removeChat(id)
+          if (String(useConversaStore.getState().selectedId) === String(id)) {
+            closeSelectedConversation()
+          }
+        }
         needsListResync = true
       }
       if (needsListResync) {

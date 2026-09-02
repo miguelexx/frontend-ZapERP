@@ -42,6 +42,7 @@ import {
   buildOptimisticOutgoingMessage,
   bumpChatListWithOptimisticMessage,
   applyModoSimplesClienteOnOutgoingSend,
+  shouldAutoAssumirOnOutgoingSend,
   normalizeTextSendApiToMessage,
 } from "./conversaOptimisticMessage";
 import {
@@ -872,14 +873,14 @@ function ConversaViewBody() {
         : conversa;
     const row = (chatStore.chats || []).find((c) => String(c?.id) === String(conversaId));
     const source = openConv || row || fromChat;
+    const statusNow = getStatusAtendimentoEffective(source);
+    const autoAssumir = shouldAutoAssumirOnOutgoingSend(source, user, { isGroup });
 
-    if (getStatusAtendimentoEffective(source) !== "em_atendimento") return null;
-
-    // aguardando_cliente_desde NÃO entra aqui: o backend só marca quando
+    // aguardando_cliente_desde NÃO entra no patch: o backend só marca quando
     // outboundQualificaParaAguardandoCliente() permite (ex.: não marca para
-    // mensagem de ausência) — adivinhar isso no frontend pode setar um valor
-    // que o backend nunca confirma, e também reseta um aguardando_cliente_desde
-    // real pré-existente para "agora" sem necessidade.
+    // mensagem de ausência).
+    if (!autoAssumir && statusNow !== "em_atendimento") return null;
+
     const patch = {
       id: conversaId,
       status_atendimento: "em_atendimento",
@@ -887,6 +888,9 @@ function ConversaViewBody() {
       exibir_badge_aberta: false,
       tem_novas_mensagens_em_atendimento: false,
       ui_status_optimistic_at: Date.now(),
+      ...(autoAssumir && user?.id != null
+        ? { atendente_id: user.id, atendente_nome: user?.nome ?? null }
+        : {}),
     };
     const revertOpen = openConv
       ? {
@@ -896,6 +900,8 @@ function ConversaViewBody() {
           aguardando_cliente_desde: openConv.aguardando_cliente_desde,
           exibir_badge_aberta: openConv.exibir_badge_aberta,
           tem_novas_mensagens_em_atendimento: openConv.tem_novas_mensagens_em_atendimento,
+          atendente_id: openConv.atendente_id,
+          atendente_nome: openConv.atendente_nome,
           ui_status_optimistic_at: openConv.ui_status_optimistic_at ?? null,
         }
       : null;
@@ -907,18 +913,41 @@ function ConversaViewBody() {
           aguardando_cliente_desde: row.aguardando_cliente_desde,
           exibir_badge_aberta: row.exibir_badge_aberta,
           tem_novas_mensagens_em_atendimento: row.tem_novas_mensagens_em_atendimento,
+          atendente_id: row.atendente_id,
+          atendente_nome: row.atendente_nome,
           ui_status_optimistic_at: row.ui_status_optimistic_at ?? null,
         }
       : null;
+    const previousRow = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null);
 
     convStore.patchConversa(patch);
     chatStore.updateChat(patch);
+    if (autoAssumir) {
+      chatStore.emitChatListOptimisticMutation?.({
+        type: "assumir_conversa",
+        id: conversaId,
+        patch,
+        previousRow,
+        restoreMinhaFila: true,
+        row: previousRow ? { ...previousRow, ...patch } : { ...patch },
+      });
+    }
 
     return () => {
       if (revertOpen) useConversaStore.getState().patchConversa(revertOpen);
       if (revertRow) useChatStore.getState().updateChat(revertRow);
+      if (autoAssumir) {
+        useChatStore.getState().emitChatListOptimisticMutation?.({
+          type: "assumir_conversa_revert",
+          id: conversaId,
+          patch: revertRow || revertOpen,
+          previousRow,
+          restoreMinhaFila: Boolean(previousRow),
+          row: previousRow,
+        });
+      }
     };
-  }, [conversa, conversaId, fromChat, isGroup]);
+  }, [conversa, conversaId, fromChat, isGroup, user]);
 
   /*
    * Âncora usada pelas ações de atendimento (assumir/encerrar/reabrir/aguardar/retomar/
