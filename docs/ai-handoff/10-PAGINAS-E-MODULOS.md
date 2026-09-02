@@ -73,3 +73,6 @@ Estático, sem API. Nav + busca.
 ## NotFound
 
 Catch-all autenticado. Sem token, `*` é Login.
+# Clientes: sincronização manual (2026-09-02)
+
+`ClientesSection` usa `useContactSync`: POST somente ao clicar; GET de progresso a cada 3 s durante o job, recuperação após F5 e atualização da lista sem desmontar a seção. O evento legado `zapi_sync_contatos` distingue contatos/fotos por `tipo` e informa `running`/`job_id`. Auto-sync da agenda ao conectar foi removido no backend e na UI. Testes: `e2e/manual-contact-sync.spec.js`, 4 casos aprovados em desktop/celular com API simulada. Build aprovado; publicação e instância real pendentes. Análise completa: `backend/docs/ai-handoff/25-SINCRONIZACAO-MANUAL-CONTATOS.md` no repositório pai.

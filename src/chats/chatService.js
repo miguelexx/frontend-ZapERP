@@ -605,6 +605,13 @@ export async function sincronizarContatos() {
   return data;
 }
 
+export async function statusSincronizacaoContatos(jobId) {
+  const { data } = await api.get('/chats/sincronizar-contatos/status', {
+    params: jobId ? { job_id: jobId } : {},
+  });
+  return data;
+}
+
 /** Sincroniza fotos de perfil de todos os clientes (UltraMSG Get profile-picture) */
 export async function sincronizarFotosPerfil() {
   const { data } = await api.post("/chats/sincronizar-fotos-perfil");

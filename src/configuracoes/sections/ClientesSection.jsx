@@ -1,3 +1,4 @@
+import { useContactSync } from "../hooks/useContactSync";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../auth/authStore";
@@ -24,11 +25,9 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
   const navigate = useNavigate();
   const addChat = useChatStore((s) => s.addChat);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState(null);
+  const { syncing, syncResult, iniciar: handleSincronizarContatos } = useContactSync(onSyncContacts);
   const [syncingFotos, setSyncingFotos] = useState(false);
   const [syncFotosResult, setSyncFotosResult] = useState(null);
-  const [autoSyncSaving, setAutoSyncSaving] = useState(false);
   const [busca, setBusca] = useState("");
   const [searching, setSearching] = useState(false);
   const [abrindoId, setAbrindoId] = useState(null);
@@ -58,50 +57,6 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
       searchRequestRef.current += 1;
     };
   }, [busca, onSearchClientes]);
-
-  // ✅ auto-refresh quando o backend terminar o sync on-connect (Socket → CustomEvent)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handler = (ev) => {
-      const detail = ev?.detail;
-      if (!detail) return;
-      setSyncResult(detail);
-      onSyncContacts?.();
-    };
-    window.addEventListener("zapi_sync_contatos", handler);
-    return () => window.removeEventListener("zapi_sync_contatos", handler);
-  }, [onSyncContacts]);
-
-  const autoSyncValue = empresa?.zapi_auto_sync_contatos ?? true;
-  const handleToggleAutoSync = async (next) => {
-    if (!onUpdateEmpresa) return;
-    setAutoSyncSaving(true);
-    try {
-      await onUpdateEmpresa({ zapi_auto_sync_contatos: !!next });
-    } catch (e) {
-      alert(e.response?.data?.error || e.message || "Erro ao salvar preferência.");
-    } finally {
-      setAutoSyncSaving(false);
-    }
-  };
-
-  const handleSincronizarContatos = async () => {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const res = await chatService.sincronizarContatos();
-      if (res?.ok === false) {
-        setSyncResult({ error: res.message || "Erro ao sincronizar. Verifique a configuração do UltraMSG em Integrações." });
-        return;
-      }
-      setSyncResult(res);
-      onSyncContacts?.();
-    } catch (e) {
-      setSyncResult({ error: e.response?.data?.error || e.message || "Erro ao sincronizar" });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const handleSincronizarFotosPerfil = async () => {
     setSyncingFotos(true);
@@ -212,26 +167,7 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
         </div>
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <p className="ia-muted" style={{ margin: 0 }}>
-            Importe nomes e fotos de perfil da agenda do celular via UltraMSG.
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="ia-muted">Auto-sync ao conectar</span>
-            <Switch
-              checked={!!autoSyncValue}
-              onChange={(v) => {
-                if (autoSyncSaving) return;
-                handleToggleAutoSync(v);
-              }}
-            />
-          </div>
-        </div>
-        {autoSyncSaving && (
-          <p className="ia-muted" style={{ marginTop: 8 }}>
-            Salvando preferência…
-          </p>
-        )}
+        <p className="ia-muted">Importe os contatos da agenda disponibilizada pelo WhatsApp, com nomes e fotos disponíveis. A importação começa somente ao clicar no botão.</p>
         <button
           type="button"
           className="ia-btn ia-btn--primary"
@@ -242,12 +178,12 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
         </button>
         {syncResult && (
           <>
-            <p className="ia-muted" style={{ marginTop: 8 }}>
-              {syncResult.error
-                ? syncResult.error
-                : syncResult.job_id
-                  ? (syncResult.mensagem || "Sincronização enfileirada.")
-                  : `OK: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados.${syncResult.fotos_atualizadas ? ` ${syncResult.fotos_atualizadas} fotos atualizadas.` : ""}`}
+            <p className="ia-muted" role="status" aria-live="polite" style={{ marginTop: 8 }}>
+              {syncResult.error ? syncResult.error : syncing
+                ? (syncResult.total_agenda
+                  ? `Sincronizando: ${syncResult.verificados ?? 0} de ${syncResult.total_agenda} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`
+                  : syncResult.message || "Buscando contatos na UltraMSG…")
+                : `Sincronização concluída: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`}
             </p>
             {syncResult.aviso ? (
               <p style={{ marginTop: 4, color: "#b45309", fontSize: 13 }}>⚠ {syncResult.aviso}</p>
@@ -1051,6 +987,7 @@ function ModalImportarClientes({ onClose, onImported }) {
 
 export default function ClientesSection() {
   const requestRef = useRef(0);
+  const searchParamsRef = useRef({});
   const [loadingMore, setLoadingMore] = useState(false);
   const pageRef = useRef(1);
   const load = useCallback(async () => {
@@ -1079,6 +1016,7 @@ export default function ClientesSection() {
   }, [resource.reload]);
 
   const loadClientes = useCallback(async (params = {}) => {
+    searchParamsRef.current = params;
     const requestId = ++requestRef.current;
     const hasSearch = String(params?.palavra || "").trim() !== "";
     const finalParams = hasSearch ? params : { page: 1, limit: CLIENTES_PAGE_LIMIT, ...params };
@@ -1135,7 +1073,7 @@ export default function ClientesSection() {
         clientes={resource.data.clientes}
         clientesTotal={resource.data.clientesTotal}
         onRefresh={refresh}
-        onSyncContacts={refresh}
+        onSyncContacts={() => loadClientes(searchParamsRef.current)}
         onSearchClientes={loadClientes}
         onLoadMoreClientes={loadMore}
         loadingMoreClientes={loadingMore}

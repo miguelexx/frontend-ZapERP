@@ -1330,15 +1330,16 @@ export function initSocket(token) {
   socket.on("zapi_sync_contatos", (payload) => {
     try {
       const p = payload || {}
+      if (shouldIgnoreByCompany(p)) return
       const total = p.total_contatos ?? 0
       const criados = p.criados ?? 0
       const atualizados = p.atualizados ?? 0
-      if (!syncToastJaMostradoNestaSessao) {
+      if (!p.running && (!syncToastJaMostradoNestaSessao || p.tipo === 'sync_contatos')) {
         syncToastJaMostradoNestaSessao = true
         useNotificationStore.getState().showToast({
-          type: "success",
+          type: p.ok === false ? "error" : "success",
           title: "UltraMSG",
-          message: `Contatos sincronizados: ${total} (${criados} novos, ${atualizados} atualizados).`,
+          message: p.ok === false ? (p.error || 'Falha ao sincronizar contatos.') : `Contatos sincronizados: ${total} (${criados} novos, ${atualizados} atualizados).`,
         })
       }
     } catch (_) {}

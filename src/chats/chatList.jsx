@@ -9,6 +9,7 @@ import {
   fetchChatCounts,
   getChatsPageMeta,
   abrirConversaCliente,
+  abrirConversaPorTelefone,
   postFinalizacaoAusenciaLote,
 } from "./chatService";
 import { useChatStore } from "./chatsStore";
@@ -32,8 +33,6 @@ import "./chatList.css";
 import "./chatList.chips-premium.css";
 import "../styles/zap-animations.css";
 import NovoContatoModal from "./NovoContatoModal";
-import { criarCliente } from "../api/configService";
-import { parsePostClientesResponse } from "../api/parseCriarClienteResponse";
 import { OPEN_CONVERSA_BY_PHONE_EVENT } from "./openConversaByPhoneBridge";
 import { ZAPERP_FOCUS_CHAT_SEARCH_EVENT } from "../atendimento/atendimentoUiEvents";
 import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
@@ -1562,9 +1561,10 @@ export default function ChatList() {
 
   /**
    * Clicou num telefone dentro de um balão → abre (ou cria) a conversa desse número.
-   * Reutiliza o get-or-create do POST /clientes com abrir_conversa e a mesma lógica de
-   * sucesso do NovoContatoModal. O ChatList está sempre montado na página de atendimento,
-   * então o evento chega tanto no desktop como no mobile.
+   * Reutiliza `abrirConversaPorTelefone` — o MESMO caminho "estilo WhatsApp" do cartão de
+   * contato compartilhado: primeiro procura conversa existente por variantes do número
+   * (com/sem o 9), depois cria via /chats/contato e só então cai no /clientes. O ChatList
+   * está sempre montado na página de atendimento, então o evento chega no desktop e no mobile.
    */
   useEffect(() => {
     async function onOpenByPhone(event) {
@@ -1573,28 +1573,12 @@ export default function ChatList() {
       if (openByPhoneBusyRef.current) return;
       openByPhoneBusyRef.current = true;
       try {
-        const data = await criarCliente({ telefone, abrir_conversa: true });
-        const parsed = parsePostClientesResponse(data);
-
-        if (data?.codigo === "SELECIONE_WHATSAPP_INSTANCE") {
-          showToast({
-            type: "warning",
-            title: "Conversa",
-            message: "Este número pode usar mais de um WhatsApp. Abra por “Novo contato” para escolher.",
-          });
-          return;
-        }
-
-        let conversa = parsed.conversa?.id != null ? parsed.conversa : null;
-        if (!conversa && parsed.cliente?.id != null) {
-          try {
-            const res = await abrirConversaCliente(parsed.cliente.id);
-            if (res?.conversa?.id != null) conversa = res.conversa;
-          } catch (_) {
-            /* cai no aviso abaixo */
-          }
-        }
-
+        // Abre o número na mesma linha WhatsApp da conversa em que ele foi clicado
+        // (empresas com vários números exigem instância; single-instance resolve sozinho).
+        const abertaAtual = useConversaStore.getState().conversa;
+        const instanceId =
+          abertaAtual?.whatsapp_instance_id ?? abertaAtual?.whatsappInstanceId ?? undefined;
+        const { conversa } = await abrirConversaPorTelefone(null, telefone, instanceId);
         if (conversa?.id != null) {
           addChat(conversa);
           loadRef.current?.();
@@ -1604,12 +1588,8 @@ export default function ChatList() {
           }
           carregarConversa(conversa.id);
           setUnread(conversa.id, 0);
-          if (parsed.conversa_aviso) {
-            showToast({ type: "warning", title: "Conversa", message: parsed.conversa_aviso });
-          }
           return;
         }
-
         showToast({
           type: "warning",
           title: "Conversa",
@@ -1621,8 +1601,8 @@ export default function ChatList() {
           err?.response?.data?.erro ||
           err?.response?.data?.error ||
           err?.response?.data?.detalhe ||
-          (status ? `Erro ${status}` : err?.message) ||
-          "Não foi possível abrir a conversa deste número.";
+          err?.message ||
+          (status ? `Erro ${status}` : "Não foi possível abrir a conversa deste número.");
         showToast({ type: "error", title: "Abrir conversa", message: String(msg) });
       } finally {
         openByPhoneBusyRef.current = false;
