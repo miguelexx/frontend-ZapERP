@@ -254,6 +254,24 @@ export function mergeChatRowListaAtividade(apiRow, localRow) {
   return base;
 }
 
+/** GET / socket não podem desfazer encerrar/assumir otimista mais recente. */
+export function applyNewerOptimisticMembershipTo(target, apiRow, localRow) {
+  if (!target || !localRow) return target;
+  const localStatusMs = Number(localRow.ui_status_optimistic_at || 0);
+  const apiStatusMs = Number(apiRow?.ui_status_optimistic_at || 0);
+  if (localStatusMs <= apiStatusMs) return target;
+  for (const key of LISTA_STATUS_MEMBERSHIP_KEYS) {
+    if (localRow[key] !== undefined) target[key] = localRow[key];
+  }
+  return target;
+}
+
+export function preserveNewerOptimisticMembership(apiRow, localRow) {
+  if (!apiRow) return apiRow;
+  const next = { ...apiRow };
+  return applyNewerOptimisticMembershipTo(next, apiRow, localRow);
+}
+
 /** Ordena conversas por atividade mais recente (DESC). */
 export function sortChatListByRecent(arr) {
   if (!Array.isArray(arr) || arr.length <= 1) return arr;

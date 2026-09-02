@@ -1654,6 +1654,7 @@ export const useConversaStore = create((set, get) => {
         id: conversaId,
         removeFromMinhaFila: true,
         patch: optimistic,
+        previousRow: src || null,
       })
       try {
         const data = await encerrarChat(conversaId)
@@ -1724,6 +1725,7 @@ export const useConversaStore = create((set, get) => {
         restoreMinhaFila: true,
         row: src ? { ...src, ...optimistic } : optimistic,
         patch: optimistic,
+        previousRow: src || null,
       })
       try {
         const data = await reabrirChat(conversaId)

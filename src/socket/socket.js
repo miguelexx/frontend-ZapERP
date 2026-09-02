@@ -15,6 +15,7 @@ import { fetchChatById } from "../chats/chatService"
 import {
   conversaPertenceAMinhaFila,
   rowStillBelongsToActiveTab,
+  shouldBlockHiddenClosedReinsert,
   shouldInsertChatRowInActiveList,
 } from "../chats/chatListQueryHelpers"
 import { SOCKET_EVENTS } from "./events"
@@ -267,6 +268,7 @@ function getActiveChatListView() {
     tab: store.chatListActiveTab,
     searchActive: store.chatListSearchActive === true,
     user: getCurrentUserSnapshot(),
+    hiddenClosed: store.chatListHiddenClosed,
   }
 }
 
@@ -533,6 +535,18 @@ function shouldBeInMinhaFilaForCurrentUser(payload) {
   return conversaPertenceAMinhaFila(payload, getCurrentUserId())
 }
 
+function maybeRestoreMinhaFilaRow(chat, opts = {}) {
+  if (!chat?.id) return
+  if (shouldBlockHiddenClosedReinsert(useChatStore.getState().chatListHiddenClosed, chat)) return
+  if (!shouldBeInMinhaFilaForCurrentUser(chat)) return
+  useChatStore.getState().emitChatListOptimisticMutation({
+    id: chat.id,
+    restoreMinhaFila: true,
+    bumpStatusChips: opts.bumpStatusChips === true,
+    row: chat,
+  })
+}
+
 function buildModoSimplesListRowFromPayload(payload, id) {
   if (!payload || id == null || id === "") return null
   const preview = payload.ultima_mensagem_preview ?? payload.ultima_mensagem ?? null
@@ -581,10 +595,12 @@ async function addChatIfAuthorized(chatStore, conversaId) {
     const latest = latestStore.chats || []
     if (latest.some((c) => String(c?.id) === String(chat.id))) {
       latestStore.updateChat(chat)
+      maybeRestoreMinhaFilaRow(chat)
       return true
     }
     if (!shouldInsertChatRowInActiveList(chat, getActiveChatListView())) return false
-    latestStore.addChat(chat)
+    if (latestStore.addChat(chat) === false) return false
+    maybeRestoreMinhaFilaRow(chat, { bumpStatusChips: true })
     return true
   } catch (_) {
     return false
@@ -625,9 +641,11 @@ function emitMinhaFilaOptimisticMutation(rawPayload) {
   useChatStore.getState().emitChatListOptimisticMutation({
     id,
     patch,
+    previousRow: existingRow || null,
     type: closed ? "encerrar_conversa" : wasClosed && inMinhaFila ? "reabrir_conversa" : undefined,
     removeFromMinhaFila: statusKnown && !inMinhaFila,
     restoreMinhaFila: inMinhaFila,
+    bumpStatusChips: inMinhaFila && !existingRow && !closed,
     row: decisionRow,
   })
 }

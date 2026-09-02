@@ -44,6 +44,7 @@ import {
   isConversaEmAtrasoPagamento,
   sortChatListByRecent,
   mergeChatRowListaAtividade,
+  applyNewerOptimisticMembershipTo,
 } from "./chatListRowAtendimento";
 import { isUsuarioSetorFinanceiro } from "../utils/financeiroSector";
 import { useAdminAtendenteFilter } from "./useAdminAtendenteFilter";
@@ -95,6 +96,8 @@ import {
   buildChatListFetchParams,
   isAbortError,
   isNetworkError,
+  chatRowChipCountKeys,
+  applyChatFilterCountsDelta,
 } from "./chatListQueryHelpers";
 
 /** Admin UI (filtro lateral por funcionário): aceita role/perfil legado. */
@@ -1203,6 +1206,48 @@ export default function ChatList() {
     const patch = mutation.patch && typeof mutation.patch === "object" ? mutation.patch : null;
     const hideClosedFromActiveList = shouldHideOptimisticClosedFromTab(tabRef.current, mutation);
     const closedPatch = isClosedAttendancePatch(patch);
+    const isReopen =
+      mutation.type === "encerrar_conversa_revert" || mutation.type === "reabrir_conversa";
+
+    const bumpChipCounts = (row, delta) => {
+      const keys = chatRowChipCountKeys(row);
+      if (!keys.length) return;
+      setChatFilterCounts((prev) => applyChatFilterCountsDelta(prev, keys, delta));
+      if (keys.includes("em_atendimento")) {
+        setEmAtendimentoBadgeCount((n) => Math.max(0, (Number(n) || 0) + delta));
+      }
+      if (keys.includes("aguardando_cliente")) {
+        setAguardandoClienteBadgeCount((n) => Math.max(0, (Number(n) || 0) + delta));
+      }
+      if (keys.includes("pagamentos_pendentes")) {
+        setPagamentosPendentesBadgeCount((n) => Math.max(0, (Number(n) || 0) + delta));
+      }
+      if (keys.includes("em_atraso")) {
+        setEmAtrasoBadgeCount((n) => Math.max(0, (Number(n) || 0) + delta));
+      }
+      if (keys.includes("mensagens_disparadas")) {
+        setMensagensDisparadasCount((n) => Math.max(0, (Number(n) || 0) + delta));
+      }
+    };
+    const bumpMinhaFilaChip = (delta) => {
+      setChatFilterCounts((prev) => applyChatFilterCountsDelta(prev, ["minha_fila"], delta));
+    };
+
+    if (closedPatch) {
+      const before = mutation.previousRow;
+      if (before && !isClosedAttendance(before)) {
+        bumpChipCounts(before, -1);
+        bumpChipCounts({ status_atendimento: "fechada", status_atendimento_real: "fechada" }, 1);
+      }
+    } else if (isReopen) {
+      if (mutation.previousRow && isClosedAttendance(mutation.previousRow)) {
+        bumpChipCounts(mutation.previousRow, -1);
+      } else {
+        bumpChipCounts({ status_atendimento: "fechada", status_atendimento_real: "fechada" }, -1);
+      }
+      const after = mutation.row || patch;
+      if (after && !isClosedAttendance(after)) bumpChipCounts(after, 1);
+    }
 
     if (closedPatch) {
       removeChatIdFromFilterRowCaches(filterScopeKey, id);
@@ -1211,30 +1256,20 @@ export default function ChatList() {
     if (hideClosedFromActiveList || (closedPatch && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || "")))) {
       setChats((prev) => (Array.isArray(prev) ? prev.filter((c) => String(c?.id) !== id) : []));
     } else if (patch) {
-      setChats((prev) =>
-        (Array.isArray(prev) ? prev : []).map((c) =>
-          String(c?.id) === id
-            ? {
-                ...c,
-                ...patch,
-                tags: Array.isArray(patch.tags) ? patch.tags : c.tags,
-              }
-            : c
-        )
-      );
+      const mergePatched = (c) => {
+        if (String(c?.id) !== id) return c;
+        const next = {
+          ...c,
+          ...patch,
+          tags: Array.isArray(patch.tags) ? patch.tags : c.tags,
+        };
+        applyNewerOptimisticMembershipTo(next, patch, c);
+        return next;
+      };
+      setChats((prev) => (Array.isArray(prev) ? prev : []).map(mergePatched));
       const currentMinhaFila = Array.isArray(minhaFilaListRef.current) ? minhaFilaListRef.current : null;
       if (currentMinhaFila?.some((c) => String(c?.id) === id)) {
-        setMinhaFilaList(
-          currentMinhaFila.map((c) =>
-            String(c?.id) === id
-              ? {
-                  ...c,
-                  ...patch,
-                  tags: Array.isArray(patch.tags) ? patch.tags : c.tags,
-                }
-              : c
-          )
-        );
+        setMinhaFilaList(currentMinhaFila.map(mergePatched));
       }
     }
 
@@ -1269,6 +1304,7 @@ export default function ChatList() {
           setMinhaFilaList(next);
           const nextCount = countDistinctConversas(next);
           setMinhaFilaCount((prev) => (prev === nextCount ? prev : nextCount));
+          bumpMinhaFilaChip(-1);
         }
       }
     }
@@ -1290,6 +1326,8 @@ export default function ChatList() {
           setMinhaFilaList(next);
           const nextCount = countDistinctConversas(next);
           setMinhaFilaCount((prev) => (prev === nextCount ? prev : nextCount));
+          bumpMinhaFilaChip(1);
+          if (!isReopen && !closedPatch && mutation.bumpStatusChips) bumpChipCounts(restored, 1);
         }
       }
     }

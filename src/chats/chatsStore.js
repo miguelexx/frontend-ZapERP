@@ -7,7 +7,13 @@ import {
   ultimaMensagemRefsEqual,
 } from "./chatListStoreCompare"
 import { chatRowStableKey } from "./chatRowStableKey"
-import { getChatListSortTimestampMs, sortChatListByRecent, pickNewerMessage } from "./chatListRowAtendimento"
+import { getChatListSortTimestampMs, sortChatListByRecent, pickNewerMessage, applyNewerOptimisticMembershipTo } from "./chatListRowAtendimento"
+import {
+  CHAT_LIST_HIDDEN_CLOSED_TTL_MS,
+  isClosedAttendancePatch,
+  pruneHiddenClosedMap,
+  shouldBlockHiddenClosedReinsert,
+} from "./chatListQueryHelpers"
 import { parseToDate } from "../conversa/utils/conversaViewHelpers"
 
 function toStoreMsgTs(raw) {
@@ -117,6 +123,8 @@ export const useChatStore = create((set, get) => ({
   chatListResyncForce: false,
   chatListOptimisticMutation: null,
   chatListOptimisticMutationNonce: 0,
+  /** id → { expiresAt } — encerrar otimista; o socket consulta antes de addChat. */
+  chatListHiddenClosed: {},
   /** Aba/chip visível — o array `chats` é o recorte dessa aba, não a inbox global. */
   chatListActiveTab: "minha_fila",
   chatListSearchActive: false,
@@ -168,10 +176,27 @@ export const useChatStore = create((set, get) => ({
 
   emitChatListOptimisticMutation: (mutation) => {
     if (!mutation?.id) return
-    set((s) => ({
-      chatListOptimisticMutation: mutation,
-      chatListOptimisticMutationNonce: (s.chatListOptimisticMutationNonce || 0) + 1,
-    }))
+    const id = String(mutation.id)
+    const reopen =
+      mutation.type === "encerrar_conversa_revert" || mutation.type === "reabrir_conversa"
+    const closed =
+      mutation.type === "encerrar_conversa" || isClosedAttendancePatch(mutation.patch)
+    set((s) => {
+      const hidden = pruneHiddenClosedMap(s.chatListHiddenClosed)
+      if (reopen) {
+        delete hidden[id]
+      } else if (closed && mutation.type !== "encerrar_conversa_revert") {
+        hidden[id] = {
+          expiresAt: Date.now() + CHAT_LIST_HIDDEN_CLOSED_TTL_MS,
+          reason: "encerrar_conversa",
+        }
+      }
+      return {
+        chatListOptimisticMutation: mutation,
+        chatListOptimisticMutationNonce: (s.chatListOptimisticMutationNonce || 0) + 1,
+        chatListHiddenClosed: hidden,
+      }
+    })
   },
 
   /* =========================================
@@ -201,7 +226,8 @@ export const useChatStore = create((set, get) => ({
    * Ao mesclar com item existente, preserva contato_nome e foto_perfil se o payload não trouxer valor
    * (evita trocar nome/foto por "Conversa" e null em atualizações parciais via socket). */
   addChat: (chat) => {
-    if (!chat?.id) return
+    if (!chat?.id) return false
+    if (shouldBlockHiddenClosedReinsert(get().chatListHiddenClosed, chat)) return false
     let chats = get().chats || []
     const idx = chats.findIndex(c => String(c.id) === String(chat.id))
     const existing = idx >= 0 ? chats[idx] : null
@@ -253,10 +279,12 @@ export const useChatStore = create((set, get) => ({
         telefone: merged.telefone !== undefined ? merged.telefone : existing.telefone,
         telefone_exibivel: merged.telefone_exibivel !== undefined ? merged.telefone_exibivel : existing.telefone_exibivel,
       }
+      applyNewerOptimisticMembershipTo(updated, chat, existing)
       next[newIdx] = updated
       const sorted = sortConversasByRecent(dedupeConversas(next))
-      if (chatListsStoreEquivalent(chats, sorted)) return
+      if (chatListsStoreEquivalent(chats, sorted)) return false
       set(withUnreadTotal(sorted))
+      return true
     } else {
       const newChat = {
         ...merged,
@@ -264,6 +292,7 @@ export const useChatStore = create((set, get) => ({
         foto_perfil: mergedFoto ?? merged.foto_perfil ?? undefined
       }
       set(withUnreadTotal(sortConversasByRecent(dedupeConversas([newChat, ...chats]))))
+      return true
     }
   },
 
@@ -396,6 +425,8 @@ export const useChatStore = create((set, get) => ({
       merged.departamento = null
       merged.departamentos = null
     }
+
+    applyNewerOptimisticMembershipTo(merged, partial, cur)
 
     if (chatRowStoreMergeUnchanged(cur, merged)) {
       const sortedProbe = sortConversasByRecent(next)
@@ -674,6 +705,7 @@ export const useChatStore = create((set, get) => ({
       chatListResyncForce: false,
       chatListOptimisticMutation: null,
       chatListOptimisticMutationNonce: 0,
+      chatListHiddenClosed: {},
     })
 }))
 

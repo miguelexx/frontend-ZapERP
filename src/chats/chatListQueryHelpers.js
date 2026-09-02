@@ -72,6 +72,55 @@ export function shouldHideOptimisticClosedFromTab(tab, mutation) {
   return TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""));
 }
 
+export const CHAT_LIST_HIDDEN_CLOSED_TTL_MS = 90_000;
+
+export function pruneHiddenClosedMap(map, now = Date.now()) {
+  const src = map && typeof map === "object" ? map : {};
+  const next = {};
+  for (const [id, entry] of Object.entries(src)) {
+    const expiresAt = Number(entry?.expiresAt ?? entry);
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) continue;
+    next[id] = entry && typeof entry === "object" ? entry : { expiresAt };
+  }
+  return next;
+}
+
+/** Tombstone de encerrar: GET atrasado com status ainda aberto não pode reinserir o card. */
+export function shouldBlockHiddenClosedReinsert(hiddenMap, row, now = Date.now()) {
+  if (!row?.id) return false;
+  if (isClosedAttendance(row)) return false;
+  const entry = hiddenMap?.[String(row.id)];
+  const expiresAt = Number(entry?.expiresAt ?? entry);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+export function chatRowChipCountKeys(row) {
+  if (!row) return [];
+  const s = getStatusAtendimentoEffective(row);
+  if (s === "em_atendimento" && row.atendente_id != null) {
+    const keys = ["em_atendimento"];
+    if (isConversaAguardandoCliente(row)) keys.push("aguardando_cliente");
+    return keys;
+  }
+  if (s === "aguardando_cliente") return ["aguardando_cliente"];
+  if (s === "aberta" && row.exibir_badge_aberta !== false) return ["abertas"];
+  if (s === "pagamento_pendente") return ["pagamentos_pendentes"];
+  if (s === "em_atraso") return ["em_atraso"];
+  if (s === "mensagem_disparada") return ["mensagens_disparadas"];
+  if (isClosedAttendance(row)) return ["finalizadas"];
+  return [];
+}
+
+export function applyChatFilterCountsDelta(counts, keys, delta) {
+  const next = { ...(counts && typeof counts === "object" ? counts : {}) };
+  (Array.isArray(keys) ? keys : []).forEach((key) => {
+    if (!key) return;
+    const cur = Number(next[key]) || 0;
+    next[key] = Math.max(0, cur + (Number(delta) || 0));
+  });
+  return next;
+}
+
 /**
  * Exclusão de pertinência em tempo real: só remove o que definitivamente
  * não pertence à aba. Não replica o GET (paginação/setor).
@@ -204,6 +253,7 @@ export function rowStillBelongsToActiveTab(row, tab, opts = {}) {
  */
 export function shouldInsertChatRowInActiveList(row, view = {}) {
   if (!row) return false;
+  if (shouldBlockHiddenClosedReinsert(view.hiddenClosed, row)) return false;
   if (view.searchActive) return true;
   const tab = String(view.tab || "");
   if (!tab || tab === "todas" || tab === "hoje") return true;

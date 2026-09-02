@@ -18,9 +18,12 @@ try {
     shouldInsertChatRowInActiveList,
     mergeEmAtendimentoBackgroundRows,
     mergeActiveTabBackgroundRows,
+    shouldBlockHiddenClosedReinsert,
+    chatRowChipCountKeys,
+    applyChatFilterCountsDelta,
   } = await vite.ssrLoadModule("/src/chats/chatListQueryHelpers.js");
   const { computeChatsFiltrados } = await vite.ssrLoadModule("/src/chats/chatListFilters.js");
-  const { mergeChatRowListaAtividade } = await vite.ssrLoadModule(
+  const { mergeChatRowListaAtividade, preserveNewerOptimisticMembership, applyNewerOptimisticMembershipTo } = await vite.ssrLoadModule(
     "/src/chats/chatListRowAtendimento.js"
   );
 
@@ -314,6 +317,50 @@ try {
     keepLive.map((c) => c.id),
     [11],
     "resync background deve manter quem ainda pertence e descartar fantasma"
+  );
+
+  const hiddenMap = { 11: { expiresAt: Date.now() + 60_000 } };
+  assert.equal(
+    shouldBlockHiddenClosedReinsert(hiddenMap, openMine),
+    true,
+    "tombstone deve bloquear reinsert de GET atrasado ainda em_atendimento"
+  );
+  assert.equal(shouldBlockHiddenClosedReinsert(hiddenMap, closed), false);
+  assert.equal(
+    shouldInsertChatRowInActiveList(openMine, {
+      tab: "em_atendimento",
+      user,
+      hiddenClosed: hiddenMap,
+    }),
+    false
+  );
+
+  const preservedStatus = preserveNewerOptimisticMembership(
+    { ...openMine, ui_status_optimistic_at: 1 },
+    { ...closed, ui_status_optimistic_at: 2 }
+  );
+  assert.equal(preservedStatus.status_atendimento, "fechada");
+
+  const localClosed = { ...closed, ui_status_optimistic_at: 2 };
+  const spreadStaleGet = { ...localClosed, ...openMine };
+  assert.equal(spreadStaleGet.status_atendimento, "em_atendimento");
+  applyNewerOptimisticMembershipTo(spreadStaleGet, openMine, localClosed);
+  assert.equal(
+    spreadStaleGet.status_atendimento,
+    "fechada",
+    "GET atrasado apos spread nao pode reabrir status otimista"
+  );
+
+  assert.deepEqual(chatRowChipCountKeys(openMine), ["em_atendimento"]);
+  assert.deepEqual(chatRowChipCountKeys(closed), ["finalizadas"]);
+  assert.equal(
+    applyChatFilterCountsDelta({ em_atendimento: 4, finalizadas: 1 }, ["em_atendimento"], -1)
+      .em_atendimento,
+    3
+  );
+  assert.equal(
+    applyChatFilterCountsDelta({ em_atendimento: 0 }, ["em_atendimento"], -1).em_atendimento,
+    0
   );
 
   console.log("chat list fetch params: ok");
