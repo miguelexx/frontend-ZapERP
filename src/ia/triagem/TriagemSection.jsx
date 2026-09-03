@@ -37,7 +37,11 @@ export default function TriagemView({
   const [v, setV] = useState(config);
   const [adminAl, setAdminAl] = useState(adminAtendimentoAlerta);
   const [novaDataFechada, setNovaDataFechada] = useState("");
-  useEffect(() => setV(config), [config]);
+  useEffect(() => {
+    const c = config || {};
+    const hasOptions = (c.options || []).length > 0;
+    setV({ ...c, usarMenuSetores: c.usarMenuSetores ?? hasOptions });
+  }, [config]);
   useEffect(() => setAdminAl(adminAtendimentoAlerta), [adminAtendimentoAlerta]);
 
   const showToast = useNotificationStore((s) => s.showToast);
@@ -143,42 +147,6 @@ export default function TriagemView({
                 placeholder="Olá! Seja bem-vindo(a) à sua empresa.&#10;Para direcionarmos seu atendimento, escolha o setor:&#10;&#10;1 - Atendimento&#10;2 - Vendas&#10;3 - Financeiro&#10;&#10;Responda com o número da opção desejada."
               />
             </div>
-            <div className="ia-field">
-              <label title="Enviada quando o cliente digita um número que não está no menu.">
-                Mensagem quando o cliente digita opção errada
-              </label>
-              <textarea
-                className="ia-textarea"
-                rows={2}
-                value={v.invalidOptionMessage || ""}
-                onChange={(e) => setV((c) => ({ ...c, invalidOptionMessage: e.target.value }))}
-                placeholder="Opção inválida. Por favor, responda apenas com o número do setor desejado."
-              />
-            </div>
-            <div className="ia-field">
-              <label title="Após o cliente escolher uma opção válida. Use {{departamento}} para substituir pelo nome do setor.">
-                Mensagem de confirmação (use {"{{departamento}}"})
-              </label>
-              <textarea
-                className="ia-textarea"
-                rows={2}
-                value={v.confirmSelectionMessage || ""}
-                onChange={(e) => setV((c) => ({ ...c, confirmSelectionMessage: e.target.value }))}
-                placeholder="Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade."
-              />
-            </div>
-            <div className="ia-field">
-              <label title="O cliente pode digitar este comando (ex: 0) para ver o menu novamente.">
-                Comando para ver o menu de novo
-              </label>
-              <input
-                type="text"
-                className="ia-input chatbot-input-cmd"
-                value={v.reopenMenuCommand ?? "0"}
-                onChange={(e) => setV((c) => ({ ...c, reopenMenuCommand: e.target.value }))}
-                placeholder="0"
-              />
-            </div>
             <div className="ia-checkbox-row">
               <input
                 type="checkbox"
@@ -186,89 +154,138 @@ export default function TriagemView({
                 checked={v.sendOnlyFirstTime !== false}
                 onChange={(e) => setV((c) => ({ ...c, sendOnlyFirstTime: e.target.checked }))}
               />
-              <label htmlFor="sendOnlyFirstTime" title="Se marcado, o menu só é enviado na primeira mensagem.">
-                Enviar menu apenas na primeira mensagem
+              <label htmlFor="sendOnlyFirstTime" title="Se marcado, a mensagem de boas-vindas só é enviada na primeira mensagem.">
+                Enviar mensagem apenas na primeira vez
               </label>
             </div>
           </div>
 
-          {/* SEÇÃO 2 — Escolhas do menu */}
+          {/* SEÇÃO 2 — Menu de setores (opcional) */}
           <div className="chatbot-card">
-            <h3 className="chatbot-card-title">2. Escolhas que o cliente verá no WhatsApp</h3>
-            <p className="chatbot-card-subtitle">O que aparece quando alguém manda a primeira mensagem</p>
-            <div className="chatbot-table-wrap">
-              <table className="ia-table chatbot-table">
-                <thead>
-                  <tr>
-                    <th title="O número que o cliente digita para escolher (1, 2, 3...)">Nº</th>
-                    <th title="O texto que aparece no menu (ex: Atendimento, Vendas)">O que o cliente vê</th>
-                    <th title="Para qual equipe a conversa vai quando o cliente escolher esta opção">Setor que recebe</th>
-                    <th title="Se desmarcado, esta opção não aparece no menu">Opção ativa</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {opts.map((o, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <input
-                          type="text"
-                          className="ia-input chatbot-input-key"
-                          value={o.key ?? ""}
-                          onChange={(e) => updateOption(idx, "key", e.target.value)}
-                          placeholder="1"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          className="ia-input"
-                          value={o.label ?? ""}
-                          onChange={(e) => updateOption(idx, "label", e.target.value)}
-                          placeholder="Atendimento"
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="ia-select"
-                          value={o.departamento_id ?? ""}
-                          onChange={(e) => updateOption(idx, "departamento_id", e.target.value)}
-                        >
-                          <option value="">Selecione</option>
-                          {departamentos.map((d) => (
-                            <option key={d.id} value={d.id}>{d.nome}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={o.active !== false}
-                          onChange={(e) => updateOption(idx, "active", e.target.checked)}
-                          aria-label="Opção ativa"
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="chatbot-btn-remove"
-                          onClick={() => removeOption(idx)}
-                          aria-label="Remover"
-                        >
-                          Remover
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="ds-switch-row" style={{ marginBottom: 16 }}>
+              <Switch checked={!!v.usarMenuSetores} onChange={(x) => {
+                setV((c) => ({ ...c, usarMenuSetores: x, ...(x ? {} : { options: [] }) }));
+              }} />
+              <div>
+                <h3 className="chatbot-card-title" style={{ margin: 0 }}>2. Menu de setores (opcional)</h3>
+                <p className="chatbot-card-subtitle" style={{ margin: 0 }}>Ative para direcionar o cliente por setores. Desativado, apenas a mensagem de boas-vindas será enviada.</p>
+              </div>
             </div>
-            {departamentos.length === 0 && (
-              <p className="chatbot-hint">Cadastre departamentos em Configurações para vincular às opções.</p>
+
+            {!!v.usarMenuSetores && (
+              <>
+                <div className="ia-field">
+                  <label title="Enviada quando o cliente digita um número que não está no menu.">
+                    Mensagem quando o cliente digita opção errada
+                  </label>
+                  <textarea
+                    className="ia-textarea"
+                    rows={2}
+                    value={v.invalidOptionMessage || ""}
+                    onChange={(e) => setV((c) => ({ ...c, invalidOptionMessage: e.target.value }))}
+                    placeholder="Opção inválida. Por favor, responda apenas com o número do setor desejado."
+                  />
+                </div>
+                <div className="ia-field">
+                  <label title="Após o cliente escolher uma opção válida. Use {{departamento}} para substituir pelo nome do setor.">
+                    Mensagem de confirmação (use {"{{departamento}}"})
+                  </label>
+                  <textarea
+                    className="ia-textarea"
+                    rows={2}
+                    value={v.confirmSelectionMessage || ""}
+                    onChange={(e) => setV((c) => ({ ...c, confirmSelectionMessage: e.target.value }))}
+                    placeholder="Perfeito! Seu atendimento foi direcionado para o setor {{departamento}}. Em instantes nossa equipe dará continuidade."
+                  />
+                </div>
+                <div className="ia-field">
+                  <label title="O cliente pode digitar este comando (ex: 0) para ver o menu novamente.">
+                    Comando para ver o menu de novo
+                  </label>
+                  <input
+                    type="text"
+                    className="ia-input chatbot-input-cmd"
+                    value={v.reopenMenuCommand ?? "0"}
+                    onChange={(e) => setV((c) => ({ ...c, reopenMenuCommand: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="chatbot-table-wrap">
+                  <table className="ia-table chatbot-table">
+                    <thead>
+                      <tr>
+                        <th title="O número que o cliente digita para escolher (1, 2, 3...)">Nº</th>
+                        <th title="O texto que aparece no menu (ex: Atendimento, Vendas)">O que o cliente vê</th>
+                        <th title="Para qual equipe a conversa vai quando o cliente escolher esta opção">Setor que recebe</th>
+                        <th title="Se desmarcado, esta opção não aparece no menu">Opção ativa</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {opts.map((o, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <input
+                              type="text"
+                              className="ia-input chatbot-input-key"
+                              value={o.key ?? ""}
+                              onChange={(e) => updateOption(idx, "key", e.target.value)}
+                              placeholder="1"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className="ia-input"
+                              value={o.label ?? ""}
+                              onChange={(e) => updateOption(idx, "label", e.target.value)}
+                              placeholder="Atendimento"
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="ia-select"
+                              value={o.departamento_id ?? ""}
+                              onChange={(e) => updateOption(idx, "departamento_id", e.target.value)}
+                            >
+                              <option value="">Selecione</option>
+                              {departamentos.map((d) => (
+                                <option key={d.id} value={d.id}>{d.nome}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={o.active !== false}
+                              onChange={(e) => updateOption(idx, "active", e.target.checked)}
+                              aria-label="Opção ativa"
+                            />
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="chatbot-btn-remove"
+                              onClick={() => removeOption(idx)}
+                              aria-label="Remover"
+                            >
+                              Remover
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {departamentos.length === 0 && (
+                  <p className="chatbot-hint">Cadastre departamentos em Configurações para vincular às opções.</p>
+                )}
+                <button type="button" className="chatbot-btn-add" onClick={addOption}>
+                  + Adicionar nova escolha
+                </button>
+              </>
             )}
-            <button type="button" className="chatbot-btn-add" onClick={addOption}>
-              + Adicionar nova escolha
-            </button>
           </div>
 
           {/* SEÇÃO 3 — Mensagem ao finalizar atendimento */}

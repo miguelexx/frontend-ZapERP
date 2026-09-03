@@ -36,6 +36,7 @@ export function buildTriagemPayload(vals) {
     transferMode: vals.transferMode ?? "departamento",
     reopenMenuCommand: String(vals.reopenMenuCommand ?? "0").trim() || "0",
     tipo_distribuicao: ["fila", "round_robin", "menor_carga"].includes(vals.tipo_distribuicao) ? vals.tipo_distribuicao : "fila",
+    usarMenuSetores: !!vals.usarMenuSetores,
     options: (vals.options || []).map((option) => ({
       key: String(option.key || "").trim(),
       label: (option.label || "").trim(),
