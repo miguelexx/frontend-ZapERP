@@ -17,6 +17,7 @@ import {
 } from "./chatListRowAtendimento";
 import { chatRowStableKey } from "./chatRowStableKey";
 import { getChatsPageMeta } from "./chatService";
+import { isBackendChatSearchTerm } from "./chatListSearchTerm";
 import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
 
 /** Admin UI (filtro lateral por funcionário): aceita role/perfil legado. */
@@ -502,7 +503,8 @@ export function buildCountsQueryParams({
 }) {
   const adminPorFuncionario =
     adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
-  const searchTerm = String(debouncedSearch || "").trim();
+  const searchTermRaw = String(debouncedSearch || "").trim();
+  const searchTerm = isBackendChatSearchTerm(searchTermRaw) ? searchTermRaw : "";
   const params = {
     tag_id: tagFilter !== "todas" ? tagFilter : undefined,
     departamento_id: departamentoFilter !== "todos" ? departamentoFilter : undefined,
@@ -564,7 +566,7 @@ export function buildChatListFetchParams({
 }) {
   const adminScope = getAdminAtendenteFilterScope({
     adminAtendenteFilterId, tab, onlyFinalizadasAusencia, aguardandoClienteOnly,
-    searchActive: Boolean(String(debouncedSearch || "").trim()),
+    searchActive: isBackendChatSearchTerm(debouncedSearch),
   });
   const adminPorFuncionario = adminScope != null;
   const finalAutoQuery = tab === "finalizadas_auto" || onlyFinalizadasAusencia;
@@ -573,7 +575,8 @@ export function buildChatListFetchParams({
   const pagamentoPendenteQuery =
     isFinanceiroUser && (tab === "pagamentos_pendentes" || pagamentosPendentesOnly);
   const emAtrasoQuery = isFinanceiroUser && (tab === "em_atraso" || emAtrasoOnly);
-  const searchTerm = String(debouncedSearch || "").trim();
+  const searchTermRaw = String(debouncedSearch || "").trim();
+  const searchTerm = isBackendChatSearchTerm(searchTermRaw) ? searchTermRaw : "";
   const pageLimit = getChatListPageLimit(isMobileLayout);
   const includeAllForSearch = searchTerm ? "1" : undefined;
   const searchBypassesTabFilters = Boolean(searchTerm);

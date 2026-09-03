@@ -10,6 +10,7 @@ import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimesta
 import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
 import { chatRowIsStaleForTab, conversaPertenceAMinhaFila, getAdminAtendenteFilterScope, rowMatchesPublishedListFilters } from "./chatListQueryHelpers";
 import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
+import { buildChatListFiltersScopeKey } from "./chatListFiltersData";
 
 export function digitsOnly(v) {
   return String(v || "").replace(/\D/g, "");
@@ -94,6 +95,63 @@ export function isModoSimplesRealtimeTab(tab) {
 /** Aba principal ao abrir a lista ou ao resetar filtros (ESC). */
 export function getDefaultChatListTab(user) {
   return isModoSimplesListaAtivo(user) ? "aguardando_atendente" : "minha_fila";
+}
+
+/**
+ * Chave do snapshot de rows por filtro (session + memória).
+ * Tem de bater com o join usado no boot da lista — senão o prefetch não hidrata.
+ */
+export function buildChatListFilterRequestKey({
+  tab,
+  debouncedSearch = "",
+  tagFilter = "todas",
+  departamentoFilter = "todos",
+  statusFilter = "todos",
+  atendenteFilter = "todos",
+  dataInicio = "",
+  dataFim = "",
+  mineOnly = false,
+  order = "recentes",
+  adminAtendenteFilterId = "",
+  onlyFinalizadasAusencia = false,
+  aguardandoClienteOnly = false,
+  pagamentosPendentesOnly = false,
+  emAtrasoOnly = false,
+  tempoParadoFilter = "",
+  conversaIdsPendenciaQuery = "",
+  separarMensagensDisparadasLigado = false,
+  filterScopeKey = "",
+} = {}) {
+  return [
+    tab,
+    debouncedSearch,
+    tagFilter,
+    departamentoFilter,
+    statusFilter,
+    atendenteFilter,
+    dataInicio,
+    dataFim,
+    mineOnly ? "mine" : "all",
+    order,
+    adminAtendenteFilterId ?? "",
+    onlyFinalizadasAusencia ? "auto" : "",
+    aguardandoClienteOnly ? "aguardando" : "",
+    pagamentosPendentesOnly ? "pag-pendente" : "",
+    emAtrasoOnly ? "em-atraso" : "",
+    tempoParadoFilter,
+    conversaIdsPendenciaQuery ?? "",
+    separarMensagensDisparadasLigado ? "sep-disparadas" : "",
+    filterScopeKey,
+  ].join("|");
+}
+
+/** Snapshot da aba padrão (filtros vazios) — usado no prefetch pós-auth. */
+export function buildDefaultChatListFilterRequestKey(user) {
+  return buildChatListFilterRequestKey({
+    tab: getDefaultChatListTab(user),
+    separarMensagensDisparadasLigado: user?.separar_mensagens_disparadas === true,
+    filterScopeKey: buildChatListFiltersScopeKey(user),
+  });
 }
 
 export function isToday(dateLike) {

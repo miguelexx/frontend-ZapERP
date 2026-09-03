@@ -13,7 +13,7 @@ import { shouldDeferLocalNotificationToWebPush } from "../push/pushPlatform"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById, fetchUnreadSnapshot } from "../chats/chatService"
 import { createUnreadSnapshotSync } from "../chats/unreadSnapshotSync"
-import { clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
+import { removeChatIdFromFilterRowCaches, clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
 import { buildChatListFiltersScopeKey } from "../chats/chatListFiltersData"
 import { createReconnectRecovery } from "./reconnectRecovery"
 import { useInternalChatNotifyStore } from "../internal-chat/internalChatNotifyStore"
@@ -49,10 +49,29 @@ const FILTER_CACHE_EVENTS = new Set([
   "tag_adicionada", "tag_removida", "contato_atualizado", "zapi_sync_contatos",
   "whatsapp_sync_mensagens_antigas",
 ])
+const BULK_FILTER_CACHE_EVENTS = new Set([
+  "zapi_sync_contatos",
+  "whatsapp_sync_mensagens_antigas",
+])
 
-function invalidateActiveFilterCaches() {
+function extractPayloadConversaId(payload) {
+  if (!payload || typeof payload !== "object") return null
+  const raw = payload.conversa_id ?? payload.conversaId ?? payload.chat_id ?? payload.conversa?.id
+  if (raw == null || String(raw).trim() === "") return null
+  return raw
+}
+
+function invalidateActiveFilterCaches(event, payload) {
   const user = getCurrentUserSnapshot()
-  if (user) clearChatListRowsFilterSessionCache(buildChatListFiltersScopeKey(user))
+  if (!user) return
+  const scopeKey = buildChatListFiltersScopeKey(user)
+  if (BULK_FILTER_CACHE_EVENTS.has(event)) {
+    clearChatListRowsFilterSessionCache(scopeKey)
+    return
+  }
+  const chatId = extractPayloadConversaId(payload)
+  if (chatId == null) return
+  removeChatIdFromFilterRowCaches(scopeKey, chatId)
 }
 
 /** Evita som duplo: após transferência, o destinatário ouve o som de handoff e suprime o beep de nova_mensagem uma vez. */
@@ -562,7 +581,10 @@ function requestChatListResyncIfLateralImpact(payload, listRowChanged, opts = {}
   ) {
     return false
   }
-  useChatStore.getState().requestChatListResync(opts.force === true ? { force: true } : {})
+  useChatStore.getState().requestChatListResync({
+    force: opts.force === true,
+    chatId: extractPayloadConversaId(payload),
+  })
   return true
 }
 
@@ -928,7 +950,7 @@ export function initSocket(token) {
   // Mudanças de acesso/status e leituras em outro dispositivo reconciliam o mesmo escopo.
   socket.onAny((event, payload) => {
     if (shouldIgnoreByCompany(payload)) return
-    if (FILTER_CACHE_EVENTS.has(event)) invalidateActiveFilterCaches()
+    if (FILTER_CACHE_EVENTS.has(event)) invalidateActiveFilterCaches(event, payload)
     if (["nova_mensagem", "nova_conversa", "mensagens_lidas", "mensagem_excluida",
       "conversa_atualizada", "atualizar_conversa", "conversa_apagada", "conversa_transferida",
       "conversa_atribuida", "conversa_encerrada", "conversa_reaberta"].includes(event)) {
@@ -965,7 +987,6 @@ export function initSocket(token) {
   off("contato_atualizado")
 
   socket.on("connect", () => {
-    invalidateActiveFilterCaches()
     currentConversationId = null
     const companyId = getCurrentCompanyId()
     if (companyId != null) {

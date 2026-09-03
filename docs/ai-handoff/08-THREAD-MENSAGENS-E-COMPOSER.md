@@ -8,7 +8,9 @@ Estado: `selectedId`, `conversa`, `mensagens`, `tags`, loading/erro, `lockedBy`,
 
 Cache in-memory de mensagens: Map TTL ~20 min, teto ~48 conversas.
 
-`carregarConversa`: abort + generation → shell da lista → `GET` chat → `mapDedupeKey` → merge com otimistas → `hydrateOutboxBubblesForConversa` → `join_conversa` + `marcar_conversa_lida` → `clearUnread`.
+`carregarConversa`: abort + generation → shell da lista → `GET` chat (`limit` 16 no mobile / 100 no desktop) → `mapDedupeKey` → merge com otimistas → `hydrateOutboxBubblesForConversa` → `join_conversa` + `marcar_conversa_lida` → `clearUnread`. Sem `refresh()` extra após um GET de abertura bem-sucedido.
+
+**Header (2026-09-03):** nome e foto vêm da row da lista (`fromChat` / `getDisplayName`) para não piscar quando o GET chega. Fallback para a conversa da API se a row não estiver no array atual.
 
 **Refresh concorrente (corrigido em 2026-09-02):** `refresh` captura a geração da abertura e possui seu próprio AbortController. Um novo refresh cancela o anterior; trocar/fechar a seleção ou limpar a store cancela ambos os tipos de GET. Uma resposta ou erro antigo não pode alterar mensagens, metadados, cursores nem loading da geração atual. Refresh solicitado durante a abertura aguarda sua conclusão, e apenas o mais recente segue. Teste `scripts/test-conversa-refresh-races.mjs`: 11 cenários, incluindo A→B→A, fechamento/reabertura da UI, erros atrasados, reset, concorrência e preservação de bolha otimista.
 

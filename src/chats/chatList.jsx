@@ -6,6 +6,7 @@ import {
   fetchChatsPages,
   fetchMinhaFilaChatsCompleto,
   fetchMinhaFilaChatsProgressivo,
+  fetchChatsProgressivo,
   CHAT_LIST_PRESERVE_MAX_PAGES,
   fetchChatCounts,
   getChatsPageMeta,
@@ -13,6 +14,7 @@ import {
   abrirConversaPorTelefone,
   postFinalizacaoAusenciaLote,
 } from "./chatService";
+import { takePrefetchedDefaultChatList } from "./prefetchDefaultChatList";
 import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
@@ -115,6 +117,25 @@ const MOBILE_PENDENCIAS_RESYNC_DELAY_MS = 1400;
 const OPTIMISTIC_MINHA_FILA_REMOVE_TTL_MS = 90_000;
 /** Contato oficial do Suporte ZapERP (DDD 34). */
 const SUPORTE_ZAPERP_WHATSAPP_URL = "https://wa.me/5534999911246";
+
+/** Filas menores que "Todas/Hoje": 1ª página na hora, resto em background. */
+const PROGRESSIVE_QUEUE_TABS = new Set([
+  "em_atendimento",
+  "aguardando_cliente",
+  "aguardando_atendente",
+  "pagamentos_pendentes",
+  "em_atraso",
+]);
+
+function progressiveQueueTabCount(tab, counts, fallbacks = {}) {
+  const c = counts && typeof counts === "object" ? counts : {};
+  if (tab === "em_atendimento") return Number(c.em_atendimento ?? fallbacks.emAtendimento) || 0;
+  if (tab === "aguardando_cliente") return Number(c.aguardando_cliente ?? fallbacks.aguardandoCliente) || 0;
+  if (tab === "aguardando_atendente") return Number(c.aguardando_atendente) || 0;
+  if (tab === "pagamentos_pendentes") return Number(c.pagamentos_pendentes ?? fallbacks.pagamentosPendentes) || 0;
+  if (tab === "em_atraso") return Number(c.em_atraso ?? fallbacks.emAtraso) || 0;
+  return 0;
+}
 
 /** IDs de conversas individuais em atendimento (para assistente de lote por ausência). */
 function collectEmAtendimentoIdsFromChats(list, max = 50) {
@@ -540,25 +561,39 @@ export default function ChatList() {
     if (!isAppAdmin(user)) clearAdminAtendenteFilter();
   }, [user?.perfil, user?.role, clearAdminAtendenteFilter]);
 
+  const lastCountsFetchedAtRef = useRef(0);
+  const lastCountsParamsKeyRef = useRef("");
   const refreshChatFilterCounts = useCallback(async (opts = {}) => {
+    const params = buildCountsQueryParams({
+      tagFilter,
+      departamentoFilter,
+      dataInicio,
+      dataFim,
+      debouncedSearch,
+      adminAtendenteFilterId,
+    });
+    const paramsKey = JSON.stringify(params);
+    const now = Date.now();
+    // Só pula GET após troca de aba/load secundário. Resync e mudança de filtro continuam buscando.
+    if (
+      opts.reuseIfFresh === true &&
+      paramsKey === lastCountsParamsKeyRef.current &&
+      now - lastCountsFetchedAtRef.current < 8000
+    ) {
+      return;
+    }
     const requestId = ++countsRequestIdRef.current;
     countsAbortRef.current?.abort();
     const controller = new AbortController();
     countsAbortRef.current = controller;
     try {
-      const params = buildCountsQueryParams({
-        tagFilter,
-        departamentoFilter,
-        dataInicio,
-        dataFim,
-        debouncedSearch,
-        adminAtendenteFilterId,
-      });
       const data = await fetchChatCounts(params, {
         signal: controller.signal,
         silent: opts.silent === true,
       });
       if (requestId !== countsRequestIdRef.current) return;
+      lastCountsFetchedAtRef.current = Date.now();
+      lastCountsParamsKeyRef.current = paramsKey;
       setChatFilterCounts(data || null);
       if (data?.minha_fila != null) {
         setMinhaFilaCount((prev) => {
@@ -686,6 +721,8 @@ export default function ChatList() {
         String(params.status_atendimento || "").toLowerCase() === "mensagem_disparada";
 
       const minhaFilaTab = !adminPorFuncionario && tab === "minha_fila" && !searchTerm;
+      const progressiveQueueTab =
+        !adminPorFuncionario && !searchTerm && PROGRESSIVE_QUEUE_TABS.has(tab);
       if (!background) {
         const cachedRows = hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey);
         if (cachedRows?.length) {
@@ -704,17 +741,78 @@ export default function ChatList() {
         CHAT_LIST_PRESERVE_MAX_PAGES,
         Math.max(1, Number(chatListPageRef.current?.pagesLoaded) || 1)
       );
-      const data = minhaFilaTab
-        ? await fetchMinhaFilaChatsProgressivo(params, { signal: abortController.signal }, (firstPage) => {
-            // Exibição imediata da 1ª página enquanto o resto carrega
-            if (requestId !== loadRequestIdRef.current) return;
-            let partial = filterOptimisticRemovedMinhaFila(firstPage);
-            partial = sortChatRowsByOrder(dedupeChatRowsByStableKey(partial), order);
-            setMinhaFilaList(partial);
-            setChats(partial);
-            setLoading(false);
-            setZapFilterSkeleton(false);
+      const applyMinhaFilaFirstPage = (firstPage) => {
+        if (requestId !== loadRequestIdRef.current) return;
+        let partial = filterOptimisticRemovedMinhaFila(firstPage);
+        partial = sortChatRowsByOrder(dedupeChatRowsByStableKey(partial), order);
+        setMinhaFilaList(partial);
+        setChats(partial);
+        setLoading(false);
+        setZapFilterSkeleton(false);
+      };
+      const applyQueueFirstPage = (firstPage) => {
+        if (requestId !== loadRequestIdRef.current) return;
+        let partial = Array.isArray(firstPage) ? firstPage : [];
+        if (TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tabRef.current || ""))) {
+          partial = filterOptimisticRemovedForTab(partial, tabRef.current);
+        }
+        partial = sortChatRowsByOrder(dedupeChatRowsByStableKey(partial), order);
+        setChats(partial);
+        setLoading(false);
+        setZapFilterSkeleton(false);
+      };
+      const prefetchedMinhaFila = minhaFilaTab
+        ? takePrefetchedDefaultChatList(user, filterRequestKey)
+        : null;
+      const queueBadgeCount = progressiveQueueTab
+        ? progressiveQueueTabCount(tab, chatFilterCounts, {
+            emAtendimento: emAtendimentoBadgeCount,
+            aguardandoCliente: aguardandoClienteBadgeCount,
+            pagamentosPendentes: pagamentosPendentesBadgeCount,
+            emAtraso: emAtrasoBadgeCount,
           })
+        : 0;
+      const queueMaxPages = progressiveQueueTab
+        ? Math.min(
+            CHAT_LIST_PRESERVE_MAX_PAGES,
+            Math.max(
+              pagesLoadedTarget,
+              queueBadgeCount > 0
+                ? Math.ceil(queueBadgeCount / pageLimit)
+                : CHAT_LIST_PRESERVE_MAX_PAGES
+            )
+          )
+        : pagesLoadedTarget;
+      const data = minhaFilaTab
+        ? prefetchedMinhaFila
+          ? await prefetchedMinhaFila.then((list) => {
+              if (!Array.isArray(list)) {
+                return fetchMinhaFilaChatsProgressivo(
+                  params,
+                  { signal: abortController.signal },
+                  applyMinhaFilaFirstPage,
+                  minhaFilaCount
+                );
+              }
+              applyMinhaFilaFirstPage(list);
+              return list;
+            })
+          : await fetchMinhaFilaChatsProgressivo(
+              params,
+              { signal: abortController.signal },
+              applyMinhaFilaFirstPage,
+              minhaFilaCount
+            )
+        : progressiveQueueTab
+          ? await fetchChatsProgressivo(
+              params,
+              {
+                signal: abortController.signal,
+                pageLimit,
+                maxPages: queueMaxPages,
+              },
+              applyQueueFirstPage
+            )
         : pagesLoadedTarget > 1
           ? await fetchChatsPages(params, {
               signal: abortController.signal,
@@ -827,7 +925,7 @@ export default function ChatList() {
             aguardandoClienteOnly,
             searchActive: Boolean(searchTerm),
             hiddenIds: adminPorFuncionario ? undefined : new Set(optimisticRemovedMinhaFilaRef.current.keys()),
-            incomingIsComplete: minhaFilaTab,
+            incomingIsComplete: minhaFilaTab || (progressiveQueueTab && !getChatsPageMeta(data).hasMore),
           });
         }
         if (strictListTabs.has(tab)) return sortChatListByRecent(merged);
@@ -855,7 +953,7 @@ export default function ChatList() {
       const runSecondaryRefreshes = () => {
         if (rid !== loadRequestIdRef.current) return;
         const scope = filterScopeKey;
-        void runAuxBadgeFetch(scope, "chatCounts", () => refreshChatFilterCounts({ silent: true }));
+        void runAuxBadgeFetch(scope, "chatCounts", () => refreshChatFilterCounts({ silent: true, reuseIfFresh: true }));
         void runAuxBadgeFetch(scope, "supervisao", () => refreshSupervisaoData());
         void refreshMinhasPendenciasRef.current?.();
       };

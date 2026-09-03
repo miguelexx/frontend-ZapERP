@@ -45,7 +45,8 @@ import { hydrateOutboxBubblesForConversa } from "./offlineOutbox.js"
 export { stableSyntheticMessageKey, mapDedupeKey, getMessageListReactKey, isPendingOutgoingTemp }
 
 const PAGE_LIMIT = 100
-const MOBILE_INITIAL_PAGE_LIMIT = 28
+/** Mobile: uma tela de bolhas + um pouco de overscan; o resto vem no loadMore. */
+const MOBILE_INITIAL_PAGE_LIMIT = 16
 const LOAD_ALL_MESSAGES_MAX_PAGES = 200
 
 function mensagemStatusPatchChanges(cur, merged, partial) {
@@ -277,7 +278,6 @@ let carregarConversaGeneration = 0
 let carregarConversaAbortController = null
 let carregarConversaCompletion = null
 let refreshConversaAbortController = null
-let conversaStoreGetState = null
 
 function isAbortError(err) {
   if (!err) return false
@@ -309,28 +309,6 @@ function isMobileViewport() {
 
 function getInitialMessagesLimit() {
   return isMobileViewport() ? MOBILE_INITIAL_PAGE_LIMIT : PAGE_LIMIT
-}
-
-function scheduleSilentRefreshAfterOpen(normalizedId, generation, opts = {}) {
-  if (typeof window === "undefined") return
-  if (isMobileViewport()) return
-  if (opts.skipIfMessagesLoaded) return
-
-  const run = () => {
-    const getState = conversaStoreGetState
-    if (!getState) return
-    if (generation !== carregarConversaGeneration) return
-    if (String(getState().selectedId) !== String(normalizedId)) return
-    const st = getState()
-    if (st.loading || st.loadError) return
-    getState().refresh({ silent: true })
-  }
-
-  if (typeof window.requestIdleCallback === "function") {
-    window.requestIdleCallback(run, { timeout: 3000 })
-    return
-  }
-  window.setTimeout(run, 1200)
 }
 
 // ⭐ OTIMIZAÇÃO: Cache em memória do usuário para evitar I/O excessivo no localStorage
@@ -448,7 +426,6 @@ function normalizeIncomingMessageForCurrentConversation(raw, fallbackConversaId)
 }
 
 export const useConversaStore = create((set, get) => {
-  conversaStoreGetState = get
   const pendingAnexar = []
   let anexarFlushScheduled = false
 
@@ -917,10 +894,8 @@ export const useConversaStore = create((set, get) => {
           })
         }
 
-        const skipSilentRefresh = !blockedViewer && Array.isArray(apiMensagens) && apiMensagens.length > 0
-        scheduleSilentRefreshAfterOpen(normalizedId, generation, {
-          skipIfMessagesLoaded: skipSilentRefresh,
-        })
+        // Não disparar refresh() extra: o GET de abertura já trouxe o recorte.
+        // Mensagens que chegarem no meio do load entram pelo socket (join_conversa).
       } catch (err) {
         if (isAbortError(err)) return
         if (generation !== carregarConversaGeneration) return

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthStore } from "../../auth/authStore";
 import { isSupervisorOrAdmin } from "../../auth/permissions";
-import { getDefaultChatListTab } from "../chatListFilters";
+import { buildChatListFilterRequestKey, getDefaultChatListTab } from "../chatListFilters";
+import { isBackendChatSearchTerm } from "../chatListSearchTerm";
 
 /**
  * Estado serializável dos filtros da lista (abas, busca, avançados).
@@ -25,7 +26,9 @@ export function useChatListFilterState({
   const [searchClearNonce, setSearchClearNonce] = useState(0);
 
   const handleSearchDebounced = useCallback((t) => {
-    setDebouncedSearch(t);
+    const trimmed = String(t || "").trim();
+    // 1 caractere: só filtro local (searchInput). Backend espera ≥ 2.
+    setDebouncedSearch(isBackendChatSearchTerm(trimmed) ? t : "");
   }, []);
   const handleSearchInputChange = useCallback((t) => {
     setSearchInput(t);
@@ -115,7 +118,7 @@ export function useChatListFilterState({
     }
   }, [separarMensagensDisparadasLigado, statusFilter]);
 
-  const filterRequestKey = [
+  const filterRequestKey = buildChatListFilterRequestKey({
     tab,
     debouncedSearch,
     tagFilter,
@@ -124,19 +127,19 @@ export function useChatListFilterState({
     atendenteFilter,
     dataInicio,
     dataFim,
-    mineOnly ? "mine" : "all",
+    mineOnly,
     order,
-    adminAtendenteFilterId ?? "",
-    onlyFinalizadasAusencia ? "auto" : "",
-    aguardandoClienteOnly ? "aguardando" : "",
-    pagamentosPendentesOnly ? "pag-pendente" : "",
-    emAtrasoOnly ? "em-atraso" : "",
+    adminAtendenteFilterId,
+    onlyFinalizadasAusencia,
+    aguardandoClienteOnly,
+    pagamentosPendentesOnly,
+    emAtrasoOnly,
     tempoParadoFilter,
-    conversaIdsPendenciaQuery ?? "",
-    separarMensagensDisparadasLigado ? "sep-disparadas" : "",
+    conversaIdsPendenciaQuery,
+    separarMensagensDisparadasLigado,
     filterScopeKey,
-  ].join("|");
-  const filterRequestBaseKey = [
+  });
+  const filterRequestBaseKey = buildChatListFilterRequestKey({
     tab,
     tagFilter,
     departamentoFilter,
@@ -144,18 +147,18 @@ export function useChatListFilterState({
     atendenteFilter,
     dataInicio,
     dataFim,
-    mineOnly ? "mine" : "all",
+    mineOnly,
     order,
-    adminAtendenteFilterId ?? "",
-    onlyFinalizadasAusencia ? "auto" : "",
-    aguardandoClienteOnly ? "aguardando" : "",
-    pagamentosPendentesOnly ? "pag-pendente" : "",
-    emAtrasoOnly ? "em-atraso" : "",
+    adminAtendenteFilterId,
+    onlyFinalizadasAusencia,
+    aguardandoClienteOnly,
+    pagamentosPendentesOnly,
+    emAtrasoOnly,
     tempoParadoFilter,
-    conversaIdsPendenciaQuery ?? "",
-    separarMensagensDisparadasLigado ? "sep-disparadas" : "",
+    conversaIdsPendenciaQuery,
+    separarMensagensDisparadasLigado,
     filterScopeKey,
-  ].join("|");
+  });
 
   const handleStatusFilterChange = useCallback((value) => {
     clearChatSearch();

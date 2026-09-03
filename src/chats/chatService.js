@@ -256,6 +256,83 @@ export async function fetchChatsPages(params = {}, options = {}) {
 }
 
 /**
+ * Primeira página imediata + restante em background (mesmo contrato da Minha fila).
+ * Se maxPages esgotar com has_more, preserva cursor para "Carregar mais".
+ */
+export async function fetchChatsProgressivo(params = {}, options = {}, onFirstPage) {
+  const pageLimit = Math.min(
+    250,
+    Math.max(1, Number(options.pageLimit) || Number(params.limit) || 80)
+  );
+  const maxPages = Math.min(
+    CHAT_LIST_PAGES_HARD_MAX,
+    Math.max(1, Number(options.maxPages) || 1)
+  );
+  const base = { ...params, limit: pageLimit };
+  delete base.cursor;
+  delete base.cursorId;
+  delete base.cursor_id;
+
+  const firstData = await fetchChats(base, options);
+  const firstList = Array.isArray(firstData) ? firstData : [];
+  const firstMeta = getChatsPageMeta(firstData);
+
+  if (!firstMeta.hasMore || !firstMeta.nextCursor || maxPages <= 1) {
+    return attachChatsPageMeta(firstList, {
+      hasMore: Boolean(firstMeta.hasMore && firstMeta.nextCursor && maxPages <= 1),
+      nextCursor: maxPages <= 1 ? firstMeta.nextCursor : null,
+      nextCursorId: maxPages <= 1 ? firstMeta.nextCursorId : null,
+      totalCount: firstMeta.totalCount ?? firstList.length,
+      pagesLoaded: 1,
+    });
+  }
+
+  if (typeof onFirstPage === "function") {
+    onFirstPage(firstList);
+  }
+
+  let merged = [...firstList];
+  let cursor = firstMeta.nextCursor;
+  let cursorId = firstMeta.nextCursorId;
+  let totalCount = firstMeta.totalCount;
+  let pagesLoaded = 1;
+  let lastMeta = firstMeta;
+
+  for (let page = 1; page < maxPages; page += 1) {
+    const data = await fetchChats(
+      { ...base, cursor, cursorId },
+      options
+    );
+    const list = Array.isArray(data) ? data : [];
+    const meta = getChatsPageMeta(data);
+    merged = merged.concat(list);
+    totalCount = meta.totalCount ?? totalCount;
+    pagesLoaded += 1;
+    lastMeta = meta;
+
+    if (!meta.hasMore || !meta.nextCursor) {
+      return attachChatsPageMeta(merged, {
+        hasMore: false,
+        nextCursor: null,
+        nextCursorId: null,
+        totalCount: totalCount ?? merged.length,
+        pagesLoaded,
+      });
+    }
+    cursor = meta.nextCursor;
+    cursorId = meta.nextCursorId;
+  }
+
+  return attachChatsPageMeta(merged, {
+    hasMore: Boolean(lastMeta.hasMore && lastMeta.nextCursor),
+    nextCursor: lastMeta.nextCursor || null,
+    nextCursorId: lastMeta.nextCursorId ?? null,
+    totalCount: totalCount ?? merged.length,
+    pagesLoaded,
+  });
+}
+
+/**
  * GET /chats?minha_fila=1 — busca todas as páginas até esgotar has_more.
  * Usado na aba "Minha fila" para não exigir "Carregar mais conversas".
  */
@@ -289,11 +366,29 @@ export async function fetchMinhaFilaChatsCompleto(params = {}, options = {}) {
  * depois completa o fetch de todas as páginas restantes e retorna o array completo.
  * Se a fila cabe em uma página, `onFirstPage` não é chamado (retorno direto).
  */
-export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, onFirstPage) {
+/**
+ * Calcula o máximo de páginas necessárias com base no count do badge.
+ * Evita buscar 50 páginas quando o badge já diz que a fila é pequena.
+ */
+function getMinhaFilaMaxPages(badgeCount) {
+  if (badgeCount == null || !Number.isFinite(badgeCount) || badgeCount <= 0) {
+    return MINHA_FILA_MAX_AUTO_PAGES;
+  }
+  return Math.max(
+    1,
+    Math.min(
+      MINHA_FILA_MAX_AUTO_PAGES,
+      Math.ceil(badgeCount / CHAT_LIST_MINHA_FILA_PAGE_LIMIT)
+    )
+  );
+}
+
+export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, onFirstPage, badgeCount) {
   if (String(params.palavra || "").trim()) {
     const { minha_fila: _minhaFila, ...searchParams } = params;
     return fetchChats(searchParams, options);
   }
+  const maxPages = getMinhaFilaMaxPages(badgeCount);
   const base = { ...params, minha_fila: "1", limit: CHAT_LIST_MINHA_FILA_PAGE_LIMIT };
   delete base.cursor;
   delete base.cursorId;
@@ -314,19 +409,30 @@ export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, 
     });
   }
 
+  // Se o badge indica que cabe numa página, parar aqui
+  if (maxPages <= 1) {
+    return attachChatsPageMeta(firstList, {
+      hasMore: false,
+      nextCursor: null,
+      nextCursorId: null,
+      totalCount: firstMeta.totalCount ?? firstList.length,
+      pagesLoaded: 1,
+    });
+  }
+
   // Temos mais páginas — entrega a 1ª imediatamente para UI
   if (typeof onFirstPage === "function") {
     onFirstPage(firstList);
   }
 
-  // Páginas restantes
+  // Páginas restantes (limitado pelo badge count)
   let merged = [...firstList];
   let cursor = firstMeta.nextCursor;
   let cursorId = firstMeta.nextCursorId;
   let totalCount = firstMeta.totalCount;
   let pagesLoaded = 1;
 
-  for (let page = 1; page < MINHA_FILA_MAX_AUTO_PAGES; page += 1) {
+  for (let page = 1; page < maxPages; page += 1) {
     const data = await fetchChats(
       { ...base, cursor, cursorId },
       options

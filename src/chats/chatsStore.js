@@ -99,8 +99,21 @@ function withUnreadTotal(chats, state) {
 let chatListResyncDebounceTimer = null
 let chatListResyncMaxWaitTimer = null
 let chatListResyncWindowStart = 0
+const pendingResyncChatIds = new Set()
 const CHAT_LIST_RESYNC_DEBOUNCE_MS = 180
 const CHAT_LIST_RESYNC_MAX_WAIT_MS = 700
+
+function rememberResyncChatId(opts = {}) {
+  const raw = opts.chatId ?? opts.conversa_id
+  if (raw == null || String(raw).trim() === "") return
+  pendingResyncChatIds.add(String(raw))
+}
+
+function takePendingResyncChatIds() {
+  const ids = [...pendingResyncChatIds]
+  pendingResyncChatIds.clear()
+  return ids
+}
 
 /** Ordena conversas por última mensagem/atividade DESC (mais recente no topo). */
 function sortConversasByRecent(arr) {
@@ -163,6 +176,8 @@ export const useChatStore = create((set, get) => ({
   chatListResyncNonce: 0,
   /** Quando true, o próximo effect de resync em chatList ignora o throttle de 2,5s (ex.: reconnect). */
   chatListResyncForce: false,
+  /** Conversas que motivaram o último resync — invalidação cirúrgica do cache de filtros. */
+  chatListResyncChatIds: [],
   chatListOptimisticMutation: null,
   chatListOptimisticMutationNonce: 0,
   /** id → { expiresAt } — encerrar otimista; o socket consulta antes de addChat. */
@@ -232,6 +247,7 @@ export const useChatStore = create((set, get) => ({
 
   requestChatListResync: (opts = {}) => {
     const force = opts?.force === true
+    rememberResyncChatId(opts)
     const now = Date.now()
     if (!chatListResyncWindowStart) chatListResyncWindowStart = now
 
@@ -241,9 +257,11 @@ export const useChatStore = create((set, get) => ({
       chatListResyncDebounceTimer = null
       chatListResyncMaxWaitTimer = null
       chatListResyncWindowStart = 0
+      const chatIds = takePendingResyncChatIds()
       set((s) => ({
         chatListResyncNonce: (s.chatListResyncNonce || 0) + 1,
         chatListResyncForce: force === true ? true : s.chatListResyncForce === true,
+        chatListResyncChatIds: chatIds,
       }))
     }
 
@@ -798,7 +816,8 @@ export const useChatStore = create((set, get) => ({
   /* =========================================
      RESET
   ========================================= */
-  limpar: () =>
+  limpar: () => {
+    pendingResyncChatIds.clear()
     set({
       chats: [],
       unreadTotal: 0,
@@ -810,10 +829,12 @@ export const useChatStore = create((set, get) => ({
       loading: false,
       chatListResyncNonce: 0,
       chatListResyncForce: false,
+      chatListResyncChatIds: [],
       chatListOptimisticMutation: null,
       chatListOptimisticMutationNonce: 0,
       chatListHiddenClosed: {},
     })
+  },
 }))
 
 export function getChatByIdFromStore(id, chats) {

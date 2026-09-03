@@ -48,21 +48,25 @@ O filtro **Campanhas** (`GET /chats?campanhas=1`) só aparece se `user.modulo_ca
 
 Página: **80** desktop / **40** mobile (`CHAT_LIST_*_PAGE_LIMIT`). Cursor: `hasMore`, `nextCursor`, `nextCursorId` via `fetchChats` / `fetchChatsPages`.
 
-Busca: termo local no filho → debounce no pai → refetch ou filtro. Admin: `AdminAtendenteFilter`. Match por nome principal ou nome vinculado (`encontrado_por` discreto no card; o título continua o nome principal).
+Busca: termo local no filho (imediato) → debounce 350 ms no pai → GET só com **2+ caracteres** (ou 2+ dígitos). 1 caractere não dispara `incluir_todos_clientes=1`. Admin: `AdminAtendenteFilter`. Match por nome principal ou nome vinculado (`encontrado_por` discreto no card; o título continua o nome principal).
 
-**Busca na Minha fila (corrigida em 2026-09-02):** termo não vazio usa GET global autorizado, sem `minha_fila=1` nem filtragem pela aba na resposta, no cache ou na paginação. O rodapé de paginação funciona durante a busca. Filtros explícitos, inclusive funcionário, permanecem. Sem busca, a fila continua buscando todas as páginas. Validação e limites em `../audits/correcoes-busca-teclado-status-midia-2026-09-02.md`.
+**Busca na Minha fila (corrigida em 2026-09-02):** termo de 2+ caracteres usa GET global autorizado, sem `minha_fila=1` nem filtragem pela aba na resposta, no cache ou na paginação. O rodapé de paginação funciona durante a busca. Filtros explícitos, inclusive funcionário, permanecem. Sem busca, a fila continua buscando todas as páginas.
+
+**Abas de fila (2026-09-03):** `em_atendimento`, `aguardando_cliente`, `aguardando_atendente`, `pagamentos_pendentes` e `em_atraso` usam `fetchChatsProgressivo` (1ª página na hora, resto em background, teto pelo badge). **Todas** e **Hoje** continuam só com paginação.
 
 ## Cache de sidebar — `chatListSidebarCache.js`
 
 | Função | TTL / limite |
 |--------|----------------|
 | hydrate/persist sidebar session | ~2 min; máx. ~400 rows |
-| hydrate/persist rows por filtro | 45 s em memória e sessionStorage; reidratar não renova a idade |
+| hydrate/persist rows por filtro | 120 s em memória e sessionStorage; reidratar não renova a idade |
 | `sanitizeChatRowForSidebarCache` | metadados + preview curto (**sem** thread) |
 
 Scope key: empresa + usuário. É stale-while-revalidate, não fonte de verdade.
 
-**Invalidação (2026-09-02):** resync limpa os filtros do escopo em desktop e mobile. Eventos de dados da lista e reconexão invalidam também quando a lista não está montada. GET principal e paginação capturam uma revisão do cache: uma resposta iniciada antes da invalidação não pode gravar novamente o snapshot. Logout limpa memória e sessão; vazio conhecido continua diferente de cache ausente.
+**Invalidação (2026-09-03):** resync e eventos de uma conversa usam `removeChatIdFromFilterRowCaches` (não apagam o snapshot da aba). Só sync em massa (`zapi_sync_contatos`, `whatsapp_sync_mensagens_antigas`) e logout limpam o cache do escopo. Reconexão **não** zera os filtros — o `load({ background: true })` atualiza a aba atual. GET principal e paginação capturam uma revisão do cache: uma resposta iniciada antes da invalidação não pode gravar novamente o snapshot. Vazio conhecido continua diferente de cache ausente.
+
+**Prefetch pós-auth (2026-09-03):** `prefetchDefaultChatList` dispara `GET /chats?minha_fila=1` no `login` e no `restore`, em paralelo com permissões/empresa. Grava o snapshot com a mesma `filterRequestKey` da aba padrão. O `load()` da lista reutiliza o GET em voo (ou o resultado com menos de 8 s) para não buscar de novo.
 
 **Hint (2026-09-02):** mostra o total informado pela consulta sem aumentá-lo para igualar os cards. Se existem 6 cards e o total é 2, mostra `6 de 2`. Mantidos os estados de carga/busca e a apresentação por funcionário.
 

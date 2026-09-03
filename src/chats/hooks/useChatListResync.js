@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useChatStore } from "../chatsStore";
-import { clearChatListRowsFilterSessionCache } from "../chatListSidebarCache";
+import { removeChatIdFromFilterRowCaches } from "../chatListSidebarCache";
 
 const CHAT_LIST_RESYNC_THROTTLE_MS = 2500;
 
@@ -43,7 +43,10 @@ export function useChatListResync({
     if (forceResync) {
       useChatStore.setState({ chatListResyncForce: false });
     }
-    clearChatListRowsFilterSessionCache(filterScopeKey);
+    const affectedIds = useChatStore.getState().chatListResyncChatIds || [];
+    for (const chatId of affectedIds) {
+      removeChatIdFromFilterRowCaches(filterScopeKey, chatId);
+    }
     if (loadInFlightRef.current) {
       if (throttleLoadTimerRef.current) {
         clearTimeout(throttleLoadTimerRef.current);

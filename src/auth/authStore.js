@@ -4,6 +4,7 @@ import { getUsuarioMe } from "../api/configService"
 import { initSocket, disconnectSocket } from "../socket/socket"
 import { useChatStore } from "../chats/chatsStore"
 import { clearChatListSidebarSessionCache } from "../chats/chatListSidebarCache"
+import { prefetchDefaultChatList } from "../chats/prefetchDefaultChatList"
 import { useConversaStore } from "../conversa/conversaStore"
 import { usePermissoesStore } from "./permissoesStore"
 import { unsubscribeWebPush, resetPushRegistrationDebounce } from "../push/webPushClient"
@@ -86,6 +87,8 @@ export const useAuthStore = create((set, get) => ({
       get().syncUsuarioMe?.().catch(() => {})
 
       useEmpresaStore.getState().fetchEmpresa().catch(() => {})
+
+      prefetchDefaultChatList(userNormalizado).catch(() => {})
 
       return data
     } catch (err) {
@@ -196,6 +199,7 @@ export const useAuthStore = create((set, get) => ({
       })
 
       initSocket(parsed.token)
+      prefetchDefaultChatList(userNormalizado).catch(() => {})
 
       queueMicrotask(() => {
         get()

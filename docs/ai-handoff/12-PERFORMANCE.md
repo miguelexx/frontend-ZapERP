@@ -14,6 +14,10 @@
 - Thread: rows de timeline reutilizam o objeto quando a mensagem de origem não mudou (WeakMap).
 - Abertura da conversa: máscara até `onOpenSnapReady` (settle do virtualizer); header sticky da lista (`fromChat`) para não recarregar foto; `.wa-bubble` sem fade global (só `.zap-message-enter` em mensagem nova).
 - Cache: sessionStorage da sidebar; Map de mensagens por conversa.
+- Prefetch da aba padrão (`GET /chats?minha_fila=1`) no login/restore; `load()` reutiliza se ainda fresco.
+- Resync do socket remove só a conversa afetada do cache de filtros (sem skeleton ao voltar para Minha fila).
+- Abertura da thread no mobile: `GET /chats/:id` com 16 mensagens; header usa nome/foto da lista.
+- Busca global só com 2+ caracteres; 1 caractere filtra só as linhas já carregadas.
 - Boot mobile staggered (não disparar todos os GETs no primeiro paint).
 - Recuperação de preload Vite (`runtime`) para chunk 404 após deploy.
 

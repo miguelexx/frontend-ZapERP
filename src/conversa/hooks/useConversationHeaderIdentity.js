@@ -58,7 +58,7 @@ export function useConversationHeaderIdentity({
     };
     const aberto = valid(conversa ? getDisplayName(conversa) : "");
     const lista = valid(nomeLista);
-    if (aberto && lista && aberto !== lista) return aberto;
+    // Header estável: a row da lista já tem nome/foto; o GET não deve trocar o título ao chegar.
     if (lista) return lista;
     if (aberto) return aberto;
     if (isGroup) {
