@@ -5,6 +5,7 @@ import {
   fetchChats,
   fetchChatsPages,
   fetchMinhaFilaChatsCompleto,
+  fetchMinhaFilaChatsProgressivo,
   CHAT_LIST_PRESERVE_MAX_PAGES,
   fetchChatCounts,
   getChatsPageMeta,
@@ -704,7 +705,16 @@ export default function ChatList() {
         Math.max(1, Number(chatListPageRef.current?.pagesLoaded) || 1)
       );
       const data = minhaFilaTab
-        ? await fetchMinhaFilaChatsCompleto(params, { signal: abortController.signal })
+        ? await fetchMinhaFilaChatsProgressivo(params, { signal: abortController.signal }, (firstPage) => {
+            // Exibição imediata da 1ª página enquanto o resto carrega
+            if (requestId !== loadRequestIdRef.current) return;
+            let partial = filterOptimisticRemovedMinhaFila(firstPage);
+            partial = sortChatRowsByOrder(dedupeChatRowsByStableKey(partial), order);
+            setMinhaFilaList(partial);
+            setChats(partial);
+            setLoading(false);
+            setZapFilterSkeleton(false);
+          })
         : pagesLoadedTarget > 1
           ? await fetchChatsPages(params, {
               signal: abortController.signal,

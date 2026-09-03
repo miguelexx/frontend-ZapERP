@@ -285,6 +285,73 @@ export async function fetchMinhaFilaChatsCompleto(params = {}, options = {}) {
 }
 
 /**
+ * Minha fila em duas fases: retorna a 1ª página imediatamente via `onFirstPage`,
+ * depois completa o fetch de todas as páginas restantes e retorna o array completo.
+ * Se a fila cabe em uma página, `onFirstPage` não é chamado (retorno direto).
+ */
+export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, onFirstPage) {
+  if (String(params.palavra || "").trim()) {
+    const { minha_fila: _minhaFila, ...searchParams } = params;
+    return fetchChats(searchParams, options);
+  }
+  const base = { ...params, minha_fila: "1", limit: CHAT_LIST_MINHA_FILA_PAGE_LIMIT };
+  delete base.cursor;
+  delete base.cursorId;
+  delete base.cursor_id;
+
+  // 1ª página — retorno rápido
+  const firstData = await fetchChats(base, options);
+  const firstList = Array.isArray(firstData) ? firstData : [];
+  const firstMeta = getChatsPageMeta(firstData);
+
+  if (!firstMeta.hasMore || !firstMeta.nextCursor) {
+    return attachChatsPageMeta(firstList, {
+      hasMore: false,
+      nextCursor: null,
+      nextCursorId: null,
+      totalCount: firstMeta.totalCount ?? firstList.length,
+      pagesLoaded: 1,
+    });
+  }
+
+  // Temos mais páginas — entrega a 1ª imediatamente para UI
+  if (typeof onFirstPage === "function") {
+    onFirstPage(firstList);
+  }
+
+  // Páginas restantes
+  let merged = [...firstList];
+  let cursor = firstMeta.nextCursor;
+  let cursorId = firstMeta.nextCursorId;
+  let totalCount = firstMeta.totalCount;
+  let pagesLoaded = 1;
+
+  for (let page = 1; page < MINHA_FILA_MAX_AUTO_PAGES; page += 1) {
+    const data = await fetchChats(
+      { ...base, cursor, cursorId },
+      options
+    );
+    const list = Array.isArray(data) ? data : [];
+    const meta = getChatsPageMeta(data);
+    merged = merged.concat(list);
+    totalCount = meta.totalCount ?? totalCount;
+    pagesLoaded += 1;
+
+    if (!meta.hasMore || !meta.nextCursor) break;
+    cursor = meta.nextCursor;
+    cursorId = meta.nextCursorId;
+  }
+
+  return attachChatsPageMeta(merged, {
+    hasMore: false,
+    nextCursor: null,
+    nextCursorId: null,
+    totalCount: totalCount ?? merged.length,
+    pagesLoaded,
+  });
+}
+
+/**
  * Resposta de GET /chats com `incluir_colaboradores_encaminhar=1`: objeto com conversas + colaboradores.
  * @param {unknown} data
  * @returns {{ conversas: any[]; colaboradores_encaminhar: any[] }}

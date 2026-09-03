@@ -9,7 +9,7 @@
  */
 
 const SIDEBAR_TTL_MS = 2 * 60 * 1000;
-const FILTER_ROWS_TTL_MS = 45 * 1000;
+const FILTER_ROWS_TTL_MS = 120 * 1000;
 const FILTER_ROWS_MEMORY_MAX = 24;
 const filterRowsMemoryCache = new Map();
 let cacheRevision = 0;
