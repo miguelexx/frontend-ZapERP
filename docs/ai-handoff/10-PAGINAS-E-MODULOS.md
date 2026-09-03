@@ -24,6 +24,8 @@ Importar clientes (`ClientesSection.jsx`): `POST /clientes/importar/preview` e `
 
 Atualizado em 2026-08-27: `pages/IA.jsx` é uma fachada de 1 linha para `ia/IaShell.jsx`. As seções vivem em `ia/{triagem,respostas,configuracoes,automacoes,alertas,logs,preview,gestores}` e são carregadas sob demanda. Defaults, normalização, cache por empresa e payloads ficam em `ia/shared`, `ia/triagem/triagemPayload.js` e `ia/alertas/alertaPayload.js`. Relatório e testes: `docs/OTIMIZACAO_FRONTEND_IA.md` e `e2e/ia-local-mock.spec.js`.
 
+Triagem pode ligar **só a mensagem de boas-vindas** (`usarMenuSetores: false` + checkbox “apenas na primeira vez”). O envio é no backend (`chatbotTriageService`): única = esta mensagem ainda não foi enviada nesta conversa; menu antigo de setores / `bot_logs` velho não bloqueia. Reiniciar o backend após alterar o serviço.
+
 ## Permissões — `pages/Permissoes.jsx` + `SecaoPermissoes.jsx`
 
 `usuarios_acessar`. Catálogo + GET/PUT por usuário. `?usuario=`.
