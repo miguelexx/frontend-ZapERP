@@ -56,3 +56,32 @@ export function viewerCanSeeConversationRow(row, user) {
   if (!convDep) return true;
   return getUserDepartamentoIdSet(user).has(convDep);
 }
+
+/**
+ * Aplica setor/atendente de um payload socket na row da lista.
+ * Se o evento traz `departamento_id` mas omite `atendente_id` (URA/chatbot),
+ * não herda o atendente stale — senão a exceção "assumida por mim" impede o drop.
+ */
+export function applySetorPayloadToChatRow(row, payload) {
+  const next = { ...(row || {}) };
+  if (!payload || typeof payload !== "object") return next;
+  if ("departamento_id" in payload) {
+    next.departamento_id = payload.departamento_id;
+    if (payload.departamento_id == null) {
+      next.setor = null;
+      if (!("departamento" in payload)) next.departamento = null;
+      next.departamentos = null;
+    }
+  }
+  if ("departamento" in payload) next.departamento = payload.departamento;
+  if ("atendente_id" in payload) {
+    next.atendente_id = payload.atendente_id;
+  } else if ("departamento_id" in payload) {
+    next.atendente_id = null;
+  }
+  if ("atendente_nome" in payload) next.atendente_nome = payload.atendente_nome;
+  if ("status_atendimento" in payload && payload.status_atendimento != null) {
+    next.status_atendimento = payload.status_atendimento;
+  }
+  return next;
+}

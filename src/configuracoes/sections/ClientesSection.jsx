@@ -25,7 +25,7 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
   const navigate = useNavigate();
   const addChat = useChatStore((s) => s.addChat);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
-  const { syncing, syncResult, iniciar: handleSincronizarContatos } = useContactSync(onSyncContacts);
+  const { syncing, cancelling, syncResult, iniciar: handleSincronizarContatos, cancelar: handlePararSincronizacao } = useContactSync(onSyncContacts);
   const [syncingFotos, setSyncingFotos] = useState(false);
   const [syncFotosResult, setSyncFotosResult] = useState(null);
   const [busca, setBusca] = useState("");
@@ -168,21 +168,38 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
         <p className="ia-muted">Importe os contatos da agenda disponibilizada pelo WhatsApp, com nomes e fotos disponíveis. A importação começa somente ao clicar no botão.</p>
-        <button
-          type="button"
-          className="ia-btn ia-btn--primary"
-          disabled={syncing}
-          onClick={handleSincronizarContatos}
-        >
-          {syncing ? "Sincronizando…" : "Sincronizar contatos do celular"}
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button
+            type="button"
+            className="ia-btn ia-btn--primary"
+            disabled={syncing}
+            onClick={handleSincronizarContatos}
+          >
+            {syncing ? "Sincronizando…" : "Sincronizar contatos do celular"}
+          </button>
+          {syncing && (
+            <button
+              type="button"
+              className="ia-btn ia-btn--outline"
+              style={{ color: "#dc2626", borderColor: "#dc2626" }}
+              disabled={cancelling}
+              onClick={handlePararSincronizacao}
+            >
+              {cancelling ? "Parando…" : "Parar importação"}
+            </button>
+          )}
+        </div>
         {syncResult && (
           <>
             <p className="ia-muted" role="status" aria-live="polite" style={{ marginTop: 8 }}>
-              {syncResult.error ? syncResult.error : syncing
+              {syncResult.error ? syncResult.error : syncResult.cancelando || cancelling
+                ? "Interrompendo a importação… aguarde o encerramento do lote atual."
+                : syncing
                 ? (syncResult.total_agenda
                   ? `Sincronizando: ${syncResult.verificados ?? 0} de ${syncResult.total_agenda} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`
                   : syncResult.message || "Buscando contatos na UltraMSG…")
+                : syncResult.cancelado
+                ? `Importação interrompida: ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos até aqui. Os contatos já importados foram mantidos.`
                 : `Sincronização concluída: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`}
             </p>
             {syncResult.aviso ? (

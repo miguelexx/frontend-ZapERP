@@ -31,6 +31,9 @@ try {
     "/src/chats/chatListRowAtendimento.js"
   );
   const { useChatStore } = await vite.ssrLoadModule("/src/chats/chatsStore.js");
+  const { applySetorPayloadToChatRow, viewerCanSeeConversationRow } = await vite.ssrLoadModule(
+    "/src/conversa/utils/conversaAccessHelpers.js"
+  );
 
   const base = {
     tab: "minha_fila",
@@ -280,6 +283,74 @@ try {
   assert.equal(
     shouldRemoveChatFromViewerList(otherSectorChat, { tab: "minha_fila", user: attendantUser }),
     true
+  );
+
+  const uraStaleAssignee = applySetorPayloadToChatRow(
+    {
+      id: 30,
+      status_atendimento: "aberta",
+      status_atendimento_real: "aberta",
+      exibir_badge_aberta: true,
+      departamento_id: null,
+      atendente_id: 1,
+    },
+    { departamento_id: 20 }
+  );
+  assert.equal(uraStaleAssignee.atendente_id, null, "URA sem atendente_id no payload nao herda assignee stale");
+  assert.equal(
+    viewerCanSeeConversationRow(uraStaleAssignee, attendantUser),
+    false,
+    "setor B nao e visivel para atendente do setor A"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(uraStaleAssignee, { tab: "todas", user: attendantUser }),
+    true,
+    "escolha de setor B remove o card em Todas"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(uraStaleAssignee, { tab: "minha_fila", user: attendantUser }),
+    true,
+    "escolha de setor B remove o card em Minha fila"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(uraStaleAssignee, { tab: "todas", user: attendantUser }),
+    false
+  );
+
+  const enteredMySector = applySetorPayloadToChatRow(
+    {
+      id: 31,
+      status_atendimento: "aberta",
+      status_atendimento_real: "aberta",
+      exibir_badge_aberta: true,
+      departamento_id: 20,
+      atendente_id: 99,
+    },
+    { departamento_id: 10, atendente_id: null, status_atendimento: "aberta" }
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(enteredMySector, { tab: "todas", user: attendantUser }),
+    true,
+    "conversa que entra no setor do atendente pode inserir em Todas"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(enteredMySector, { tab: "minha_fila", user: attendantUser }),
+    true,
+    "conversa aberta do setor do atendente pode inserir em Minha fila"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(enteredMySector, { tab: "todas", user: attendantUser }),
+    false
+  );
+
+  const transferPayload = applySetorPayloadToChatRow(
+    sameSectorChat,
+    { departamento_id: 20, atendente_id: null, status_atendimento: "aberta" }
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(transferPayload, { tab: "todas", user: attendantUser }),
+    true,
+    "transferencia manual A→B remove o card"
   );
 
   const keepOtherSector = mergeActiveTabBackgroundRows(

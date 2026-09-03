@@ -71,8 +71,11 @@ export default function TriagemView({
       const welcome = (vals.welcomeMessage || "").trim();
       if (!welcome) return "Mensagem de boas-vindas é obrigatória quando o chatbot está ativo.";
       const activeOpts = opts.filter((o) => o.active !== false);
-      const validOpts = activeOpts.filter((o) => (o.label || "").trim() && o.departamento_id);
-      if (validOpts.length === 0) return "Adicione pelo menos uma opção válida (label e departamento) quando o chatbot está ativo.";
+      const hasAnyOpt = activeOpts.some((o) => (o.label || "").trim() || o.departamento_id);
+      if (hasAnyOpt) {
+        const validOpts = activeOpts.filter((o) => (o.label || "").trim() && o.departamento_id);
+        if (validOpts.length === 0) return "As opções adicionadas precisam ter label e departamento preenchidos.";
+      }
     }
     if (vals.foraHorarioEnabled) {
       const msgFora = (vals.mensagemForaHorario || "").trim();

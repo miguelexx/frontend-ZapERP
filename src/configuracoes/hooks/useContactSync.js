@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sincronizarContatos, statusSincronizacaoContatos } from '../../chats/chatService';
+import { sincronizarContatos, statusSincronizacaoContatos, cancelarSincronizacaoContatos } from '../../chats/chatService';
 
 // Somente iniciar() escreve. Mount, F5 e eventos apenas acompanham a importação.
 export function useContactSync(onRefresh) {
   const [syncing, setSyncing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const refresh = useRef(onRefresh);
   refresh.current = onRefresh;
@@ -17,6 +18,8 @@ export function useContactSync(onRefresh) {
     current.current.active = result.running === true;
     current.current.jobId = result.job_id || null;
     setSyncing(result.running === true);
+    if (result.running !== true) setCancelling(false);
+    else if (result.cancelando === true) setCancelling(true);
     setSyncResult(result);
     Promise.resolve(refresh.current?.()).catch(() => {});
   }, []);
@@ -76,5 +79,29 @@ export function useContactSync(onRefresh) {
     }
   }, [apply]);
 
-  return { syncing, syncResult, iniciar };
+  const cancelar = useCallback(async () => {
+    if (!current.current.active || cancelling) return;
+    setCancelling(true);
+    try {
+      const result = await cancelarSincronizacaoContatos();
+      // Job pendente cancela na hora; job rodando entra em "cancelando" até o worker encerrar o lote.
+      if (result?.cancelado === true) {
+        current.current.active = false;
+        if (mounted.current) {
+          setSyncing(false);
+          setCancelling(false);
+        }
+      }
+    } catch (error) {
+      if (mounted.current) {
+        setCancelling(false);
+        setSyncResult((previous) => ({
+          ...(previous || {}),
+          aviso: error.response?.data?.error || 'Não foi possível cancelar agora. Tente novamente.',
+        }));
+      }
+    }
+  }, [cancelling]);
+
+  return { syncing, cancelling, syncResult, iniciar, cancelar };
 }

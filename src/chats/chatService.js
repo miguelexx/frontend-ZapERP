@@ -612,6 +612,12 @@ export async function statusSincronizacaoContatos(jobId) {
   return data;
 }
 
+/** Para a importação de contatos em andamento. */
+export async function cancelarSincronizacaoContatos() {
+  const { data } = await api.post('/chats/sincronizar-contatos/cancelar');
+  return data;
+}
+
 /** Sincroniza fotos de perfil de todos os clientes (UltraMSG Get profile-picture) */
 export async function sincronizarFotosPerfil() {
   const { data } = await api.post("/chats/sincronizar-fotos-perfil");

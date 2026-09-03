@@ -26,7 +26,7 @@ import {
   shouldRemoveChatFromViewerList,
   buildActiveChatListViewFromStore,
 } from "../chats/chatListQueryHelpers"
-import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers"
+import { applySetorPayloadToChatRow, viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers"
 import { closeSelectedConversation } from "../atendimento/closeSelectedConversation"
 import { SOCKET_EVENTS } from "./events"
 import {
@@ -1374,15 +1374,14 @@ export function initSocket(token) {
      ultima_mensagem_preview: só preview na lista — NUNCA adicionar às mensagens do chat (não tem id)
   =========================== */
   function mergeSetorEAtendenteNoAlvo(alvo, payload) {
-    if ("departamento_id" in payload) alvo.departamento_id = payload.departamento_id
-    if ("atendente_id" in payload) alvo.atendente_id = payload.atendente_id
-    if ("atendente_nome" in payload) alvo.atendente_nome = payload.atendente_nome
-    if ("departamento" in payload) alvo.departamento = payload.departamento
-    if ("departamento_id" in payload && payload.departamento_id == null) {
-      alvo.setor = null
-      alvo.departamento = null
-      alvo.departamentos = null
-    }
+    const merged = applySetorPayloadToChatRow(alvo, payload)
+    alvo.departamento_id = merged.departamento_id
+    alvo.atendente_id = merged.atendente_id
+    if ("atendente_nome" in merged) alvo.atendente_nome = merged.atendente_nome
+    if ("departamento" in merged) alvo.departamento = merged.departamento
+    if ("setor" in merged) alvo.setor = merged.setor
+    if ("departamentos" in merged) alvo.departamentos = merged.departamentos
+    if ("status_atendimento" in merged) alvo.status_atendimento = merged.status_atendimento
   }
 
   function handleConversaAtualizada(rawPayload) {
@@ -1398,6 +1397,9 @@ export function initSocket(token) {
     let listRowChanged = false
     if (idx < 0 && !isClosedAttendance(payload)) {
       listRowChanged = upsertModoSimplesListRowFromPayload(chatStore, payload, id) || listRowChanged
+      if (Object.prototype.hasOwnProperty.call(payload, "departamento_id")) {
+        void addChatIfAuthorized(chatStore, id)
+      }
     }
     if (idx >= 0) {
       const cur = chats[idx]
@@ -1731,7 +1733,14 @@ export function initSocket(token) {
         const status = Number(err?.response?.status)
         if (status === 403 || status === 404) {
           const latestStore = useChatStore.getState()
+          const existing = (latestStore.chats || []).find((c) => String(c.id) === String(id))
           latestStore.removeChat(id)
+          latestStore.emitChatListOptimisticMutation({
+            id,
+            removeFromMinhaFila: true,
+            row: existing || { id },
+            patch: existing || { id },
+          })
           if (String(useConversaStore.getState().selectedId) === String(id)) {
             closeSelectedConversation()
           }
