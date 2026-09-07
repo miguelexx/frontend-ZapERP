@@ -81,6 +81,7 @@ function ConversaThread({
   localReactions,
   reactionLoading,
   myUserId,
+  whatsappInstanceProvider,
   mostrarNomeAoCliente,
   swipeReplyEnabled,
   compactMessageUx,
@@ -94,6 +95,7 @@ function ConversaThread({
   onStartSelect,
   onDeleteForMe,
   onDeleteForEveryone,
+  onEdit,
   onJumpToReply,
   onOpenMedia,
   onReenviarAudio,
@@ -149,6 +151,7 @@ function ConversaThread({
             reactionLoadingForMessage={false}
             showMobileReactionPicker={false}
             currentUserId={myUserId}
+            whatsappInstanceProvider={whatsappInstanceProvider}
             mostrarNomeAoCliente={mostrarNomeAoCliente}
             swipeReplyEnabled={swipeReplyEnabled}
             mobileMessageChrome={compactMessageUx}
@@ -163,6 +166,7 @@ function ConversaThread({
             onStartSelect={onStartSelect}
             onDeleteForMe={onDeleteForMe}
             onDeleteForEveryone={onDeleteForEveryone}
+            onEdit={onEdit}
             onJumpToReply={onJumpToReply}
             onOpenMedia={onOpenMedia}
             onReact={onReact}
@@ -196,6 +200,7 @@ function ConversaThread({
           reactionLoadingForMessage={Boolean(safeReactionLoading[String(messageKey)])}
           showMobileReactionPicker={Boolean(showSelectedReactionPicker && safeSelectedSet.has(String(messageKey)))}
           currentUserId={myUserId}
+          whatsappInstanceProvider={whatsappInstanceProvider}
           mostrarNomeAoCliente={mostrarNomeAoCliente}
           swipeReplyEnabled={swipeReplyEnabled}
           mobileMessageChrome={compactMessageUx}
@@ -210,6 +215,7 @@ function ConversaThread({
           onStartSelect={onStartSelect}
           onDeleteForMe={onDeleteForMe}
           onDeleteForEveryone={onDeleteForEveryone}
+          onEdit={onEdit}
           onJumpToReply={onJumpToReply}
           onOpenMedia={onOpenMedia}
           onReenviarAudio={onReenviarAudio}
@@ -238,6 +244,7 @@ function ConversaThread({
       safeLocalReactions,
       safeReactionLoading,
       myUserId,
+      whatsappInstanceProvider,
       mostrarNomeAoCliente,
       swipeReplyEnabled,
       compactMessageUx,
@@ -252,6 +259,7 @@ function ConversaThread({
       onStartSelect,
       onDeleteForMe,
       onDeleteForEveryone,
+      onEdit,
       onJumpToReply,
       onOpenMedia,
       onReenviarAudio,

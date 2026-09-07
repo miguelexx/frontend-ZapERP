@@ -8,6 +8,9 @@ import {
   buildMediaDownloadHref,
 } from "../../utils/conversaViewHelpers";
 import MessageStatus from "./MessageStatus";
+import EditedLabel from "./EditedLabel";
+import MessageCaption from "./MessageCaption";
+import { getEditableComposerText } from "../utils/bubbleClassify";
 
 /**
  * Card de arquivo estilo WhatsApp: ícone com extensão, nome, tipo/tamanho,
@@ -22,6 +25,7 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, onOpenMedia
   const bytes = msg?.tamanho ?? msg?.tamanho_bytes;
   const size = formatFileSize(bytes);
   const typeSize = size ? `${ext} · ${size}` : ext;
+  const caption = getEditableComposerText(msg);
   const encaminhado = !!msg?.encaminhado || (typeof msg?.texto === "string" && msg.texto.trimStart().startsWith("[Encaminhado]"));
   const openHref = buildMediaOpenHref(msg?.url, msg?.url_absoluta, nome) || mediaUrl;
 
@@ -41,10 +45,12 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, onOpenMedia
           <span className="wa-bubble-fileTypeSize">{typeSize}</span>
         </div>
         <span className="wa-bubble-fileTimeMeta">
+          <EditedLabel msg={msg} />
           <span className="wa-bubble-fileTime">{formatHora(msg?.criado_em)}</span>
           <MessageStatus msg={msg} isGroup={Boolean(isGroup)} />
         </span>
       </div>
+      <MessageCaption texto={caption} show={Boolean(caption)} />
       <div className="wa-bubble-fileActions">
         {ext === "PDF" ? (
           <a

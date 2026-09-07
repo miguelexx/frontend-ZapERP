@@ -3,8 +3,7 @@ import {
   chatListsStoreEquivalent,
   chatListIdsInOrder,
   chatRowStoreMergeUnchanged,
-  normalizeMensagemStatusKey,
-  ultimaMensagemRefsEqual,
+  ultimaMensagemPreviewEqual,
 } from "./chatListStoreCompare"
 import { chatRowStableKey } from "./chatRowStableKey"
 import { getChatListSortTimestampMs, sortChatListByRecent, pickNewerMessage, applyNewerOptimisticMembershipTo } from "./chatListRowAtendimento"
@@ -659,11 +658,7 @@ export const useChatStore = create((set, get) => ({
       if (idx == null) return state
       const cur = state.chats[idx]
       const prevUm = cur?.ultima_mensagem
-      if (
-        prevUm &&
-        ultimaMensagemRefsEqual(prevUm, msg) &&
-        normalizeMensagemStatusKey(prevUm) === normalizeMensagemStatusKey(msg)
-      ) {
+      if (prevUm && ultimaMensagemPreviewEqual(prevUm, msg)) {
         return state
       }
       const atividade = msg?.criado_em || cur.ultima_atividade

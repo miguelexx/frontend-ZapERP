@@ -3,7 +3,10 @@ import api from './http'
 const BASE = '/api/disparo'
 
 export function disparoApiError(error) {
-  return error?.response?.data?.error || error?.message || 'Erro ao comunicar com o servidor.'
+  return error?.response?.data?.error
+    || error?.response?.data?.detail
+    || error?.message
+    || 'Erro ao comunicar com o servidor.'
 }
 
 export async function listarCampanhas(params = {}) {
@@ -38,5 +41,10 @@ export async function arquivarCampanha(id) {
 
 export async function restaurarCampanha(id) {
   const { data } = await api.post(`${BASE}/campanhas/${id}/restaurar`)
+  return data
+}
+
+export async function excluirCampanha(id) {
+  const { data } = await api.delete(`${BASE}/campanhas/${id}`)
   return data
 }

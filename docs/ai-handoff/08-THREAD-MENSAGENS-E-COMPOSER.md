@@ -112,7 +112,7 @@ Limitações: smoke visual de long press/swipe, teclado iOS e áudio em aparelho
 - `hooks/useAddToGroup.js` — adicionar contato a grupo: grupos vêm do cache do `chatsStore` (ou `fetchChats`), `POST /chats/:grupoId/participantes`, mensagens de indisponibilidade em 404/501;
 - `utils/conversaAccessHelpers.js` — `normalizeDepartamentoIdForAccess` + `getUserDepartamentoIdSet` (puros), usados em `podeEnviar`/auto-assumir.
 
-**Regra crítica que futuras IAs não podem quebrar:** o handler global `onEscape` fecha os painéis na ordem `mediaViewer → pendingFile → shareContact → shareLocation → pix → msgInfo → transferirSetor → produtos → clienteSide → timeline → tags → forward/select → reply → messageSearch → fechar conversa`. Cada hook de painel **deve expor o estado `open` e seu setter/closer** (ex.: `showTransferirSetor`/`setShowTransferirSetor`, `tagsOpen`/`setTagsOpen`) para o `onEscape` continuar referenciando-os. Ao extrair novas features de painel, mantenha essa ordem e as mesmas dependências do `useCallback` do `onEscape`.
+**Regra crítica que futuras IAs não podem quebrar:** o handler global `onEscape` fecha os painéis na ordem `mediaViewer → pendingFile → shareContact → shareLocation → pix → msgInfo → transferirSetor → produtos → clienteSide → timeline → tags → forward/select → edit → reply → messageSearch → fechar conversa`. Cada hook de painel **deve expor o estado `open` e seu setter/closer** (ex.: `showTransferirSetor`/`setShowTransferirSetor`, `tagsOpen`/`setTagsOpen`) para o `onEscape` continuar referenciando-os. Ao extrair novas features de painel, mantenha essa ordem e as mesmas dependências do `useCallback` do `onEscape`.
 
 Métricas: `ConversaView.jsx` 4840 → 4623 linhas, `useState` 49 → 38, `useCallback` 102 → 92. Node 25/25, `tsc --noEmit` e build verdes. Chunk `ConversaView` 322,59 → 323,69 kB bruto (gzip 94,91 → 95,32) — leve aumento por wrappers de módulo; ganho é de manutenção/isolamento, **não** de bundle. Envio, upload, scroll, reconciliação e virtualização **não** foram tocados nesta etapa.
 
@@ -125,7 +125,7 @@ Mais features auto-contidas saíram para hooks/componente, **sem tocar** em envi
 - `hooks/useConversationTimeline.js` + `components/ConversaTimelinePanel.jsx` — histórico do atendimento: estado de abertura + `carregarAtendimentos(conversaId)` ao abrir; UI (markup/CSS idênticos) fora do coordenador. Dados seguem no `conversaStore`;
 - `hooks/useConversationParticipants.js` — envolve `useConversaParticipantes` (dados/reload) + estado do modal de atendentes + `handleOpenAdicionarAtendente`. Precisa rodar cedo pois `atendentesParticipantes` alimenta `podeEnviar` (co-atendente também envia); por isso deriva `conversaId = conversa?.id`. **Removido código morto** do fluxo antigo "adicionar atendente" (estados `showAdicionarAtendente`, `atendentesDisponiveis`, `atendenteSearch`, `atendentesLoading`, `adicionarAtendenteLoadingId`, o memo `atendentesDisponiveisFiltrados` e `handleAdicionarAtendente`) — não eram referenciados no JSX (a UI real é o `AtendentesModal`);
 - `hooks/useConversationToast.js` — `toast`/`setToast`/`showToast` com auto-dismiss de 3500ms via `useStableTimeout`. Casos silenciosos, 409 e rollbacks continuam nos chamadores;
-- `utils/conversationEscapeOrder.js` — **fonte única da ordem do `onEscape`** (`ESCAPE_PANEL_ORDER` + `buildEscapeEntries` + `runFirstActiveEscape`). O coordenador só mantém os dois passos imperativos do Composer (cancelar gravação, `closePanels()`) antes da cadeia. Coberto por `scripts/test-conversa-escape-order.mjs` (19 cenários).
+- `utils/conversationEscapeOrder.js` — **fonte única da ordem do `onEscape`** (`ESCAPE_PANEL_ORDER` + `buildEscapeEntries` + `runFirstActiveEscape`). O coordenador só mantém os dois passos imperativos do Composer (cancelar gravação, `closePanels()`) antes da cadeia. Coberto por `scripts/test-conversa-escape-order.mjs`.
 
 **Reply/forward:** forward já vive em `useForwardFlow`. O estado de **reply** (`replyTo`) foi **mantido inline** de propósito: é lido dentro de `handleEnviar` (caminho de envio protegido) e usa `focusMessageInput` do composer; extraí-lo daria ganho mínimo e adicionaria indireção sobre a zona de envio. Documentado como pendência de baixa prioridade.
 
@@ -197,6 +197,17 @@ Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice,
 
 Preferência: `whatsapp_id` → `id` → `tempId` → synthetic. Drop se `conversa_id` ≠ conversa aberta. Direção: normalizar `fromMe` / `from_me` / `isFromMe` → `direcao` in/out.
 
-HTTP: `conversa/conversaService.js` (superfície grande: mensagens, PIX, encaminhar, arquivo, reação, assumir/encerrar/transferir, atendentes, notas, localização).
+HTTP: `conversa/conversaService.js` (superfície grande: mensagens, PIX, encaminhar, arquivo, reação, assumir/encerrar/transferir, atendentes, notas, localização, **editar mensagem**).
+
+## Edição de mensagem (CONFIRMADO 2026-09-07)
+
+Backend: `PATCH /chats/:conversaId/mensagens/:mensagemId` com `{ texto }` (aliases `conteudo`/`caption`/`legenda`). Não envia arquivo; mídia só troca a legenda. Janela WhatsApp 15 min. UltraMSG responde 422 — o menu **não** mostra "Editar" se `conversa.whatsapp_instance_provider !== "whapi"` (exceto nota interna, só local).
+
+- `canEditMessage` em `bubble/utils/bubbleClassify.js` (espelha autor de `canDeleteMessageForEveryone`; só o autor; tipos texto/imagem/vídeo/arquivo; nota `internal_note` ignora provider e `whatsapp_id`).
+- Menu: item **Editar** acima de Apagar (`MessageMenu.jsx`, bottom sheet mobile incluso). `onAction("edit")` → `ConversaView` modo edição.
+- Composer: barra tipo reply ("Editando mensagem" + X). Enter/check faz PATCH, não POST. Esc cancela (`edit` na cadeia do `onEscape`, antes de `reply`). Otimista: `patchMensagem` na mesma bolha (`preserveOrder`); falha reverte texto e toast. Sem `tempId` novo, sem outbox.
+- Socket `mensagem_editada`: `shouldIgnoreByCompany`; `patchMensagem` com `texto`/`editada`/`editado`/`editada_em` se a conversa está aberta; `chatsStore.setUltimaMensagem` se vier `ultima_mensagem`. Não remove, não reordena, não mexe no scroll.
+- Badge **Editada** perto do horário (`editado === true` ou alias `editada`; `undefined` = não editada). `threadRowCompare` compara o alias.
+- `company_id` nunca no body. Fechar a thread não encerra o atendimento.
 
 Hotkeys: `hooks/useGlobalHotkeys.js`. Encaminhar/contato/local: hooks `useForwardFlow`, `useShareContact`, `useShareLocation`.

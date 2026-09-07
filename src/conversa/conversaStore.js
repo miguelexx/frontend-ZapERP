@@ -204,7 +204,11 @@ function applyMensagemPatchToList(list, mensagemId, partial, opts, currentConver
     changed = true
   })
   if (!changed) return empty
-  return { list: next, changed: true, needsSort: !isStatusOnlyPatch(partial) }
+  return {
+    list: next,
+    changed: true,
+    needsSort: opts?.preserveOrder ? false : !isStatusOnlyPatch(partial),
+  }
 }
 
 const conversaMensagensCache = new Map()

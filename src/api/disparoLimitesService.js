@@ -3,7 +3,11 @@ import api from './http'
 const base = (campanhaId) => `/api/disparo/campanhas/${campanhaId}/limites`
 
 export function disparoApiError(e) {
-  return e?.response?.data?.error || e?.response?.data?.erro || e?.message || 'Erro ao comunicar com o servidor.'
+  return e?.response?.data?.error
+    || e?.response?.data?.detail
+    || e?.response?.data?.erro
+    || e?.message
+    || 'Erro ao comunicar com o servidor.'
 }
 
 export async function obterConfigLimites(campanhaId) {

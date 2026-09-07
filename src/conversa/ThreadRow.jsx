@@ -1,9 +1,10 @@
 import { memo } from "react";
-import { ArrowLeftRight, EyeOff, ShieldCheck, StickyNote, UserCheck } from "lucide-react";
+import { ArrowLeftRight, EyeOff, Pencil, ShieldCheck, StickyNote, UserCheck } from "lucide-react";
 import DaySeparator from "./DaySeparator";
 import { threadRowPropsAreEqual } from "./threadRowCompare";
 import { formatHora } from "./utils/conversaViewHelpers";
 import { isInternalNote } from "./internalNote";
+import { canEditMessage, isMessageEdited } from "./bubble/utils/bubbleClassify";
 
 /*
  * Corre para TODAS as mensagens normais (as duas verifica\u00e7\u00f5es baratas acima falham nelas) e,
@@ -73,9 +74,10 @@ function InternalMovementCard({ item, zapAnimateIn }) {
   );
 }
 
-function InternalNoteCard({ item, zapAnimateIn }) {
+function InternalNoteCard({ item, zapAnimateIn, canEdit, onEdit }) {
   const nome = item?.usuario_nome || item?.remetente_nome || null;
   const texto = String(item?.texto || "");
+  const edited = isMessageEdited(item);
 
   return (
     <div
@@ -91,7 +93,20 @@ function InternalNoteCard({ item, zapAnimateIn }) {
           </span>
           <span className="wa-internalNote-kicker">NOTA INTERNA</span>
           {nome ? <span className="wa-internalNote-autor">· {nome}</span> : null}
+          {edited ? <span className="wa-bubble-edited">Editada</span> : null}
           <span className="wa-internalNote-time">{formatHora(item?.criado_em)}</span>
+          {canEdit ? (
+            <button
+              type="button"
+              className="wa-internalNote-edit"
+              onClick={() => onEdit?.(item)}
+              title="Editar nota"
+              aria-label="Editar nota interna"
+            >
+              <Pencil size={12} strokeWidth={2.2} />
+              Editar
+            </button>
+          ) : null}
         </div>
         <div className="wa-internalNote-body">{texto}</div>
         <div className="wa-internalNote-footer">
@@ -126,6 +141,7 @@ function ThreadRow({
   reactionLoadingForMessage,
   showMobileReactionPicker,
   currentUserId,
+  whatsappInstanceProvider,
   mostrarNomeAoCliente,
   swipeReplyEnabled,
   mobileMessageChrome,
@@ -140,6 +156,7 @@ function ThreadRow({
   onStartSelect,
   onDeleteForMe,
   onDeleteForEveryone,
+  onEdit,
   onJumpToReply,
   onOpenMedia,
   onReenviarAudio,
@@ -177,7 +194,18 @@ function ThreadRow({
   }
 
   if (isInternalNote(item)) {
-    return <InternalNoteCard item={item} zapAnimateIn={zapAnimateIn} />;
+    return (
+      <InternalNoteCard
+        item={item}
+        zapAnimateIn={zapAnimateIn}
+        canEdit={canEditMessage(item, {
+          out: false,
+          currentUserId,
+          provider: whatsappInstanceProvider,
+        })}
+        onEdit={onEdit}
+      />
+    );
   }
 
   if (isInternalMovementMessage(item)) {
@@ -204,9 +232,11 @@ function ThreadRow({
       onStartSelect={onStartSelect}
       onDeleteForMe={onDeleteForMe}
       onDeleteForEveryone={onDeleteForEveryone}
+      onEdit={onEdit}
       isPinned={isPinned}
       isStarred={isStarred}
       currentUserId={currentUserId}
+      whatsappInstanceProvider={whatsappInstanceProvider}
       onJumpToReply={onJumpToReply}
       onOpenMedia={onOpenMedia}
       onReenviarAudio={onReenviarAudio}

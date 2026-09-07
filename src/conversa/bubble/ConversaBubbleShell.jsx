@@ -8,12 +8,13 @@ import {
 } from "../utils/conversaViewHelpers";
 import { SwipeReplyTrack } from "../SwipeReplyTrack";
 import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
-import { classifyBubbleMessage, canDeleteMessageForEveryone } from "./utils/bubbleClassify";
+import { classifyBubbleMessage, canDeleteMessageForEveryone, canEditMessage } from "./utils/bubbleClassify";
 import { buildRetryPayload } from "./utils/bubbleRetry";
 import { useMessageMenu } from "./hooks/useMessageMenu";
 import { useMessageGestures } from "./hooks/useMessageGestures";
 import { useMediaRetry } from "./hooks/useMediaRetry";
 import MessageStatus from "./components/MessageStatus";
+import EditedLabel from "./components/EditedLabel";
 import QuotedReply from "./components/QuotedReply";
 import MessageMenu from "./components/MessageMenu";
 import MessageRetry from "./components/MessageRetry";
@@ -39,9 +40,11 @@ const Bubble = memo(function Bubble({
   onStartSelect,
   onDeleteForMe,
   onDeleteForEveryone,
+  onEdit,
   isPinned,
   isStarred,
   currentUserId,
+  whatsappInstanceProvider,
   onJumpToReply,
   onOpenMedia,
   onReenviarAudio,
@@ -114,6 +117,23 @@ const Bubble = memo(function Bubble({
   const canDeleteForEveryone = useMemo(
     () => canDeleteMessageForEveryone(msg, { out, currentUserId }),
     [out, currentUserId, msg?.autor_usuario_id, msg?.apagada_para_todos]
+  );
+  const canEdit = useMemo(
+    () => canEditMessage(msg, { out, currentUserId, provider: whatsappInstanceProvider }),
+    [
+      out,
+      currentUserId,
+      whatsappInstanceProvider,
+      msg?.autor_usuario_id,
+      msg?.apagada_para_todos,
+      msg?.tipo,
+      msg?.direcao,
+      msg?.whatsapp_id,
+      msg?.criado_em,
+      msg?.status,
+      msg?.status_mensagem,
+      msg?.envio_erro,
+    ]
   );
   const remetente = showRemetente && !out && (msg?.remetente_nome || msg?.remetente_telefone);
   const retry = useMediaRetry(msg, classified, { onReenviarFalha, onReenviarAudio });
@@ -195,8 +215,9 @@ const Bubble = memo(function Bubble({
       if (action === "select") onStartSelect?.(msg);
       if (action === "deleteForMe") onDeleteForMe?.(msg);
       if (action === "deleteForEveryone") onDeleteForEveryone?.(msg);
+      if (action === "edit") onEdit?.(msg);
     },
-    [msg, onInfo, onReply, doCopy, onForward, onTogglePin, onToggleStar, onStartSelect, onDeleteForMe, onDeleteForEveryone, setMenuOpen]
+    [msg, onInfo, onReply, doCopy, onForward, onTogglePin, onToggleStar, onStartSelect, onDeleteForMe, onDeleteForEveryone, onEdit, setMenuOpen]
   );
 
   const typedProps = {
@@ -373,7 +394,10 @@ const Bubble = memo(function Bubble({
             {showFloatingMetaTime ? (
               <>
                 {!(isAudioOrVoice && mediaUrl) ? (
-                  <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>
+                  <>
+                    <EditedLabel msg={msg} />
+                    <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>
+                  </>
                 ) : null}
                 <MessageStatus msg={msg} isGroup={Boolean(isGroup)} />
               </>
@@ -415,6 +439,7 @@ const Bubble = memo(function Bubble({
         isPinned={isPinned}
         isStarred={isStarred}
         canDeleteForEveryone={canDeleteForEveryone}
+        canEdit={canEdit}
         reactionExpanded={reactionExpanded}
         reactionBusy={reactionBusy}
         localReaction={localReaction}

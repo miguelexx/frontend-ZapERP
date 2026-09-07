@@ -17,6 +17,10 @@ export function composerPropsAreEqual(prev, next) {
   if (prev.atendenteNomeHint !== next.atendenteNomeHint) return false;
   if (prev.podeAnotar !== next.podeAnotar) return false;
   if (prev.onSendInternalNote !== next.onSendInternalNote) return false;
+  if (prev.editMode !== next.editMode) return false;
+  if (prev.editAllowEmpty !== next.editAllowEmpty) return false;
+  if (prev.editMaxLength !== next.editMaxLength) return false;
+  if (prev.onSaveEdit !== next.onSaveEdit) return false;
   const previousReply = prev.replyBarPreview;
   const nextReply = next.replyBarPreview;
   if (previousReply !== nextReply) {

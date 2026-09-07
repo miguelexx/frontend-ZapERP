@@ -23,12 +23,15 @@ import {
   IconChevronRight,
   IconCalendar,
   IconFilter,
+  IconTrash,
+  IconPlayerPause,
 } from '@tabler/icons-react'
 import {
   arquivarCampanha,
   criarCampanha,
   disparoApiError,
   editarCampanha,
+  excluirCampanha,
   listarCampanhas,
   restaurarCampanha,
   resumoCampanhas,
@@ -43,7 +46,7 @@ const STATUS_CONFIG = {
   pronta:      { label: 'Pronta',       color: '#0891b2', bg: '#ecfeff', icon: IconCheck },
   agendada:    { label: 'Agendada',     color: '#d97706', bg: '#fffbeb', icon: IconClock },
   em_execucao: { label: 'Em execução',  color: '#059669', bg: '#ecfdf5', icon: IconPlayerPlay },
-  pausada:     { label: 'Pausada',      color: '#b45309', bg: '#fef3c7', icon: IconAlertCircle },
+  pausada:     { label: 'Pausada',      color: '#b45309', bg: '#fef3c7', icon: IconPlayerPause },
   concluida:   { label: 'Concluída',    color: '#16a34a', bg: '#f0fdf4', icon: IconCheck },
   cancelada:   { label: 'Cancelada',    color: '#dc2626', bg: '#fef2f2', icon: IconX },
   arquivada:   { label: 'Arquivada',    color: '#9ca3af', bg: '#f9fafb', icon: IconArchive },
@@ -52,17 +55,20 @@ const STATUS_CONFIG = {
 const SUMMARY_ITEMS = [
   { key: 'total',       label: 'Total',       color: '#128c7e', icon: IconSpeakerphone },
   { key: 'rascunho',    label: 'Rascunhos',   color: '#64748b', icon: IconEdit },
+  { key: 'pausada',     label: 'Pausadas',    color: '#b45309', icon: IconPlayerPause },
   { key: 'agendada',    label: 'Agendadas',   color: '#d97706', icon: IconClock },
-  { key: 'concluida',   label: 'Concluídas',  color: '#16a34a', icon: IconCheck },
   { key: 'em_execucao', label: 'Em execução', color: '#059669', icon: IconPlayerPlay },
+  { key: 'concluida',   label: 'Concluídas',  color: '#16a34a', icon: IconCheck },
 ]
 
 const STATUS_FILTERS = [
   { value: '',            label: 'Todas' },
   { value: 'rascunho',    label: 'Rascunho' },
   { value: 'configurando',label: 'Configurando' },
+  { value: 'pronta',      label: 'Pronta' },
   { value: 'agendada',    label: 'Agendada' },
   { value: 'em_execucao', label: 'Execução' },
+  { value: 'pausada',     label: 'Pausada' },
   { value: 'concluida',   label: 'Concluída' },
   { value: 'cancelada',   label: 'Cancelada' },
   { value: 'arquivada',   label: 'Arquivada' },
@@ -321,147 +327,208 @@ function ConfirmArquivarDialog({ campanha, onConfirm, onCancel, loading }) {
   )
 }
 
+function ConfirmExcluirDialog({ campanha, onConfirm, onCancel, loading }) {
+  return (
+    <Modal onClose={onCancel}>
+      <div className="dp-modal__header">
+        <div className="dp-modal__icon dp-modal__icon--danger"><IconTrash size={20}/></div>
+        <div>
+          <p className="dp-modal__title">Excluir campanha</p>
+          <p className="dp-modal__sub">Esta ação é permanente e não pode ser desfeita.</p>
+        </div>
+        <button type="button" className="dp-modal__close" onClick={onCancel} aria-label="Fechar">
+          <IconX size={16} />
+        </button>
+      </div>
+      <div className="dp-modal__form">
+        <div className="dp-confirm-box">
+          <p>Excluir <strong>"{campanha.nome}"</strong>?</p>
+          <p className="dp-confirm-box__hint">
+            A fila e o histórico desta campanha serão removidos. Mensagens já enviadas no WhatsApp não são apagadas.
+          </p>
+        </div>
+        <div className="dp-modal__footer">
+          <button type="button" className="dp-btn-ghost" onClick={onCancel} disabled={loading}>Voltar</button>
+          <button type="button" className="dp-btn-danger" onClick={onConfirm} disabled={loading}>
+            {loading ? <><span className="dp-spinner" />Excluindo…</> : <><IconTrash size={14}/>Excluir</>}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Card de campanha ─────────────────────────────────────────────────────────
 
-function CampanhaCard({ campanha, onEditar, onArquivar, onRestaurar, restaurando }) {
+function CampanhaCard({ campanha, onEditar, onArquivar, onRestaurar, onExcluir, restaurando }) {
   const navigate = useNavigate()
   const cfg = STATUS_CONFIG[campanha.status] ?? STATUS_CONFIG.rascunho
   const podeContinuar = campanha.status === 'rascunho' || campanha.status === 'configurando'
   const podeConfigurar = CONFIG_ACCESS_STATUSES.has(campanha.status)
   const podeAcompanhar = EXEC_ACCESS_STATUSES.has(campanha.status)
+  const podeExcluir = campanha.status !== 'em_execucao'
   const destinoCard = podeContinuar || podeConfigurar
     ? `/disparo/campanhas/${campanha.id}`
     : null
 
   return (
-    <div
+    <article
       className={`dp-card${destinoCard ? ' dp-card--clickable' : ''}`}
+      style={{ '--sc': cfg.color }}
       onClick={destinoCard ? () => navigate(destinoCard) : undefined}
       role={destinoCard ? 'button' : undefined}
       tabIndex={destinoCard ? 0 : undefined}
       onKeyDown={destinoCard ? e => { if (e.key === 'Enter') navigate(destinoCard) } : undefined}
     >
-      {/* Acento lateral */}
-      <div className="dp-card__accent" style={{ background: cfg.color }} />
+      <div className="dp-card__accent" />
 
-      {/* Corpo */}
-      <div className="dp-card__body">
-        <div className="dp-card__top">
-          <div className="dp-card__name-wrap">
-            <p className="dp-card__name">{campanha.nome}</p>
-            {campanha.descricao && (
-              <p className="dp-card__desc">{campanha.descricao}</p>
-            )}
-          </div>
-          <StatusBadge status={campanha.status} />
-        </div>
-
-        {/* Barra de progresso para em_execucao */}
-        {campanha.status === 'em_execucao' && campanha.total_destinatarios > 0 && (
-          <div className="dp-card__progress-wrap">
-            <div className="dp-card__progress-bar">
-              <div
-                className="dp-card__progress-fill"
-                style={{
-                  width: `${Math.min(100, ((campanha.enviados ?? 0) / campanha.total_destinatarios) * 100)}%`
-                }}
-              />
+      <div className="dp-card__main">
+        <div className="dp-card__body">
+          <div className="dp-card__top">
+            <div className="dp-card__name-wrap">
+              <p className="dp-card__name">{campanha.nome}</p>
+              {campanha.descricao && (
+                <p className="dp-card__desc">{campanha.descricao}</p>
+              )}
             </div>
-            <span className="dp-card__progress-label">
-              {campanha.enviados ?? 0}/{campanha.total_destinatarios} enviados
+            <StatusBadge status={campanha.status} />
+          </div>
+
+          {campanha.status === 'em_execucao' && campanha.total_destinatarios > 0 && (
+            <div className="dp-card__progress-wrap">
+              <div className="dp-card__progress-bar">
+                <div
+                  className="dp-card__progress-fill"
+                  style={{
+                    width: `${Math.min(100, ((campanha.enviados ?? 0) / campanha.total_destinatarios) * 100)}%`,
+                  }}
+                />
+              </div>
+              <span className="dp-card__progress-label">
+                {campanha.enviados ?? 0}/{campanha.total_destinatarios} enviados
+              </span>
+            </div>
+          )}
+
+          <div className="dp-card__meta">
+            {campanha.total_destinatarios != null && (
+              <span className="dp-card__meta-item">
+                <IconUsers size={12} />
+                {campanha.total_destinatarios} dest.
+              </span>
+            )}
+            {campanha.total_instancias != null && (
+              <span className="dp-card__meta-item">
+                <IconDeviceMobile size={12} />
+                {campanha.total_instancias} inst.
+              </span>
+            )}
+            {campanha.criador?.nome && (
+              <span className="dp-card__meta-item">
+                <IconMessage2 size={12} />
+                {campanha.criador.nome}
+              </span>
+            )}
+            <span className="dp-card__meta-item dp-card__meta-item--date">
+              <IconCalendar size={12} />
+              {formatDateShort(campanha.atualizado_em || campanha.criado_em)}
             </span>
           </div>
-        )}
+        </div>
 
-        {/* Metadados */}
-        <div className="dp-card__meta">
-          {campanha.total_destinatarios != null && (
-            <span className="dp-card__meta-item">
-              <IconUsers size={12} />
-              {campanha.total_destinatarios} dest.
-            </span>
+        <div className="dp-card__footer" onClick={e => e.stopPropagation()}>
+          {podeContinuar && (
+            <button
+              type="button"
+              className="dp-card__action-btn dp-card__action-btn--primary"
+              title="Continuar configurando"
+              onClick={() => navigate(`/disparo/campanhas/${campanha.id}`)}
+            >
+              <IconExternalLink size={14} />
+              <span>Abrir</span>
+            </button>
           )}
-          {campanha.total_instancias != null && (
-            <span className="dp-card__meta-item">
-              <IconDeviceMobile size={12} />
-              {campanha.total_instancias} inst.
-            </span>
+          {podeConfigurar && (
+            <button
+              type="button"
+              className="dp-card__action-btn dp-card__action-btn--primary"
+              title="Configurações"
+              onClick={() => navigate(`/disparo/campanhas/${campanha.id}`)}
+            >
+              <IconSettings size={14} />
+              <span>Config</span>
+            </button>
           )}
-          {campanha.criador?.nome && (
-            <span className="dp-card__meta-item">
-              <IconMessage2 size={12} />
-              {campanha.criador.nome}
-            </span>
+          {podeAcompanhar && (
+            <button
+              type="button"
+              className="dp-card__action-btn dp-card__action-btn--primary"
+              title="Acompanhar execução"
+              onClick={() => navigate(`/disparo/campanhas/${campanha.id}/execucao`)}
+            >
+              <IconActivity size={14} />
+              <span>Acompanhar</span>
+            </button>
           )}
-          <span className="dp-card__meta-item dp-card__meta-item--date">
-            <IconCalendar size={12} />
-            {formatDateShort(campanha.atualizado_em || campanha.criado_em)}
-          </span>
+          {campanha.status === 'rascunho' && (
+            <button
+              type="button"
+              className="dp-card__action-btn"
+              title="Renomear"
+              onClick={() => onEditar(campanha)}
+            >
+              <IconEdit size={14} />
+              <span>Renomear</span>
+            </button>
+          )}
+          {campanha.status === 'arquivada' && (
+            <button
+              type="button"
+              className="dp-card__action-btn"
+              title="Restaurar"
+              onClick={() => onRestaurar(campanha)}
+              disabled={restaurando}
+            >
+              <IconArchiveOff size={14} />
+              <span>Restaurar</span>
+            </button>
+          )}
+          <span className="dp-card__footer-spacer" />
+          {campanha.status !== 'arquivada' && campanha.status !== 'em_execucao' && (
+            <button
+              type="button"
+              className="dp-card__action-btn"
+              title="Arquivar"
+              onClick={() => onArquivar(campanha)}
+            >
+              <IconArchive size={14} />
+              <span>Arquivar</span>
+            </button>
+          )}
+          {podeExcluir ? (
+            <button
+              type="button"
+              className="dp-card__action-btn dp-card__action-btn--danger"
+              title="Excluir campanha"
+              onClick={() => onExcluir(campanha)}
+            >
+              <IconTrash size={14} />
+              <span>Excluir</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="dp-card__action-btn"
+              title="Pause ou cancele a execução antes de excluir"
+              disabled
+            >
+              <IconTrash size={14} />
+              <span>Excluir</span>
+            </button>
+          )}
         </div>
       </div>
-
-      {/* Ações */}
-      <div className="dp-card__actions" onClick={e => e.stopPropagation()}>
-        {podeContinuar && (
-          <button
-            className="dp-card__action-btn dp-card__action-btn--primary"
-            title="Continuar configurando"
-            onClick={() => navigate(`/disparo/campanhas/${campanha.id}`)}
-          >
-            <IconExternalLink size={14} />
-            <span>Abrir</span>
-          </button>
-        )}
-        {podeConfigurar && (
-          <button
-            className="dp-card__action-btn dp-card__action-btn--primary"
-            title="Configurações"
-            onClick={() => navigate(`/disparo/campanhas/${campanha.id}`)}
-          >
-            <IconSettings size={14} />
-            <span>Configurações</span>
-          </button>
-        )}
-        {podeAcompanhar && (
-          <button
-            className="dp-card__action-btn dp-card__action-btn--primary"
-            title="Acompanhar execução"
-            onClick={() => navigate(`/disparo/campanhas/${campanha.id}/execucao`)}
-          >
-            <IconActivity size={14} />
-            <span>Acompanhar</span>
-          </button>
-        )}
-        {campanha.status === 'rascunho' && (
-          <button
-            className="dp-card__action-btn"
-            title="Renomear"
-            onClick={() => onEditar(campanha)}
-          >
-            <IconEdit size={14} />
-          </button>
-        )}
-        {campanha.status !== 'arquivada' && (
-          <button
-            className="dp-card__action-btn dp-card__action-btn--muted"
-            title="Arquivar"
-            onClick={() => onArquivar(campanha)}
-          >
-            <IconArchive size={14} />
-          </button>
-        )}
-        {campanha.status === 'arquivada' && (
-          <button
-            className="dp-card__action-btn"
-            title="Restaurar"
-            onClick={() => onRestaurar(campanha)}
-            disabled={restaurando}
-          >
-            <IconArchiveOff size={14} />
-          </button>
-        )}
-      </div>
-    </div>
+    </article>
   )
 }
 
@@ -486,7 +553,9 @@ export default function DisparoMensagens() {
   const [showNova, setShowNova]                 = useState(false)
   const [editando, setEditando]                 = useState(null)
   const [confirmArquivar, setConfirmArquivar]   = useState(null)
+  const [confirmExcluir, setConfirmExcluir]     = useState(null)
   const [arquivando, setArquivando]             = useState(false)
+  const [excluindo, setExcluindo]               = useState(false)
   const [restaurandoId, setRestaurandoId]       = useState(null)
 
   const debounceRef = useRef(null)
@@ -544,6 +613,24 @@ export default function DisparoMensagens() {
       setConfirmArquivar(null); fetchResumo()
     } catch (err) { setError(disparoApiError(err)); setConfirmArquivar(null) }
     finally { setArquivando(false) }
+  }
+  async function handleConfirmExcluir() {
+    if (!confirmExcluir) return
+    setExcluindo(true)
+    try {
+      await excluirCampanha(confirmExcluir.id)
+      const remaining = campanhas.filter(c => c.id !== confirmExcluir.id)
+      setCampanhas(remaining)
+      setTotal(t => Math.max(0, t - 1))
+      setConfirmExcluir(null)
+      if (remaining.length === 0 && page > 1) setPage(p => p - 1)
+      else fetchResumo()
+    } catch (err) {
+      setError(disparoApiError(err))
+      setConfirmExcluir(null)
+    } finally {
+      setExcluindo(false)
+    }
   }
   async function handleRestaurar(campanha) {
     setRestaurandoId(campanha.id)
@@ -688,6 +775,7 @@ export default function DisparoMensagens() {
                 campanha={c}
                 onEditar={setEditando}
                 onArquivar={setConfirmArquivar}
+                onExcluir={setConfirmExcluir}
                 onRestaurar={handleRestaurar}
                 restaurando={restaurandoId === c.id}
               />
@@ -745,6 +833,14 @@ export default function DisparoMensagens() {
           onConfirm={handleConfirmArquivar}
           onCancel={() => setConfirmArquivar(null)}
           loading={arquivando}
+        />
+      )}
+      {confirmExcluir && (
+        <ConfirmExcluirDialog
+          campanha={confirmExcluir}
+          onConfirm={handleConfirmExcluir}
+          onCancel={() => setConfirmExcluir(null)}
+          loading={excluindo}
         />
       )}
     </div>

@@ -13,6 +13,7 @@ export default function MessageMenu({
   isPinned,
   isStarred,
   canDeleteForEveryone,
+  canEdit,
   reactionExpanded,
   reactionBusy,
   localReaction,
@@ -95,6 +96,11 @@ export default function MessageMenu({
           </>
         ) : null}
         <div className="wa-msgMenuSep" aria-hidden="true" />
+        {canEdit ? (
+          <button type="button" className="wa-msgMenuItem" onClick={() => onAction("edit")} role="menuitem">
+            Editar
+          </button>
+        ) : null}
         <button
           type="button"
           className="wa-msgMenuItem"

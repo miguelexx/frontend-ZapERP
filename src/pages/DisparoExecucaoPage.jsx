@@ -103,12 +103,12 @@ const FILA_STATUS_OPTIONS = [
   { value: '', label: 'Todos' },
   { value: 'pendente', label: 'Pendente' },
   { value: 'reservada', label: 'Reservada' },
-  { value: 'enviado', label: 'Enviado' },
+  { value: 'enviada', label: 'Enviado' },
   { value: 'entregue', label: 'Entregue' },
-  { value: 'lido', label: 'Lido' },
+  { value: 'lida', label: 'Lido' },
   { value: 'falhou', label: 'Falhou' },
-  { value: 'incerto', label: 'Incerto' },
-  { value: 'ignorado', label: 'Ignorado' },
+  { value: 'incerta', label: 'Incerto' },
+  { value: 'ignorada', label: 'Ignorado' },
   { value: 'cancelada', label: 'Cancelada' },
 ]
 
@@ -298,6 +298,7 @@ export default function DisparoExecucaoPage() {
   const socketTimerRef = useRef(null)
   const etapa8TimerRef = useRef(null)
   const filaTimingRef = useRef({ ultimoEnvio: null, proximoPrevisto: null })
+  const backfillTriedRef = useRef(false)
 
   const campanha = execData?.campanha ?? null
   const execucao = execData?.execucao ?? null
@@ -375,6 +376,10 @@ export default function DisparoExecucaoPage() {
   useEffect(() => {
     reconcile()
   }, [reconcile])
+
+  useEffect(() => {
+    backfillTriedRef.current = false
+  }, [campanhaId])
 
   useEffect(() => {
     if (exclusoesOpen) carregarExclusoes()
@@ -465,6 +470,10 @@ export default function DisparoExecucaoPage() {
     await runAcao('iniciar', () => iniciarCampanha(campanhaId))
   }
 
+  async function handleGerarFila() {
+    await runAcao('gerar-fila', () => iniciarCampanha(campanhaId))
+  }
+
   async function handlePausar() {
     await runAcao('pausar', () => pausar(campanhaId, { motivo: pausaMotivo.trim() || undefined }))
     setShowPausar(false)
@@ -549,6 +558,22 @@ export default function DisparoExecucaoPage() {
   const podeContinuar = campanhaStatus === 'pausada'
   const podeCancelar = ['em_execucao', 'pausada', 'agendada', 'pronta'].includes(campanhaStatus)
   const podeReprocessar = ['em_execucao', 'pausada'].includes(campanhaStatus)
+  const filaVazia = (Number(contadores.total_itens) || 0) === 0 && (Number(fila.total) || 0) === 0
+  const podeGerarFila = filaVazia && (campanhaStatus === 'em_execucao' || campanhaStatus === 'pausada')
+
+  useEffect(() => {
+    if (backfillTriedRef.current) return
+    if (loading || acaoLoading) return
+    if (campanhaStatus !== 'em_execucao') return
+    if (!filaVazia || !execucao?.id || !campanhaId) return
+    backfillTriedRef.current = true
+    setAcaoLoading('gerar-fila')
+    setError('')
+    iniciarCampanha(campanhaId)
+      .then(() => reconcile({ silent: true }))
+      .catch((err) => setError(disparoApiError(err)))
+      .finally(() => setAcaoLoading(''))
+  }, [loading, acaoLoading, campanhaStatus, filaVazia, execucao?.id, campanhaId, reconcile])
 
   if (loading && !execData) {
     return (
@@ -629,6 +654,23 @@ export default function DisparoExecucaoPage() {
           <span>{error}</span>
           <button type="button" className="dp-alert__close" onClick={() => setError('')}>
             <IconX size={13} />
+          </button>
+        </div>
+      )}
+
+      {podeGerarFila && (
+        <div className="dp-alert dp-alert--global dpex-fila-vazia">
+          <IconAlertTriangle size={15} />
+          <span>
+            A campanha está ativa, mas a fila de envio está vazia. Gere a fila para os destinatários começarem a sair.
+          </span>
+          <button
+            type="button"
+            className="disparo-btn-primary"
+            onClick={handleGerarFila}
+            disabled={!!acaoLoading}
+          >
+            {acaoLoading === 'gerar-fila' ? 'Gerando fila…' : 'Gerar fila de envio'}
           </button>
         </div>
       )}
@@ -736,6 +778,17 @@ export default function DisparoExecucaoPage() {
           >
             <IconPlayerPlay size={15} />
             {acaoLoading === 'iniciar' ? 'Iniciando…' : 'Iniciar campanha'}
+          </button>
+        )}
+        {podeGerarFila && (
+          <button
+            type="button"
+            className="disparo-btn-primary"
+            onClick={handleGerarFila}
+            disabled={!!acaoLoading}
+          >
+            <IconPlayerPlay size={15} />
+            {acaoLoading === 'gerar-fila' ? 'Gerando fila…' : 'Gerar fila de envio'}
           </button>
         )}
         {podePausar && (
@@ -851,7 +904,11 @@ export default function DisparoExecucaoPage() {
           </div>
 
           {fila.itens.length === 0 ? (
-            <p className="dpex-empty">Nenhum item na fila{filaStatus ? ` com status "${filaStatus}"` : ''}.</p>
+            <p className="dpex-empty">
+              {podeGerarFila
+                ? 'Nenhum item na fila. Use “Gerar fila de envio” para incluir os destinatários.'
+                : `Nenhum item na fila${filaStatus ? ` com status "${filaStatus}"` : ''}.`}
+            </p>
           ) : (
             <>
               <div className="dpex-table-wrap">

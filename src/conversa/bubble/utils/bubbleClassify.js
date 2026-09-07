@@ -61,6 +61,109 @@ export function canDeleteMessageForEveryone(msg, { out, currentUserId }) {
   return String(msg.autor_usuario_id) === String(currentUserId);
 }
 
+export const EDIT_WINDOW_MS = 15 * 60 * 1000;
+export const TEXT_EDIT_MAX_LEN = 4096;
+export const CAPTION_EDIT_MAX_LEN = 1024;
+
+const TEXT_EDIT_TIPOS = new Set(["texto", "text", "chat"]);
+const CAPTION_EDIT_TIPOS = new Set([
+  "imagem",
+  "image",
+  "video",
+  "vídeo",
+  "arquivo",
+  "document",
+  "documento",
+  "file",
+]);
+
+export function isMediaCaptionEditTipo(tipo) {
+  return CAPTION_EDIT_TIPOS.has(String(tipo || "").trim().toLowerCase());
+}
+
+export function isTextEditTipo(tipo) {
+  return TEXT_EDIT_TIPOS.has(String(tipo || "").trim().toLowerCase());
+}
+
+export function isInternalNoteEditTipo(msg) {
+  const tipo = String(msg?.tipo || "").trim().toLowerCase();
+  const direcao = String(msg?.direcao || "").trim().toLowerCase();
+  return tipo === "internal_note" || direcao === "interna";
+}
+
+export function isMessageEdited(msg) {
+  return msg?.editado === true || msg?.editada === true;
+}
+
+function parseCriadoEmMs(criadoEm) {
+  if (criadoEm == null || criadoEm === "") return NaN;
+  if (criadoEm instanceof Date) {
+    const t = criadoEm.getTime();
+    return Number.isFinite(t) ? t : NaN;
+  }
+  const s = String(criadoEm).trim();
+  const asNum = Number(s);
+  if (Number.isFinite(asNum) && asNum > 1e11) return asNum;
+  if (Number.isFinite(asNum) && asNum > 1e9 && asNum < 1e11) return asNum * 1000;
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+/**
+ * Texto a colocar no composer ao editar. Placeholders internos de mídia
+ * ("(imagem)", "(vídeo)", nome de arquivo) viram input vazio.
+ */
+export function getEditableComposerText(msg) {
+  const raw = String(msg?.texto ?? msg?.conteudo ?? "").trim();
+  if (!raw) return "";
+  const tipo = String(msg?.tipo || "").trim().toLowerCase();
+  const norm = raw.toLowerCase();
+  if (MEDIA_PLACEHOLDER_TEXTS.has(norm) || norm === "(mensagem)" || norm === "(mensagem vazia)") {
+    return "";
+  }
+  if (isMediaCaptionEditTipo(tipo) && isPlaceholderCaptionText(raw, msg?.nome_arquivo)) {
+    return "";
+  }
+  return raw;
+}
+
+/**
+ * Quando mostrar "Editar" no menu. Espelha o autor de canDeleteMessageForEveryone
+ * (só o autor; admin não ganha item extra) e exige instância Whapi, salvo nota interna.
+ */
+export function canEditMessage(msg, { out, currentUserId, provider, nowMs = Date.now() } = {}) {
+  if (!msg) return false;
+  if (msg.apagada_para_todos) return false;
+
+  const isNote = isInternalNoteEditTipo(msg);
+  if (!isNote && String(provider || "").trim().toLowerCase() !== "whapi") return false;
+  if (!isNote && !out) return false;
+
+  if (currentUserId == null || currentUserId === "") return false;
+  if (msg.autor_usuario_id == null) return false;
+  if (String(msg.autor_usuario_id) !== String(currentUserId)) return false;
+
+  const created = parseCriadoEmMs(msg.criado_em);
+  if (!Number.isFinite(created) || nowMs - created >= EDIT_WINDOW_MS) return false;
+
+  if (!isNote) {
+    const wa = msg.whatsapp_id != null ? String(msg.whatsapp_id).trim() : "";
+    if (!wa) return false;
+    const tipo = String(msg.tipo || "").trim().toLowerCase();
+    if (!TEXT_EDIT_TIPOS.has(tipo) && !CAPTION_EDIT_TIPOS.has(tipo)) return false;
+    const status = String(msg.status_mensagem || msg.status || "").toLowerCase();
+    const pendingOrErr =
+      status === "pending" ||
+      status === "sending" ||
+      status === "erro" ||
+      status === "error" ||
+      msg.envio_erro === true;
+    if (pendingOrErr && !wa) return false;
+  }
+
+  return true;
+}
+
 /**
  * Identifica o tipo da bolha e as flags de layout a partir da mensagem.
  * Status de envio NÃO entra aqui — a troca pending→sent→delivered→read não

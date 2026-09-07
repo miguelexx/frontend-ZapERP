@@ -26,6 +26,7 @@ export const ESCAPE_PANEL_ORDER = [
   "timeline",
   "tags",
   "forwardOrSelect",
+  "edit",
   "reply",
   "messageSearch",
 ];
@@ -52,6 +53,7 @@ export function buildEscapeEntries(state, actions) {
     { name: "timeline", active: !!state.showTimeline, run: actions.closeTimeline },
     { name: "tags", active: !!state.tagsOpen, run: actions.closeTags },
     { name: "forwardOrSelect", active: !!(state.forwardOpen || state.selectMode), run: actions.dismissSelectionOverlay },
+    { name: "edit", active: !!state.editingMessage, run: actions.clearEdit },
     { name: "reply", active: !!state.replyTo, run: actions.clearReply },
     { name: "messageSearch", active: !!state.messageSearchOpen, run: actions.closeMessageSearch },
   ];

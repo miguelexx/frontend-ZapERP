@@ -2,6 +2,7 @@ import { IconChevronUp } from "@tabler/icons-react";
 import { IconNote as TablerNote } from "@tabler/icons-react";
 import {
   IconCamera,
+  IconCheck,
   IconEmoji,
   IconMic,
   IconSend,
@@ -16,6 +17,9 @@ export default function ComposerFooter({
   conversaId,
   sending,
   podeEnviar,
+  editMode = false,
+  editAllowEmpty = false,
+  editMaxLength,
   atendimentoEncerradoHint,
   headerCompact,
   composerEnterInsertsNewline,
@@ -58,9 +62,17 @@ export default function ComposerFooter({
   onShareContact,
   onShareLocation,
 }) {
+  const canType = Boolean(conversaId) && (editMode || notaInternaAtiva || podeEnviar);
+  const canConfirmEdit = Boolean(conversaId) && (editAllowEmpty || hasDraft);
+  const inputMaxLength = editMode
+    ? editMaxLength
+    : notaInternaAtiva
+      ? INTERNAL_NOTE_MAX_LEN
+      : undefined;
+
   return (
     <>
-      {podeAnotar && notaInternaAtiva && !voiceRecording.isRecording ? (
+      {podeAnotar && notaInternaAtiva && !editMode && !voiceRecording.isRecording ? (
         <div className="wa-composerModeBar" style={{ padding: "5px 12px 0", borderTop: "1px solid var(--wa-border,#e5e7eb)", display: "flex", alignItems: "center", gap: 6 }}>
           <span className="wa-notaBadge">
             <TablerNote size={11} strokeWidth={2.5} />
@@ -73,10 +85,11 @@ export default function ComposerFooter({
       ) : null}
 
       {/* O textarea permanece montado sob o overlay para preservar o teclado mobile. */}
-      <div className={`wa-footer ${voiceRecording.isRecording ? "wa-footer--recording" : ""} ${notaInternaAtiva ? "wa-footer--nota" : ""}`}>
+      <div className={`wa-footer ${voiceRecording.isRecording ? "wa-footer--recording" : ""} ${notaInternaAtiva && !editMode ? "wa-footer--nota" : ""} ${editMode ? "wa-footer--edit" : ""}`}>
         {composerFooterHint && !voiceRecording.isRecording ? (
           <div className="wa-footer-hint" role="status">{composerFooterHint}</div>
         ) : null}
+        {!editMode ? (
         <AttachmentMenu
           open={attachments.menuOpen}
           portal={attachments.menuPortal}
@@ -106,6 +119,8 @@ export default function ComposerFooter({
           onShareLocation={onShareLocation}
           onUpdateAutoCorrectPreference={onUpdateAutoCorrectPreference}
         />
+        ) : null}
+        {!editMode ? (
         <div className="wa-stickerWrap">
           <button
             ref={stickerPicker.buttonRef}
@@ -126,7 +141,8 @@ export default function ComposerFooter({
             <IconSticker />
           </button>
         </div>
-        {!autocorrectToggleInMenu ? (
+        ) : null}
+        {!editMode && !autocorrectToggleInMenu ? (
           <label
             className={`wa-autocorrectToggle ${autoCorrectEnabled ? "isEnabled" : ""}`}
             title="Ativar ou desativar correção ortográfica automática"
@@ -163,17 +179,29 @@ export default function ComposerFooter({
           onChange={onInputChange}
           onBlur={onInputBlur}
           onPaste={onPaste}
-          placeholder={notaInternaAtiva ? "Escreva uma nota interna (visível apenas para a equipe)…" : composerPlaceholderText}
-          className={`wa-input ${autoCorrectFlash ? "wa-input--autocorrect-flash" : ""} ${atendimentoEncerradoHint && !podeEnviar ? "wa-input--closedAttendance" : ""} ${notaInternaAtiva ? "wa-input--nota" : ""}`}
+          placeholder={
+            editMode
+              ? composerPlaceholderText
+              : notaInternaAtiva
+                ? "Escreva uma nota interna (visível apenas para a equipe)…"
+                : composerPlaceholderText
+          }
+          className={`wa-input ${autoCorrectFlash ? "wa-input--autocorrect-flash" : ""} ${atendimentoEncerradoHint && !podeEnviar && !editMode ? "wa-input--closedAttendance" : ""} ${notaInternaAtiva && !editMode ? "wa-input--nota" : ""}`}
           onKeyDown={onKeyDown}
-          disabled={notaInternaAtiva ? !conversaId : (!conversaId || !podeEnviar)}
-          aria-label={notaInternaAtiva ? "Escrever nota interna" : composerInputAriaLabel}
+          disabled={!canType}
+          aria-label={
+            editMode
+              ? composerInputAriaLabel
+              : notaInternaAtiva
+                ? "Escrever nota interna"
+                : composerInputAriaLabel
+          }
           rows={1}
           enterKeyHint={composerEnterInsertsNewline ? "enter" : "send"}
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          maxLength={notaInternaAtiva ? INTERNAL_NOTE_MAX_LEN : undefined}
+          maxLength={inputMaxLength}
         />
 
         {!headerCompact ? (
@@ -189,13 +217,13 @@ export default function ComposerFooter({
             }}
             title="Emojis"
             aria-label="Emojis"
-            disabled={sending || !conversaId || !podeEnviar}
+            disabled={sending || !canType}
           >
             <IconEmoji />
           </button>
         ) : null}
 
-        {headerCompact && !hasDraft ? (
+        {headerCompact && !hasDraft && !editMode ? (
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={attachments.openCamera}
@@ -210,6 +238,20 @@ export default function ComposerFooter({
         ) : null}
 
         <div className="wa-footer-right">
+          {editMode ? (
+            <button
+              type="button"
+              onMouseDown={(event) => { if (event.button !== 0) return; event.preventDefault(); }}
+              onClick={() => onSend(texto)}
+              disabled={sending || !canConfirmEdit}
+              className="wa-sendBtn"
+              title="Salvar edição"
+              aria-label="Salvar edição"
+            >
+              <IconCheck />
+            </button>
+          ) : (
+          <>
           {!notaInternaAtiva && (headerCompact ? !hasDraft : true) ? (
             <button
               onMouseDown={(event) => event.preventDefault()}
@@ -325,6 +367,8 @@ export default function ComposerFooter({
               </button>
             )
           ) : null}
+          </>
+          )}
         </div>
 
         <VoiceRecorder

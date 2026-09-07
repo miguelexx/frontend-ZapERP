@@ -3,7 +3,11 @@ import api from './http'
 const BASE = '/api/disparo'
 
 export function disparoApiError(error) {
-  return error?.response?.data?.error || error?.message || 'Erro ao comunicar com o servidor.'
+  return error?.response?.data?.error
+    || error?.response?.data?.detail
+    || error?.response?.data?.erro
+    || error?.message
+    || 'Erro ao comunicar com o servidor.'
 }
 
 const execBase = (campanhaId) => `${BASE}/campanhas/${campanhaId}/execucao`

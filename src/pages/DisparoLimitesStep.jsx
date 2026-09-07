@@ -562,8 +562,13 @@ function SimulacaoResumo({ simulacao }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
+const STATUS_CONGELADO = new Set([
+  'pronta', 'agendada', 'em_execucao', 'pausada', 'concluida', 'cancelada', 'arquivada',
+])
+
 export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack, onContinue }) {
   const campanhaId = campanha?.id
+  const campanhaCongelada = STATUS_CONGELADO.has(String(campanha?.status || ''))
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -715,6 +720,12 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
   }
 
   async function salvarTudo({ silencioso = false } = {}) {
+    if (campanhaCongelada) {
+      if (!silencioso) {
+        setErro('Campanha já confirmada. Use “Voltar para edição” para alterar limites, ou inicie o disparo na tela de execução.')
+      }
+      return false
+    }
     if (!silencioso) setSaving(true)
     setErro('')
     const avisosLocais = []
@@ -781,7 +792,10 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
     setSaving(true)
     setErro('')
     try {
-      await salvarTudo({ silencioso: true })
+      if (!campanhaCongelada) {
+        const okSave = await salvarTudo({ silencioso: true })
+        if (!okSave) return
+      }
       const res = await simular(campanhaId)
       setSimulacao(res)
       setSimulado(true)
@@ -817,6 +831,10 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
   }
 
   async function handleContinuar() {
+    if (campanhaCongelada) {
+      onContinue?.()
+      return
+    }
     setContinuando(true)
     setErro('')
     try {
@@ -1255,7 +1273,9 @@ export default function DisparoLimitesStep({ campanha, onCampanhaUpdate, onBack,
             Voltar
           </button>
           <span className="dw-autosave-hint">
-            {saving ? 'Salvando…' : 'Salvamento automático'}
+            {campanhaCongelada
+              ? 'Campanha confirmada — limites só mudam após voltar para edição'
+              : (saving ? 'Salvando…' : 'Salvamento automático')}
           </span>
         </div>
         <div className="lim-footer__center">

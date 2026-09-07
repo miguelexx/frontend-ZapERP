@@ -5,6 +5,7 @@ import { useConversaStore, getMessageListReactKey, isPendingOutgoingTemp } from 
 import {
   enviarMensagem,
   excluirMensagem,
+  editarMensagem,
   reenviarMidiaFalha,
   reenviarTextoFalha,
 } from "./conversaService";
@@ -38,6 +39,7 @@ import {
 import { getSocket } from "../socket/socket";
 import { scheduleAfterInitialPaint } from "../chats/scheduleAfterInitialPaint";
 import { saveReplyMeta } from "./replyMeta";
+import { saveComposerDraft } from "./composerDraftStore";
 import {
   buildOptimisticOutgoingMessage,
   bumpChatListWithOptimisticMessage,
@@ -76,6 +78,14 @@ import {
   getUserDepartamentoIdSet,
 } from "./utils/conversaAccessHelpers";
 import { buildEscapeEntries, runFirstActiveEscape } from "./utils/conversationEscapeOrder";
+import { INTERNAL_NOTE_MAX_LEN } from "./internalNote";
+import {
+  getEditableComposerText,
+  isMediaCaptionEditTipo,
+  isInternalNoteEditTipo,
+  CAPTION_EDIT_MAX_LEN,
+  TEXT_EDIT_MAX_LEN,
+} from "./bubble/utils/bubbleClassify";
 import Bubble from "./ConversaBubble";
 import { useConversationToast } from "./hooks/useConversationToast";
 import { usePendingOutgoingLifecycle } from "./hooks/usePendingOutgoingLifecycle";
@@ -106,7 +116,7 @@ import ConversaViewOverlays from "./components/ConversaViewOverlays";
 import ConversaTimelinePanel from "./components/ConversaTimelinePanel";
 import ConversaDropOverlay from "./components/ConversaDropOverlay";
 
-import { useChatStore } from "../chats/chatsStore";
+import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore";
 import { useMatchMedia } from "../hooks/useMatchMedia";
 import EmptyState from "../components/feedback/EmptyState";
 import ConversaLoadingScreen from "./ConversaLoadingScreen";
@@ -427,8 +437,14 @@ function ConversaViewBody() {
   const canVerSyncProdutos = ["admin", "supervisor"].includes(userRole);
   const canSincronizarProdutos = userRole === "admin";
 
-  // ações estilo WhatsApp: responder, encaminhar, fixar, favoritar, selecionar, apagar
+  // ações estilo WhatsApp: responder, encaminhar, fixar, favoritar, selecionar, apagar, editar
   const [replyTo, setReplyTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const editDraftBackupRef = useRef(null);
+  const editingMessageRef = useRef(null);
+  editingMessageRef.current = editingMessage;
+  const handleSaveEditRef = useRef(null);
 
   const [msgInfoOpen, setMsgInfoOpen] = useState(false);
   const [msgInfo, setMsgInfo] = useState(null);
@@ -510,6 +526,13 @@ function ConversaViewBody() {
 
   const onConversationChange = useCallback(() => {
     setReplyTo(null);
+    const backup = editDraftBackupRef.current;
+    if (backup?.conversaId != null) {
+      saveComposerDraft(backup.conversaId, backup.text ?? "");
+    }
+    editDraftBackupRef.current = null;
+    setEditingMessage(null);
+    setEditSaving(false);
     lastResizeSnapMetaRef.current = { contentKey: null, scrollHeight: 0 };
   }, []);
 
@@ -638,7 +661,44 @@ function ConversaViewBody() {
     modoSimplesAtivo,
   });
 
+  const whatsappInstanceProvider =
+    conversa?.whatsapp_instance_provider ?? fromChat?.whatsapp_instance_provider ?? null;
+
+  const restoreComposerDraftAfterEdit = useCallback(() => {
+    const backup = editDraftBackupRef.current;
+    editDraftBackupRef.current = null;
+    if (!backup) {
+      composerRef.current?.setText?.("");
+      return;
+    }
+    if (String(backup.conversaId) === String(conversaId ?? "")) {
+      composerRef.current?.setText?.(backup.text ?? "");
+    } else {
+      saveComposerDraft(backup.conversaId, backup.text ?? "");
+    }
+  }, [conversaId]);
+
+  const exitEditMode = useCallback(() => {
+    setEditingMessage(null);
+    setEditSaving(false);
+    restoreComposerDraftAfterEdit();
+  }, [restoreComposerDraftAfterEdit]);
+
   const replyBarPreview = useMemo(() => {
+    if (editingMessage) {
+      const tipo = safeString(editingMessage?.tipo).toLowerCase();
+      const thumb =
+        tipo === "imagem" || tipo === "image" || tipo === "sticker" || tipo === "video" || tipo === "vídeo"
+          ? getMediaUrl(editingMessage?.url, editingMessage?.url_absoluta)
+          : "";
+      const editText = getEditableComposerText(editingMessage);
+      return {
+        variant: "edit",
+        thumb: thumb || null,
+        title: "Editando mensagem",
+        text: editText || snippetFromMsg(editingMessage),
+      };
+    }
     if (!replyTo) return null;
     const chatParaNome = fromChat ?? conversa;
     const rt = safeString(replyTo?.tipo).toLowerCase();
@@ -649,7 +709,7 @@ function ConversaViewBody() {
       title: getReplySenderLabel(replyTo, nome, chatParaNome),
       text: replySnippetDisplay(meta) || snippetFromMsg(replyTo),
     };
-  }, [replyTo, nome, fromChat, conversa]);
+  }, [editingMessage, replyTo, nome, fromChat, conversa]);
 
   const lastMsg = useMemo(
     () => (mensagens?.length ? mensagens[mensagens.length - 1] : null),
@@ -1620,6 +1680,9 @@ function ConversaViewBody() {
   const manualTextRetryRef = useRef(null);
 
   const handleEnviar = useCallback(async (forcedText) => {
+    if (editingMessageRef.current && handleSaveEditRef.current) {
+      return handleSaveEditRef.current(forcedText);
+    }
     if (!conversaId) return;
     if (!podeEnviar) {
       showToast({
@@ -1869,9 +1932,144 @@ function ConversaViewBody() {
   });
 
   const handleReplyAction = useCallback((msg) => {
+    if (editingMessageRef.current) {
+      exitEditMode();
+    }
     setReplyTo(msg || null);
     focusMessageInput();
-  }, [focusMessageInput]);
+  }, [exitEditMode, focusMessageInput]);
+
+  const handleEditAction = useCallback((msg) => {
+    if (!msg?.id) return;
+    if (composerRef.current?.isRecording?.()) {
+      composerRef.current?.cancelRecording?.();
+    }
+    composerRef.current?.closePanels?.();
+    setReplyTo(null);
+    if (!editDraftBackupRef.current) {
+      editDraftBackupRef.current = {
+        conversaId,
+        text: String(composerRef.current?.getText?.() ?? ""),
+      };
+    }
+    setEditingMessage(msg);
+    composerRef.current?.setText?.(getEditableComposerText(msg));
+    focusMessageInput({ force: true });
+  }, [conversaId, focusMessageInput]);
+
+  const handleSaveEdit = useCallback(async (forcedText) => {
+    const msg = editingMessageRef.current;
+    if (!conversaId || !msg?.id) return;
+
+    const forcedLooksLikeEvent =
+      forcedText &&
+      typeof forcedText === "object" &&
+      ("nativeEvent" in forcedText || "preventDefault" in forcedText || "currentTarget" in forcedText);
+    const nextTexto = safeString(forcedLooksLikeEvent ? undefined : forcedText).trim();
+    const allowEmpty = isMediaCaptionEditTipo(msg.tipo);
+    if (!allowEmpty && !nextTexto) {
+      showToast({
+        type: "warning",
+        title: "Texto vazio",
+        message: "Digite o texto da mensagem para salvar a edição.",
+      });
+      return;
+    }
+
+    const maxLen = isInternalNoteEditTipo(msg)
+      ? INTERNAL_NOTE_MAX_LEN
+      : allowEmpty
+        ? CAPTION_EDIT_MAX_LEN
+        : TEXT_EDIT_MAX_LEN;
+    if (nextTexto.length > maxLen) {
+      showToast({
+        type: "warning",
+        title: "Texto longo demais",
+        message: `O texto excede ${maxLen} caracteres.`,
+      });
+      return;
+    }
+
+    const store = useConversaStore.getState();
+    const current =
+      (store.mensagens || []).find((m) => m?.id != null && String(m.id) === String(msg.id)) || msg;
+    const prevTexto = current?.texto;
+    const prevConteudo = current?.conteudo;
+    const prevEditado = current?.editado === true || current?.editada === true;
+    const prevEditadaEm = current?.editada_em ?? null;
+
+    const optimisticPartial = {
+      texto: nextTexto,
+      conteudo: nextTexto,
+      editado: true,
+      editada: true,
+    };
+    store.patchMensagem(msg.id, optimisticPartial, { conversa_id: conversaId, preserveOrder: true });
+
+    const row = getChatByIdFromStore(conversaId);
+    const um = row?.ultima_mensagem;
+    const editedLast = !!(um && String(um.id) === String(msg.id));
+    if (editedLast) {
+      useChatStore.getState().setUltimaMensagem(conversaId, {
+        ...um,
+        texto: nextTexto,
+        conteudo: nextTexto,
+        editado: true,
+        editada: true,
+      });
+    }
+
+    setEditSaving(true);
+    try {
+      const res = await editarMensagem(conversaId, msg.id, { texto: nextTexto });
+      const saved = res?.mensagem;
+      if (saved) {
+        useConversaStore.getState().patchMensagem(
+          msg.id,
+          {
+            texto: saved.texto ?? nextTexto,
+            conteudo: saved.conteudo ?? saved.texto ?? nextTexto,
+            editado: true,
+            editada: true,
+            editada_em: saved.editada_em ?? new Date().toISOString(),
+          },
+          { conversa_id: conversaId, preserveOrder: true }
+        );
+      }
+      if (res?.ultima_mensagem) {
+        useChatStore.getState().setUltimaMensagem(conversaId, res.ultima_mensagem);
+      }
+      setEditingMessage(null);
+      restoreComposerDraftAfterEdit();
+    } catch (e) {
+      console.error("Erro ao editar mensagem:", e);
+      useConversaStore.getState().patchMensagem(
+        msg.id,
+        {
+          texto: prevTexto,
+          conteudo: prevConteudo,
+          editado: prevEditado,
+          editada: prevEditado,
+          editada_em: prevEditadaEm,
+        },
+        { conversa_id: conversaId, preserveOrder: true }
+      );
+      if (editedLast && um) {
+        useChatStore.getState().setUltimaMensagem(conversaId, um);
+      }
+      const apiMsg = e?.response?.data?.error;
+      showToast({
+        type: "error",
+        title: "Falha ao editar",
+        message: apiMsg || "Não foi possível editar a mensagem.",
+      });
+      focusMessageInput({ force: true });
+    } finally {
+      setEditSaving(false);
+    }
+  }, [conversaId, focusMessageInput, restoreComposerDraftAfterEdit, showToast]);
+
+  handleSaveEditRef.current = handleSaveEdit;
 
   const handleInfoAction = useCallback((msg) => {
     if (!msg) return;
@@ -2137,6 +2335,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           forwardOpen,
           selectMode,
           replyTo,
+          editingMessage,
           messageSearchOpen,
         },
         {
@@ -2155,6 +2354,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           closeTimeline: () => setShowTimeline(false),
           closeTags: () => setTagsOpen(false),
           dismissSelectionOverlay,
+          clearEdit: exitEditMode,
           clearReply: () => setReplyTo(null),
           closeMessageSearch: () => setMessageSearchOpen(false),
         }
@@ -2182,6 +2382,8 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
     forwardOpen,
     selectMode,
     dismissSelectionOverlay,
+    editingMessage,
+    exitEditMode,
     replyTo,
     messageSearchOpen,
     setMessageSearchOpen,
@@ -2310,7 +2512,13 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
     clearComposerAppendQueue();
   }, [clearComposerAppendQueue]);
 
-  const handleComposerCancelReply = useCallback(() => setReplyTo(null), []);
+  const handleComposerCancelReply = useCallback(() => {
+    if (editingMessageRef.current) {
+      exitEditMode();
+      return;
+    }
+    setReplyTo(null);
+  }, [exitEditMode]);
 
   const handleComposerPasteImage = useCallback(
     (file) => handleDropFile(file),
@@ -2792,6 +3000,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
             localReactions={localReactions}
             reactionLoading={reactionLoading}
             myUserId={myUserId}
+            whatsappInstanceProvider={whatsappInstanceProvider}
             mostrarNomeAoCliente={user?.mostrar_nome_ao_cliente !== false}
             swipeReplyEnabled={headerCompact && !selectMode}
             compactMessageUx={compactMessageUx}
@@ -2805,6 +3014,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
             onStartSelect={startSelect}
             onDeleteForMe={handleDeleteForMe}
             onDeleteForEveryone={handleDeleteForEveryone}
+            onEdit={handleEditAction}
             onJumpToReply={jumpToReply}
             onOpenMedia={openMediaViewer}
             onReenviarAudio={reenviarAudioFalho}
@@ -2838,7 +3048,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           departamentoId={conversa?.departamento_id ?? null}
           scrollThreadId={scrollThreadId}
           loading={loading}
-          sending={sending}
+          sending={sending || editSaving}
           podeEnviar={podeEnviar}
           autoAssumirHint={!modoSimplesAtivo && conversaElegivelAutoAssumir}
           mensagensBloqueadasHint={mensagensBloqueadasHint}
@@ -2851,6 +3061,16 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           replyBarPreview={replyBarPreview}
           onCancelReply={handleComposerCancelReply}
           onSendMessage={handleEnviar}
+          editMode={Boolean(editingMessage)}
+          editAllowEmpty={isMediaCaptionEditTipo(editingMessage?.tipo)}
+          editMaxLength={
+            isInternalNoteEditTipo(editingMessage)
+              ? INTERNAL_NOTE_MAX_LEN
+              : isMediaCaptionEditTipo(editingMessage?.tipo)
+                ? CAPTION_EDIT_MAX_LEN
+                : TEXT_EDIT_MAX_LEN
+          }
+          onSaveEdit={handleSaveEdit}
           onSendAudioFile={handleComposerSendAudio}
           onPasteImageFile={handleComposerPasteImage}
           onFileInputChange={handleFileInputChange}

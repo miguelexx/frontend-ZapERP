@@ -29,6 +29,10 @@ import { useStickerPicker } from "./hooks/useStickerPicker";
 import { useComposerAutocorrect } from "./hooks/useComposerAutocorrect";
 import { useVoiceRecording } from "./hooks/useVoiceRecording";
 import { getComposerEnterIntent } from "./utils/composerKeyboard";
+import {
+  CAPTION_EDIT_MAX_LEN,
+  TEXT_EDIT_MAX_LEN,
+} from "../bubble/utils/bubbleClassify";
 
 const CameraCapture = lazy(() => import("./components/CameraCapture"));
 const EmojiPicker = lazy(() => import("./components/EmojiPicker"));
@@ -57,6 +61,10 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     replyBarPreview,
     onCancelReply,
     onSendMessage,
+    editMode = false,
+    editAllowEmpty = false,
+    editMaxLength,
+    onSaveEdit,
     onSendAudioFile,
     onPasteImageFile,
     onFileInputChange,
@@ -119,7 +127,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   const { emitTypingStop } = useTypingEmitter({
     conversaId,
     texto,
-    disabled: notaInternaAtiva,
+    disabled: notaInternaAtiva || editMode,
     clearTyping,
   });
   const savedReplies = useSavedReplies({ conversaId, departamentoId });
@@ -202,6 +210,16 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     setNotaInternaAtiva(false);
     draftDoOutroModoRef.current = "";
   }, [conversaId]);
+
+  // Sai do modo nota se entrar em edição (PATCH, não nova nota)
+  useEffect(() => {
+    if (!editMode) return;
+    if (notaInternaAtiva) setNotaInternaAtiva(false);
+    setAttachMenuOpen(false);
+    setStickerOpen(false);
+    setEmojiOpen(false);
+    closeSavedReplies();
+  }, [editMode, notaInternaAtiva, closeSavedReplies]);
 
   // Se permissão for removida enquanto no modo nota, volta para modo normal
   useEffect(() => {
@@ -341,8 +359,9 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   // dois eventos do mesmo clique/Enter continuam idempotentes, mas mensagens consecutivas
   // podem entrar imediatamente na fila otimista.
   useEffect(() => {
+    if (editMode && sending) return;
     if (!sending || String(texto || "").trim()) sendLockedRef.current = null;
-  }, [sending, texto]);
+  }, [sending, texto, editMode]);
 
   useImperativeHandle(
     ref,
@@ -359,7 +378,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
       isRecording: () => isRecording,
       cancelRecording: handleCancelRecording,
       closePanels,
-      getText: () => texto,
+      getText: () => textoRef.current ?? texto,
     }),
     [focusInput, handleCancelRecording, closePanels, isRecording, texto]
   );
@@ -406,6 +425,18 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   const handleSendFromComposer = useCallback(
     (textToSend) => {
       if (!conversaId) return;
+
+      if (editMode) {
+        const raw = textToSend != null ? String(textToSend) : String(textoRef.current || "");
+        const t = raw.trim();
+        if (!editAllowEmpty && !t) return;
+        const lockKey = `edit:${t}`;
+        if (sendLockedRef.current === lockKey) return;
+        sendLockedRef.current = lockKey;
+        onSaveEdit?.(t);
+        return;
+      }
+
       const t = safeString(textToSend).trim();
       if (!t) return;
 
@@ -429,7 +460,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
       setTexto("");
       onSendMessage?.(t);
     },
-    [conversaId, notaInternaAtiva, onSendInternalNote, onSendMessage, podeEnviar, resetAutocorrectTracking]
+    [conversaId, editAllowEmpty, editMode, notaInternaAtiva, onSaveEdit, onSendInternalNote, onSendMessage, podeEnviar, resetAutocorrectTracking]
   );
 
   const insertSavedReply = useCallback(
@@ -509,7 +540,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   const handlePaste = useCallback(
     (e) => {
       if (!conversaId) return;
-      if (notaInternaAtiva) return;
+      if (notaInternaAtiva || editMode) return;
       const dt = e.clipboardData;
       if (!dt) return;
 
@@ -530,7 +561,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         onPasteImageFile?.(pickedFile);
       }
     },
-    [conversaId, notaInternaAtiva, onPasteImageFile]
+    [conversaId, notaInternaAtiva, editMode, onPasteImageFile]
   );
 
   const hasDraft = Boolean(safeString(texto).trim());
@@ -570,13 +601,19 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         : "Assuma esta conversa para enviar mensagens"
     : null;
 
-  const composerPlaceholderText = atendimentoEncerradoHint && !podeEnviar
+  const composerPlaceholderText = editMode
+    ? (editAllowEmpty ? "Edite a legenda" : "Edite a mensagem")
+    : atendimentoEncerradoHint && !podeEnviar
     ? "Reabra o atendimento para enviar mensagens"
     : placeholderText;
-  const composerInputAriaLabel = atendimentoEncerradoHint && !podeEnviar
+  const composerInputAriaLabel = editMode
+    ? (editAllowEmpty ? "Editar legenda da mensagem." : "Editar mensagem.")
+    : atendimentoEncerradoHint && !podeEnviar
     ? "Reabra o atendimento para enviar mensagens."
     : inputAriaLabel;
-  const composerFooterHint = atendimentoEncerradoHint && !podeEnviar
+  const composerFooterHint = editMode
+    ? null
+    : atendimentoEncerradoHint && !podeEnviar
     ? "Reabra o atendimento para enviar mensagens"
     : footerHint;
 
@@ -622,6 +659,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
       ) : null}
       <ReplyBar
         preview={replyBarPreview}
+        variant={editMode ? "edit" : "reply"}
         isRecording={isRecording}
         sending={sending}
         onCancel={onCancelReply}
@@ -631,6 +669,11 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         conversaId={conversaId}
         sending={sending}
         podeEnviar={podeEnviar}
+        editMode={editMode}
+        editAllowEmpty={editAllowEmpty}
+        editMaxLength={
+          editMaxLength ?? (editAllowEmpty ? CAPTION_EDIT_MAX_LEN : TEXT_EDIT_MAX_LEN)
+        }
         atendimentoEncerradoHint={atendimentoEncerradoHint}
         headerCompact={headerCompact}
         composerEnterInsertsNewline={composerEnterInsertsNewline}

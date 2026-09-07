@@ -1242,21 +1242,32 @@ export function initSocket(token) {
 
   /* ===========================
      ✏️ MENSAGEM EDITADA (WhatsApp)
-     Atualiza apenas o texto da mensagem pelo id — nunca remove ou reordena
+     Atualiza texto/legenda pelo id — nunca remove, reordena ou mexe no scroll
   =========================== */
-  socket.on("mensagem_editada", (msg) => {
-    if (!msg?.id) return
-    if (shouldIgnoreByCompany(msg)) return
+  socket.on("mensagem_editada", (payload = {}) => {
+    if (shouldIgnoreByCompany(payload)) return
+    const mensagemId = payload.id ?? payload.mensagem_id
+    const conversa_id = payload.conversa_id
+    if (mensagemId == null || mensagemId === "" || !conversa_id) return
+
+    if (payload.ultima_mensagem) {
+      useChatStore.getState().setUltimaMensagem(conversa_id, payload.ultima_mensagem)
+    }
+
     const convStore = useConversaStore.getState()
-    const selectedId = convStore.selectedId
-    if (!selectedId) return
-    const conversaId = msg?.conversa_id
-    if (!conversaId || String(conversaId) !== String(selectedId)) return
-    convStore.patchMensagem(msg.id, {
-      texto: msg.texto ?? msg.conteudo,
-      conteudo: msg.conteudo ?? msg.texto,
+    if (!convStore.selectedId || String(convStore.selectedId) !== String(conversa_id)) return
+
+    const texto = payload.texto ?? payload.conteudo
+    const partial = {
       editado: true,
-    }, { conversa_id: conversaId })
+      editada: true,
+      editada_em: payload.editada_em ?? null,
+    }
+    if (texto != null) {
+      partial.texto = texto
+      partial.conteudo = payload.conteudo ?? payload.texto ?? texto
+    }
+    convStore.patchMensagem(mensagemId, partial, { conversa_id, preserveOrder: true })
   })
 
   /* Mensagem ocultada "pra mim" (somente usuário) */

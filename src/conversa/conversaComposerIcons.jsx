@@ -1,5 +1,22 @@
 /** Ícones do composer (extraídos do ConversaView para reuso sem dependência circular). */
 
+export function IconCheck(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="2.2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M5 12.5 10 17.5 19 7" />
+    </svg>
+  );
+}
+
+export function IconPencil(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" strokeWidth="1.7" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
 export function IconSend(props) {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>

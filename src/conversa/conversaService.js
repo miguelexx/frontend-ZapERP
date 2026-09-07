@@ -167,6 +167,26 @@ export async function excluirMensagem(conversaId, mensagemId, opts = {}) {
   return data;
 }
 
+/**
+ * Edita texto ou legenda de mídia (não substitui arquivo).
+ * PATCH /chats/:conversaId/mensagens/:mensagemId  body: { texto }
+ */
+export async function editarMensagem(conversaId, mensagemId, { texto } = {}) {
+  const cid = conversaId != null ? String(conversaId) : "";
+  const mid = mensagemId != null ? String(mensagemId) : "";
+  if (!cid || !mid) throw new Error("conversaId/mensagemId inválido");
+  const { data } = await api.patch(
+    `/chats/${cid}/mensagens/${mid}`,
+    { texto: texto == null ? "" : String(texto) },
+    {
+      timeout: HTTP_TIMEOUT_TEXT_MS,
+      skipGlobalNetworkToast: true,
+      skipGlobal500Toast: true,
+    }
+  );
+  return data;
+}
+
 const ENC_TIPO = "auto";
 const ENC_MAX_IDS = 30;
 

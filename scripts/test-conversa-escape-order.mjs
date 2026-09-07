@@ -31,6 +31,7 @@ function makeActions(log) {
     "closeTimeline",
     "closeTags",
     "dismissSelectionOverlay",
+    "clearEdit",
     "clearReply",
     "closeMessageSearch",
   ];
@@ -53,6 +54,7 @@ const NAME_TO_STATE = {
   timeline: "showTimeline",
   tags: "tagsOpen",
   forwardOrSelect: "forwardOpen",
+  edit: "editingMessage",
   reply: "replyTo",
   messageSearch: "messageSearchOpen",
 };
@@ -71,6 +73,7 @@ const NAME_TO_ACTION = {
   timeline: "closeTimeline",
   tags: "closeTags",
   forwardOrSelect: "dismissSelectionOverlay",
+  edit: "clearEdit",
   reply: "clearReply",
   messageSearch: "closeMessageSearch",
 };
@@ -122,7 +125,7 @@ for (const name of ESCAPE_PANEL_ORDER) {
 
 // 5) Prioridade em pares: o de maior prioridade vence quando dois estão abertos.
 {
-  // tags (11º) vs messageSearch (14º) → tags vence
+  // tags vs messageSearch → tags vence
   const log = [];
   const handled = runFirstActiveEscape(
     buildEscapeEntries({ tagsOpen: true, messageSearchOpen: true }, makeActions(log))

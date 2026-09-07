@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { classifyBubbleMessage } from "../src/conversa/bubble/utils/bubbleClassify.js";
+import { classifyBubbleMessage, canEditMessage, getEditableComposerText, isMessageEdited, EDIT_WINDOW_MS } from "../src/conversa/bubble/utils/bubbleClassify.js";
 import { getRetryUiState, buildRetryPayload, buildAudioRetryPayload } from "../src/conversa/bubble/utils/bubbleRetry.js";
 import { resolveOutgoingTick } from "../src/conversa/bubble/utils/bubbleStatus.js";
 import { formatCoords, parseLocationText, buildStaticMapUrl } from "../src/conversa/bubble/utils/locationFormat.js";
@@ -109,6 +109,72 @@ assert.equal(location.isLocation, true);
 
 const call = classify({ tipo: "call", texto: "Ligação perdida" });
 assert.equal(call.isCall, true);
+
+assert.equal(isMessageEdited({ editado: true }), true);
+assert.equal(isMessageEdited({ editada: true }), true);
+assert.equal(isMessageEdited({}), false);
+assert.equal(isMessageEdited({ editado: undefined }), false);
+
+assert.equal(getEditableComposerText({ tipo: "texto", texto: "olá" }), "olá");
+assert.equal(getEditableComposerText({ tipo: "imagem", texto: "(imagem)" }), "");
+assert.equal(getEditableComposerText({ tipo: "video", texto: "(vídeo)" }), "");
+assert.equal(
+  getEditableComposerText({ tipo: "imagem", texto: "IMG_1.png", nome_arquivo: "IMG_1.png" }),
+  ""
+);
+assert.equal(getEditableComposerText({ tipo: "imagem", texto: "legenda real" }), "legenda real");
+
+const now = Date.now();
+const recent = new Date(now - 60 * 1000).toISOString();
+const old = new Date(now - 16 * 60 * 1000).toISOString();
+const editBase = {
+  id: 1,
+  direcao: "out",
+  tipo: "texto",
+  texto: "oi",
+  autor_usuario_id: 7,
+  whatsapp_id: "wamid.abc",
+  criado_em: recent,
+};
+assert.equal(
+  canEditMessage(editBase, { out: true, currentUserId: 7, provider: "whapi", nowMs: now }),
+  true
+);
+assert.equal(
+  canEditMessage(editBase, { out: true, currentUserId: 7, provider: "ultramsg", nowMs: now }),
+  false,
+  "UltraMSG não oferece Editar"
+);
+assert.equal(
+  canEditMessage({ ...editBase, direcao: "in" }, { out: false, currentUserId: 7, provider: "whapi", nowMs: now }),
+  false
+);
+assert.equal(
+  canEditMessage({ ...editBase, tipo: "audio" }, { out: true, currentUserId: 7, provider: "whapi", nowMs: now }),
+  false
+);
+assert.equal(
+  canEditMessage({ ...editBase, criado_em: old }, { out: true, currentUserId: 7, provider: "whapi", nowMs: now }),
+  false
+);
+assert.equal(
+  canEditMessage({ ...editBase, whatsapp_id: null }, { out: true, currentUserId: 7, provider: "whapi", nowMs: now }),
+  false
+);
+assert.equal(
+  canEditMessage(
+    { ...editBase, tipo: "internal_note", direcao: "interna", whatsapp_id: null },
+    { out: false, currentUserId: 7, provider: "ultramsg", nowMs: now }
+  ),
+  true,
+  "nota interna edita local mesmo em UltraMSG"
+);
+assert.equal(EDIT_WINDOW_MS, 15 * 60 * 1000);
+
+assert.match(
+  await readFile(new URL("../src/conversa/bubble/components/MessageMenu.jsx", import.meta.url), "utf8"),
+  /Editar/
+);
 
 // ── Temporária / sem duplicar tipo ───────────────────────────────────────────
 const tempPending = classify({

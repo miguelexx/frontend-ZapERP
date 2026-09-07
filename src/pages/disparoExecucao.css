@@ -283,6 +283,20 @@
   gap: 6px;
 }
 
+.dpex-fila-vazia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.dpex-fila-vazia .disparo-btn-primary {
+  margin-left: auto;
+}
+
 .dpex-btn-danger {
   display: inline-flex;
   align-items: center;

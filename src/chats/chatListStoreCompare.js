@@ -98,6 +98,20 @@ export function ultimaMensagemRefsEqual(a, b) {
   return false;
 }
 
+/** Mesma row lógica e mesmo preview (texto/edição/apagada/status) — usado por setUltimaMensagem. */
+export function ultimaMensagemPreviewEqual(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (!ultimaMensagemRefsEqual(a, b)) return false;
+  if (normalizeMensagemStatusKey(a) !== normalizeMensagemStatusKey(b)) return false;
+  if (String(a?.texto ?? a?.conteudo ?? "") !== String(b?.texto ?? b?.conteudo ?? "")) return false;
+  const editedA = a?.editado === true || a?.editada === true;
+  const editedB = b?.editado === true || b?.editada === true;
+  if (editedA !== editedB) return false;
+  if (Boolean(a?.apagada_para_todos) !== Boolean(b?.apagada_para_todos)) return false;
+  return true;
+}
+
 /** Ticks outbound na última mensagem do card (só direção out). */
 export function ultimaMensagemOutboundStatusKey(c) {
   const u = c?.ultima_mensagem || c?.ultima_mensagem_preview;

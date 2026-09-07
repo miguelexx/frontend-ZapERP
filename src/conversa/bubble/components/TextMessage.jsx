@@ -1,6 +1,7 @@
 import { formatHora } from "../../utils/conversaViewHelpers";
 import { renderTextWithLinks } from "../../utils/conversaViewFormat";
 import MessageStatus from "./MessageStatus";
+import EditedLabel from "./EditedLabel";
 
 export default function TextMessage({ texto, inlineMeta, msg, isGroup }) {
   if (inlineMeta) {
@@ -8,6 +9,7 @@ export default function TextMessage({ texto, inlineMeta, msg, isGroup }) {
       <span className="wa-bubble-text wa-bubble-textInline">
         <span className="wa-bubble-textBody">{renderTextWithLinks(texto)}</span>
         <span className="wa-inlineMeta" aria-label="Horário e status">
+          <EditedLabel msg={msg} />
           <span className="wa-inlineTime">{formatHora(msg?.criado_em)}</span>
           <MessageStatus msg={msg} isGroup={Boolean(isGroup)} />
         </span>

@@ -45,6 +45,8 @@ Antes de adicionar listener: busque o nome no backend. Não registre listener de
 
 `status_mensagem` é **batchado** (`statusMensagemBatch.js`, ~75ms). O flush entrega a fila de uma vez; a thread aplica com `patchMensagensBatch` (um `set()`). Preview da lista usa `getChatByIdFromStore`.
 
+**`mensagem_editada` (CONFIRMADO 2026-09-07):** `shouldIgnoreByCompany` (payload pode trazer `company_id`). Se `ultima_mensagem`, `chatsStore.setUltimaMensagem` (mesmo padrão de `mensagem_excluida`, inclusive conversa não aberta). Se a conversa está selecionada, `patchMensagem` com `texto`/`conteudo`, `editada`/`editado`, `editada_em` e `preserveOrder` — não remove, não reordena, não mexe no scroll.
+
 ## Bridges fora de `socket.js`
 
 | Módulo | Eventos (CONFIRMADO na auditoria de páginas) |

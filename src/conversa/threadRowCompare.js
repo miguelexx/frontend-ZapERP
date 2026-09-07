@@ -52,7 +52,8 @@ export function messageRowVisualSignature(item) {
     item.enviado_por_usuario ? "1" : "0",
     safeStr(item.criado_em),
     safeStr(item.direcao),
-    safeStr(item.editado),
+    item.editado === true || item.editada === true ? "1" : "0",
+    safeStr(item.editada_em),
     safeReplySig(item.reply_meta),
     safeStr(item.location_live),
     item.location_meta ? JSON.stringify(item.location_meta) : "",
@@ -86,6 +87,7 @@ export function threadRowPropsAreEqual(prev, next) {
   if (prev.peerAvatarUrl !== next.peerAvatarUrl) return false;
   if (prev.peerName !== next.peerName) return false;
   if (prev.currentUserId !== next.currentUserId) return false;
+  if (prev.whatsappInstanceProvider !== next.whatsappInstanceProvider) return false;
   if (prev.mostrarNomeAoCliente !== next.mostrarNomeAoCliente) return false;
   if (prev.swipeReplyEnabled !== next.swipeReplyEnabled) return false;
   if (prev.mobileMessageChrome !== next.mobileMessageChrome) return false;
