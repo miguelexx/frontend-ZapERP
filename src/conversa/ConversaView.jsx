@@ -2900,6 +2900,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           setCallModalOpen={setCallModalOpen}
           handleCallDurationChange={handleCallDurationChange}
           handleCallConfirm={handleCallConfirm}
+          whatsappInstanceProvider={whatsappInstanceProvider}
         />
 
         {/* TIMELINE */}

@@ -431,7 +431,7 @@ export async function registrarLigacao(conversaId, callDuration) {
     timeout: HTTP_TIMEOUT_TEXT_MS,
     skipGlobalNetworkToast: true,
   });
-  return assertSpecialtyOutboundAccepted(data, "Não foi possível registrar a ligação.");
+  return assertSpecialtyOutboundAccepted(data, "Não foi possível ligar para o cliente.");
 }
 
 /** Reenvio manual de mídia persistida (sem novo upload / sem novo registro). */

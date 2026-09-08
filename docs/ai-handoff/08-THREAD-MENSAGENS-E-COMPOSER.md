@@ -37,7 +37,7 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 | `composer/hooks/*` | draft, typing, respostas, anexos/câmera, autocorreção, pickers e gravação |
 | `composer/utils/*` | funções puras de teclado, mídia gravada, chaves/contexto e comparação de props |
 | `components/ConversaHeader.jsx` | clique em avatar+nome abre o perfil (`onOpenClienteSide`); foto ampliada só no painel |
-| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp (foto grande, telefone, setor); observação, vínculo, rename (`PUT /chats/:id/nome-contato` + patch imediato em `conversaStore`/`chatsStore`); clique fora fecha (backdrop `--cliente` + listener no `document`); clique na foto abre o lightbox |
+| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp; **Ligar** no Whapi dispara `POST /chats/:id/ligacao` → `sendCall` (`/calls/outgoing`); no UltraMSG continua `tel:`; observação, vínculo, rename; clique fora fecha; clique na foto abre o lightbox |
 | `composerDraftStore.js` | rascunho por conversa |
 
 Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRESHOLD`); senão lista estática. Medir mídia **durante** scroll de histórico não pode soltar a âncora do fundo.

@@ -181,6 +181,9 @@ export default function SidebarCliente({
   open,
   onClose,
   onOpenAvatar,
+  onStartWhatsappCall,
+  callSending = false,
+  whatsappInstanceProvider = null,
   conversa,
   tags,
   tempoSemResponder,
@@ -402,6 +405,22 @@ export default function SidebarCliente({
     if (telDigits) return `+${telDigits}`;
     return "";
   }, [telefone, telDigits]);
+
+  const isWhapiInstance =
+    String(conversa?.whatsapp_instance_provider || whatsappInstanceProvider || "").toLowerCase() === "whapi";
+  const rawCallDest = String(
+    conversa?.telefone ||
+      conversa?.cliente_telefone ||
+      conversa?.cliente?.telefone ||
+      conversa?.chat_lid ||
+      ""
+  ).trim();
+  const hasLidDest =
+    /@lid/i.test(rawCallDest) ||
+    /^lid:/i.test(rawCallDest) ||
+    Boolean(String(conversa?.chat_lid || "").trim());
+  const canWhatsappCall = Boolean(onStartWhatsappCall) && isWhapiInstance && (Boolean(telDigits) || hasLidDest);
+  const canTelCall = Boolean(telDigits) && !canWhatsappCall;
 
   const syncNomeContatoFromConversa = useCallback(() => {
     const dn = String(getDisplayName(conversa) || "").trim();
@@ -1149,7 +1168,19 @@ export default function SidebarCliente({
           ) : null}
           <span className={`wa-sideCliente-pill wa-sideCliente-pill--${statusTone}`}>{statusLabel}</span>
           <div className="wa-sideCliente-quickRow" aria-label="Ações rápidas">
-            {telefone ? (
+            {canWhatsappCall ? (
+              <button
+                type="button"
+                className="wa-sideCliente-quickBtn"
+                title="Ligar pelo WhatsApp"
+                aria-label="Ligar pelo WhatsApp"
+                disabled={callSending}
+                onClick={() => onStartWhatsappCall?.()}
+              >
+                <IconPhone />
+                <span>{callSending ? "Ligando…" : "Ligar"}</span>
+              </button>
+            ) : canTelCall ? (
               <a href={`tel:${telDigits}`} className="wa-sideCliente-quickBtn" title="Ligar" aria-label="Ligar">
                 <IconPhone />
                 <span>Ligar</span>

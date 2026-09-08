@@ -141,6 +141,7 @@ export default function ConversaViewOverlays({
   setCallModalOpen,
   handleCallDurationChange,
   handleCallConfirm,
+  whatsappInstanceProvider,
 }) {
   return (
     <>
@@ -194,6 +195,9 @@ export default function ConversaViewOverlays({
             open
             onClose={() => setShowClienteSide(false)}
             onOpenAvatar={openMediaViewer}
+            onStartWhatsappCall={handleCallConfirm}
+            callSending={callSending}
+            whatsappInstanceProvider={whatsappInstanceProvider}
             conversa={conversa}
             isGroup={isGroup}
             tags={tags}

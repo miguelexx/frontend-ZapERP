@@ -43,8 +43,7 @@ export default function CallModal({
           </div>
           <div className="wa-modal-row">
             <p className="wa-modal-value">
-              Registraremos uma ligação via WhatsApp nesta conversa. Isso não inicia a chamada no seu dispositivo,
-              apenas registra no histórico.
+              O WhatsApp do cliente toca por alguns segundos (chamada de atenção). Não é uma chamada de voz completa.
             </p>
           </div>
         </div>
