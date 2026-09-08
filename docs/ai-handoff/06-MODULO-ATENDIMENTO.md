@@ -60,7 +60,7 @@ HTTP fetchChats / getChatById / send
   → handlers atualizam stores (filtro company_id)
 ```
 
-Detalhe da lista: [07](07-LISTA-DE-CONVERSAS.md). Thread/envio: [08](08-THREAD-MENSAGENS-E-COMPOSER.md). Clique no avatar+nome do cabeçalho abre o perfil (`SidebarCliente`); ampliar foto é no painel.
+Detalhe da lista: [07](07-LISTA-DE-CONVERSAS.md). Thread/envio: [08](08-THREAD-MENSAGENS-E-COMPOSER.md). Clique no avatar+nome do cabeçalho abre o perfil (`SidebarCliente`); em grupo o painel é `SidebarGrupo` (participantes com nome/rank, convite, admins, foto). Ampliar foto é no painel. **Ligar** abre o discador (`tel:`) para conversar; no Whapi também tenta o toque de atenção no WhatsApp.
 
 ## Invariantes deste módulo
 

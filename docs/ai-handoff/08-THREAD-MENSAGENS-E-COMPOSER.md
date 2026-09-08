@@ -37,7 +37,7 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 | `composer/hooks/*` | draft, typing, respostas, anexos/câmera, autocorreção, pickers e gravação |
 | `composer/utils/*` | funções puras de teclado, mídia gravada, chaves/contexto e comparação de props |
 | `components/ConversaHeader.jsx` | clique em avatar+nome abre o perfil (`onOpenClienteSide`); foto ampliada só no painel |
-| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp; **Ligar** no Whapi dispara `POST /chats/:id/ligacao` → `sendCall` (`/calls/outgoing`); no UltraMSG continua `tel:`; observação, vínculo, rename; clique fora fecha; clique na foto abre o lightbox |
+| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp; **Ligar** abre `tel:` para conversar no telefone e, no Whapi, também dispara `POST /chats/:id/ligacao` (toque de atenção); UltraMSG só `tel:`; observação, vínculo, rename; clique fora fecha; clique na foto abre o lightbox |
 | `composerDraftStore.js` | rascunho por conversa |
 
 Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRESHOLD`); senão lista estática. Medir mídia **durante** scroll de histórico não pode soltar a âncora do fundo.
@@ -109,7 +109,8 @@ Limitações: smoke visual de long press/swipe, teclado iOS e áudio em aparelho
 
 - `hooks/useConversationTags.js` — painel de tags: `listarTags` só ao abrir o painel, update otimista via `setTags` (conversaStore) + `chatsStore.adicionarTag/removerTag`, rollback em erro, 409 tratado como sucesso silencioso;
 - `hooks/useConversationDepartments.js` — "transferir setor": `GET /dashboard/departamentos` ao abrir, `PUT /chats/:id/departamento` com `{ departamento_id }` ou `{ remover_setor: true }`, `refresh({ silent: true })` e `setorAtual` derivado;
-- `hooks/useAddToGroup.js` — adicionar contato a grupo: grupos vêm do cache do `chatsStore` (ou `fetchChats`), `POST /chats/:grupoId/participantes`, mensagens de indisponibilidade em 404/501;
+- `hooks/useAddToGroup.js` — adicionar contato a grupo: grupos vêm do cache do `chatsStore` (ou `fetchChats`), `POST /chats/:grupoId/participantes` (rota real no backend Whapi);
+- `SidebarGrupo.jsx` + `hooks/useGroupWhatsapp.js` + `groupWhatsappService.js` — perfil de grupo estilo WhatsApp: nomes dos participantes (cadastro + `getContact`), admins, convite, settings, foto, sair, pedidos de entrada;
 - `utils/conversaAccessHelpers.js` — `normalizeDepartamentoIdForAccess` + `getUserDepartamentoIdSet` (puros), usados em `podeEnviar`/auto-assumir.
 
 **Regra crítica que futuras IAs não podem quebrar:** o handler global `onEscape` fecha os painéis na ordem `mediaViewer → pendingFile → shareContact → shareLocation → pix → msgInfo → transferirSetor → produtos → clienteSide → timeline → tags → forward/select → edit → reply → messageSearch → fechar conversa`. Cada hook de painel **deve expor o estado `open` e seu setter/closer** (ex.: `showTransferirSetor`/`setShowTransferirSetor`, `tagsOpen`/`setTagsOpen`) para o `onEscape` continuar referenciando-os. Ao extrair novas features de painel, mantenha essa ordem e as mesmas dependências do `useCallback` do `onEscape`.
@@ -120,7 +121,7 @@ Métricas: `ConversaView.jsx` 4840 → 4623 linhas, `useState` 49 → 38, `useCa
 
 Mais features auto-contidas saíram para hooks/componente, **sem tocar** em envio, upload FIFO, outbox/watchdog, reconciliação, ACK/dedupe, `conversaStore`, `socket.js`, `conversaOutboundMediaMerge.js`, virtualização, scroll/âncoras nem `conversa.css`:
 
-- `hooks/useConversationCall.js` — modal "registrar ligação": faixa 1–15 (default 5), `registrarLigacao(conversaId, dur)`, 403 = "Acesso restrito", `callSending` bloqueia fechar/reenviar. Expõe `setCallModalOpen` (o gatilho de abertura hoje **não** é chamado no código — modal inalcançável, mantido fiel);
+- `hooks/useConversationCall.js` — toque WhatsApp via `registrarLigacao(conversaId, dur)` (1–30s, default 15). O perfil passa `{ deviceCallOpened }` quando já abriu `tel:`; falha Whapi vira aviso, não bloqueia a ligação no telefone. 403 = "Acesso restrito". `setCallModalOpen` existe (modal opcional);
 - `hooks/useConversationSearch.js` — painel de busca de mensagens: `messageSearchOpen` + seleção de resultado (pagina via `loadMore` respeitando `hasMore`/`loadingMore`, **aborta se a conversa mudar** para não posicionar a conversa nova em resultado antigo). `scrollToMsg` é **injetado** (não altera a lógica de scroll). Expõe `openMessageSearch`/`closeMessageSearch` estáveis;
 - `hooks/useConversationTimeline.js` + `components/ConversaTimelinePanel.jsx` — histórico do atendimento: estado de abertura + `carregarAtendimentos(conversaId)` ao abrir; UI (markup/CSS idênticos) fora do coordenador. Dados seguem no `conversaStore`;
 - `hooks/useConversationParticipants.js` — envolve `useConversaParticipantes` (dados/reload) + estado do modal de atendentes + `handleOpenAdicionarAtendente`. Precisa rodar cedo pois `atendentesParticipantes` alimenta `podeEnviar` (co-atendente também envia); por isso deriva `conversaId = conversa?.id`. **Removido código morto** do fluxo antigo "adicionar atendente" (estados `showAdicionarAtendente`, `atendentesDisponiveis`, `atendenteSearch`, `atendentesLoading`, `adicionarAtendenteLoadingId`, o memo `atendentesDisponiveisFiltrados` e `handleAdicionarAtendente`) — não eram referenciados no JSX (a UI real é o `AtendentesModal`);

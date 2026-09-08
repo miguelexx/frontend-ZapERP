@@ -502,8 +502,11 @@ export async function removerTag(id, tag_id) {
 // GRUPOS / COMUNIDADES
 // ===============================
 
-export async function criarGrupo(nome) {
-  const { data } = await api.post("/chats/grupos", { nome });
+export async function criarGrupo(nome, participantes = []) {
+  const body = { nome };
+  const list = Array.isArray(participantes) ? participantes.filter(Boolean) : [];
+  if (list.length) body.participantes = list;
+  const { data } = await api.post("/chats/grupos", body);
   return data;
 }
 

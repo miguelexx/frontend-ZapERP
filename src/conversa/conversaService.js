@@ -430,6 +430,8 @@ export async function registrarLigacao(conversaId, callDuration) {
   const { data } = await api.post(`/chats/${conversaId}/ligacao`, body, {
     timeout: HTTP_TIMEOUT_TEXT_MS,
     skipGlobalNetworkToast: true,
+    skipGlobal500Toast: true,
+    skipGlobal403Toast: true,
   });
   return assertSpecialtyOutboundAccepted(data, "Não foi possível ligar para o cliente.");
 }

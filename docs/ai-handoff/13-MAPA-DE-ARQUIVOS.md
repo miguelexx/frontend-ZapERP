@@ -51,6 +51,8 @@
 | `conversa/hooks/useConversationTags.js` | painel de tags + toggle otimista (rollback + 409) |
 | `conversa/hooks/useConversationDepartments.js` | painel "transferir setor" (GET/PUT departamento) |
 | `conversa/hooks/useAddToGroup.js` | adicionar contato a grupo (POST participantes) |
+| `conversa/SidebarGrupo.jsx` | painel Dados do grupo (participantes, convite, admins) |
+| `conversa/groupWhatsappService.js` | HTTP das rotas `/chats/:id/grupo*` |
 | `conversa/hooks/useConversationCall.js` | modal "registrar ligação" (faixa 1–15, 403, `callSending`) |
 | `conversa/hooks/useConversationSearch.js` | painel de busca: estado + posicionar resultado (aborta em troca de conversa; `scrollToMsg` injetado) |
 | `conversa/hooks/useConversationTimeline.js` | histórico do atendimento: abertura + `carregarAtendimentos` |

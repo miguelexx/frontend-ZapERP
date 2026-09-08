@@ -35,7 +35,7 @@ export default function CallModal({
             <input
               type="number"
               min={1}
-              max={15}
+              max={30}
               className="wa-input"
               value={duration}
               onChange={(e) => onDurationChange?.(e.target.value)}
@@ -43,7 +43,7 @@ export default function CallModal({
           </div>
           <div className="wa-modal-row">
             <p className="wa-modal-value">
-              O WhatsApp do cliente toca por alguns segundos (chamada de atenção). Não é uma chamada de voz completa.
+              O WhatsApp do cliente toca por alguns segundos. Para conversar de verdade, use a ligação no telefone (botão Ligar).
             </p>
           </div>
         </div>
@@ -55,7 +55,7 @@ export default function CallModal({
             type="button"
             className="wa-btn wa-btn-primary"
             disabled={sending || !conversaId}
-            onClick={onConfirm}
+            onClick={() => onConfirm?.()}
           >
             {sending ? "Registrando..." : "Iniciar ligação"}
           </button>

@@ -10837,6 +10837,229 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   word-break: break-word;
 }
 
+.wa-groupPeople {
+  margin: 8px 12px 16px;
+}
+
+.wa-groupPeopleTitle {
+  margin: 0 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wa-green, #00a884);
+  letter-spacing: 0.01em;
+}
+
+.wa-groupPeopleList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-groupPerson {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.wa-groupPersonAvatar {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--wa-panel-border) 55%, transparent);
+  color: var(--wa-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wa-groupPersonAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wa-groupPersonMeta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-groupPersonName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--wa-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-groupPersonSub {
+  font-size: 12px;
+  color: var(--wa-muted, rgba(17, 27, 33, 0.55));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-groupPersonActions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.wa-groupPersonActions button {
+  border: 0;
+  background: transparent;
+  color: var(--wa-green, #00a884);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.wa-groupPersonActions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-green, #00a884) 12%, transparent);
+}
+
+.wa-groupPersonActions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wa-groupInviteBox,
+.wa-groupEditForm,
+.wa-groupSettings,
+.wa-groupPhotoRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+
+.wa-groupInviteLink {
+  display: block;
+  font-size: 12px;
+  word-break: break-all;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--wa-panel-border) 40%, transparent);
+  color: var(--wa-text);
+}
+
+.wa-groupAddRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.wa-groupAddRow .wa-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-groupSetting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--wa-text);
+}
+
+.wa-groupSetting input {
+  accent-color: var(--wa-green, #00a884);
+}
+
+.wa-sideCliente-muted {
+  margin: 0 16px 8px;
+  font-size: 13px;
+  color: var(--wa-muted, rgba(17, 27, 33, 0.55));
+}
+
+@media (max-width: 640px) {
+  .wa-groupPerson {
+    align-items: flex-start;
+  }
+  .wa-groupPersonActions {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: 52px;
+  }
+  .wa-groupAddRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.wa-novoGrupo {
+  max-width: 480px;
+  margin: 24px auto;
+  padding: 0 16px 40px;
+}
+
+.wa-novoGrupo h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+.wa-novoGrupo p {
+  margin: 0 0 16px;
+  color: var(--wa-muted, rgba(17, 27, 33, 0.6));
+  font-size: 14px;
+}
+
+.wa-novoGrupo form,
+.wa-novoGrupo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wa-novoGrupo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wa-novoGrupo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wa-green, #00a884) 12%, transparent);
+  font-size: 13px;
+}
+
+.wa-novoGrupo-chip button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font-size: 14px;
+}
+
+.wa-novoGrupo-error {
+  color: #b42318;
+  font-size: 13px;
+}
+
 .wa-sideCliente-hero{
   display:flex;
   gap: 12px;

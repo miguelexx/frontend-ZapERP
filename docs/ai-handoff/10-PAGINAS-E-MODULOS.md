@@ -68,7 +68,7 @@ Entrada `/crm` → `CrmAvancadoRedirect.jsx`: `GET /api/crm/abrir-avancado` → 
 
 ## Novos contato/grupo/comunidade
 
-Novo contato: muitas vezes modal via `state` no Atendimento (conferir `NovoContato.jsx`). Grupo/comunidade: forms → `criarGrupo` / `criarComunidade` no chatService. Sem gate extra nas rotas.
+Novo contato: muitas vezes modal via `state` no Atendimento (conferir `NovoContato.jsx`). Grupo: `NovoGrupo.jsx` envia `nome` + `participantes[]` para `POST /chats/grupos` (Whapi cria o grupo real). Comunidade: form local (`criarComunidade`) sem API Whapi.
 
 ## Manual — `pages/ManualZapERP.jsx`
 

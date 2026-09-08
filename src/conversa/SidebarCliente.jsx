@@ -11,6 +11,7 @@ import * as cfg from "../api/configService";
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
 import { IconClipboard, IconClose, IconLinkOut, IconPhone } from "./conversaViewIcons";
+import SidebarGrupo from "./SidebarGrupo";
 
 function initials(nome = "") {
   const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
@@ -21,6 +22,24 @@ function initials(nome = "") {
 
 function digitsOnly(v) {
   return String(v || "").replace(/\D/g, "");
+}
+
+/** Abre o discador do aparelho sem sair da SPA (`location.href` pode desmontar o atendimento). */
+function openDeviceCall(digits) {
+  const d = String(digits || "").replace(/\D/g, "");
+  if (!d) return false;
+  try {
+    const a = document.createElement("a");
+    a.href = `tel:${d}`;
+    a.setAttribute("aria-hidden", "true");
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getSidebarStatusKey(conversa) {
@@ -420,7 +439,15 @@ export default function SidebarCliente({
     /^lid:/i.test(rawCallDest) ||
     Boolean(String(conversa?.chat_lid || "").trim());
   const canWhatsappCall = Boolean(onStartWhatsappCall) && isWhapiInstance && (Boolean(telDigits) || hasLidDest);
-  const canTelCall = Boolean(telDigits) && !canWhatsappCall;
+  const canCall = Boolean(telDigits) || canWhatsappCall;
+
+  const handleLigar = useCallback(() => {
+    if (callSending) return;
+    const deviceCallOpened = telDigits ? openDeviceCall(telDigits) : false;
+    if (canWhatsappCall) {
+      onStartWhatsappCall?.({ deviceCallOpened });
+    }
+  }, [callSending, telDigits, canWhatsappCall, onStartWhatsappCall]);
 
   const syncNomeContatoFromConversa = useCallback(() => {
     const dn = String(getDisplayName(conversa) || "").trim();
@@ -1081,38 +1108,17 @@ export default function SidebarCliente({
   if (!open) return null;
 
   if (isGroup) {
-    const groupName = conversa?.nome_grupo || "Grupo";
     return (
-      <div ref={panelRef} className="wa-sideCliente" role="dialog" aria-label="Dados do grupo">
-        <div className="wa-sideCliente-head">
-          <div className="wa-sideCliente-titleBlock">
-            <span className="wa-sideCliente-title">Dados do grupo</span>
-          </div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
-            <IconClose />
-          </button>
-        </div>
-        <div className="wa-sideCliente-body">
-          <section className="wa-sideCliente-profile" aria-label="Perfil do grupo">
-            <ProfilePhotoButton
-              photoUrl={fotoPerfil}
-              photoError={avatarImgError}
-              initialsLabel={initials(groupName)}
-              canZoom={canZoomPhoto}
-              name={groupName}
-              onError={() => setAvatarImgError(true)}
-              onOpen={handleOpenProfilePhoto}
-            />
-            <h2 className="wa-sideCliente-profileName">{groupName}</h2>
-            <span className={`wa-sideCliente-pill wa-sideCliente-pill--${statusTone}`}>{statusLabel}</span>
-          </section>
-          <section className="wa-sideCliente-card" aria-label="Informações do grupo">
-            <ProfileInfoRow label="Status">{statusLabel}</ProfileInfoRow>
-            <ProfileInfoRow label="Responsável">{responsavelNome}</ProfileInfoRow>
-            <ProfileInfoRow label="Criado em">{createdAt}</ProfileInfoRow>
-          </section>
-        </div>
-      </div>
+      <SidebarGrupo
+        open={open}
+        onClose={onClose}
+        onOpenAvatar={onOpenAvatar}
+        conversa={conversa}
+        panelRef={panelRef}
+        statusTone={statusTone}
+        statusLabel={statusLabel}
+        createdAt={createdAt}
+      />
     );
   }
 
@@ -1168,23 +1174,24 @@ export default function SidebarCliente({
           ) : null}
           <span className={`wa-sideCliente-pill wa-sideCliente-pill--${statusTone}`}>{statusLabel}</span>
           <div className="wa-sideCliente-quickRow" aria-label="Ações rápidas">
-            {canWhatsappCall ? (
+            {canCall ? (
               <button
                 type="button"
                 className="wa-sideCliente-quickBtn"
-                title="Ligar pelo WhatsApp"
-                aria-label="Ligar pelo WhatsApp"
+                title={
+                  canWhatsappCall && telDigits
+                    ? "Ligar no telefone e tocar o WhatsApp do cliente"
+                    : canWhatsappCall
+                      ? "Tocar o WhatsApp do cliente"
+                      : "Ligar"
+                }
+                aria-label="Ligar"
                 disabled={callSending}
-                onClick={() => onStartWhatsappCall?.()}
+                onClick={handleLigar}
               >
                 <IconPhone />
                 <span>{callSending ? "Ligando…" : "Ligar"}</span>
               </button>
-            ) : canTelCall ? (
-              <a href={`tel:${telDigits}`} className="wa-sideCliente-quickBtn" title="Ligar" aria-label="Ligar">
-                <IconPhone />
-                <span>Ligar</span>
-              </a>
             ) : (
               <button type="button" className="wa-sideCliente-quickBtn" title="Sem telefone" disabled>
                 <IconPhone />
