@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
-import { fetchConversaPresenca } from "../conversaPresenceService";
+import { fetchConversaPresenca, isPresenceHttpEnabled } from "../conversaPresenceService";
 import { useConversaStore } from "../conversaStore";
 
 /**
- * Ao abrir conversa 1:1 Whapi: assina presença via HTTP e hidrata o store.
+ * Ao abrir conversa 1:1 Whapi: opcionalmente hidrata presença via HTTP.
  * Atualizações live vêm do socket `presenca_contato` (socket.js).
+ * HTTP fica off por padrão (VITE_WHAPI_PRESENCE_HTTP=1 para religar).
  */
 export default function useContactPresence({
   conversaId,
@@ -36,6 +37,11 @@ export default function useContactPresence({
       return undefined;
     }
 
+    // Sem hydrate HTTP: evita 502 no console até o backend soft-fail estar em produção.
+    if (!isPresenceHttpEnabled()) {
+      return undefined;
+    }
+
     const gen = ++genRef.current;
     let cancelled = false;
 
@@ -50,7 +56,6 @@ export default function useContactPresence({
           source: "http",
         });
       } catch (err) {
-        // 404 (rota não deployada) / 501 UltraMSG / 400 LID — silencioso
         if (cancelled || gen !== genRef.current) return;
         if (err?.silent || err?.code === "PRESENCE_UNSUPPORTED") return;
       }

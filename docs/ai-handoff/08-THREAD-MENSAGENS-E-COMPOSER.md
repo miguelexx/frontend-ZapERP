@@ -208,7 +208,7 @@ Canal Whapi: `POST /chats/:id/enquete` (`title`, `options` ≥2, `count` 1=únic
 
 **Edição do cliente (inbound, 2026-09-08):** webhook Whapi (`edited:true`, `type:edit` mobile, ou `action.type:edit`) → `applyWhapiEditedMessage` atualiza a linha por `whatsapp_id` e emite `mensagem_editada`. Front (`socket.js`): se a conversa estiver aberta, `patchMensagem` troca o texto e marca `Editada` sem reordenar/scroll. Lista: `ultima_mensagem` quando a bolha editada for a última.
 
-**Presença do contato (Whapi, 2026-09-08):** `hooks/useContactPresence.js` + `GET /chats/:id/presenca` ao abrir 1:1; socket `presenca_contato` → `conversaStore.contactPresence`. Header (`ConversaHeader`) exibe label formatada (`utils/contactPresenceFormat.js`). UltraMSG/grupo: no-op. Se a rota ainda não estiver no servidor (404), `conversaPresenceService` cacheia globalmente por 10 min (sem spam de XHR).
+**Presença do contato (Whapi, 2026-09-08):** socket `presenca_contato` → `conversaStore.contactPresence` (live). Hydrate HTTP `GET /chats/:id/presenca` fica **desligado por padrão** (`VITE_WHAPI_PRESENCE_HTTP=1` para religar) — evita 502 no console enquanto o backend antigo ainda devolve 502. Backend novo: soft-fail **200** (`status:null`, `pending:true`) quando a Whapi falha.
 
 **Edição inbound do cliente:** webhook Whapi `edited:true` (ou `action.type=edit` + `action.target`) atualiza a linha e emite `mensagem_editada` via `emitirEventoEmpresaConversa` (não só room `conversa_*`).
 

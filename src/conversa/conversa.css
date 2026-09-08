@@ -2779,7 +2779,7 @@ html:not([data-theme="dark"]) .wa-closedAttendance-reopenBtn {
 
   padding: 7px 42px 8px 11px;
 
-  border-radius: 8px;
+  border-radius: 10px;
 
   box-shadow:
     0 1px 1px rgba(15, 23, 42, 0.04),
@@ -2806,16 +2806,16 @@ html:not([data-theme="dark"]) .wa-closedAttendance-reopenBtn {
 
 [data-theme="dark"] .wa-bubble {
   box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.28),
-    0 14px 30px -25px rgba(0, 0, 0, 0.92),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 34px -26px rgba(0, 0, 0, 0.94),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="dark"] .wa-bubble:hover {
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.28),
-    0 18px 36px -28px rgba(0, 0, 0, 0.96),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    0 3px 8px rgba(0, 0, 0, 0.34),
+    0 22px 42px -28px rgba(2, 44, 34, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* =========================================================
@@ -2825,14 +2825,14 @@ html:not([data-theme="dark"]) .wa-closedAttendance-reopenBtn {
 .wa-bubble-in{
   background: var(--wa-bubble-in);
   border: 1px solid var(--wa-bubble-border-in);
-  border-top-left-radius: 4px;
+  border-top-left-radius: 5px;
   color: var(--wa-text);
 }
 
 .wa-bubble-out{
   background: var(--wa-bubble-out);
   border: 1px solid var(--wa-bubble-border-out);
-  border-top-right-radius: 4px;
+  border-top-right-radius: 5px;
   color: var(--wa-text);
 }
 
@@ -2851,13 +2851,17 @@ html:not([data-theme="dark"]) .wa-bubble-out {
 }
 
 [data-theme="dark"] .wa-bubble-in {
-  background: var(--zaperp-bubble-in);
-  border-color: var(--wa-bubble-border-in);
+  background: var(--zaperp-bubble-in-grad, var(--zaperp-bubble-in));
+  border-color: rgba(148, 163, 184, 0.16);
 }
 
 [data-theme="dark"] .wa-bubble-out {
   background: var(--zaperp-bubble-out);
-  border-color: var(--wa-bubble-border-out);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+[data-theme="dark"] .wa-bubble-in::after {
+  background: var(--zaperp-bubble-in);
 }
 
 [data-theme="dark"] .wa-bubble-out::after {

@@ -74,9 +74,10 @@
   --zaperp-card-bg: #101D2A;
   --zaperp-card-hover: #142433;
   --zaperp-border: rgba(148, 163, 184, 0.12);
-  --zaperp-bubble-in: #121F2C;
-  --zaperp-bubble-out-solid: #056247;
-  --zaperp-bubble-out: linear-gradient(135deg, #087F5B, #056247);
+  --zaperp-bubble-in: #131F2E;
+  --zaperp-bubble-in-grad: linear-gradient(158deg, #1A2A3D 0%, #121E2C 60%, #0F1926 100%);
+  --zaperp-bubble-out-solid: #06664B;
+  --zaperp-bubble-out: linear-gradient(152deg, #0DAA7C 0%, #0A8B65 48%, #06664B 100%);
   --zaperp-messages-glow-br: radial-gradient(
     circle at bottom right,
     rgba(0, 120, 85, 0.12),
