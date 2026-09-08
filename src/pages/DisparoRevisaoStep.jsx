@@ -28,6 +28,7 @@ import {
   validarRevisao,
   voltarEdicao,
 } from '../api/disparoRevisaoService'
+import ValidarNumerosModal from '../components/disparo/ValidarNumerosModal'
 import './disparoExecucao.css'
 
 const EXEC_ACCESS_STATUSES = new Set([
@@ -273,6 +274,16 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
   const [voltandoEdicao, setVoltandoEdicao] = useState(false)
   const [showVoltarDialog, setShowVoltarDialog] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [showValidarNumeros, setShowValidarNumeros] = useState(false)
+
+  const instanciasParaValidar = useMemo(
+    () => (revisao?.instancias || []).map((i) => ({
+      instancia_id: i.instancia_id,
+      nome: i.nome,
+      provider: i.provider ?? i.whatsapp_instance_provider ?? undefined,
+    })),
+    [revisao?.instancias],
+  )
 
   const checklist = checklistValidacao?.checklist ?? revisao?.checklist
   const bloqueado = revisao?.bloqueado === true
@@ -614,6 +625,15 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
             </div>
           </div>
           <div className="rev-previa-filtros">
+            <button
+              type="button"
+              className="rev-btn-ghost"
+              onClick={() => setShowValidarNumeros(true)}
+              title="Verificação prévia opcional (Whapi) — não bloqueia o envio"
+            >
+              <IconClipboardCheck size={14} />
+              Validar números
+            </button>
             <select
               className="rev-select"
               value={filtroInstancia}
@@ -845,6 +865,12 @@ export default function DisparoRevisaoStep({ campanha, onCampanhaUpdate, onBack,
           loading={voltandoEdicao}
         />
       )}
+
+      <ValidarNumerosModal
+        open={showValidarNumeros}
+        onClose={() => setShowValidarNumeros(false)}
+        instancias={instanciasParaValidar}
+      />
     </div>
   )
 }

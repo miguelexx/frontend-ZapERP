@@ -8,6 +8,7 @@ import {
   getZapiOperationalStatus,
 } from "../api/zapiIntegration";
 import { syncContacts, syncGroups, syncAll } from "../api/whatsappIntegration";
+import WhapiConnectPanel from "./WhapiConnectPanel";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import "../components/layout/breadcrumb.css";
 import "./IA.css";
@@ -209,6 +210,7 @@ export default function ConnectWhatsApp() {
   const navigate = useNavigate();
   const showToast = useNotificationStore((s) => s.showToast);
 
+  const [provider, setProvider] = useState("ultramsg"); // 'ultramsg' | 'whapi'
   const [status, setStatus] = useState(null);
   const [qrSrc, setQrSrc] = useState(null);
   const [attemptsLeft, setAttemptsLeft] = useState(null);
@@ -382,12 +384,24 @@ export default function ConnectWhatsApp() {
 
   useEffect(() => {
     isMountedRef.current = true;
-    bootstrap();
     return () => {
       isMountedRef.current = false;
       clearAllTimers();
     };
-  }, []);
+  }, [clearAllTimers]);
+
+  // Só o fluxo UltraMSG faz polling/bootstrap. Ao alternar para Whapi, paramos tudo.
+  useEffect(() => {
+    if (provider === "ultramsg") {
+      bootstrap();
+    } else {
+      clearAllTimers();
+      setQrSrc(null);
+      setThrottleState(null);
+      setError(null);
+    }
+    return () => clearAllTimers();
+  }, [provider, bootstrap, clearAllTimers]);
 
   useEffect(() => {
     if (retryCountdown == null || retryCountdown <= 0) return;
@@ -486,11 +500,36 @@ export default function ConnectWhatsApp() {
         <Breadcrumb items={[{ label: "Configurações", to: "/configuracoes" }, { label: "Conectar WhatsApp" }]} />
         <h1 className="ia-title">Conectar WhatsApp</h1>
         <p className="ia-subtitle">
-          Conecte a instância UltraMSG da sua empresa via QR Code, como no WhatsApp Web.
+          {provider === "whapi"
+            ? "Cadastre e conecte um canal Whapi (2º provider), por QR Code ou por código."
+            : "Conecte a instância UltraMSG da sua empresa via QR Code, como no WhatsApp Web."}
         </p>
+        <div className="ia-btn-row" role="tablist" aria-label="Provedor de WhatsApp" style={{ marginTop: 8, gap: 8 }}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={provider === "ultramsg"}
+            className={`ia-btn ${provider === "ultramsg" ? "ia-btn--primary" : "ia-btn--outline"}`}
+            onClick={() => setProvider("ultramsg")}
+          >
+            UltraMSG
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={provider === "whapi"}
+            className={`ia-btn ${provider === "whapi" ? "ia-btn--primary" : "ia-btn--outline"}`}
+            onClick={() => setProvider("whapi")}
+          >
+            Whapi
+          </button>
+        </div>
       </header>
 
       <div className="ia-content">
+        {provider === "whapi" ? (
+          <WhapiConnectPanel showToast={showToast} />
+        ) : (
         <div className="zapi-card">
           <div className="zapi-card-head">
             <div>
@@ -684,9 +723,10 @@ export default function ConnectWhatsApp() {
             </>
           )}
         </div>
+        )}
       </div>
 
-      {showRestartModal && (
+      {provider === "ultramsg" && showRestartModal && (
         <div
           className="wa-modalOverlay"
           role="dialog"
