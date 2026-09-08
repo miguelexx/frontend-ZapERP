@@ -24,9 +24,11 @@ const LimitesSection = lazy(() => import("./sections/LimitesSection"));
 const BotSection = lazy(() => import("./sections/BotSection"));
 const ClientesSection = lazy(() => import("./sections/ClientesSection"));
 const AuditoriaSection = lazy(() => import("./sections/AuditoriaSection"));
+const WhapiSection = lazy(() => import("./sections/WhapiSection"));
 
 const TABS = [
   { id: "geral", label: "Geral" },
+  { id: "whapi", label: "Whapi" },
   { id: "usuarios", label: "Usuários" },
   { id: "permissoes", label: "Permissões" },
   { id: "departamentos", label: "Departamentos" },
@@ -60,6 +62,7 @@ function SectionContent({ tab, usuarioIdPermissoes, onUsuarioIdPermissoesChange,
   if (tab === "bot") return <BotSection />;
   if (tab === "clientes") return <ClientesSection />;
   if (tab === "auditoria") return <AuditoriaSection />;
+  if (tab === "whapi") return <WhapiSection />;
   return null;
 }
 

@@ -92,7 +92,7 @@
 
 ## Outros módulos (páginas)
 
-`pages/Login.jsx`, `Configuracoes.jsx`, `ConnectWhatsApp.jsx`, `IA.jsx` (fachada para `ia/IaShell.jsx` e seções lazy em `ia/*`), `Permissoes.jsx`, `InternalChat.jsx`, `Supervisao.jsx`, `HelpDesk.jsx`, `Disparo*.jsx`, `ManualZapERP.jsx`, `NotFound.jsx`, `Mensagens.jsx`/`Atalhos.jsx` (redirects).
+`pages/Login.jsx`, `Configuracoes.jsx`, `ConnectWhatsApp.jsx`, `WhapiConnectPanel.jsx` (aba Config `?tab=whapi` + `configuracoes/sections/WhapiSection.jsx`), `IA.jsx` (fachada para `ia/IaShell.jsx` e seções lazy em `ia/*`), `Permissoes.jsx`, `InternalChat.jsx`, `Supervisao.jsx`, `HelpDesk.jsx`, `Disparo*.jsx`, `ManualZapERP.jsx`, `NotFound.jsx`, `Mensagens.jsx`/`Atalhos.jsx` (redirects). HTTP Whapi: `api/whapiInstancesService.js`.
 
 CRM: `crm/CrmAvancadoRedirect.jsx` + `crm/pages/*`. Dashboard: `dashboard/Dashboard.jsx`, `pages/DashboardIA.jsx`.
 

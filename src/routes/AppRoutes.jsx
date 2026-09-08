@@ -210,6 +210,14 @@ export default function AppRoutes() {
             }
           />
           <Route
+            path="/configuracoes/whapi"
+            element={
+              <ProtectedRoute canAccess={canAccessConfig} redirectTo="/atendimento">
+                <Navigate to="/configuracoes?tab=whapi" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/configuracoes/chatbot"
             element={
               canAccessChatbot_ ? (

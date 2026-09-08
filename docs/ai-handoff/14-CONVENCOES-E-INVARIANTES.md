@@ -56,7 +56,7 @@
 
 ## WhatsApp
 
-- Provider: UltraMSG. Não implementar cliente Z-API.
+- Provider principal: UltraMSG. Whapi é **segundo provider opcional** por instância (`provider='whapi'`), conectado pela aba Configurações → Whapi. O browser **não** chama `gate.whapi.cloud`; só o backend. Não implementar cliente Z-API.
 - Mídia: upload pelo backend; blob URL só otimista e com revoke.
 
 ## Documentação

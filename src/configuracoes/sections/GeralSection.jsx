@@ -540,7 +540,7 @@ export function SecaoGeral({
         <section className="config-geral-card config-geral-card--wide" aria-labelledby="config-geral-whatsapp">
           <h5 id="config-geral-whatsapp" className="config-geral-card-title">WhatsApp</h5>
           <p className="config-geral-card-desc">
-            Conexão UltraMSG e mapeamento Meta (phone_number_id) para webhook multi-tenant.
+            Conexão UltraMSG, canal Whapi e mapeamento Meta (phone_number_id) para webhook multi-tenant.
           </p>
           <div className="config-geral-whatsapp-connect">
             <div>
@@ -551,6 +551,17 @@ export function SecaoGeral({
             </div>
             <button type="button" className="ia-btn ia-btn--outline" onClick={() => onOpenConnectWhatsapp?.()}>
               Conectar WhatsApp
+            </button>
+          </div>
+          <div className="config-geral-whatsapp-connect" style={{ marginTop: 10 }}>
+            <div>
+              <strong>Conexão Whapi</strong>
+              <p className="config-geral-toggle-hint" style={{ marginTop: 4 }}>
+                Cadastre o canal, leia o QR e conecte a instância Whapi nesta empresa.
+              </p>
+            </div>
+            <button type="button" className="ia-btn ia-btn--primary" onClick={() => navigate("/configuracoes?tab=whapi")}>
+              Conectar Whapi
             </button>
           </div>
           <div className="config-geral-card-divider" />

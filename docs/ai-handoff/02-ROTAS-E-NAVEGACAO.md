@@ -29,6 +29,7 @@
 | `/configuracoes/chatbot` | redirect | `/ia?tab=chatbot` |
 | `/configuracoes` | Configuracoes | `config_acessar` **ou** respostas salvas |
 | `/configuracoes/whatsapp` | ConnectWhatsApp | `config_acessar` |
+| `/configuracoes/whapi` | redirect | `/configuracoes?tab=whapi` (`config_acessar`) |
 | `/usuarios` | redirect | `/configuracoes?tab=usuarios` |
 | `/permissoes` | Permissoes | `usuarios_acessar` |
 | `/supervisao` | Supervisao | `isSupervisorOrAdmin(user)` (role, não catálogo) |
