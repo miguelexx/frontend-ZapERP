@@ -633,6 +633,10 @@ body {
   --sidebar-v2-active-color: #2dd4bf;
 }
 
+.sidebar--v2 .sidebar-nav-item--whatsapp.active {
+  --sidebar-v2-active-color: #26c79b;
+}
+
 .sidebar--v2 .sidebar-nav-icon {
   display: inline-flex;
   align-items: center;

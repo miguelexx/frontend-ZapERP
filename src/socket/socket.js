@@ -27,6 +27,7 @@ import {
   buildActiveChatListViewFromStore,
 } from "../chats/chatListQueryHelpers"
 import { applySetorPayloadToChatRow, viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers"
+import { presenceMatchesConversa } from "../conversa/utils/contactPresenceFormat"
 import { closeSelectedConversation } from "../atendimento/closeSelectedConversation"
 import { SOCKET_EVENTS } from "./events"
 import {
@@ -962,6 +963,7 @@ export function initSocket(token) {
   const off = (ev) => { try { socket?.off(ev) } catch (_) {} }
   off("typing_start")
   off("typing_stop")
+  off("presenca_contato")
   off("tag_adicionada")
   off("tag_removida")
   off("nova_conversa")
@@ -1029,6 +1031,25 @@ export function initSocket(token) {
       typingExpiryTimers.delete(_cid)
     }
     useConversaStore.getState().clearTyping(conversa_id)
+  })
+
+  /* ===========================
+     PRESENÇA DO CONTATO (Whapi)
+  =========================== */
+  socket.on("presenca_contato", (payload = {}) => {
+    if (shouldIgnoreByCompany(payload)) return
+    const convStore = useConversaStore.getState()
+    const selectedId = convStore.selectedId
+    if (selectedId == null || selectedId === "") return
+    const conversa = convStore.conversa
+    if (!conversa || String(conversa.id) !== String(selectedId)) return
+    if (!presenceMatchesConversa(payload, conversa)) return
+    convStore.setContactPresence(selectedId, {
+      status: payload.status ?? null,
+      last_seen: payload.last_seen ?? null,
+      entry_id: payload.chat_id ?? payload.entry_id ?? null,
+      source: "socket",
+    })
   })
 
   /* ===========================

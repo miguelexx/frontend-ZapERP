@@ -204,7 +204,11 @@ HTTP: `conversa/conversaService.js` (superfície grande: mensagens, PIX, encamin
 
 Canal Whapi: `POST /chats/:id/enquete` (`title`, `options` ≥2, `count` 1=única / 0=múltipla). UltraMSG → 501. Menu Anexos → **Enquete** → `SendPollModal` (`useSendPoll`). Bolha `tipo: 'poll'` com `reply_meta.poll` (não conta como citação no `hasReply`).
 
-**Voto (live):** Whapi manda hash SHA-256 da opção; o backend resolve para o texto e grava inbound de texto. A bolha atualiza em tempo real (`reply_meta.poll.last_vote` / `results`) via `mensagem_editada` com `editada:false` + `reply_meta` (socket em `socket.js`). Sem UI de votar no CRM.
+**Voto (live):** Whapi manda `votes: [{ id: '<sha256-base64>' }]`; o backend (`extractPollVote` + `enrichNormalizedPollVote`) resolve para o texto da opção e grava inbound de texto — **nunca persiste o hash cru**. A bolha da enquete atualiza em tempo real (`reply_meta.poll.last_vote` / `results`) via `mensagem_editada` com `editada:false` + `reply_meta` (socket em `socket.js`). Sem UI de votar no CRM. Front: `finalizeMensagensList` mascara hash residual, colapsa ecos `(voto na enquete)` e força dedupe por mesmo `id`/`whatsapp_id` (evita warning React de key duplicada).
+
+**Edição do cliente (inbound, 2026-09-08):** webhook Whapi (`edited:true`, `type:edit` mobile, ou `action.type:edit`) → `applyWhapiEditedMessage` atualiza a linha por `whatsapp_id` e emite `mensagem_editada`. Front (`socket.js`): se a conversa estiver aberta, `patchMensagem` troca o texto e marca `Editada` sem reordenar/scroll. Lista: `ultima_mensagem` quando a bolha editada for a última.
+
+**Presença do contato (Whapi, 2026-09-08):** `hooks/useContactPresence.js` + `GET /chats/:id/presenca` ao abrir 1:1; socket `presenca_contato` → `conversaStore.contactPresence`. Header (`ConversaHeader`) exibe label formatada (`utils/contactPresenceFormat.js`). UltraMSG/grupo: no-op. Se a rota ainda não estiver no servidor (404), `conversaPresenceService` cacheia globalmente por 10 min (sem spam de XHR).
 
 **Edição inbound do cliente:** webhook Whapi `edited:true` (ou `action.type=edit` + `action.target`) atualiza a linha e emite `mensagem_editada` via `emitirEventoEmpresaConversa` (não só room `conversa_*`).
 

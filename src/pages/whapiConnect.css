@@ -259,6 +259,57 @@
   margin-top: 12px;
 }
 
+.whapi-antiban {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--dash-border, #e2e8f0);
+  background: color-mix(in srgb, var(--dash-card, #fff) 88%, #f8fafc);
+}
+
+.whapi-antiban--warn {
+  border-color: color-mix(in srgb, #f59e0b 45%, var(--dash-border, #e2e8f0));
+  background: color-mix(in srgb, #f59e0b 8%, var(--dash-card, #fff));
+}
+
+.whapi-antiban--ok {
+  border-color: color-mix(in srgb, #22c55e 35%, var(--dash-border, #e2e8f0));
+}
+
+.whapi-antiban-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.whapi-antiban-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.whapi-antiban-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--dash-muted, var(--ds-text-secondary));
+  margin-bottom: 2px;
+}
+
+.whapi-antiban-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dash-text, var(--ds-text));
+}
+
+.whapi-antiban-meta {
+  font-size: 12px;
+  color: var(--dash-muted, var(--ds-text-secondary));
+  font-weight: 400;
+}
+
 @media (max-width: 640px) {
   .whapi-card {
     padding: 16px;

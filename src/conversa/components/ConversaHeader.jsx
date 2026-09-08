@@ -44,6 +44,8 @@ function ConversaHeader({
   totalAtendentes,
   onOpenAtendentes,
   isSomeoneTyping,
+  contactPresenceLabel = null,
+  contactPresenceAnimate = false,
   podeGerenciarTags,
   tagsOpen,
   onToggleTagPanel,
@@ -347,6 +349,22 @@ function ConversaHeader({
                   <span className="wa-typing-dot">.</span>
                   <span className="wa-typing-dot">.</span>
                 </span>
+              </span>
+            </div>
+          ) : contactPresenceLabel ? (
+            <div className="wa-header-typingRow wa-header-presenceRow">
+              <span
+                className={`wa-presence-label${contactPresenceAnimate ? " wa-typing-dots" : ""}`}
+                title={contactPresenceLabel}
+              >
+                {contactPresenceLabel}
+                {contactPresenceAnimate ? (
+                  <span className="wa-typing-dots-inner">
+                    <span className="wa-typing-dot">.</span>
+                    <span className="wa-typing-dot">.</span>
+                    <span className="wa-typing-dot">.</span>
+                  </span>
+                ) : null}
               </span>
             </div>
           ) : null}

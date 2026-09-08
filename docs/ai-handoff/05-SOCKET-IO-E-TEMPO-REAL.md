@@ -31,7 +31,9 @@ nova_mensagem
 
 `socket.js` escuta **mais** eventos do que esse enum. Lista observada no client (CONFIRMADO por leitura do módulo de socket na auditoria):
 
-`connect`, `disconnect`, `typing_start`, `typing_stop`, `tag_adicionada`, `tag_removida`, `nova_conversa`, `nova_mensagem`, `mensagem_interna_atendimento`, `mensagem_excluida`, `mensagem_editada`, `mensagem_oculta`, `status_mensagem` (batch ~75ms), `mensagens_lidas`, `alerta_sem_resposta`, `alerta_sem_resposta_evento`, `zapi_sync_contatos` (nome legado), `whatsapp_sync_mensagens_antigas`, `conversa_atualizada`, `conversa_prefs_atualizada`, `conversa_apagada`, `conversa_encerrada`, `conversa_transferida`, `conversa_reaberta`, `conversa_atribuida`, `atualizar_conversa`, `contato_atualizado`.
+`connect`, `disconnect`, `typing_start`, `typing_stop`, `presenca_contato`, `tag_adicionada`, `tag_removida`, `nova_conversa`, `nova_mensagem`, `mensagem_interna_atendimento`, `mensagem_excluida`, `mensagem_editada`, `mensagem_oculta`, `status_mensagem` (batch ~75ms), `mensagens_lidas`, `alerta_sem_resposta`, `alerta_sem_resposta_evento`, `zapi_sync_contatos` (nome legado), `whatsapp_sync_mensagens_antigas`, `conversa_atualizada`, `conversa_prefs_atualizada`, `conversa_apagada`, `conversa_encerrada`, `conversa_transferida`, `conversa_reaberta`, `conversa_atribuida`, `atualizar_conversa`, `contato_atualizado`.
+
+**`presenca_contato` (CONFIRMADO 2026-09-08):** Whapi only. Payload `{ company_id, chat_id, telefone, status, last_seen }`. `socket.js` atualiza `conversaStore.contactPresence` só se a conversa selecionada bater (match por dígitos do telefone/`chat_id`). Assinatura inicial: `GET /chats/:id/presenca` via `useContactPresence` ao abrir a thread. Header mostra online / digitando / gravando / visto por último (abaixo do nome; typing de atendente CRM tem prioridade).
 
 Antes de adicionar listener: busque o nome no backend. Não registre listener dentro de `useEffect` de componente de lista/row (leak + duplicata). O ponto único é `socket.js` + bridges globais.
 

@@ -125,12 +125,18 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
       return;
     }
 
+    const telefoneNormalizado = normalizeBrPhoneForSubmit(telefone);
+    if (!telefoneNormalizado) {
+      setClientError("O número parece incompleto. Use DDD + telefone (10 ou 11 dígitos) ou inclua o código 55.");
+      telefoneRef.current?.focus();
+      return;
+    }
+
     setClientError("");
     setSubmitting(true);
     resetApiHints();
 
     try {
-      const telefoneNormalizado = normalizeBrPhoneForSubmit(telefone);
       /** @type {import('../api/clientes.types').CriarClientePayload} */
       const payload = {
         telefone: telefoneNormalizado,
@@ -196,13 +202,20 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
         exemplos: [],
       });
     } catch (err) {
+      const data = err?.response?.data;
       const status = err?.response?.status;
-      const fallback =
-        err?.response?.data?.erro ||
-        err?.response?.data?.error ||
-        err?.response?.data?.detalhe ||
+      const detalhe =
+        (typeof data?.detalhe === "string" && data.detalhe.trim()) ||
+        (typeof data?.erro === "string" && data.erro.trim()) ||
+        (typeof data?.error === "string" && data.error.trim()) ||
         (status ? `Erro ${status}` : err?.message || "Não foi possível salvar o contato.");
-      setApiError({ detalhe: fallback, exemplos: [] });
+      const exemplos = Array.isArray(data?.exemplos) ? data.exemplos.filter(Boolean) : [];
+      setApiError({
+        detalhe,
+        exemplos,
+        formato_esperado: typeof data?.formato_esperado === "string" ? data.formato_esperado : null,
+        codigo: data?.codigo || null,
+      });
     } finally {
       setSubmitting(false);
     }

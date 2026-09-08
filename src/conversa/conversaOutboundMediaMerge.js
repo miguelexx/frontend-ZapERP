@@ -1,4 +1,6 @@
 /** Merge/dedupe de mensagens — módulo puro (sem React/socket) para store + testes. */
+import { pollOptionHashClient } from "./utils/pollOptionHash"
+
 function cleanupOptimisticBlobFields(merged) {
   if (!merged || typeof merged !== "object") return merged
 
@@ -302,6 +304,127 @@ function isContactMessage(msg) {
   return false
 }
 
+function isPollMessage(msg) {
+  if (!msg) return false
+  const tipo = String(msg?.tipo || "").toLowerCase().trim()
+  if (tipo === "poll" || tipo === "enquete") return true
+  return !!(msg?.reply_meta?.poll && typeof msg.reply_meta.poll === "object")
+}
+
+function pollTitleKey(msg) {
+  const poll = msg?.reply_meta?.poll
+  const fromMeta = String(poll?.title || "").trim().toLowerCase()
+  if (fromMeta) return fromMeta
+  const first = String(msg?.texto || msg?.conteudo || "")
+    .trim()
+    .split("\n")[0] || ""
+  return first.replace(/^📊\s*/u, "").trim().toLowerCase()
+}
+
+function isLikelyDuplicatePollEcho(prev, incoming) {
+  if (!isPollMessage(prev) || !isPollMessage(incoming)) return false
+  if (!sameExplicitConversation(prev, incoming)) return false
+  if (!isOutgoingLike(prev) || !isOutgoingLike(incoming)) return false
+  const titleA = pollTitleKey(prev)
+  const titleB = pollTitleKey(incoming)
+  if (!titleA || !titleB || titleA !== titleB) return false
+  const tsP = toMillis(prev?.criado_em)
+  const tsI = toMillis(incoming?.criado_em)
+  if (!Number.isFinite(tsP) || !Number.isFinite(tsI)) return false
+  return Math.abs(tsP - tsI) <= 120_000
+}
+
+/** Whapi grava voto como SHA-256 base64 da opção — não deve aparecer cru no chat. */
+function looksLikePollOptionHashClient(value) {
+  const s = String(value || "").trim()
+  if (!s || s.length < 16 || /\s/.test(s)) return false
+  return /^[A-Za-z0-9+/_-]+={0,2}$/.test(s)
+}
+
+function isPollVotePlaceholderText(text) {
+  const t = String(text || "").trim().toLowerCase()
+  return t === "(voto na enquete)" || t === "voto na enquete"
+}
+
+function isPollVoteLikeMessage(msg) {
+  if (!msg || isPollMessage(msg)) return false
+  if (isOutgoingLike(msg)) return false
+  const tipo = String(msg.tipo || "").toLowerCase().trim()
+  if (tipo && tipo !== "chat" && tipo !== "text" && tipo !== "texto") return false
+  const text = String(msg.texto ?? msg.conteudo ?? msg.body ?? "").trim()
+  if (!text) return false
+  return isPollVotePlaceholderText(text) || looksLikePollOptionHashClient(text)
+}
+
+function pollOptionEntriesFromMessage(msg) {
+  const poll = msg?.reply_meta?.poll
+  const entries = []
+  const push = (name, id) => {
+    const n = String(name ?? "").trim()
+    const i = id != null ? String(id).trim() : ""
+    if (!n && !i) return
+    entries.push({ name: n || i, id: i })
+  }
+  if (Array.isArray(poll?.option_ids)) {
+    for (const o of poll.option_ids) {
+      if (typeof o === "string") push(o, null)
+      else if (o && typeof o === "object") push(o.name ?? o.title ?? o.text, o.id)
+    }
+  }
+  if (Array.isArray(poll?.results)) {
+    for (const r of poll.results) {
+      if (r && typeof r === "object") push(r.name ?? r.title, r.id)
+    }
+  }
+  if (Array.isArray(poll?.options)) {
+    for (const o of poll.options) {
+      if (typeof o === "string") push(o, null)
+      else if (o && typeof o === "object") push(o.name ?? o.title ?? o.text, o.id)
+    }
+  }
+  if (!entries.length && isPollMessage(msg)) {
+    const lines = String(msg.texto || "").split("\n").map((l) => l.trim()).filter(Boolean)
+    for (const l of lines) {
+      if (l.startsWith("•") || l.startsWith("-")) push(l.replace(/^[•\-]\s*/, "").trim(), null)
+    }
+  }
+  return entries
+}
+
+function resolveVoteLabelFromEntries(voteText, entries) {
+  const vote = String(voteText || "").trim()
+  if (!vote || !Array.isArray(entries) || !entries.length) return null
+  if (!looksLikePollOptionHashClient(vote)) return null
+  const voteAlt = vote.replace(/-/g, "+").replace(/_/g, "/")
+  const voteAlt2 = vote.replace(/\+/g, "-").replace(/\//g, "_")
+  for (const e of entries) {
+    if (e.id && (e.id === vote || e.id === voteAlt || e.id === voteAlt2)) return e.name
+  }
+  for (const e of entries) {
+    if (!e.name) continue
+    const h = pollOptionHashClient(e.name)
+    if (h === vote || h === voteAlt || h === voteAlt2) return e.name
+  }
+  return null
+}
+
+function isLikelyDuplicatePollVoteEcho(prev, incoming) {
+  if (!isPollVoteLikeMessage(prev) || !isPollVoteLikeMessage(incoming)) return false
+  if (!sameExplicitConversation(prev, incoming)) return false
+  const tsP = toMillis(prev?.criado_em)
+  const tsI = toMillis(incoming?.criado_em)
+  if (!Number.isFinite(tsP) || !Number.isFinite(tsI)) return false
+  if (Math.abs(tsP - tsI) > 30_000) return false
+  const textP = String(prev.texto ?? prev.conteudo ?? "").trim()
+  const textI = String(incoming.texto ?? incoming.conteudo ?? "").trim()
+  if (textP && textI && textP === textI) return true
+  // Hash + placeholder no mesmo segundo = eco do mesmo voto
+  const pair =
+    (looksLikePollOptionHashClient(textP) && isPollVotePlaceholderText(textI)) ||
+    (looksLikePollOptionHashClient(textI) && isPollVotePlaceholderText(textP))
+  return pair
+}
+
 function messageHasVCardBody(msg) {
   return isVCardTextLocal(String(msg?.texto ?? msg?.conteudo ?? msg?.body ?? ""))
 }
@@ -507,12 +630,11 @@ function persistedIdentityMarksSameBubble(prev, incoming) {
   /* tempIds distintos não separam bolhas que já compartilham id/whatsapp_id persistido:
      seria a mesma linha do banco renderizada duas vezes. Nesse caso decide o conteúdo abaixo. */
   const sharesPersistedIdentity = !!((pid && iid && pid === iid) || (pwa && iwa && pwa === iwa))
-  if (!sharesPersistedIdentity && hasConflictingClientTempCorrelation(prev, incoming)) return false
+  // Mesmo id/whatsapp_id do banco = mesma bolha, mesmo se o texto divergir
+  // (ex.: voto hash → "(voto na enquete)" → opção legível).
+  if (sharesPersistedIdentity) return true
+  if (hasConflictingClientTempCorrelation(prev, incoming)) return false
   if (prev.tempId && incoming.tempId && String(prev.tempId) === String(incoming.tempId)) return true
-
-  const inboundPair = !isOutgoingLike(prev) && !isOutgoingLike(incoming)
-  if (inboundPair && pid && iid && pid === iid) return true
-  if (inboundPair && pwa && iwa && pwa === iwa) return true
 
   const textoP = (prev.texto || prev.conteudo || "").toString().trim()
   const textoI = (incoming.texto || incoming.conteudo || "").toString().trim()
@@ -605,6 +727,7 @@ function areLikelySameMessageBubble(prev, incoming) {
   if (isContactMessage(prev) && isContactMessage(incoming)) {
     return isLikelyDuplicateContactEcho(prev, incoming)
   }
+  if (isLikelyDuplicatePollEcho(prev, incoming)) return true
   if (!isOutgoingLike(prev) && !isOutgoingLike(incoming)) {
     return isIncomingClientMediaReconcilePair(prev, incoming)
   }
@@ -922,11 +1045,12 @@ function dedupeListByPersistedIdentity(list) {
       m?.whatsapp_id != null && String(m.whatsapp_id).trim() !== ""
         ? String(m.whatsapp_id)
         : null
+    // Mesmo id/whatsapp_id = mesma linha: sempre colapsa (evita key React duplicada).
     if (id && bestById.has(id) && bestById.get(id).idx !== idx) {
-      if (areLikelySameMessageBubble(bestById.get(id).m, m)) drop.add(idx)
+      drop.add(idx)
     }
     if (wa && bestByWa.has(wa) && bestByWa.get(wa).idx !== idx) {
-      if (areLikelySameMessageBubble(bestByWa.get(wa).m, m)) drop.add(idx)
+      drop.add(idx)
     }
   })
   if (!drop.size) return list
@@ -962,6 +1086,93 @@ function pruneRedundantOutgoingMediaEchoes(list) {
   return list.filter((_, idx) => !remove.has(idx))
 }
 
+function pruneRedundantPollEchoes(list) {
+  if (!Array.isArray(list) || list.length < 2) return list
+  const remove = new Set()
+  for (let i = 0; i < list.length; i++) {
+    if (remove.has(i)) continue
+    const a = list[i]
+    if (!isPollMessage(a) || !isOutgoingLike(a)) continue
+    for (let j = i + 1; j < list.length; j++) {
+      if (remove.has(j)) continue
+      const b = list[j]
+      if (!isLikelyDuplicatePollEcho(a, b)) continue
+      const scoreA =
+        (a?.id != null ? 4 : 0) +
+        (a?.whatsapp_id != null ? 3 : 0) +
+        (a?.reply_meta?.poll?.options ? 1 : 0)
+      const scoreB =
+        (b?.id != null ? 4 : 0) +
+        (b?.whatsapp_id != null ? 3 : 0) +
+        (b?.reply_meta?.poll?.options ? 1 : 0)
+      if (scoreA >= scoreB) remove.add(j)
+      else remove.add(i)
+      break
+    }
+  }
+  if (!remove.size) return list
+  return list.filter((_, idx) => !remove.has(idx))
+}
+
+function pruneRedundantPollVoteEchoes(list) {
+  if (!Array.isArray(list) || list.length < 2) return list
+  const remove = new Set()
+  for (let i = 0; i < list.length; i++) {
+    if (remove.has(i)) continue
+    const a = list[i]
+    if (!isPollVoteLikeMessage(a)) continue
+    for (let j = i + 1; j < list.length; j++) {
+      if (remove.has(j)) continue
+      const b = list[j]
+      if (!isLikelyDuplicatePollVoteEcho(a, b)) continue
+      const textA = String(a.texto ?? a.conteudo ?? "").trim()
+      const textB = String(b.texto ?? b.conteudo ?? "").trim()
+      // Prefere texto legível (não hash / não placeholder)
+      const score = (m, text) =>
+        (m?.id != null ? 2 : 0) +
+        (m?.whatsapp_id != null ? 1 : 0) +
+        (looksLikePollOptionHashClient(text) ? -3 : 0) +
+        (isPollVotePlaceholderText(text) ? -2 : 0)
+      if (score(a, textA) >= score(b, textB)) remove.add(j)
+      else remove.add(i)
+      break
+    }
+  }
+  if (!remove.size) return list
+  return list.filter((_, idx) => !remove.has(idx))
+}
+
+/**
+ * Substitui hash SHA-256 de voto pelo texto da opção (via option_ids/results da enquete).
+ * Sem match → placeholder amigável (nunca mostra o hash cru).
+ */
+function resolvePollVoteHashesInList(list) {
+  if (!Array.isArray(list) || !list.length) return list
+  const entrySets = []
+  for (const m of list) {
+    if (!isPollMessage(m)) continue
+    const entries = pollOptionEntriesFromMessage(m)
+    if (entries.length) entrySets.push(entries)
+  }
+
+  let changed = false
+  const next = list.map((m) => {
+    if (!isPollVoteLikeMessage(m)) return m
+    const text = String(m.texto ?? m.conteudo ?? "").trim()
+    if (!looksLikePollOptionHashClient(text)) return m
+    let label = null
+    for (const entries of entrySets) {
+      label = resolveVoteLabelFromEntries(text, entries)
+      if (label) break
+    }
+    const resolved = label || "(voto na enquete)"
+    if (resolved === text) return m
+    changed = true
+    return { ...m, texto: resolved, conteudo: resolved }
+  })
+  return changed ? next : list
+}
+
 function finalizeMensagensList(list) {
   const beforePrune = list.length
   const afterTemps = pruneRedundantOutgoingTemps(list)
@@ -970,7 +1181,10 @@ function finalizeMensagensList(list) {
   const afterIncomingEchoes = pruneRedundantIncomingClientMediaEchoes(afterOutgoingEchoes)
   const afterAutomatedTextEchoes = pruneRedundantAutomatedTextEchoes(afterIncomingEchoes)
   const afterContactEchoes = pruneRedundantContactEchoes(afterAutomatedTextEchoes)
-  const afterIdentityDedupe = dedupeListByPersistedIdentity(afterContactEchoes)
+  const afterPollEchoes = pruneRedundantPollEchoes(afterContactEchoes)
+  const afterPollVotes = pruneRedundantPollVoteEchoes(afterPollEchoes)
+  const afterVoteLabels = resolvePollVoteHashesInList(afterPollVotes)
+  const afterIdentityDedupe = dedupeListByPersistedIdentity(afterVoteLabels)
   const final = sortMensagensChronological(afterIdentityDedupe)
   
   // Debug para detectar remoções inesperadas de áudios
@@ -1195,6 +1409,7 @@ function mediaFamilyFromMsg(m) {
   if (tipo === "imagem" || tipo === "image" || tipo === "sticker") return "imagem"
   if (tipo === "video" || tipo === "vídeo") return "video"
   if (tipo === "arquivo" || tipo === "documento" || tipo === "document" || tipo === "file") return "arquivo"
+  if (tipo === "poll" || tipo === "enquete" || isPollMessage(m)) return "poll"
   return ""
 }
 
@@ -1692,23 +1907,17 @@ function dedupeRowsByPersistedIdentity(list, keepIdx) {
       ? String(row.whatsapp_id)
       : null
   if (!id && !wa) return list
-  
+
   const filtered = list.filter((m, i) => {
     if (i === keepIdx) return true
-
+    // Sempre colapsa id/whatsapp_id iguais (evita key React duplicada).
     if (id && m?.id != null && String(m.id) === id) {
-      if (row.tempId && m.tempId && String(row.tempId) !== String(m.tempId)) return true
-      const sameBubble = areLikelySameMessageBubble(row, m)
-      if (!sameBubble) return true
       if (isDebugRuntime() && typeof window !== "undefined" && isAudioFamilyTipo(m?.tipo)) {
         console.log("[AUDIO_DEBUG] Removendo duplicata por ID", { keepIdx, i, id, m })
       }
       return false
     }
     if (wa && m?.whatsapp_id != null && String(m.whatsapp_id) === wa) {
-      if (row.tempId && m.tempId && String(row.tempId) !== String(m.tempId)) return true
-      const sameBubble = areLikelySameMessageBubble(row, m)
-      if (!sameBubble) return true
       if (isDebugRuntime() && typeof window !== "undefined" && isAudioFamilyTipo(m?.tipo)) {
         console.log("[AUDIO_DEBUG] Removendo duplicata por whatsapp_id", { keepIdx, i, wa, m })
       }
@@ -1716,7 +1925,7 @@ function dedupeRowsByPersistedIdentity(list, keepIdx) {
     }
     return true
   })
-  
+
   return filtered
 }
 
@@ -2067,7 +2276,10 @@ function applyAnexarOneToList(list, convId, msg) {
   const dupIdx = list.findIndex((m) => belongsToConv(m) && mapDedupeKey(m, convId) === newK)
   if (dupIdx >= 0) {
     const prevRow = list[dupIdx]
-    if (canMergeDedupeEntries(prevRow, candNew)) {
+    // Chave id-/wa- já é identidade persistida: sempre funde (nunca append com mesmo id).
+    const forceMergePersisted =
+      newK.startsWith("id-") || newK.startsWith("wa-") || canMergeDedupeEntries(prevRow, candNew)
+    if (forceMergePersisted) {
       let mergedNew = preserveLocalMediaFields(
         prevRow,
         mergeMsgPreferringTombstone(prevRow, { ...prevRow, ...candNew })
@@ -2151,7 +2363,7 @@ function applyAnexarOneToList(list, convId, msg) {
 
   const appended = { ...candNew, _stableInsertSeq: mergeStableSeq(null, candNew, null) }
   let next = [...list, stripTempIdWhenPersisted(appended)]
-  if (isOutgoingLike(candNew) && hasPersistedMessageIdentity(candNew)) {
+  if (hasPersistedMessageIdentity(candNew)) {
     next = dedupeRowsByPersistedIdentity(next, next.length - 1)
   }
   return next
@@ -2176,6 +2388,11 @@ function putMensagemInDedupeMap(map, raw, conversaId, ord) {
     const altKey = findMergeableMapKey(map, copy)
     if (altKey) {
       map.set(altKey, mergeDedupeRows(map.get(altKey), copy, ord))
+      return
+    }
+    // Nunca splitar identidade persistida (id/wa) — gera key React duplicada.
+    if (k.startsWith("id-") || k.startsWith("wa-")) {
+      map.set(k, mergeDedupeRows(prev, copy, ord))
       return
     }
     let altK = `${k}::__split_${ord}`

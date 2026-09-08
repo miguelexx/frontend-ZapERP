@@ -10,6 +10,7 @@ import {
   desconectarInstanciaWhapi,
 } from "../api/whapiInstancesService";
 import { whatsappInstanceLabel } from "../chats/whatsappInstancesService";
+import WhapiAntibanLimitsCard from "./WhapiAntibanLimitsCard";
 import "./whapiConnect.css";
 
 const QR_POLL_MS = 20000;
@@ -672,6 +673,7 @@ export default function WhapiConnectPanel({ showToast }) {
             <div>
               {connected ? (
                 <>
+                  <WhapiAntibanLimitsCard instanceId={selectedId} enabled={connected} />
                   <h4 className="whapi-card-title">Manutenção</h4>
                   <p className="whapi-card-desc">
                     O webhook precisa apontar para o ZapERP para as mensagens chegarem no atendimento.

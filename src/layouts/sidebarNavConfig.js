@@ -7,5 +7,6 @@ export function isSidebarNavActive(to, pathname) {
   if (to === "/crm") return path.startsWith("/crm");
   if (to === "/ia") return path === "/ia" || path.startsWith("/ia/");
   if (to === "/helpdesk") return path === "/helpdesk" || path.startsWith("/helpdesk/");
+  if (to === "/whatsapp-business") return path.startsWith("/whatsapp-business");
   return path === to || path.startsWith(`${to}/`);
 }

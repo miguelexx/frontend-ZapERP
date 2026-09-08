@@ -574,6 +574,8 @@ export const useConversaStore = create((set, get) => {
     atendimentosLoading: false,
     atendimentosLoadedFor: null,
     typing: {},
+    /** Presença WhatsApp do contato (Whapi): { [conversaId]: { status, last_seen, updatedAt } } */
+    contactPresence: {},
     composerAppendQueue: null,
     _messagesScrollPreserve: { begin: null, end: null, release: null },
 
@@ -659,6 +661,40 @@ export const useConversaStore = create((set, get) => {
         const next = { ...state.typing }
         delete next[String(conversa_id)] // ⭐ CORREÇÃO: Remove a chave completamente em vez de setar undefined
         return { typing: next }
+      })
+    },
+
+    setContactPresence: (conversa_id, payload) => {
+      if (!conversa_id) return
+      const id = String(conversa_id)
+      if (!payload) {
+        set((state) => {
+          const next = { ...state.contactPresence }
+          delete next[id]
+          return { contactPresence: next }
+        })
+        return
+      }
+      set((state) => ({
+        contactPresence: {
+          ...state.contactPresence,
+          [id]: {
+            status: payload.status ?? null,
+            last_seen: payload.last_seen ?? payload.lastSeen ?? null,
+            entry_id: payload.entry_id ?? payload.entryId ?? null,
+            source: payload.source || null,
+            updatedAt: Date.now(),
+          },
+        },
+      }))
+    },
+
+    clearContactPresence: (conversa_id) => {
+      if (!conversa_id) return
+      set((state) => {
+        const next = { ...state.contactPresence }
+        delete next[String(conversa_id)]
+        return { contactPresence: next }
       })
     },
 
@@ -2017,6 +2053,7 @@ export const useConversaStore = create((set, get) => {
         mensagens: [],
         tags: [],
         loading: false,
+        loadError: null,
         cursor: null,
         cursorId: null,
         hasMore: true,
@@ -2025,6 +2062,7 @@ export const useConversaStore = create((set, get) => {
         atendimentos: [],
         atendimentosLoading: false,
         atendimentosLoadedFor: null,
+        contactPresence: {},
       })
     },
   }

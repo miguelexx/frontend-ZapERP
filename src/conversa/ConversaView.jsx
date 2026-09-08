@@ -110,6 +110,8 @@ import { usePixConfig } from "./hooks/usePixConfig";
 import { useShareContact } from "./hooks/useShareContact";
 import { useShareLocation } from "./hooks/useShareLocation";
 import { useSendPoll } from "./hooks/useSendPoll";
+import useContactPresence from "./hooks/useContactPresence";
+import { formatContactPresenceLabel } from "./utils/contactPresenceFormat";
 import ConversaSelectionBar from "./components/ConversaSelectionBar";
 import PendingMediaPreview from "./components/PendingMediaPreview";
 import ConversaHeader from "./components/ConversaHeader";
@@ -172,6 +174,12 @@ function ConversaViewBody() {
     const id = s.conversa?.id ?? s.selectedId;
     if (id == null || id === "") return null;
     return s.typing[String(id)] ?? null;
+  });
+
+  const contactPresence = useConversaStore((s) => {
+    const id = s.conversa?.id ?? s.selectedId;
+    if (id == null || id === "") return null;
+    return s.contactPresence?.[String(id)] ?? null;
   });
 
   const {
@@ -626,6 +634,12 @@ function ConversaViewBody() {
   );
 
   const isGroup = useMemo(() => isGroupConversation(conversa), [conversa]);
+
+  const contactPresenceFmt = useMemo(
+    () => formatContactPresenceLabel(contactPresence),
+    [contactPresence]
+  );
+
   const podeAdicionarAtendente =
     ["admin", "supervisor", "atendente"].includes(userRole) &&
     !!conversaId &&
@@ -664,6 +678,14 @@ function ConversaViewBody() {
 
   const whatsappInstanceProvider =
     conversa?.whatsapp_instance_provider ?? fromChat?.whatsapp_instance_provider ?? null;
+
+  useContactPresence({
+    conversaId,
+    telefone: conversa?.telefone ?? fromChat?.telefone,
+    provider: whatsappInstanceProvider,
+    isGroup,
+    enabled: Boolean(conversaId && conversa),
+  });
 
   const restoreComposerDraftAfterEdit = useCallback(() => {
     const backup = editDraftBackupRef.current;
@@ -2784,6 +2806,12 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           totalAtendentes={totalAtendentes}
           onOpenAtendentes={handleOpenAdicionarAtendente}
           isSomeoneTyping={isSomeoneTyping}
+          contactPresenceLabel={
+            !isSomeoneTyping && !isGroup ? contactPresenceFmt.text || null : null
+          }
+          contactPresenceAnimate={
+            !isSomeoneTyping && Boolean(contactPresenceFmt.animate)
+          }
           podeGerenciarTags={podeGerenciarTags}
           tagsOpen={tagsOpen}
           onToggleTagPanel={handleToggleTagPanel}

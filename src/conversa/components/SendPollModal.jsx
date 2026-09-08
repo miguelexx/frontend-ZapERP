@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { IconChartBar } from "@tabler/icons-react";
 import { IconClose } from "../conversaViewIcons";
 
 export default function SendPollModal({
@@ -18,9 +19,12 @@ export default function SendPollModal({
 }) {
   if (!open) return null;
 
+  const filledOptions = (options || []).filter((o) => String(o || "").trim()).length;
+  const canSend = String(title || "").trim().length > 0 && filledOptions >= 2 && !sending;
+
   return createPortal(
     <div
-      className="wa-modalOverlay"
+      className="wa-modalOverlay wa-pollModal-overlay"
       role="dialog"
       aria-label="Enviar enquete"
       onMouseDown={() => {
@@ -29,34 +33,61 @@ export default function SendPollModal({
       }}
     >
       <div className="wa-modal wa-pollModal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="wa-modal-head">
-          <div className="wa-modal-title">Enviar enquete</div>
-          <button type="button" className="wa-iconBtn" onClick={() => !sending && onClose?.()} title="Fechar" aria-label="Fechar">
+        <div className="wa-pollModal-head">
+          <div className="wa-pollModal-brand">
+            <span className="wa-pollModal-icon" aria-hidden="true">
+              <IconChartBar size={22} strokeWidth={1.75} />
+            </span>
+            <div className="wa-pollModal-titles">
+              <div className="wa-pollModal-title">Enviar enquete</div>
+              <p className="wa-pollModal-subtitle">O cliente escolhe no WhatsApp; a opção chega aqui como texto.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="wa-iconBtn wa-pollModal-close"
+            onClick={() => !sending && onClose?.()}
+            title="Fechar"
+            aria-label="Fechar"
+            disabled={sending}
+          >
             <IconClose />
           </button>
         </div>
-        <div className="wa-modal-body">
-          <p className="wa-modal-row wa-modal-row--hint">
-            O cliente vota no WhatsApp. A resposta chega nesta conversa como texto (útil para triagem).
-          </p>
-          <div className="wa-modal-row">
-            <span className="wa-modal-label">Pergunta</span>
+
+        <div className="wa-pollModal-body">
+          <div className="wa-pollModal-hint">
+            <span className="wa-pollModal-hintDot" aria-hidden="true" />
+            Ideal para triagem rápida (setor, preferência, sim/não).
+          </div>
+
+          <label className="wa-pollModal-field">
+            <span className="wa-pollModal-label">Pergunta</span>
             <input
-              className="wa-input"
+              className="wa-input wa-pollModal-input"
               value={title}
               onChange={(e) => onTitleChange?.(e.target.value)}
               placeholder="Ex.: Qual setor você precisa?"
               disabled={sending}
               autoFocus
             />
-          </div>
-          <div className="wa-modal-row">
-            <span className="wa-modal-label">Opções</span>
+          </label>
+
+          <div className="wa-pollModal-field">
+            <div className="wa-pollModal-labelRow">
+              <span className="wa-pollModal-label">Opções</span>
+              <span className="wa-pollModal-count">
+                {filledOptions}/{maxOptions}
+              </span>
+            </div>
             <div className="wa-pollModal-options">
               {(options || []).map((opt, idx) => (
                 <div key={idx} className="wa-pollModal-optionRow">
+                  <span className="wa-pollModal-optionIndex" aria-hidden="true">
+                    {idx + 1}
+                  </span>
                   <input
-                    className="wa-input"
+                    className="wa-input wa-pollModal-input"
                     value={opt}
                     onChange={(e) => onOptionChange?.(idx, e.target.value)}
                     placeholder={`Opção ${idx + 1}`}
@@ -65,7 +96,7 @@ export default function SendPollModal({
                   {(options || []).length > 2 ? (
                     <button
                       type="button"
-                      className="wa-iconBtn"
+                      className="wa-pollModal-remove"
                       disabled={sending}
                       onClick={() => onRemoveOption?.(idx)}
                       title="Remover"
@@ -73,33 +104,51 @@ export default function SendPollModal({
                     >
                       ×
                     </button>
-                  ) : null}
+                  ) : (
+                    <span className="wa-pollModal-removeSpacer" aria-hidden="true" />
+                  )}
                 </div>
               ))}
             </div>
             {(options || []).length < maxOptions ? (
-              <button type="button" className="wa-btn" disabled={sending} onClick={() => onAddOption?.()}>
-                + Opção
+              <button
+                type="button"
+                className="wa-pollModal-add"
+                disabled={sending}
+                onClick={() => onAddOption?.()}
+              >
+                <span aria-hidden="true">+</span> Adicionar opção
               </button>
             ) : null}
           </div>
-          <label className="wa-pollModal-multi">
+
+          <label className={`wa-pollModal-multi${multi ? " is-on" : ""}`}>
             <input
               type="checkbox"
               checked={!!multi}
               disabled={sending}
               onChange={(e) => onMultiChange?.(e.target.checked)}
             />
-            <span>Permitir várias respostas</span>
+            <span className="wa-pollModal-switch" aria-hidden="true" />
+            <span className="wa-pollModal-multiText">
+              <strong>Várias respostas</strong>
+              <span>O cliente pode marcar mais de uma opção</span>
+            </span>
           </label>
-          <div className="wa-modal-row wa-modal-row--actions">
-            <button type="button" className="wa-btn" disabled={sending} onClick={onClose}>
-              Cancelar
-            </button>
-            <button type="button" className="wa-btn wa-btn-primary" disabled={sending} onClick={onSend}>
-              {sending ? "Enviando…" : "Enviar enquete"}
-            </button>
-          </div>
+        </div>
+
+        <div className="wa-pollModal-footer">
+          <button type="button" className="wa-btn wa-pollModal-cancel" disabled={sending} onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="wa-btn wa-btn-primary wa-pollModal-submit"
+            disabled={!canSend}
+            onClick={onSend}
+          >
+            {sending ? "Enviando…" : "Enviar enquete"}
+          </button>
         </div>
       </div>
     </div>,

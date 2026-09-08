@@ -339,3 +339,49 @@ export async function validarNumerosInstancia(instanceId, phones, forceCheck = f
     raw: data,
   };
 }
+
+/**
+ * GET /integrations/whatsapp/instances/:id/limits/antiban
+ * Limites anti-ban Whapi (novos chats + reachout timelock). Read-only.
+ */
+export async function obterLimitesAntibanInstancia(instanceId) {
+  try {
+    const { data, status } = await api.get(
+      `${WHATSAPP_BASE}/instances/${instanceId}/limits/antiban`
+    );
+    return {
+      status,
+      ok: true,
+      provider: data?.provider || "whapi",
+      newChat: data?.new_chat || null,
+      reachout: data?.reachout || null,
+      error: null,
+      raw: data || {},
+    };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Erro ao ler limites anti-ban.");
+    const rawText =
+      typeof parsed.raw === "string"
+        ? parsed.raw
+        : typeof parsed.error === "string"
+          ? parsed.error
+          : "";
+    const looksLikeMissingRoute =
+      parsed.status === 404 ||
+      /Cannot GET\s+\/api\/integrations\/whatsapp\/instances\/\d+\/limits\/antiban/i.test(rawText) ||
+      /<!DOCTYPE html>/i.test(rawText);
+
+    return {
+      status: parsed.status,
+      ok: false,
+      provider: parsed.raw?.provider || null,
+      newChat: null,
+      reachout: null,
+      error: looksLikeMissingRoute
+        ? "Rota anti-ban ainda não está no servidor (faça deploy/restart do backend)."
+        : parsed.error,
+      raw: parsed.raw,
+    };
+  }
+}
+

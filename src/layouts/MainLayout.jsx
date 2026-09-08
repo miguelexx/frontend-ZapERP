@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   IconBook2,
+  IconBrandWhatsapp,
   IconChartBar,
   IconEye,
   IconFilter,
@@ -165,6 +166,14 @@ export default function MainLayout() {
           title: "Configurações",
           icon: IconSettings,
           show: canAccessConfig,
+        },
+        {
+          to: "/whatsapp-business",
+          label: "Business",
+          title: "WhatsApp Business — Perfil e Labels",
+          icon: IconBrandWhatsapp,
+          show: true,
+          accent: "whatsapp",
         },
         {
           to: "/configuracoes?tab=respostas",

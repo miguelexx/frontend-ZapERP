@@ -42,11 +42,17 @@ export function formatBrPhoneDisplay(raw) {
 
 /** Validação leve antes do POST: vazio bloqueado no cliente; formato plausível BR. */
 export function isPlausibleBrPhoneDigits(d) {
-  if (!d || d.length < 10) return false;
-  if (d.startsWith("55")) {
-    return d.length >= 12 && d.length <= 13;
+  const digits = String(d || "").replace(/\D/g, "");
+  if (!digits || digits.length < 10) return false;
+  if (digits.startsWith("55")) {
+    // 55 + DDD(2) + local 8/9 → 12/13
+    if (digits.length < 12 || digits.length > 13) return false;
+    const ddd = Number(digits.slice(2, 4));
+    return ddd >= 11 && ddd <= 99;
   }
-  return d.length >= 10 && d.length <= 11;
+  if (digits.length < 10 || digits.length > 11) return false;
+  const ddd = Number(digits.slice(0, 2));
+  return ddd >= 11 && ddd <= 99;
 }
 
 export function normalizeBrPhoneForSubmit(raw) {

@@ -20,6 +20,8 @@ Importar clientes (`ClientesSection.jsx`): `POST /clientes/importar/preview` e `
 
 **Whapi (2026-09-07, CONFIRMADO no código):** aba `?tab=whapi` em `configuracoes/sections/WhapiSection.jsx` + `pages/WhapiConnectPanel.jsx`. HTTP em `api/whapiInstancesService.js` contra `/api/integrations/whatsapp/instances` (supervisor/admin no backend). Fluxo SaaS: `POST /instances/provision-whapi` cria o canal no servidor (sem Channel ID/token na UI) → lista hidrata health (`connected` / `AUTH`) e auto-seleciona → QR automático se desconectado (`GET :id/qrcode`) ou código (`POST :id/phone-code`) → webhook (`POST :id/configure-webhooks`) → logout (`POST :id/logout`). Cadastro manual (Channel ID + token) ficou em detalhes avançados. Tokens nunca voltam na listagem. Redirect `/configuracoes/whapi` → `?tab=whapi`. Geral tem botão “Conectar Whapi”. UltraMSG permanece em `/configuracoes/whatsapp`. Passkeys Chrome/NID da Whapi **não** estão na UI. Homologação live do QR: **PENDENTE DE VALIDAÇÃO**. Partner `WHAPI_PARTNER_TOKEN` no servidor é **PENDENTE DE VALIDAÇÃO** em produção.
 
+**Limites anti-ban (2026-09-08):** canal conectado mostra `WhapiAntibanLimitsCard` (`GET .../instances/:id/limits/antiban` — novos chats + reachout timelock). Read-only; o gate no worker de disparo continua opt-in via `WHAPI_ANTIBAN_GATE_ENABLED`.
+
 ## IA / chatbot — `pages/IA.jsx`
 
 `chatbot_acessar`. Tabs `?tab=`: chatbot, respostas, ia, automacoes, alertas, logs. `iaService.js`. Redirects: `/chatbot` → `/ia`; `/configuracoes/chatbot` → `/ia?tab=chatbot`.

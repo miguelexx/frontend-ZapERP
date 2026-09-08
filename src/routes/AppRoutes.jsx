@@ -29,6 +29,9 @@ const HelpDesk = lazy(() => import("../pages/HelpDesk"));
 const DisparoMensagens = lazy(() => import("../pages/DisparoMensagens"));
 const DisparoWizardPage = lazy(() => import("../pages/DisparoWizardPage"));
 const DisparoExecucaoPage = lazy(() => import("../pages/DisparoExecucaoPage"));
+const WhapiBusinessLayout = lazy(() => import("../whapi-business/WhapiBusinessLayout"));
+const BusinessProfilePage = lazy(() => import("../whapi-business/BusinessProfilePage"));
+const WhatsAppLabelsPage = lazy(() => import("../whapi-business/WhatsAppLabelsPage"));
 
 const CrmAvancadoRedirect = lazy(() => import("../crm/CrmAvancadoRedirect"));
 const CrmDashboard = lazy(() => import("../crm/pages/CrmDashboard"));
@@ -217,6 +220,25 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/whatsapp-business"
+            element={
+              <LazyPage>
+                <WhapiBusinessLayout />
+              </LazyPage>
+            }
+          >
+            <Route index element={<Navigate to={canAccessSupervisao ? "perfil" : "labels"} replace />} />
+            <Route
+              path="perfil"
+              element={
+                <ProtectedRoute canAccess={canAccessSupervisao} redirectTo="/whatsapp-business/labels">
+                  <BusinessProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="labels" element={<WhatsAppLabelsPage />} />
+          </Route>
           <Route
             path="/configuracoes/chatbot"
             element={
