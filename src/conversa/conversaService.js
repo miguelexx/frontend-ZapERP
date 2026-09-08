@@ -424,6 +424,25 @@ export async function enviarContato(conversaId, cliente_id, messageId) {
   return assertSpecialtyOutboundAccepted(data, "Não foi possível enviar o contato.");
 }
 
+/** Envia enquete WhatsApp (Whapi POST /messages/poll). */
+export async function enviarEnquete(conversaId, payload = {}) {
+  const title = String(payload.title ?? payload.titulo ?? "").trim();
+  const options = Array.isArray(payload.options)
+    ? payload.options
+    : (Array.isArray(payload.opcoes) ? payload.opcoes : []);
+  const body = {
+    title,
+    options,
+    count: payload.count === 0 || payload.multipla === true ? 0 : 1,
+  };
+  const { data } = await api.post(`/chats/${conversaId}/enquete`, body, {
+    timeout: HTTP_TIMEOUT_TEXT_MS,
+    skipGlobalNetworkToast: true,
+    skipGlobal500Toast: true,
+  });
+  return assertSpecialtyOutboundAccepted(data, "Não foi possível enviar a enquete.");
+}
+
 export async function registrarLigacao(conversaId, callDuration) {
   const body = {};
   if (callDuration != null) body.callDuration = callDuration;

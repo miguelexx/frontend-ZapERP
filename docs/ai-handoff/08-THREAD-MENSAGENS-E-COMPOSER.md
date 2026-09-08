@@ -28,7 +28,7 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 | `ThreadRow.jsx` | memo + `threadRowPropsAreEqual`; escolhe Bubble / nota interna / movimentação |
 | `ConversaBubble.jsx` | fachada compatível; reexporta `bubble/ConversaBubbleShell.jsx` |
 | `bubble/ConversaBubbleShell.jsx` | orquestra tipos, menu, gestos, retry e classes da bolha |
-| `bubble/components/*` | texto, imagem, vídeo, sticker, documento, contato, localização, áudio, status, menu, reações |
+| `bubble/components/*` | texto, imagem, vídeo, sticker, documento, contato, localização, **enquete/poll**, áudio, status, menu, reações |
 | `bubble/hooks/*` | menu, long press/swipe de mídia, retry de envio e playback de áudio |
 | `bubble/utils/*` | classify, status, retry, location, sessão/duração de áudio |
 | `ConversaComposer.jsx` | fachada compatível; reexporta `composer/ConversaComposerShell.jsx` |
@@ -192,13 +192,17 @@ Não substitua isso por “espera o POST e só então pinta a bolha”.
 
 Composer, `PendingMediaPreview`, `ImageSendPreviewMobile`. Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay`. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
 
-Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard/contato, call. Renderers em `bubble/components/*`; classificação em `classifyBubbleMessage`. **Nota interna** e movimentação interna continuam em `ThreadRow.jsx` (não passam pela Bubble). Player de áudio: `useAudioPlayback` (`el.load()` ao trocar src; um elemento ativo; pause no unmount). Status visual: `resolveOutgoingTick`. Retry de envio: `getRetryUiState` — reusa o `id` existente, não cria bolha nova.
+Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard/contato, call, **poll/enquete** (`PollMessage`; meta em `reply_meta.poll`). Renderers em `bubble/components/*`; classificação em `classifyBubbleMessage`. **Nota interna** e movimentação interna continuam em `ThreadRow.jsx` (não passam pela Bubble). Player de áudio: `useAudioPlayback` (`el.load()` ao trocar src; um elemento ativo; pause no unmount). Status visual: `resolveOutgoingTick`. Retry de envio: `getRetryUiState` — reusa o `id` existente, não cria bolha nova.
 
 ## IDs e dedupe (invariantes)
 
 Preferência: `whatsapp_id` → `id` → `tempId` → synthetic. Drop se `conversa_id` ≠ conversa aberta. Direção: normalizar `fromMe` / `from_me` / `isFromMe` → `direcao` in/out.
 
-HTTP: `conversa/conversaService.js` (superfície grande: mensagens, PIX, encaminhar, arquivo, reação, assumir/encerrar/transferir, atendentes, notas, localização, **editar mensagem**).
+HTTP: `conversa/conversaService.js` (superfície grande: mensagens, PIX, encaminhar, arquivo, reação, assumir/encerrar/transferir, atendentes, notas, localização, **enquete**, **editar mensagem**).
+
+## Enquete / Poll (CONFIRMADO 2026-09-08)
+
+Canal Whapi: `POST /chats/:id/enquete` (`title`, `options` ≥2, `count` 1=única / 0=múltipla). UltraMSG → 501. Menu Anexos → **Enquete** → `SendPollModal` (`useSendPoll`). Bolha `tipo: 'poll'` com `reply_meta.poll` (não conta como citação no `hasReply`). Voto do cliente chega como **texto** (webhook); sem UI de votar no CRM. Escape: `pollModal` após `shareLocation`.
 
 ## Edição de mensagem (CONFIRMADO 2026-09-07)
 
@@ -211,4 +215,4 @@ Backend: `PATCH /chats/:conversaId/mensagens/:mensagemId` com `{ texto }` (alias
 - Badge **Editada** perto do horário (`editado === true` ou alias `editada`; `undefined` = não editada). `threadRowCompare` compara o alias.
 - `company_id` nunca no body. Fechar a thread não encerra o atendimento.
 
-Hotkeys: `hooks/useGlobalHotkeys.js`. Encaminhar/contato/local: hooks `useForwardFlow`, `useShareContact`, `useShareLocation`.
+Hotkeys: `hooks/useGlobalHotkeys.js`. Encaminhar/contato/local/enquete: hooks `useForwardFlow`, `useShareContact`, `useShareLocation`, `useSendPoll`.

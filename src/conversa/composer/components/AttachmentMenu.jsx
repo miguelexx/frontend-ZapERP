@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import {
   IconCamera as TablerCamera,
+  IconChartBar,
   IconFileText,
   IconLayoutGrid,
   IconMapPin,
@@ -38,6 +39,7 @@ export default function AttachmentMenu({
   onOpenPixConfig,
   onShareContact,
   onShareLocation,
+  onOpenPoll,
   onUpdateAutoCorrectPreference,
 }) {
   const items = (
@@ -184,6 +186,21 @@ export default function AttachmentMenu({
           <IconMapPin size={16} strokeWidth={1.6} />
         </span>
         <span>Localização</span>
+      </button>
+      <button
+        type="button"
+        className="wa-attachItem"
+        role="menuitem"
+        onClick={() => {
+          onOpenPoll?.();
+          onClose();
+        }}
+        disabled={sending || !conversaId || !podeEnviar}
+      >
+        <span className="wa-attachItem-icon wa-attachIcon-poll" aria-hidden="true">
+          <IconChartBar size={16} strokeWidth={1.6} />
+        </span>
+        <span>Enquete</span>
       </button>
       {autocorrectToggleInMenu ? (
         <button

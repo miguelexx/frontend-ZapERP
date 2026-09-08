@@ -61,6 +61,7 @@ export default function ComposerFooter({
   onOpenPixConfig,
   onShareContact,
   onShareLocation,
+  onOpenPoll,
 }) {
   const canType = Boolean(conversaId) && (editMode || notaInternaAtiva || podeEnviar);
   const canConfirmEdit = Boolean(conversaId) && (editAllowEmpty || hasDraft);
@@ -117,6 +118,7 @@ export default function ComposerFooter({
           onOpenPixConfig={onOpenPixConfig}
           onShareContact={onShareContact}
           onShareLocation={onShareLocation}
+          onOpenPoll={onOpenPoll}
           onUpdateAutoCorrectPreference={onUpdateAutoCorrectPreference}
         />
         ) : null}

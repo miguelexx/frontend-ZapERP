@@ -26,6 +26,7 @@ export function getFallbackContentLabel(tipoMsg, textoRawNorm) {
   if (t === "sticker") return "Figurinha";
   if (t === "location") return "📍 Localização";
   if (t === "contact" || t === "contato") return "👤 Contato";
+  if (t === "poll" || t === "enquete") return "📊 Enquete";
   const p = textoRawNorm;
   if (p === "(áudio)" || p === "(audio)") return "🎤 Áudio";
   if (p === "(áudio de voz)") return "🎤 Mensagem de voz";
@@ -188,6 +189,7 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   const contactBubbleMeta = contactMeta !== undefined ? contactMeta : resolveContactMetaFromMessage(msg);
   const isContact = !!contactBubbleMeta;
   const isLocation = tipoMsg === "location";
+  const isPoll = tipoMsg === "poll" || tipoMsg === "enquete" || !!(msg?.reply_meta?.poll);
   const isCall = !isApagadaParaTodos && tipoMsg === "call";
   const textoRaw = safeString(msg?.texto);
   const textoRawNorm = String(textoRaw || "").trim().toLowerCase();
@@ -214,7 +216,14 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     (!inlineMeta || ((isImg || isSticker || isVideo) && !showCaption)) ||
     (isAudioOrVoice && !!mediaUrl);
   const replyMeta = !isApagadaParaTodos ? msg?.reply_meta || null : null;
-  const hasReply = !!(replyMeta && (replyMeta.name || replyMeta.snippet || replyMeta.thumb));
+  const pollMeta = (!isApagadaParaTodos && replyMeta?.poll && typeof replyMeta.poll === "object")
+    ? replyMeta.poll
+    : null;
+  const hasReply = !!(
+    replyMeta &&
+    !replyMeta.poll &&
+    (replyMeta.name || replyMeta.snippet || replyMeta.thumb)
+  );
   const videoPlaybackUrl =
     (tipoMsg === "video" || tipoMsg === "vídeo") && mediaUrl
       ? getMediaPlaybackUrl(msg?.url, msg?.url_absoluta)
@@ -234,6 +243,8 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     isVideo,
     isContact,
     isLocation,
+    isPoll,
+    pollMeta,
     isCall,
     contactBubbleMeta,
     texto,

@@ -78,6 +78,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     onOpenPixConfig,
     onShareContact,
     onShareLocation,
+    onOpenPoll,
     onUpdateAutoCorrectPreference,
     pixActionBusy,
     pixConfigLoading,
@@ -715,6 +716,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         onOpenPixConfig={onOpenPixConfig}
         onShareContact={onShareContact}
         onShareLocation={onShareLocation}
+        onOpenPoll={onOpenPoll}
       />
       </div>
 

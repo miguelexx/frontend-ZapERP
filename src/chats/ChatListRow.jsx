@@ -379,6 +379,12 @@ function getPreview(chat, { audioDurationSec } = {}) {
     return `${outPrefix}📍 ${capLoc || "Localização"}`;
   }
 
+  if (tipo === "poll" || tipo === "enquete") {
+    const title = String(last?.reply_meta?.poll?.title || "").trim();
+    const firstLine = txt.split("\n")[0].replace(/^📊\s*/, "").trim();
+    return `${outPrefix}📊 ${title || firstLine || "Enquete"}`;
+  }
+
   const isPlaceholder =
     !txt ||
     txt === "(mídia)" ||
@@ -561,6 +567,24 @@ function PreviewLine({ chat, audioDurationSec }) {
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
         {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
         <PreviewIcon type="location" className={out ? "is-accent" : ""} />
+        <span className="chat-list-previewText">{atendentePrefix}{line}</span>
+      </span>
+    );
+  }
+
+  if (tipo === "poll" || tipo === "enquete") {
+    const title = String(last?.reply_meta?.poll?.title || "").trim();
+    const firstLine = String(txt || "")
+      .split("\n")[0]
+      .replace(/^📊\s*/, "")
+      .trim();
+    const line = title || firstLine || "Enquete";
+    return (
+      <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
+        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        <span className="chat-list-previewText" aria-hidden="true">
+          📊
+        </span>
         <span className="chat-list-previewText">{atendentePrefix}{line}</span>
       </span>
     );

@@ -5,6 +5,7 @@ import AudioMessage from "./AudioMessage";
 import DocumentMessage from "./DocumentMessage";
 import LocationMessage from "./LocationMessage";
 import ContactMessage from "./ContactMessage";
+import PollMessage from "./PollMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
 
 export default function BubbleTypedContent({
@@ -35,6 +36,8 @@ export default function BubbleTypedContent({
     isFile,
     isLocation,
     isContact,
+    isPoll,
+    pollMeta,
     isCall,
     hasText,
     texto,
@@ -120,6 +123,9 @@ export default function BubbleTypedContent({
     return (
       <LocationMessage msg={msg} selectMode={selectMode} isGroup={isGroup} out={out} />
     );
+  }
+  if (isPoll) {
+    return <PollMessage msg={msg} pollMeta={pollMeta} texto={texto} />;
   }
   if (isContact) {
     return (

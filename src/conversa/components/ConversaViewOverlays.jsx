@@ -10,6 +10,7 @@ const SidebarCliente = lazy(() => import("../SidebarCliente"));
 const ForwardModal = lazy(() => import("./ForwardModal"));
 const ShareContactModal = lazy(() => import("./ShareContactModal"));
 const ShareLocationModal = lazy(() => import("./ShareLocationModal"));
+const SendPollModal = lazy(() => import("./SendPollModal"));
 const PixConfigModal = lazy(() => import("./PixConfigModal"));
 const MsgInfoModal = lazy(() => import("./MsgInfoModal"));
 const CallModal = lazy(() => import("./CallModal"));
@@ -122,6 +123,19 @@ export default function ConversaViewOverlays({
   setShareLocationNome,
   setShareLocationEndereco,
   handleEnviarLocalizacao,
+  pollOpen,
+  pollTitle,
+  pollOptions,
+  pollMulti,
+  pollSending,
+  pollMaxOptions,
+  closePoll,
+  setPollTitle,
+  setOptionAt,
+  addOption,
+  removeOption,
+  setPollMulti,
+  handleSendPoll,
   showProdutosPanel,
   canConsultarProdutos,
   setShowProdutosPanel,
@@ -302,6 +316,25 @@ export default function ConversaViewOverlays({
             onNomeChange={setShareLocationNome}
             onEnderecoChange={setShareLocationEndereco}
             onSend={handleEnviarLocalizacao}
+          />
+        </Suspense>
+      ) : null}
+      {pollOpen ? (
+        <Suspense fallback={null}>
+          <SendPollModal
+            open={pollOpen}
+            title={pollTitle}
+            options={pollOptions}
+            multi={pollMulti}
+            sending={pollSending}
+            maxOptions={pollMaxOptions}
+            onClose={closePoll}
+            onTitleChange={setPollTitle}
+            onOptionChange={setOptionAt}
+            onAddOption={addOption}
+            onRemoveOption={removeOption}
+            onMultiChange={setPollMulti}
+            onSend={handleSendPoll}
           />
         </Suspense>
       ) : null}

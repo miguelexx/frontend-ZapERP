@@ -109,6 +109,7 @@ import { useConversationTags } from "./hooks/useConversationTags";
 import { usePixConfig } from "./hooks/usePixConfig";
 import { useShareContact } from "./hooks/useShareContact";
 import { useShareLocation } from "./hooks/useShareLocation";
+import { useSendPoll } from "./hooks/useSendPoll";
 import ConversaSelectionBar from "./components/ConversaSelectionBar";
 import PendingMediaPreview from "./components/PendingMediaPreview";
 import ConversaHeader from "./components/ConversaHeader";
@@ -1215,6 +1216,23 @@ function ConversaViewBody() {
     handleShareLocationClose,
   } = useShareLocation({ conversaId, showToast, composerRef });
 
+  const {
+    pollOpen,
+    pollTitle,
+    setPollTitle,
+    pollOptions,
+    setOptionAt,
+    addOption,
+    removeOption,
+    pollMulti,
+    setPollMulti,
+    pollSending,
+    openPoll,
+    closePoll,
+    handleSendPoll,
+    maxOptions: pollMaxOptions,
+  } = useSendPoll({ conversaId, showToast, composerRef });
+
   const handleComposerAppendApplied = useCallback(() => {
     showToast({
       type: "success",
@@ -2319,6 +2337,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           pendingFile,
           shareContactOpen,
           shareLocationOpen,
+          pollOpen,
           pixModalOpen,
           msgInfoOpen,
           showTransferirSetor,
@@ -2337,6 +2356,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           clearPending,
           closeShareContact: handleShareContactClose,
           closeShareLocation: handleShareLocationClose,
+          closePoll,
           closePixModal: () => setPixModalOpen(false),
           closeMsgInfo: () => {
             setMsgInfoOpen(false);
@@ -2366,6 +2386,8 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
     handleShareContactClose,
     shareLocationOpen,
     handleShareLocationClose,
+    pollOpen,
+    closePoll,
     pixModalOpen,
     msgInfoOpen,
     showTransferirSetor,
@@ -2881,6 +2903,19 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           setShareLocationNome={setShareLocationNome}
           setShareLocationEndereco={setShareLocationEndereco}
           handleEnviarLocalizacao={handleEnviarLocalizacao}
+          pollOpen={pollOpen}
+          pollTitle={pollTitle}
+          pollOptions={pollOptions}
+          pollMulti={pollMulti}
+          pollSending={pollSending}
+          pollMaxOptions={pollMaxOptions}
+          closePoll={closePoll}
+          setPollTitle={setPollTitle}
+          setOptionAt={setOptionAt}
+          addOption={addOption}
+          removeOption={removeOption}
+          setPollMulti={setPollMulti}
+          handleSendPoll={handleSendPoll}
           showProdutosPanel={showProdutosPanel}
           canConsultarProdutos={canConsultarProdutos}
           setShowProdutosPanel={setShowProdutosPanel}
@@ -3080,6 +3115,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           onOpenPixConfig={handleComposerOpenPixConfig}
           onShareContact={openShareContact}
           onShareLocation={openShareLocation}
+          onOpenPoll={openPoll}
           pixActionBusy={pixActionBusy}
           pixConfigLoading={pixConfigLoading}
           appendTextQueue={composerAppendQueue}

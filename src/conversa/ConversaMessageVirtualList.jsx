@@ -34,6 +34,10 @@ function estimateThreadRowSize(item, mobileThread) {
   if (tipo === "video") return mobileThread ? 230 : 246;
   if (["audio", "ptt", "voice"].includes(tipo)) return mobileThread ? 72 : 68;
   if (["documento", "document", "arquivo", "file"].includes(tipo)) return mobileThread ? 76 : 72;
+  if (tipo === "poll" || tipo === "enquete") {
+    const opts = Array.isArray(item?.reply_meta?.poll?.options) ? item.reply_meta.poll.options.length : 2;
+    return Math.min(mobileThread ? 320 : 340, (mobileThread ? 88 : 80) + Math.max(2, opts) * (mobileThread ? 40 : 38));
+  }
   const text = String(item.texto ?? item.conteudo ?? item.message ?? item.body ?? "");
   const lines = Math.max(1, Math.ceil(text.length / (mobileThread ? 38 : 44)));
   return Math.min(mobileThread ? 320 : 360, (mobileThread ? 52 : 48) + lines * (mobileThread ? 18 : 20));
