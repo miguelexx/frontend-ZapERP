@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import AtendimentoActions from "../../atendimento/AtendimentoActions";
 import SendToCrmChatButton, { IconFunnelSend } from "../SendToCrmChatButton";
-import { safeString } from "../utils/conversaViewHelpers";
 import { IconClock, IconMore, IconTag, IconContact, IconSearch } from "../conversaViewIcons";
 
 function HeaderOverflowSheetBtn({ icon, label, onClick, disabled = false }) {
@@ -35,7 +34,6 @@ function ConversaHeader({
   avatarUrl,
   showAvatarImg,
   onAvatarError,
-  onAvatarClick,
   badge,
   showPagamentoConcluidoBadge = false,
   encerramentoAusenciaHint,
@@ -60,6 +58,7 @@ function ConversaHeader({
   onOpenClienteSide,
   onOpenMessageSearch,
   whatsappInstanceLabel,
+  clienteSideOpen = false,
 }) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuWrapRef = useRef(null);
@@ -256,16 +255,18 @@ function ConversaHeader({
           <polyline points="12 19 5 12 12 5" />
         </svg>
       </button>
-      <div className="wa-header-left">
+      <button
+        type="button"
+        className="wa-header-left"
+        onClick={onOpenClienteSide}
+        disabled={!conversaId}
+        title={dadosContatoLabel}
+        aria-label={dadosContatoLabel}
+        aria-expanded={clienteSideOpen}
+        aria-haspopup="dialog"
+      >
         <div className="wa-avatarWrap">
-          <button
-            type="button"
-            className="wa-avatarButton"
-            onClick={onAvatarClick}
-            disabled={!showAvatarImg}
-            title={showAvatarImg ? "Ver foto ampliada" : undefined}
-            aria-label={showAvatarImg ? `Ver foto ampliada de ${safeString(nome) || "contato"}` : undefined}
-          >
+          <div className="wa-avatarButton">
             <div className="wa-avatar" aria-hidden="true">
               {showAvatarImg ? (
                 <img
@@ -280,7 +281,7 @@ function ConversaHeader({
                 avatar
               )}
             </div>
-          </button>
+          </div>
         </div>
         <div className="wa-header-info">
           <div className="wa-header-titleBlock">
@@ -350,7 +351,7 @@ function ConversaHeader({
             </div>
           ) : null}
         </div>
-      </div>
+      </button>
 
       {headerCompact && !isGroup ? (
         <div className="wa-header-mobileRow2" aria-label="Setor e ações de atendimento">

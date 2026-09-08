@@ -10,7 +10,9 @@
  */
 import {
   buildMediaOpenHref,
+  buildViewerImageCandidates,
   getMediaPlaybackUrl,
+  pickLoadedMediaSrcFromEvent,
   resolveAudioPlaybackCandidates,
 } from "../src/conversa/utils/conversaViewHelpers.js";
 
@@ -111,8 +113,26 @@ const BLOB = "blob:http://app.local/abc-123";
   checar("PDF persistido não passa pelo proxy", playback === localPdf, playback);
 }
 
+// 10) Visualizador de foto: se o proxy 403, cai na URL direta do provedor (Whapi/Wasabi).
+{
+  const provedor = "https://s3.eu-central-1.wasabisys.com/in-files/1/a.jpg";
+  const proxy = getMediaPlaybackUrl(provedor, null);
+  const c = buildViewerImageCandidates(proxy);
+  checar("lightbox tenta o proxy primeiro", c[0] === proxy, JSON.stringify(c));
+  checar("lightbox tem a URL direta como fallback", c.includes(provedor), JSON.stringify(c));
+}
+
+// 11) Clique na miniatura já carregada reusa o src visível.
+{
+  const src = "https://s3.eu-central-1.wasabisys.com/in-files/1/a.jpg";
+  const img = { tagName: "IMG", naturalWidth: 800, currentSrc: src, src };
+  const btn = { querySelector: () => img };
+  const got = pickLoadedMediaSrcFromEvent({ currentTarget: btn });
+  checar("clique usa a foto já visível na bolha", got === src, got);
+}
+
 if (falhas > 0) {
   console.error(`\n${falhas} verificação(ões) falharam.`);
   process.exit(1);
 }
-console.log("OK — regressão de mídia/arquivos passou (9 cenários).");
+console.log("OK — regressão de mídia/arquivos passou (11 cenários).");

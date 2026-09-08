@@ -9,6 +9,8 @@ import { useNotificationStore } from "../notifications/notificationStore";
 import { getDisplayName } from "../chats/chatList";
 import * as cfg from "../api/configService";
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
+import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
+import { IconClipboard, IconClose, IconLinkOut, IconPhone } from "./conversaViewIcons";
 
 function initials(nome = "") {
   const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
@@ -127,7 +129,64 @@ function dedupeTagsSidebar(tags) {
   return out;
 }
 
-export default function SidebarCliente({ open, onClose, conversa, tags, tempoSemResponder, onObservacaoSaved, isGroup }) {
+function ProfilePhotoButton({
+  photoUrl,
+  photoError,
+  initialsLabel,
+  canZoom,
+  name,
+  onError,
+  onOpen,
+}) {
+  const label = canZoom
+    ? `Ver foto de ${name || "contato"}`
+    : (name ? `Foto de ${name}` : "Foto do contato");
+  return (
+    <button
+      type="button"
+      className={`wa-sideCliente-photoBtn${canZoom ? " isZoomable" : ""}`}
+      onClick={onOpen}
+      disabled={!canZoom}
+      title={canZoom ? "Ver foto ampliada" : undefined}
+      aria-label={label}
+    >
+      <span className="wa-sideCliente-photo" aria-hidden="true">
+        <span className="wa-sideCliente-avatarFallback">{initialsLabel}</span>
+        {photoUrl && !photoError ? (
+          <img
+            className="wa-sideCliente-avatarImg"
+            src={photoUrl}
+            alt=""
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={onError}
+          />
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function ProfileInfoRow({ label, children }) {
+  if (children == null || children === false || children === "") return null;
+  return (
+    <div className="wa-sideCliente-kv">
+      <span className="wa-sideCliente-kvLabel">{label}</span>
+      <div className="wa-sideCliente-kvValue">{children}</div>
+    </div>
+  );
+}
+
+export default function SidebarCliente({
+  open,
+  onClose,
+  onOpenAvatar,
+  conversa,
+  tags,
+  tempoSemResponder,
+  onObservacaoSaved,
+  isGroup,
+}) {
   const user = useAuthStore((s) => s.user);
   const showToast = useNotificationStore((s) => s.showToast);
   const panelRef = useRef(null);
@@ -150,7 +209,11 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
       const target = event?.target;
       if (!panel || !(target instanceof Node)) return;
       if (panel.contains(target)) return;
-      if (typeof target.closest === "function" && target.closest(".wa-sideCliente")) return;
+      if (typeof target.closest === "function") {
+        if (target.closest(".wa-sideCliente")) return;
+        if (target.closest(".wa-header-left")) return;
+        if (target.closest(".wa-mediaViewerOverlay")) return;
+      }
       const active = document.activeElement;
       if (
         active instanceof HTMLInputElement &&
@@ -375,6 +438,61 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
     const s = url ? String(url).trim() : "";
     return s && s.startsWith("http") ? s : null;
   }, [conversa, isGroup]);
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [fotoPerfil]);
+
+  const canZoomPhoto = Boolean(fotoPerfil && !avatarImgError && typeof onOpenAvatar === "function");
+
+  const handleOpenProfilePhoto = useCallback(
+    (e) => {
+      if (!canZoomPhoto) return;
+      const loaded = pickLoadedMediaSrcFromEvent(e) || fotoPerfil;
+      const label = isGroup
+        ? String(conversa?.nome_grupo || "Grupo")
+        : String(clienteNome || cliNome || "Contato");
+      onOpenAvatar(loaded, "imagem", label);
+    },
+    [canZoomPhoto, fotoPerfil, onOpenAvatar, isGroup, conversa?.nome_grupo, clienteNome, cliNome]
+  );
+
+  const setorAtual = useMemo(() => {
+    if (conversa?.departamento_id == null) return "";
+    return String(
+      conversa?.setor || conversa?.departamento?.nome || conversa?.departamentos?.nome || ""
+    ).trim();
+  }, [
+    conversa?.departamento_id,
+    conversa?.setor,
+    conversa?.departamento?.nome,
+    conversa?.departamentos?.nome,
+  ]);
+
+  const instanceLabel = useMemo(() => {
+    return String(
+      conversa?.whatsapp_instance_nome ||
+        conversa?.whatsappInstanceNome ||
+        conversa?.whatsapp_instance_display_phone ||
+        conversa?.whatsappInstanceDisplayPhone ||
+        ""
+    ).trim();
+  }, [
+    conversa?.whatsapp_instance_nome,
+    conversa?.whatsappInstanceNome,
+    conversa?.whatsapp_instance_display_phone,
+    conversa?.whatsappInstanceDisplayPhone,
+  ]);
+
+  const handleCopyPhone = useCallback(async () => {
+    if (!telefone) return;
+    const ok = await copyText(telefone);
+    showToast?.({
+      type: ok ? "success" : "error",
+      title: ok ? "Copiado" : "Falha",
+      message: ok ? "Telefone copiado." : "Não foi possível copiar.",
+    });
+  }, [telefone, showToast]);
 
   const statusLabel = useMemo(() => {
     const s = getSidebarStatusKey(conversa);
@@ -944,41 +1062,35 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   if (!open) return null;
 
   if (isGroup) {
+    const groupName = conversa?.nome_grupo || "Grupo";
     return (
-      <div ref={panelRef} className="wa-sideCliente" role="complementary" aria-label="Detalhes do grupo">
+      <div ref={panelRef} className="wa-sideCliente" role="dialog" aria-label="Dados do grupo">
         <div className="wa-sideCliente-head">
           <div className="wa-sideCliente-titleBlock">
-            <span className="wa-sideCliente-title">Conversa de grupo</span>
-            <span className="wa-sideCliente-sub">Informações da conversa</span>
+            <span className="wa-sideCliente-title">Dados do grupo</span>
           </div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar">
-            <span>×</span>
+          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
+            <IconClose />
           </button>
         </div>
         <div className="wa-sideCliente-body">
-          <section className="wa-sideCliente-section">
-            <h3 className="wa-sideCliente-sectionTitle">Grupo</h3>
-            <div className="wa-sideCliente-row">
-              <span className="wa-sideCliente-label">Nome</span>
-              <span className="wa-sideCliente-value">{conversa?.nome_grupo || "Grupo"}</span>
-            </div>
+          <section className="wa-sideCliente-profile" aria-label="Perfil do grupo">
+            <ProfilePhotoButton
+              photoUrl={fotoPerfil}
+              photoError={avatarImgError}
+              initialsLabel={initials(groupName)}
+              canZoom={canZoomPhoto}
+              name={groupName}
+              onError={() => setAvatarImgError(true)}
+              onOpen={handleOpenProfilePhoto}
+            />
+            <h2 className="wa-sideCliente-profileName">{groupName}</h2>
+            <span className={`wa-sideCliente-pill wa-sideCliente-pill--${statusTone}`}>{statusLabel}</span>
           </section>
-          <section className="wa-sideCliente-section">
-            <h3 className="wa-sideCliente-sectionTitle">Atendimento</h3>
-            <div className="wa-sideCliente-row">
-              <span className="wa-sideCliente-label">Status</span>
-              <span className="wa-sideCliente-value">{statusLabel}</span>
-            </div>
-            <div className="wa-sideCliente-row">
-              <span className="wa-sideCliente-label">Responsável</span>
-              <span className="wa-sideCliente-value">{responsavelNome}</span>
-            </div>
-            {createdAt ? (
-              <div className="wa-sideCliente-row">
-                <span className="wa-sideCliente-label">Criado em</span>
-                <span className="wa-sideCliente-value">{createdAt}</span>
-              </div>
-            ) : null}
+          <section className="wa-sideCliente-card" aria-label="Informações do grupo">
+            <ProfileInfoRow label="Status">{statusLabel}</ProfileInfoRow>
+            <ProfileInfoRow label="Responsável">{responsavelNome}</ProfileInfoRow>
+            <ProfileInfoRow label="Criado em">{createdAt}</ProfileInfoRow>
           </section>
         </div>
       </div>
@@ -986,138 +1098,119 @@ export default function SidebarCliente({ open, onClose, conversa, tags, tempoSem
   }
 
   return (
-    <div ref={panelRef} className="wa-sideCliente" role="complementary" aria-label="Detalhes do cliente">
+    <div ref={panelRef} className="wa-sideCliente" role="dialog" aria-label="Dados do contato">
       <div className="wa-sideCliente-head">
         <div className="wa-sideCliente-titleBlock">
-          <span className="wa-sideCliente-title">Detalhes do cliente</span>
-          <span className="wa-sideCliente-sub">Informações da conversa atual</span>
+          <span className="wa-sideCliente-title">Dados do contato</span>
         </div>
         <button
           type="button"
           className="wa-iconBtn"
           onClick={onClose}
           title="Fechar"
+          aria-label="Fechar"
         >
-          <span>×</span>
+          <IconClose />
         </button>
       </div>
 
       <div className="wa-sideCliente-body">
-        <section className="wa-sideCliente-hero" aria-label="Resumo do cliente">
-          <div className="wa-sideCliente-avatar">
-            <span className="wa-sideCliente-avatarFallback" aria-hidden="true">{initials(cliNome || clienteNome)}</span>
-            {fotoPerfil && !avatarImgError ? (
-              <img
-                className="wa-sideCliente-avatarImg"
-                src={fotoPerfil}
-                alt=""
-                onError={() => setAvatarImgError(true)}
-              />
-            ) : null}
-          </div>
-          <div className="wa-sideCliente-heroMain">
-            <div className="wa-sideCliente-heroTop">
-              {canEdit ? (
-                <input
-                  type="text"
-                  className="wa-sideCliente-input wa-sideCliente-heroNameInput"
-                  value={cliNome}
-                  onChange={(e) => setCliNome(e.target.value)}
-                  placeholder="Nome do contato"
-                  disabled={savingAny}
-                  aria-label="Nome do contato"
-                  maxLength={120}
-                />
-              ) : (
-                <div className="wa-sideCliente-heroName" title={clienteNome}>
-                  {clienteNome}
-                </div>
-              )}
-              <span className={`wa-sideCliente-pill wa-sideCliente-pill--${statusTone}`}>{statusLabel}</span>
-            </div>
-            <div className="wa-sideCliente-heroSub">
-              {telefone ? <span className="wa-sideCliente-mono">{telefone}</span> : <span className="wa-sideCliente-muted">Sem telefone</span>}
-              {empresaDisplay ? (
-                <>
-                  <span className="wa-sideCliente-dotSep" aria-hidden="true">•</span>
-                  <span className="wa-sideCliente-muted" title={`Empresa: ${empresaDisplay}`}>{empresaDisplay}</span>
-                </>
-              ) : null}
-              {tempoSemResponder != null ? (
-                <>
-                  <span className="wa-sideCliente-dotSep" aria-hidden="true">•</span>
-                  <span className="wa-sideCliente-sla">
-                    <span className="wa-sideCliente-muted">Sem responder há</span>{" "}
-                    <span className="wa-sideCliente-slaValue">{tempoSemResponder}</span>
-                  </span>
-                </>
-              ) : null}
-            </div>
-            {nomesVinculados.length > 0 ? (
-              <div className="wa-sideCliente-vinculos" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.4 }}>
-                {nomesVinculados.map((v) => (
-                  <div key={v.nome} className="wa-sideCliente-muted">
-                    Também vinculado: {v.serie ? `${v.nome} — ${v.serie}` : v.nome}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <div className="wa-sideCliente-heroMeta">
-              <span className="wa-sideCliente-muted">Responsável:</span>{" "}
-              <span className="wa-sideCliente-valueInline">{responsavelNome}</span>
-              {createdAt ? (
-                <>
-                  <span className="wa-sideCliente-dotSep" aria-hidden="true">•</span>
-                  <span className="wa-sideCliente-muted">Criado:</span>{" "}
-                  <span className="wa-sideCliente-valueInline">{createdAt}</span>
-                </>
-              ) : null}
-            </div>
-            <div className="wa-sideCliente-heroActions" aria-label="Ações rápidas">
-              {telefone ? (
-                <a href={`tel:${telDigits}`} className="wa-iconBtn wa-sideCliente-actionBtn" title="Ligar" aria-label="Ligar">
-                  📞
-                </a>
-              ) : (
-                <button type="button" className="wa-iconBtn wa-sideCliente-actionBtn" title="Sem telefone" disabled>
-                  📞
-                </button>
-              )}
-              <button
-                type="button"
-                className="wa-iconBtn wa-sideCliente-actionBtn"
-                title="Copiar telefone"
-                disabled={!telefone}
-                onClick={async () => {
-                  if (!telefone) return;
-                  const ok = await copyText(telefone);
-                  showToast?.({
-                    type: ok ? "success" : "error",
-                    title: ok ? "Copiado" : "Falha",
-                    message: ok ? "Telefone copiado." : "Não foi possível copiar.",
-                  });
-                }}
-              >
-                ⧉
+        <section className="wa-sideCliente-profile" aria-label="Perfil do contato">
+          <ProfilePhotoButton
+            photoUrl={fotoPerfil}
+            photoError={avatarImgError}
+            initialsLabel={initials(cliNome || clienteNome)}
+            canZoom={canZoomPhoto}
+            name={cliNome || clienteNome}
+            onError={() => setAvatarImgError(true)}
+            onOpen={handleOpenProfilePhoto}
+          />
+          {canEdit ? (
+            <input
+              type="text"
+              className="wa-sideCliente-profileNameInput"
+              value={cliNome}
+              onChange={(e) => setCliNome(e.target.value)}
+              placeholder="Nome do contato"
+              disabled={savingAny}
+              aria-label="Nome do contato"
+              maxLength={120}
+            />
+          ) : (
+            <h2 className="wa-sideCliente-profileName" title={clienteNome}>
+              {clienteNome}
+            </h2>
+          )}
+          <p className="wa-sideCliente-profilePhone">
+            {telefone ? <span className="wa-sideCliente-mono">{telefone}</span> : <span className="wa-sideCliente-muted">Sem telefone</span>}
+          </p>
+          {empresaDisplay ? (
+            <p className="wa-sideCliente-profileMeta" title={`Empresa: ${empresaDisplay}`}>{empresaDisplay}</p>
+          ) : null}
+          <span className={`wa-sideCliente-pill wa-sideCliente-pill--${statusTone}`}>{statusLabel}</span>
+          <div className="wa-sideCliente-quickRow" aria-label="Ações rápidas">
+            {telefone ? (
+              <a href={`tel:${telDigits}`} className="wa-sideCliente-quickBtn" title="Ligar" aria-label="Ligar">
+                <IconPhone />
+                <span>Ligar</span>
+              </a>
+            ) : (
+              <button type="button" className="wa-sideCliente-quickBtn" title="Sem telefone" disabled>
+                <IconPhone />
+                <span>Ligar</span>
               </button>
-              {crmHref ? (
-                <a
-                  href={crmHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="wa-iconBtn wa-sideCliente-actionBtn"
-                  title="Abrir CRM"
-                  aria-label="Abrir CRM"
-                >
-                  ⤴
-                </a>
-              ) : (
-                <button type="button" className="wa-iconBtn wa-sideCliente-actionBtn" title="CRM não configurado" disabled>
-                  ⤴
-                </button>
-              )}
-            </div>
+            )}
+            <button
+              type="button"
+              className="wa-sideCliente-quickBtn"
+              title="Copiar telefone"
+              disabled={!telefone}
+              onClick={handleCopyPhone}
+            >
+              <IconClipboard />
+              <span>Copiar</span>
+            </button>
+            {crmHref ? (
+              <a
+                href={crmHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="wa-sideCliente-quickBtn"
+                title="Abrir CRM"
+                aria-label="Abrir CRM"
+              >
+                <IconLinkOut />
+                <span>CRM</span>
+              </a>
+            ) : (
+              <button type="button" className="wa-sideCliente-quickBtn" title="CRM não configurado" disabled>
+                <IconLinkOut />
+                <span>CRM</span>
+              </button>
+            )}
           </div>
+        </section>
+
+        <section className="wa-sideCliente-card" aria-label="Informações do contato">
+          <ProfileInfoRow label="Telefone">
+            {telefone ? <span className="wa-sideCliente-mono">{telefone}</span> : "—"}
+          </ProfileInfoRow>
+          <ProfileInfoRow label="Setor">{setorAtual || "Sem setor"}</ProfileInfoRow>
+          <ProfileInfoRow label="WhatsApp">{instanceLabel}</ProfileInfoRow>
+          <ProfileInfoRow label="Responsável">{responsavelNome}</ProfileInfoRow>
+          {tempoSemResponder != null ? (
+            <ProfileInfoRow label="Sem responder">
+              <span className="wa-sideCliente-slaValue">{tempoSemResponder}</span>
+            </ProfileInfoRow>
+          ) : null}
+          <ProfileInfoRow label="Criado em">{createdAt}</ProfileInfoRow>
+          {nomesVinculados.length > 0 ? (
+            <ProfileInfoRow label="Também vinculado">
+              {nomesVinculados.map((v) => (
+                <div key={v.nome}>{v.serie ? `${v.nome} — ${v.serie}` : v.nome}</div>
+              ))}
+            </ProfileInfoRow>
+          ) : null}
         </section>
 
         <section className="wa-sideCliente-section" aria-label="Cadastro do cliente">

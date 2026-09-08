@@ -51,6 +51,7 @@ export default function ConversaViewOverlays({
   handleToggleTag,
   showClienteSide,
   setShowClienteSide,
+  openMediaViewer,
   tags,
   tempoSemResponder,
   refresh,
@@ -192,6 +193,7 @@ export default function ConversaViewOverlays({
           <SidebarCliente
             open
             onClose={() => setShowClienteSide(false)}
+            onOpenAvatar={openMediaViewer}
             conversa={conversa}
             isGroup={isGroup}
             tags={tags}

@@ -36,8 +36,8 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 | `composer/components/*` | footer, anexos/câmera, emojis, stickers, respostas salvas, reply bar e gravador |
 | `composer/hooks/*` | draft, typing, respostas, anexos/câmera, autocorreção, pickers e gravação |
 | `composer/utils/*` | funções puras de teclado, mídia gravada, chaves/contexto e comparação de props |
-| `components/ConversaHeader.jsx` | |
-| `SidebarCliente.jsx` | lazy; observação, vínculo, rename (`PUT /chats/:id/nome-contato` + patch imediato em `conversaStore`/`chatsStore`); clique fora fecha (backdrop `--cliente` + listener no `document`) |
+| `components/ConversaHeader.jsx` | clique em avatar+nome abre o perfil (`onOpenClienteSide`); foto ampliada só no painel |
+| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp (foto grande, telefone, setor); observação, vínculo, rename (`PUT /chats/:id/nome-contato` + patch imediato em `conversaStore`/`chatsStore`); clique fora fecha (backdrop `--cliente` + listener no `document`); clique na foto abre o lightbox |
 | `composerDraftStore.js` | rascunho por conversa |
 
 Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRESHOLD`); senão lista estática. Medir mídia **durante** scroll de histórico não pode soltar a âncora do fundo.
@@ -83,7 +83,7 @@ Divisão atual:
 - `classifyBubbleMessage`: identifica tipo, legenda, reply, encaminhado e flags de layout. **Não** usa `status` — pending→sent→delivered→read não remonta imagem/áudio;
 - `resolveOutgoingTick`: ticks monotônicos; flag stale de offline não rebaixa tick já confirmado; grupo nunca fica azul (cap delivered no caminho numérico);
 - `getRetryUiState`: botão "Tentar novamente" só em outbound com falha confirmada e `mensagem_id`; não dispara em pending/sent/delivered/read/`status_indefinido`/contato;
-- Renderers: `TextMessage`, `ImageMessage` (fallback blob→servidor→proxy, herda `img.complete` na reconciliação otimista), `VideoMessage`, `StickerMessage`, `DocumentMessage`, `ContactMessage`, `LocationMessage`, `AudioMessage`;
+- Renderers: `TextMessage`, `ImageMessage` (fallback blob→servidor→proxy, herda `img.complete` na reconciliação otimista; clique no visualizador usa o `src` já carregado e o overlay cai proxy→URL direta com `referrerPolicy=no-referrer`), `VideoMessage`, `StickerMessage`, `DocumentMessage`, `ContactMessage`, `LocationMessage`, `AudioMessage`;
 - `QuotedReply` + `MessageCaption`: citação no topo e legenda só quando o texto não é placeholder/nome de arquivo;
 - `useMessageMenu` + `MessageMenu`: portal desktop e bottom sheet mobile; `visualViewport` para teclado;
 - `useMessageGestures`: long press 480 ms / 14 px, skip do tap na mídia após o menu, swipe continua em `SwipeReplyTrack`;
@@ -160,7 +160,7 @@ Métricas etapa 3: linhas 4456 → **2903**, `useState` 26 → **13**. Node 26/2
 
 Abertura da conversa (CONFIRMADO 2026-08-24): máscara `.wa-messages--opening` fica até o snap assentar (`onOpenSnapReady` no `useAutoScroll`, ~6 frames no desktop / 1 rAF no mobile). Não tirar a máscara no mesmo layout em que `loading` vira false — isso pintava o thread no topo e depois “puxava” ao fim. Foto/nome do header preferem a row da lista (`fromChat`) para não trocar URL no GET. `zapMsgsInitialPassRef` reseta no render da troca. Bolha nova anima só com `.zap-message-enter` — nunca `animation` em todo `.wa-bubble` (ao sair da máscara isso reanimava o thread inteiro). `snapIfStickBottom` não corre enquanto a máscara está ativa.
 
-Painel **Detalhes do cliente** (`SidebarCliente`, 2026-08-27): Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica na hora via `renameChatContact` (lista) + `patchConversa` (header). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document`; no mobile o overlay já existia. Esc também fecha (`ConversaView`).
+Painel **Dados do contato** (`SidebarCliente`, 2026-09-07): clicar no bloco identidade do cabeçalho (avatar + nome) abre o perfil, como no WhatsApp Web — não amplia a foto. A foto grande do painel é que abre o lightbox (`openMediaViewer` + `pickLoadedMediaSrcFromEvent`). Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica na hora via `renameChatContact` (lista) + `patchConversa` (header). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document` (ignora cabeçalho e lightbox); no mobile o overlay já existia. Esc também fecha (`ConversaView`).
 
 ## Envio otimista (CONFIRMADO)
 

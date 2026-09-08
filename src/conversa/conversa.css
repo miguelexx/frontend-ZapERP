@@ -418,10 +418,44 @@ html:not([data-theme="dark"]) .wa-header {
   gap: 12px;
   min-width: 0;
   flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 2px 6px 2px 2px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  height: auto;
+  width: 100%;
+  max-width: 100%;
+  box-shadow: none;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+
+.wa-header-left:hover:not(:disabled),
+.wa-header-left:focus-visible {
+  background: color-mix(in srgb, var(--ds-hover, rgba(17, 27, 33, 0.06)) 88%, transparent);
+}
+
+.wa-header-left:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green, #00a884) 70%, transparent);
+  outline-offset: 1px;
+}
+
+.wa-header-left:disabled {
+  cursor: default;
 }
 
 .wa-avatarWrap {
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .wa-avatarButton {
@@ -433,16 +467,8 @@ html:not([data-theme="dark"]) .wa-header {
   border-radius: 50%;
   line-height: 0;
   flex-shrink: 0;
+  cursor: inherit;
   -webkit-tap-highlight-color: transparent;
-}
-
-.wa-avatarButton:not(:disabled) {
-  cursor: zoom-in;
-}
-
-.wa-avatarButton:disabled {
-  cursor: default;
-  pointer-events: none;
 }
 
 .wa-avatar {
@@ -10558,32 +10584,50 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 
 .wa-sideCliente {
   position: absolute;
-  top: 60px;
+  top: 0;
   right: 0;
-  width: 320px;
-  max-width: 90vw;
-  height: calc(100% - 60px);
-  background: var(--wa-glass-strong);
+  width: 380px;
+  max-width: min(92vw, 420px);
+  height: 100%;
+  background: var(--wa-panel);
   border-left: 1px solid color-mix(in srgb, var(--wa-panel-border) 82%, transparent);
   box-shadow: -18px 0 42px -30px rgba(15, 23, 42, 0.54);
-  backdrop-filter: blur(14px);
   z-index: 22;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: wa-sideClienteIn 0.22s ease-out;
+}
+
+@keyframes wa-sideClienteIn {
+  from {
+    transform: translateX(18px);
+    opacity: 0.72;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-sideCliente {
+    animation: none;
+  }
 }
 
 .wa-sideCliente-head {
-  padding: 14px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--wa-panel-border) 78%, transparent);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: color-mix(in srgb, var(--wa-header-bg) 74%, transparent);
-  backdrop-filter: blur(14px);
+  background: var(--wa-header-bg);
   position: sticky;
   top: 0;
   z-index: 2;
+  min-height: 56px;
+  box-sizing: border-box;
 }
 
 .wa-sideCliente-titleBlock {
@@ -10594,8 +10638,8 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 .wa-sideCliente-title {
-  font-size: 14px;
-  font-weight: 750;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--wa-text);
   letter-spacing: 0;
 }
@@ -10610,12 +10654,187 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 .wa-sideCliente-body {
-  padding: 12px 14px 16px;
+  padding: 0 0 20px;
   flex: 1;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+}
+
+.wa-sideCliente-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 20px 18px;
+  gap: 8px;
+}
+
+.wa-sideCliente-photoBtn {
+  padding: 0;
+  margin: 0 0 6px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  line-height: 0;
+  cursor: default;
+}
+
+.wa-sideCliente-photoBtn.isZoomable {
+  cursor: zoom-in;
+}
+
+.wa-sideCliente-photoBtn.isZoomable:hover .wa-sideCliente-photo,
+.wa-sideCliente-photoBtn.isZoomable:focus-visible .wa-sideCliente-photo {
+  transform: scale(1.02);
+  box-shadow: 0 10px 28px -16px rgba(15, 23, 42, 0.55);
+}
+
+.wa-sideCliente-photoBtn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green, #00a884) 70%, transparent);
+  outline-offset: 3px;
+}
+
+.wa-sideCliente-photo {
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  display: block;
+  background: linear-gradient(145deg, #e9edef 0%, #d1d7db 100%);
+  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 70%, transparent);
+  box-shadow: 0 12px 28px -18px rgba(15, 23, 42, 0.45);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.wa-sideCliente-profileName {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--wa-text);
+  margin: 4px 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.wa-sideCliente-profileNameInput {
+  width: min(100%, 280px);
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--wa-text);
+  outline: none;
+}
+
+.wa-sideCliente-profileNameInput:hover,
+.wa-sideCliente-profileNameInput:focus {
+  border-color: color-mix(in srgb, var(--wa-panel-border) 80%, transparent);
+  background: color-mix(in srgb, var(--wa-input-bg, var(--wa-panel)) 88%, transparent);
+}
+
+.wa-sideCliente-profilePhone {
+  margin: 0;
+  font-size: 14px;
+  color: var(--wa-text-muted);
+}
+
+.wa-sideCliente-profileMeta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wa-text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-sideCliente-quickRow {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.wa-sideCliente-quickBtn {
+  flex: 1 1 0;
+  max-width: 104px;
+  min-height: 58px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 80%, transparent);
+  background: color-mix(in srgb, var(--wa-panel) 88%, transparent);
+  color: var(--wa-green, #00a884);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.wa-sideCliente-quickBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-green, #00a884) 10%, var(--wa-panel));
+  border-color: color-mix(in srgb, var(--wa-green, #00a884) 35%, var(--wa-panel-border));
+}
+
+.wa-sideCliente-quickBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--wa-text-muted);
+}
+
+.wa-sideCliente-quickBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wa-sideCliente-card {
+  margin: 0 12px;
+  padding: 4px 16px 8px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 84%, transparent);
+  background: color-mix(in srgb, var(--wa-panel) 92%, #ffffff 8%);
+}
+
+.wa-sideCliente-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--wa-panel-border) 70%, transparent);
+}
+
+.wa-sideCliente-kv:last-child {
+  border-bottom: none;
+}
+
+.wa-sideCliente-kvLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-green, #00a884);
+  letter-spacing: 0.01em;
+}
+
+.wa-sideCliente-kvValue {
+  font-size: 15px;
+  color: var(--wa-text);
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .wa-sideCliente-hero{
@@ -10632,13 +10851,16 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   align-items: center;
 }
 
+.wa-sideCliente-avatar,
+.wa-sideCliente-photo {
+  flex: 0 0 auto;
+}
 .wa-sideCliente-avatar{
   width: 44px;
   height: 44px;
   border-radius: 14px;
   position: relative;
   overflow: hidden;
-  flex: 0 0 auto;
   background: rgba(0,0,0,.04);
   border: 1px solid rgba(0,0,0,.06);
 }
@@ -10652,6 +10874,10 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   font-weight: 800;
   font-size: 14px;
   letter-spacing: -0.02em;
+}
+.wa-sideCliente-photo .wa-sideCliente-avatarFallback {
+  font-size: 56px;
+  font-weight: 700;
 }
 .wa-sideCliente-avatarImg{
   position:absolute;
@@ -10776,10 +11002,13 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 .wa-sideCliente-details{
   margin-top: 12px;
   border: 1px solid color-mix(in srgb, var(--wa-panel-border) 84%, transparent);
-  border-radius: 8px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--wa-panel) 76%, transparent);
   box-shadow: 0 10px 24px -22px rgba(15, 23, 42, 0.34);
   padding: 8px 10px 10px;
+}
+.wa-sideCliente-body > .wa-sideCliente-details {
+  margin: 0 12px;
 }
 .wa-sideCliente-details > summary{
   cursor:pointer;
@@ -10804,7 +11033,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 .wa-sideCliente-saveBar{
   position: sticky;
   bottom: 0;
-  margin-top: 14px;
+  margin: 8px 12px 0;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--wa-panel-border) 84%, transparent);
@@ -10889,9 +11118,10 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 .wa-sideCliente-section {
+  margin: 0 12px;
   padding: 12px 12px;
   border: 1px solid color-mix(in srgb, var(--wa-panel-border) 84%, transparent);
-  border-radius: 8px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--wa-panel) 78%, transparent);
   box-shadow: 0 10px 24px -22px rgba(15, 23, 42, 0.34);
 }
@@ -11089,13 +11319,13 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
    SIDEBAR CLIENTE — Modo escuro (cores visíveis)
 ========================================================= */
 [data-theme="dark"] .wa-sideCliente {
-  background: var(--wa-glass-strong);
+  background: var(--zaperp-header-bg, var(--wa-panel));
   border-left-color: var(--ds-border);
   box-shadow: -18px 0 42px -30px rgba(0, 0, 0, 0.82);
 }
 
 [data-theme="dark"] .wa-sideCliente-head {
-  background: color-mix(in srgb, var(--ds-surface-2) 78%, transparent);
+  background: var(--zaperp-header-bg, var(--ds-surface-2));
   border-bottom-color: var(--ds-border);
 }
 
@@ -11122,6 +11352,61 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 
 [data-theme="dark"] .wa-sideCliente-avatarFallback {
   color: rgba(233, 237, 239, 0.9) !important;
+}
+
+[data-theme="dark"] .wa-sideCliente-photo {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--ds-border);
+  box-shadow: 0 16px 36px -20px rgba(0, 0, 0, 0.72);
+}
+
+[data-theme="dark"] .wa-sideCliente-profileName,
+[data-theme="dark"] .wa-sideCliente-profileNameInput {
+  color: var(--ds-text-primary);
+}
+
+[data-theme="dark"] .wa-sideCliente-profileNameInput:hover,
+[data-theme="dark"] .wa-sideCliente-profileNameInput:focus {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--ds-border);
+}
+
+[data-theme="dark"] .wa-sideCliente-profilePhone,
+[data-theme="dark"] .wa-sideCliente-profileMeta {
+  color: var(--ds-text-secondary);
+}
+
+[data-theme="dark"] .wa-sideCliente-quickBtn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--ds-border);
+  color: #5eead4;
+}
+
+[data-theme="dark"] .wa-sideCliente-quickBtn:hover:not(:disabled) {
+  background: rgba(0, 168, 132, 0.12);
+  border-color: rgba(0, 168, 132, 0.4);
+}
+
+[data-theme="dark"] .wa-sideCliente-card {
+  background: color-mix(in srgb, var(--ds-surface-2) 86%, transparent);
+  border-color: var(--ds-border);
+}
+
+[data-theme="dark"] .wa-sideCliente-kv {
+  border-bottom-color: var(--ds-border);
+}
+
+[data-theme="dark"] .wa-sideCliente-kvLabel {
+  color: #5eead4;
+}
+
+[data-theme="dark"] .wa-sideCliente-kvValue {
+  color: var(--ds-text-primary);
+}
+
+[data-theme="dark"] .wa-header-left:hover:not(:disabled),
+[data-theme="dark"] .wa-header-left:focus-visible {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 [data-theme="dark"] .wa-sideCliente-heroName {
@@ -13670,6 +13955,24 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 
   .wa-shell > .wa-sideCliente {
     top: var(--wa-mobile-header-h, 74px);
+  }
+
+  .wa-sideCliente-photo {
+    width: 132px;
+    height: 132px;
+  }
+
+  .wa-sideCliente-photo .wa-sideCliente-avatarFallback {
+    font-size: 44px;
+  }
+
+  .wa-sideCliente-profile {
+    padding: 20px 16px 14px;
+  }
+
+  .wa-sideCliente-profileName,
+  .wa-sideCliente-profileNameInput {
+    font-size: 20px;
   }
 
   .wa-header {

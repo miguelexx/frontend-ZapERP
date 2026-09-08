@@ -1,7 +1,36 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { getMediaPlaybackUrl, mediaViewerSupportsPrint } from "../utils/conversaViewHelpers";
+import {
+  buildViewerImageCandidates,
+  getMediaPlaybackUrl,
+  mediaViewerSupportsPrint,
+} from "../utils/conversaViewHelpers";
 import { IconClose, IconPrint } from "../conversaViewIcons";
+
+function ViewerFallbackImg({ url, alt, imgRef }) {
+  const candidates = useMemo(() => buildViewerImageCandidates(url), [url]);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    setIdx(0);
+  }, [url]);
+  const src = candidates[idx] || "";
+  if (!src) return null;
+  return (
+    <img
+      ref={imgRef}
+      src={src}
+      alt={alt}
+      className="wa-mediaViewer-img"
+      loading="eager"
+      decoding="async"
+      fetchPriority="high"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        setIdx((n) => (n + 1 < candidates.length ? n + 1 : n));
+      }}
+    />
+  );
+}
 
 /**
  * Visualizador de mídia em tela cheia. Monta só quando `mediaViewer` está definido.
@@ -88,14 +117,10 @@ export default function MediaViewerOverlay({
             const isImg = /\.(jpg|jpeg|png|gif|webp|bmp|avif|svg)$/i.test(fn);
             if (isImg) {
               return (
-                <img
-                  ref={mediaViewerImgRef}
-                  src={mediaViewer.url}
+                <ViewerFallbackImg
+                  url={mediaViewer.url}
                   alt={mediaViewer.fileName || "Arquivo"}
-                  className="wa-mediaViewer-img"
-                  loading="eager"
-                  decoding="async"
-                  fetchPriority="high"
+                  imgRef={mediaViewerImgRef}
                 />
               );
             }
@@ -147,14 +172,10 @@ export default function MediaViewerOverlay({
             );
           })()
         ) : (
-          <img
-            ref={mediaViewerImgRef}
-            src={mediaViewer.url}
+          <ViewerFallbackImg
+            url={mediaViewer.url}
             alt={mediaViewer.type === "figurinha" ? "Figurinha" : "Imagem"}
-            className="wa-mediaViewer-img"
-            loading="eager"
-            decoding="async"
-            fetchPriority="high"
+            imgRef={mediaViewerImgRef}
           />
         )}
       </div>

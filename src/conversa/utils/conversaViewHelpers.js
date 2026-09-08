@@ -642,6 +642,57 @@ export function getMediaPlaybackUrl(url, urlAbsoluta) {
   return `${getApiBaseUrl().replace(/\/$/, "")}/media/proxy?${q.toString()}`;
 }
 
+function unwrapMediaProxyInnerUrl(rawUrl) {
+  const raw = String(rawUrl || "").trim();
+  if (!raw || !/^https?:\/\//i.test(raw)) return "";
+  try {
+    const original = new URL(raw);
+    if (!isMediaProxyPath(original.pathname)) return "";
+    const inner = original.searchParams.get("url");
+    return inner ? resolveMediaUrlForPlayback(inner) : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Fontes para o visualizador em tela cheia. A bolha já cai do proxy para a URL
+ * direta; o overlay precisa da mesma cadeia, senão um 403 do proxy vira o ícone
+ * quebrado com alt "Imagem".
+ */
+export function buildViewerImageCandidates(rawUrl) {
+  const out = [];
+  const seen = new Set();
+  const push = (u) => {
+    const s = String(u || "").trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  };
+  push(rawUrl);
+  push(getMediaPlaybackUrl(rawUrl, false));
+  push(unwrapMediaProxyInnerUrl(rawUrl));
+  return out;
+}
+
+/** `src` da &lt;img&gt;/&lt;video&gt; que já carregou no clique (miniatura visível). */
+export function pickLoadedMediaSrcFromEvent(e) {
+  const root = e?.currentTarget;
+  if (!root || typeof root.querySelector !== "function") return "";
+  const el = root.querySelector("img, video");
+  if (!el) return "";
+  const tag = String(el.tagName || "").toUpperCase();
+  if (tag === "IMG") {
+    if (!(el.naturalWidth > 0)) return "";
+    return String(el.currentSrc || el.src || "").trim();
+  }
+  if (tag === "VIDEO") {
+    if (!(el.videoWidth > 0) && !(Number(el.readyState) >= 2)) return "";
+    return String(el.currentSrc || el.src || "").trim();
+  }
+  return "";
+}
+
 function isMediaProxyPath(pathname) {
   return pathname === "/media/proxy" || pathname === "/api/media/proxy";
 }

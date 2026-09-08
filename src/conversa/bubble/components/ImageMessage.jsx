@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { resolveBubbleMediaCandidates } from "../../utils/conversaViewHelpers";
+import { pickLoadedMediaSrcFromEvent, resolveBubbleMediaCandidates } from "../../utils/conversaViewHelpers";
 import MessageCaption from "./MessageCaption";
 
 /** Imagem na bolha com fallback: blob local → URL do servidor → proxy. */
@@ -108,8 +108,8 @@ export default function ImageMessage({
         type="button"
         className="wa-bubble-imgLink"
         onPointerDown={onPointerDown}
-        onPointerUp={(e) => onPointerUp?.(e, mediaUrl, "imagem")}
-        onClick={(e) => onClick?.(e, mediaUrl, "imagem")}
+        onPointerUp={(e) => onPointerUp?.(e, pickLoadedMediaSrcFromEvent(e) || mediaUrl, "imagem")}
+        onClick={(e) => onClick?.(e, pickLoadedMediaSrcFromEvent(e) || mediaUrl, "imagem")}
       >
         <BubbleImage
           msg={msg}

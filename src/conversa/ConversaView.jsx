@@ -1264,12 +1264,6 @@ function ConversaViewBody() {
     }
   }, [conversaId, showToast]);
 
-  const onHeaderAvatarClick = useCallback(() => {
-    if (showAvatarImg && avatarUrl) {
-      openMediaViewer(avatarUrl, "imagem", nome);
-    }
-  }, [showAvatarImg, avatarUrl, nome, openMediaViewer]);
-
   const handleBackToList = useCallback(() => {
     /* Mesmo comportamento do ESC: só fecha a seleção, sem alterar status/atendimento. */
     closeSelectedConversation({ preferHistoryBack: headerCompact });
@@ -2758,7 +2752,6 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           avatarUrl={avatarUrl}
           showAvatarImg={showAvatarImg}
           onAvatarError={handleHeaderAvatarError}
-          onAvatarClick={onHeaderAvatarClick}
           badge={badge}
           showPagamentoConcluidoBadge={showPagamentoConcluidoBadge}
           encerramentoAusenciaHint={encerramentoAusenciaHint}
@@ -2783,6 +2776,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           onOpenClienteSide={handleOpenClienteSide}
           onOpenMessageSearch={openMessageSearch}
           whatsappInstanceLabel={whatsappInstanceLabel}
+          clienteSideOpen={showClienteSide}
         />
 
         <ConversaViewOverlays
@@ -2816,6 +2810,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           handleToggleTag={handleToggleTag}
           showClienteSide={showClienteSide}
           setShowClienteSide={setShowClienteSide}
+          openMediaViewer={openMediaViewer}
           tags={tags}
           tempoSemResponder={tempoSemResponder}
           refresh={refresh}

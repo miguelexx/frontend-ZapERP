@@ -60,7 +60,7 @@ HTTP fetchChats / getChatById / send
   → handlers atualizam stores (filtro company_id)
 ```
 
-Detalhe da lista: [07](07-LISTA-DE-CONVERSAS.md). Thread/envio: [08](08-THREAD-MENSAGENS-E-COMPOSER.md).
+Detalhe da lista: [07](07-LISTA-DE-CONVERSAS.md). Thread/envio: [08](08-THREAD-MENSAGENS-E-COMPOSER.md). Clique no avatar+nome do cabeçalho abre o perfil (`SidebarCliente`); ampliar foto é no painel.
 
 ## Invariantes deste módulo
 
@@ -68,3 +68,4 @@ Detalhe da lista: [07](07-LISTA-DE-CONVERSAS.md). Thread/envio: [08](08-THREAD-M
 - Nome/foto sticky: não sobrescrever com vazio, “Conversa”, ou `chatName` de outbound.
 - `carregarConversa` usa abort + generation guard; leave room no clear.
 - Instância (`whatsapp_instance_id`) entra na identidade da row (`chatRowStableKey`).
+- Foto/nome/telefone da lista e do header vêm de `clientes` / caches da conversa (não de UltraMSG live). Em empresa Whapi, abrir conversa e novo contato enriquecem pela instância da conversa (`getProfilePicture` mesmo sem o número na agenda). Contato só com número (sem `nome`/`pushname`) é esperado.
