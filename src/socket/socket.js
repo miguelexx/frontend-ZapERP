@@ -1258,15 +1258,21 @@ export function initSocket(token) {
     if (!convStore.selectedId || String(convStore.selectedId) !== String(conversa_id)) return
 
     const texto = payload.texto ?? payload.conteudo
-    const partial = {
-      editado: true,
-      editada: true,
-      editada_em: payload.editada_em ?? null,
+    const markEdited = payload.editada === true || payload.editado === true
+    const partial = {}
+    if (markEdited) {
+      partial.editado = true
+      partial.editada = true
+      partial.editada_em = payload.editada_em ?? null
     }
     if (texto != null) {
       partial.texto = texto
       partial.conteudo = payload.conteudo ?? payload.texto ?? texto
     }
+    if (payload.reply_meta && typeof payload.reply_meta === "object") {
+      partial.reply_meta = payload.reply_meta
+    }
+    if (Object.keys(partial).length === 0) return
     convStore.patchMensagem(mensagemId, partial, { conversa_id, preserveOrder: true })
   })
 

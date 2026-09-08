@@ -4834,6 +4834,11 @@ html:not([data-theme="dark"]) .wa-bubble-out {
   background: color-mix(in srgb, var(--wa-panel) 70%, transparent);
 }
 
+.wa-poll-option--selected {
+  border-color: color-mix(in srgb, var(--wa-green) 55%, transparent);
+  background: color-mix(in srgb, var(--wa-green) 14%, transparent);
+}
+
 .wa-poll-radio {
   flex: 0 0 auto;
   width: 16px;
@@ -4843,11 +4848,24 @@ html:not([data-theme="dark"]) .wa-bubble-out {
   box-sizing: border-box;
 }
 
+.wa-poll-radio.is-on {
+  border-width: 5px;
+}
+
 .wa-poll-optionText {
   font-size: 13.5px;
   line-height: 1.3;
   color: var(--wa-text);
   overflow-wrap: anywhere;
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-poll-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
 }
 
 .wa-poll-hint {

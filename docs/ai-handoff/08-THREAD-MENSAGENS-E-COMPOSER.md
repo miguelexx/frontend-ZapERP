@@ -202,7 +202,11 @@ HTTP: `conversa/conversaService.js` (superfície grande: mensagens, PIX, encamin
 
 ## Enquete / Poll (CONFIRMADO 2026-09-08)
 
-Canal Whapi: `POST /chats/:id/enquete` (`title`, `options` ≥2, `count` 1=única / 0=múltipla). UltraMSG → 501. Menu Anexos → **Enquete** → `SendPollModal` (`useSendPoll`). Bolha `tipo: 'poll'` com `reply_meta.poll` (não conta como citação no `hasReply`). Voto do cliente chega como **texto** (webhook); sem UI de votar no CRM. Escape: `pollModal` após `shareLocation`.
+Canal Whapi: `POST /chats/:id/enquete` (`title`, `options` ≥2, `count` 1=única / 0=múltipla). UltraMSG → 501. Menu Anexos → **Enquete** → `SendPollModal` (`useSendPoll`). Bolha `tipo: 'poll'` com `reply_meta.poll` (não conta como citação no `hasReply`).
+
+**Voto (live):** Whapi manda hash SHA-256 da opção; o backend resolve para o texto e grava inbound de texto. A bolha atualiza em tempo real (`reply_meta.poll.last_vote` / `results`) via `mensagem_editada` com `editada:false` + `reply_meta` (socket em `socket.js`). Sem UI de votar no CRM.
+
+**Edição inbound do cliente:** webhook Whapi `edited:true` (ou `action.type=edit` + `action.target`) atualiza a linha e emite `mensagem_editada` via `emitirEventoEmpresaConversa` (não só room `conversa_*`).
 
 ## Edição de mensagem (CONFIRMADO 2026-09-07)
 
