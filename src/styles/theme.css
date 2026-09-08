@@ -35,7 +35,11 @@
   --light-primary-soft: #CFF8E9;
   --light-primary-border: #3FD4AE;
   --light-bubble-out: #C3F0DC;
-  --light-bubble-out-border: #78D9B6;
+  --light-bubble-out-border: #8FE0C1;
+  --light-bubble-out-grad: linear-gradient(155deg, #D8F7E9 0%, #C1F0D9 52%, #B0EACF 100%);
+  --light-bubble-out-tail: #B0EACF;
+  --light-bubble-in-grad: linear-gradient(160deg, #FFFFFF 0%, #F3F8FD 100%);
+  --light-bubble-in-tail: #F3F8FD;
   --light-success: #0A9B6A;
   --light-success-bg: #CFF8E8;
   --light-success-border: #45D0A0;
