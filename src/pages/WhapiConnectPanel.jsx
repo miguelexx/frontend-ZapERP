@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   registrarInstanciaWhapi,
   listarInstanciasWhapi,
+  provisionarInstanciaWhapi,
   obterQrCodeInstancia,
   obterStatusInstancia,
   parearInstanciaPorCodigo,
@@ -20,6 +21,17 @@ function instanceTitle(inst) {
   return whatsappInstanceLabel(inst) || inst.nome || inst.instance_id || `Canal #${inst.id}`;
 }
 
+function statusLooksConnected(status) {
+  const s = String(status || "").trim().toUpperCase();
+  return s === "CONNECTED" || s === "AUTH" || s === "READY";
+}
+
+function instanceIsOn(inst, liveForThis) {
+  if (liveForThis?.connected === true) return true;
+  if (inst?.connected === true) return true;
+  return statusLooksConnected(inst?.live_status) || statusLooksConnected(inst?.status);
+}
+
 function statusBadge(connected, loading) {
   if (loading && connected == null) return { label: "Verificando…", tone: "wait" };
   if (connected) return { label: "Conectado", tone: "ok" };
@@ -31,24 +43,26 @@ function digitsOnly(value) {
 }
 
 /**
- * Painel de conexão para instâncias Whapi (2º provider, ao lado do UltraMSG).
+ * Painel SaaS de conexão Whapi (2º provider, ao lado do UltraMSG).
  *
- * Fluxo:
- *  1. Cadastrar canal (Channel ID + Token) → POST /instances
- *  2. QR (GET :id/qrcode) ou código (POST :id/phone-code)
- *  3. Health (GET :id/status) até AUTH
- *  4. Webhook (POST :id/configure-webhooks) e, se precisar, logout (POST :id/logout)
+ * Fluxo principal:
+ *  1. Sem canal → POST /instances/provision-whapi (Partner cria Channel ID + token)
+ *  2. Com canal → health live na lista + auto-seleção
+ *  3. Se AUTH → webhook; senão QR / código
  */
 export default function WhapiConnectPanel({ showToast }) {
   const [instances, setInstances] = useState([]);
   const [instancesLoading, setInstancesLoading] = useState(false);
   const [listError, setListError] = useState("");
+  const [partnerEnabled, setPartnerEnabled] = useState(false);
 
   const [channelId, setChannelId] = useState("");
   const [token, setToken] = useState("");
   const [nome, setNome] = useState("");
   const [registrando, setRegistrando] = useState(false);
+  const [provisionando, setProvisionando] = useState(false);
   const [formError, setFormError] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [selectedId, setSelectedId] = useState(null);
   const [liveStatus, setLiveStatus] = useState(null);
@@ -77,7 +91,8 @@ export default function WhapiConnectPanel({ showToast }) {
   const qrGenRef = useRef(0);
   const statusGenRef = useRef(0);
   const webhookAutoRef = useRef(new Set());
-  const wasConnectedRef = useRef(false);
+  const prevConnectedRef = useRef(null);
+  const autoQrRef = useRef(new Set());
 
   const selectedInstance = instances.find((inst) => String(inst.id) === String(selectedId)) || null;
   const connected = liveStatus?.connected === true;
@@ -96,13 +111,26 @@ export default function WhapiConnectPanel({ showToast }) {
     }
   }, []);
 
-  const loadInstances = useCallback(async () => {
+  const loadInstances = useCallback(async ({ refresh = false } = {}) => {
     setInstancesLoading(true);
     try {
-      const list = await listarInstanciasWhapi();
-      if (!mountedRef.current) return list;
+      const data = await listarInstanciasWhapi({ refresh });
+      if (!mountedRef.current) return data.instances || [];
+      const list = data.instances || [];
       setInstances(list);
+      setPartnerEnabled(data.partnerEnabled === true);
       setListError("");
+      const currentId = selectedIdRef.current;
+      if (currentId != null) {
+        const current = list.find((inst) => String(inst.id) === String(currentId));
+        if (current && instanceIsOn(current, null)) {
+          setLiveStatus((prev) => ({
+            connected: true,
+            phone: current.display_phone || current.telefone_conectado || prev?.phone || null,
+            channelStatus: current.live_status || current.status || prev?.channelStatus || "AUTH",
+          }));
+        }
+      }
       return list;
     } catch (err) {
       const status = err?.response?.status;
@@ -144,7 +172,7 @@ export default function WhapiConnectPanel({ showToast }) {
     setStatusError("");
     setWebhookMsg("");
     setShowLogoutConfirm(false);
-    wasConnectedRef.current = false;
+    prevConnectedRef.current = null;
   }, [clearQrTimer]);
 
   const selecionarInstancia = useCallback(
@@ -153,9 +181,30 @@ export default function WhapiConnectPanel({ showToast }) {
       const id = inst?.id ?? null;
       selectedIdRef.current = id;
       setSelectedId(id);
+      if (inst && instanceIsOn(inst, null)) {
+        setLiveStatus({
+          connected: true,
+          phone: inst.display_phone || inst.telefone_conectado || null,
+          channelStatus: inst.live_status || inst.status || "AUTH",
+        });
+      }
     },
     [resetConnectState]
   );
+
+  useEffect(() => {
+    if (!instances.length) {
+      if (selectedId != null) {
+        selectedIdRef.current = null;
+        setSelectedId(null);
+      }
+      return;
+    }
+    const stillThere = selectedId != null && instances.some((inst) => String(inst.id) === String(selectedId));
+    if (stillThere) return;
+    const preferred = instances.find((inst) => inst.is_default) || instances[0];
+    selecionarInstancia(preferred);
+  }, [instances, selectedId, selecionarInstancia]);
 
   const fetchStatus = useCallback(async (instId, { silent = false } = {}) => {
     if (instId == null) return null;
@@ -282,33 +331,59 @@ export default function WhapiConnectPanel({ showToast }) {
     if (!mountedRef.current || selectedIdRef.current !== instId) return;
     if (res.ok) {
       setWebhookMsg(res.webhookUrl ? `Webhook apontado para ${res.webhookUrl}` : "Webhook configurado.");
-      showToast?.({
-        type: "success",
-        title: "Webhook configurado",
-        message: "O canal já envia mensagens para o ZapERP.",
-      });
     } else {
       webhookAutoRef.current.delete(String(instId));
       setWebhookMsg(res.error || "Não foi possível configurar o webhook automaticamente.");
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
-    if (!connected || selectedId == null) return;
-    clearQrTimer();
-    setQrDataUri(null);
-    setQrError("");
-    if (!wasConnectedRef.current) {
-      wasConnectedRef.current = true;
-      showToast?.({
-        type: "success",
-        title: "Whapi conectada",
-        message: "O canal autenticou. Você já pode atender por esta instância.",
-      });
-      loadInstances();
+    if (selectedId == null) return;
+    if (connected) {
+      const becameConnected = prevConnectedRef.current === false;
+      prevConnectedRef.current = true;
+      clearQrTimer();
+      setQrDataUri(null);
+      setQrError("");
+      if (becameConnected) {
+        showToast?.({
+          type: "success",
+          title: "Whapi conectada",
+          message: "O canal autenticou. Você já pode atender por esta instância.",
+        });
+        loadInstances({ refresh: true });
+      }
       tryAutoWebhook(selectedId);
+      return;
     }
-  }, [connected, selectedId, clearQrTimer, showToast, loadInstances, tryAutoWebhook]);
+    if (liveStatus && liveStatus.connected === false) {
+      prevConnectedRef.current = false;
+    }
+  }, [connected, liveStatus, selectedId, clearQrTimer, showToast, loadInstances, tryAutoWebhook]);
+
+  const handleGerarQr = useCallback(async () => {
+    if (!selectedId) return;
+    if (qrRetryIn > 0) return;
+    setQrRetryIn(null);
+    setQrError("");
+    const st = await fetchStatus(selectedId);
+    if (!mountedRef.current || selectedIdRef.current !== selectedId) return;
+    if (st?.connected) return;
+    const res = await fetchQr(selectedId);
+    if (!mountedRef.current || selectedIdRef.current !== selectedId) return;
+    if (res?.connected) return;
+    if (res?.dataUri && res?.status !== 429) scheduleQrPoll(selectedId);
+  }, [selectedId, qrRetryIn, fetchStatus, fetchQr, scheduleQrPoll]);
+
+  useEffect(() => {
+    if (selectedId == null || connected || statusLoading) return;
+    if (liveStatus == null) return;
+    if (qrLoading || qrDataUri || qrRetryIn > 0) return;
+    const key = String(selectedId);
+    if (autoQrRef.current.has(key)) return;
+    autoQrRef.current.add(key);
+    handleGerarQr();
+  }, [selectedId, connected, statusLoading, liveStatus, qrLoading, qrDataUri, qrRetryIn, handleGerarQr]);
 
   useEffect(() => {
     if (qrRetryIn == null || qrRetryIn <= 0) return undefined;
@@ -320,6 +395,33 @@ export default function WhapiConnectPanel({ showToast }) {
     }, 1000);
     return () => clearInterval(id);
   }, [qrRetryIn]);
+
+  async function handleProvisionar() {
+    setProvisionando(true);
+    setFormError("");
+    try {
+      const res = await provisionarInstanciaWhapi({ nome: nome.trim() });
+      if (!res.ok) {
+        setFormError(res.error || "Não foi possível criar o canal automaticamente.");
+        if (res.code === "WHAPI_PARTNER_OFF") setShowAdvanced(true);
+        showToast?.({ type: "error", title: "Conectar WhatsApp", message: res.error || "Falha ao provisionar." });
+        return;
+      }
+      showToast?.({
+        type: "success",
+        title: res.created ? "Canal criado" : "Canal pronto",
+        message: res.created
+          ? "Leia o QR Code no celular para autenticar."
+          : "Este canal já existia. Conferindo a conexão…",
+      });
+      const list = await loadInstances({ refresh: true });
+      const novaId = res.instance?.id;
+      const found = list.find((inst) => String(inst.id) === String(novaId)) || res.instance;
+      if (found) selecionarInstancia(found);
+    } finally {
+      if (mountedRef.current) setProvisionando(false);
+    }
+  }
 
   async function handleRegistrar(e) {
     e.preventDefault();
@@ -347,7 +449,7 @@ export default function WhapiConnectPanel({ showToast }) {
       setChannelId("");
       setToken("");
       setNome("");
-      const list = await loadInstances();
+      const list = await loadInstances({ refresh: true });
       const found = list.find((inst) => String(inst.id) === String(novaId)) || (novaId != null ? { id: novaId, nome: nova?.nome || idCanal, provider: "whapi", instance_id: idCanal } : null);
       if (found) selecionarInstancia(found);
     } catch (err) {
@@ -355,20 +457,6 @@ export default function WhapiConnectPanel({ showToast }) {
     } finally {
       if (mountedRef.current) setRegistrando(false);
     }
-  }
-
-  async function handleGerarQr() {
-    if (!selectedId) return;
-    if (qrRetryIn > 0) return;
-    setQrRetryIn(null);
-    setQrError("");
-    const st = await fetchStatus(selectedId);
-    if (!mountedRef.current || selectedIdRef.current !== selectedId) return;
-    if (st?.connected) return;
-    const res = await fetchQr(selectedId);
-    if (!mountedRef.current || selectedIdRef.current !== selectedId) return;
-    if (res?.connected) return;
-    if (res?.dataUri && res?.status !== 429) scheduleQrPoll(selectedId);
   }
 
   async function handleParear() {
@@ -419,7 +507,8 @@ export default function WhapiConnectPanel({ showToast }) {
       setShowLogoutConfirm(false);
       if (res.ok) {
         webhookAutoRef.current.delete(String(selectedId));
-        wasConnectedRef.current = false;
+        autoQrRef.current.delete(String(selectedId));
+        prevConnectedRef.current = false;
         setLiveStatus({ connected: false, phone: liveStatus?.phone || null, channelStatus: "LOGOUT" });
         setQrDataUri(null);
         showToast?.({
@@ -427,7 +516,7 @@ export default function WhapiConnectPanel({ showToast }) {
           title: "Canal desconectado",
           message: "Gere um novo QR Code para conectar de novo.",
         });
-        await loadInstances();
+        await loadInstances({ refresh: true });
       } else {
         showToast?.({ type: "error", title: "Falha ao desconectar", message: res.error || "Tente novamente." });
       }
@@ -438,81 +527,57 @@ export default function WhapiConnectPanel({ showToast }) {
 
   const badge = statusBadge(connected, statusLoading);
   const canRetryQr = qrRetryIn == null || qrRetryIn <= 0;
+  const empty = instances.length === 0 && !listError;
 
   return (
     <div className="whapi-panel">
-      <section className="whapi-card" aria-labelledby="whapi-cadastro-title">
-        <h3 id="whapi-cadastro-title" className="whapi-card-title">1. Cadastrar canal Whapi</h3>
-        <p className="whapi-card-desc">
-          Crie o canal no painel da Whapi Cloud, copie o Channel ID e o token, e cole aqui.
-          O token não é exibido depois de salvo.
-        </p>
-        <form className="whapi-form" onSubmit={handleRegistrar}>
-          <div className="ia-field">
-            <label htmlFor="whapi-channel-id">Channel ID</label>
-            <input
-              id="whapi-channel-id"
-              className="ia-input"
-              type="text"
-              autoComplete="off"
-              placeholder="ex.: NEBULA-AER3B"
-              value={channelId}
-              onChange={(e) => { setChannelId(e.target.value); setFormError(""); }}
-              disabled={registrando}
-            />
-          </div>
-          <div className="ia-field">
-            <label htmlFor="whapi-token">Token do canal</label>
-            <input
-              id="whapi-token"
-              className="ia-input"
-              type="password"
-              autoComplete="off"
-              placeholder="Bearer do canal Whapi"
-              value={token}
-              onChange={(e) => { setToken(e.target.value); setFormError(""); }}
-              disabled={registrando}
-            />
-          </div>
-          <div className="ia-field">
-            <label htmlFor="whapi-nome">Rótulo (opcional)</label>
-            <input
-              id="whapi-nome"
-              className="ia-input"
-              type="text"
-              placeholder="Como aparecerá na lista"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              disabled={registrando}
-            />
-          </div>
+      {empty ? (
+        <section className="whapi-card" aria-labelledby="whapi-saas-title">
+          <h3 id="whapi-saas-title" className="whapi-card-title">Conectar WhatsApp</h3>
+          <p className="whapi-card-desc">
+            {partnerEnabled
+              ? "Um clique cria o canal e gera o QR. Você não precisa copiar Channel ID nem token."
+              : "O servidor ainda não tem o token de parceiro Whapi. Use o cadastro avançado ou peça ao administrador para configurar WHAPI_PARTNER_TOKEN."}
+          </p>
           {formError ? <div className="ia-error-banner" role="alert">{formError}</div> : null}
-          <div>
-            <button type="submit" className="ia-btn ia-btn--primary" disabled={registrando}>
-              {registrando ? "Cadastrando…" : "Cadastrar canal"}
+          <div className="whapi-actions">
+            <button
+              type="button"
+              className="ia-btn ia-btn--primary"
+              onClick={handleProvisionar}
+              disabled={provisionando || instancesLoading}
+            >
+              {provisionando ? "Preparando canal…" : "Conectar WhatsApp"}
             </button>
           </div>
-        </form>
-      </section>
+        </section>
+      ) : null}
 
       <section className="whapi-card" aria-labelledby="whapi-lista-title">
         <div className="whapi-actions" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-          <h3 id="whapi-lista-title" className="whapi-card-title" style={{ margin: 0 }}>2. Escolher instância</h3>
-          <button type="button" className="ia-btn ia-btn--outline" onClick={loadInstances} disabled={instancesLoading}>
-            {instancesLoading ? "Atualizando…" : "Atualizar lista"}
+          <h3 id="whapi-lista-title" className="whapi-card-title" style={{ margin: 0 }}>
+            {empty ? "Instâncias" : "Instância Whapi"}
+          </h3>
+          <button
+            type="button"
+            className="ia-btn ia-btn--outline"
+            onClick={() => loadInstances({ refresh: true })}
+            disabled={instancesLoading}
+          >
+            {instancesLoading ? "Consultando…" : "Atualizar status"}
           </button>
         </div>
         {listError ? <div className="ia-error-banner" role="alert">{listError}</div> : null}
-        {instances.length === 0 && !listError ? (
+        {empty && !instancesLoading ? (
           <p className="whapi-card-desc" style={{ marginBottom: 0 }}>
-            {instancesLoading ? "Carregando instâncias…" : "Nenhum canal Whapi cadastrado ainda. Use o formulário acima."}
+            Nenhum canal nesta empresa ainda.
           </p>
         ) : (
           <div className="whapi-instance-list">
             {instances.map((inst) => {
               const isSel = selectedId != null && String(selectedId) === String(inst.id);
               const liveForThis = isSel ? liveStatus : null;
-              const isOn = liveForThis?.connected === true || String(inst.status || "").toLowerCase() === "connected";
+              const isOn = instanceIsOn(inst, liveForThis);
               return (
                 <button
                   key={String(inst.id)}
@@ -523,14 +588,14 @@ export default function WhapiConnectPanel({ showToast }) {
                   <span>
                     <span className="whapi-instance-name">{instanceTitle(inst)}</span>
                     <span className="whapi-instance-meta">
-                      {inst.instance_id || "sem Channel ID"}
+                      {inst.instance_id || "canal automático"}
                       {inst.display_phone || inst.telefone_conectado ? ` · ${inst.display_phone || inst.telefone_conectado}` : ""}
                       {inst.is_default ? " · padrão" : ""}
                       {inst.ativo === false ? " · inativa" : ""}
                     </span>
                   </span>
                   <span className={`whapi-badge ${isOn ? "whapi-badge--ok" : "whapi-badge--wait"}`}>
-                    {isOn ? "Conectado" : "Desconectado"}
+                    {isOn ? "Conectado" : (isSel && statusLoading && liveStatus == null ? "Verificando…" : "Desconectado")}
                   </span>
                 </button>
               );
@@ -543,7 +608,7 @@ export default function WhapiConnectPanel({ showToast }) {
         <section className="whapi-card" aria-labelledby="whapi-conectar-title">
           <div className="whapi-status-line">
             <h3 id="whapi-conectar-title" className="whapi-card-title" style={{ margin: 0 }}>
-              3. Conectar “{instanceTitle(selectedInstance)}”
+              {instanceTitle(selectedInstance)}
             </h3>
             <span className={`whapi-badge ${badge.tone === "ok" ? "whapi-badge--ok" : "whapi-badge--wait"}`}>
               {badge.label}
@@ -554,7 +619,9 @@ export default function WhapiConnectPanel({ showToast }) {
             <p className="whapi-card-desc">Número autenticado: {liveStatus.phone}</p>
           ) : (
             <p className="whapi-card-desc">
-              Abra o WhatsApp no celular, vá em Dispositivos conectados e leia o QR — ou use o código de pareamento.
+              {connected
+                ? "Canal autenticado na Whapi."
+                : "O QR aparece sozinho. No celular: Dispositivos conectados → Conectar um dispositivo."}
             </p>
           )}
           {statusError ? <div className="ia-error-banner" role="alert">{statusError}</div> : null}
@@ -575,7 +642,9 @@ export default function WhapiConnectPanel({ showToast }) {
                 ) : qrDataUri ? (
                   <img src={qrDataUri} alt="QR Code para conectar via Whapi" className="whapi-qr-image" />
                 ) : (
-                  <div className="whapi-qr-placeholder">Clique em “Gerar QR Code” para iniciar.</div>
+                  <div className="whapi-qr-placeholder">
+                    {statusLoading ? "Consultando a instância…" : "Preparando QR Code…"}
+                  </div>
                 )}
               </div>
               {!connected ? (
@@ -661,6 +730,60 @@ export default function WhapiConnectPanel({ showToast }) {
           </div>
         </section>
       ) : null}
+
+      <details className="whapi-card whapi-advanced" open={showAdvanced || undefined}>
+        <summary className="whapi-advanced-summary">Cadastro avançado (Channel ID e token)</summary>
+        <p className="whapi-card-desc">
+          Só para operação interna. No fluxo SaaS o servidor preenche esses dados.
+          O token não é exibido depois de salvo.
+        </p>
+        <form className="whapi-form" onSubmit={handleRegistrar}>
+          <div className="ia-field">
+            <label htmlFor="whapi-channel-id">Channel ID</label>
+            <input
+              id="whapi-channel-id"
+              className="ia-input"
+              type="text"
+              autoComplete="off"
+              placeholder="ex.: NEBULA-AER3B"
+              value={channelId}
+              onChange={(e) => { setChannelId(e.target.value); setFormError(""); }}
+              disabled={registrando}
+            />
+          </div>
+          <div className="ia-field">
+            <label htmlFor="whapi-token">Token do canal</label>
+            <input
+              id="whapi-token"
+              className="ia-input"
+              type="password"
+              autoComplete="off"
+              placeholder="Bearer do canal Whapi"
+              value={token}
+              onChange={(e) => { setToken(e.target.value); setFormError(""); }}
+              disabled={registrando}
+            />
+          </div>
+          <div className="ia-field">
+            <label htmlFor="whapi-nome">Rótulo (opcional)</label>
+            <input
+              id="whapi-nome"
+              className="ia-input"
+              type="text"
+              placeholder="Como aparecerá na lista"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              disabled={registrando || provisionando}
+            />
+          </div>
+          {formError && !empty ? <div className="ia-error-banner" role="alert">{formError}</div> : null}
+          <div>
+            <button type="submit" className="ia-btn ia-btn--outline" disabled={registrando}>
+              {registrando ? "Cadastrando…" : "Cadastrar canal manualmente"}
+            </button>
+          </div>
+        </form>
+      </details>
 
       {showLogoutConfirm ? (
         <div

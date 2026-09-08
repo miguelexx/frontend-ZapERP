@@ -33,6 +33,7 @@ Não use `fetch` solto para API autenticada. Não crie segunda instância Axios.
 | Chat interno | `api/internalChatService.js` | `/api/internal-chat/*` |
 | Produtos | `api/produtosService.js` | `/api/produtos/consulta`, sync WM |
 | WhatsApp | `api/whatsappIntegration.js` | `/api/integrations/whatsapp/*` sync |
+| Whapi (config) | `api/whapiInstancesService.js` | `/api/integrations/whatsapp/instances`, `/provision-whapi`, `:id/status|qrcode|phone-code|logout` |
 | Legado Z-API **nome** | `api/zapiIntegration.js` | `/api/integrations/zapi/connect/*` (UI Connect WhatsApp; toasts falam UltraMSG) |
 | Disparo | `api/disparo*.js` | `/api/disparo/campanhas*`, worker saúde, etapa 8 |
 | CRM | `api/crmService.ts` | `/api/crm/*` (UI local; SSO é outro endpoint) |

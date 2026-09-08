@@ -10,7 +10,7 @@ export default function WhapiSection() {
         <span className="ia-auto-reply-eyebrow">WhatsApp</span>
         <h4 className="config-geral-title">Conectar Whapi</h4>
         <p className="config-geral-lead">
-          Cadastre o canal, leia o QR Code no celular e conecte a instância sozinho — sem suporte no meio.
+          O ZapERP consulta a instância na Whapi. Se ainda não houver canal, um clique cria e gera o QR — sem colar Channel ID ou token.
         </p>
       </header>
       <WhapiConnectPanel showToast={showToast} />

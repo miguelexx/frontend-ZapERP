@@ -39,16 +39,59 @@ function normalizeHttpError(err, fallback) {
 /**
  * GET /integrations/whatsapp/instances
  * Lista instâncias da empresa (sem tokens). Supervisor/admin.
+ * Whapi: o backend consulta GET /health (wakeup) e devolve `connected`.
  */
-export async function listarInstanciasWhatsapp() {
-  const { data } = await api.get(`${WHATSAPP_BASE}/instances`);
-  const list = Array.isArray(data?.instances) ? data.instances : [];
-  return list.filter(Boolean);
+export async function listarInstanciasWhatsapp({ refresh = false } = {}) {
+  const { data } = await api.get(`${WHATSAPP_BASE}/instances`, {
+    params: refresh ? { refresh: 1 } : undefined,
+  });
+  const list = Array.isArray(data?.instances) ? data.instances.filter(Boolean) : [];
+  return {
+    instances: list,
+    partnerEnabled: data?.whapi?.partnerEnabled === true,
+  };
 }
 
-export async function listarInstanciasWhapi() {
-  const list = await listarInstanciasWhatsapp();
-  return list.filter(isWhapiInstance);
+export async function listarInstanciasWhapi(opts = {}) {
+  const { instances, partnerEnabled } = await listarInstanciasWhatsapp(opts);
+  return {
+    instances: instances.filter(isWhapiInstance),
+    partnerEnabled,
+  };
+}
+
+/**
+ * POST /integrations/whatsapp/instances/provision-whapi
+ * Cria o canal na Partner API e grava no ZapERP. Sem Channel ID/token no body.
+ */
+export async function provisionarInstanciaWhapi({ nome } = {}) {
+  try {
+    const body = {};
+    const rotulo = String(nome ?? "").trim();
+    if (rotulo) body.nome = rotulo;
+    const { data, status } = await api.post(`${WHATSAPP_BASE}/instances/provision-whapi`, body);
+    return {
+      status,
+      ok: true,
+      created: data?.created === true,
+      instance: data?.instance || null,
+      partnerEnabled: data?.whapi?.partnerEnabled === true,
+      error: null,
+      raw: data || {},
+    };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Não foi possível criar o canal Whapi.");
+    return {
+      status: parsed.status,
+      ok: false,
+      created: false,
+      instance: err?.response?.data?.instance || null,
+      partnerEnabled: err?.response?.data?.whapi?.partnerEnabled === true,
+      error: parsed.error,
+      code: err?.response?.data?.code || null,
+      raw: parsed.raw,
+    };
+  }
 }
 
 /**
@@ -135,12 +178,19 @@ export async function obterQrCodeInstancia(instanceId) {
 export async function obterStatusInstancia(instanceId) {
   try {
     const { data, status } = await api.get(`${WHATSAPP_BASE}/instances/${instanceId}/status`);
+    const channelStatus = data?.status ?? null;
+    const live = String(channelStatus || "").trim().toUpperCase();
+    const connected =
+      data?.connected === true
+      || live === "AUTH"
+      || live === "CONNECTED"
+      || live === "READY";
     return {
       status,
-      connected: data?.connected === true,
+      connected,
       phone: data?.phone ?? null,
       provider: data?.provider ?? null,
-      channelStatus: data?.status ?? null,
+      channelStatus,
       error: null,
       retryAfterSeconds: null,
       raw: data || {},

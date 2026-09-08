@@ -248,6 +248,17 @@
   padding: 14px 16px 16px;
 }
 
+.whapi-advanced-summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dash-text, var(--ds-text));
+}
+
+.whapi-advanced .whapi-form {
+  margin-top: 12px;
+}
+
 @media (max-width: 640px) {
   .whapi-card {
     padding: 16px;
