@@ -129,9 +129,9 @@
   justify-content: center;
   padding: 6px 12px;
   border-radius: var(--ds-radius, 8px);
-  border: 1px solid var(--ds-accent, #00a884);
-  background: var(--ds-accent-soft, rgba(0, 168, 132, 0.12));
-  color: var(--ds-accent, #00a884);
+  border: 1px solid var(--ds-accent, #2E86FF);
+  background: var(--ds-accent-soft, rgba(46, 134, 255, 0.12));
+  color: var(--ds-accent, #2E86FF);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -139,7 +139,7 @@
 }
 
 .ds-toast__action:hover {
-  background: color-mix(in srgb, var(--ds-accent, #00a884) 18%, transparent);
+  background: color-mix(in srgb, var(--ds-accent, #2E86FF) 18%, transparent);
 }
 
 .ds-toast__close {

@@ -221,7 +221,7 @@
 
 .internal-chat-root.internal-chat-root--dark-ui .internal-chat-notif-btn--on {
   color: var(--ds-accent);
-  border-color: rgba(0, 168, 132, 0.4);
+  border-color: rgba(46, 134, 255, 0.4);
   background: var(--ds-accent-soft);
 }
 
@@ -261,7 +261,7 @@
 .internal-chat-root.internal-chat-root--dark-ui .ic-thread-badge {
   color: var(--ds-accent);
   background: var(--ds-accent-soft);
-  border-color: rgba(0, 168, 132, 0.28);
+  border-color: rgba(46, 134, 255, 0.28);
 }
 
 .internal-chat-row--unread .internal-chat-row-title,
@@ -837,7 +837,7 @@
   border-radius: var(--ds-radius-full);
   color: var(--ds-accent);
   background: var(--ds-accent-soft);
-  border: 1px solid rgba(0, 168, 132, 0.25);
+  border: 1px solid rgba(46, 134, 255, 0.25);
 }
 
 .ic-thread-body {
@@ -1415,7 +1415,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 168, 132, 0.35);
+  box-shadow: 0 2px 8px rgba(46, 134, 255, 0.35);
 }
 
 .ic-audio-send-wa:hover:not(:disabled) {

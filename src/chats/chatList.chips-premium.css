@@ -86,9 +86,9 @@
 .chat-list-chips-wrap--compact .chat-list-chip--primary {
   width: auto;
   margin-inline: 0;
-  background: rgba(0, 168, 132, 0.08);
-  border: 1.5px solid rgba(0, 168, 132, 1);
-  color: rgba(0, 168, 132, 1);
+  background: rgba(46, 134, 255, 0.08);
+  border: 1.5px solid rgba(46, 134, 255, 1);
+  color: rgba(46, 134, 255, 1);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
@@ -100,20 +100,20 @@
 
 .chat-list-chips-wrap--compact .chat-list-chip--primary:hover,
 .chat-list-chips-wrap--compact .chat-list-chip--primary.is-active {
-  background: rgba(0, 168, 132, 0.08);
-  border-color: rgba(0, 168, 132, 1);
-  color: rgba(0, 168, 132, 1);
+  background: rgba(46, 134, 255, 0.08);
+  border-color: rgba(46, 134, 255, 1);
+  color: rgba(46, 134, 255, 1);
   box-shadow: none;
 }
 
 .chat-list-chips-wrap--compact .chat-list-chip--primary.is-active {
-  background: linear-gradient(180deg, rgba(0, 168, 132, 0.88), rgba(0, 168, 132, 0.78)) !important;
+  background: linear-gradient(180deg, rgba(46, 134, 255, 0.88), rgba(46, 134, 255, 0.78)) !important;
   color: #fff !important;
-  border-color: rgba(0, 168, 132, 0.86) !important;
+  border-color: rgba(46, 134, 255, 0.86) !important;
 }
 
 .chat-list-chips-wrap--compact .chat-list-chip--primary .chat-list-chip-count {
-  background: rgba(0, 168, 132, 1);
+  background: rgba(46, 134, 255, 1);
   color: #fff;
   border-radius: 999px;
   font-size: 10px;

@@ -4,9 +4,9 @@
 ========================================================================== */
 
 :root {
-  --zpl-primary: #00a884;
-  --zpl-primary-dark: #008c6f;
-  --zpl-primary-soft: rgba(0, 168, 132, 0.12);
+  --zpl-primary: #2E86FF;
+  --zpl-primary-dark: #1B54D6;
+  --zpl-primary-soft: rgba(46, 134, 255, 0.12);
 
   --zpl-dark: #0f172a;
   --zpl-dark-soft: #334155;
@@ -27,7 +27,7 @@
   --zpl-muted: #8696a0;
   --zpl-bg: #111b21;
   --zpl-bubble-fill: rgba(255, 255, 255, 0.06);
-  --zpl-primary-soft: rgba(0, 168, 132, 0.18);
+  --zpl-primary-soft: rgba(46, 134, 255, 0.18);
 }
 
 .zpl--mode-light {

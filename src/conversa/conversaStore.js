@@ -282,6 +282,19 @@ let carregarConversaGeneration = 0
 let carregarConversaAbortController = null
 let carregarConversaCompletion = null
 let refreshConversaAbortController = null
+let historyAbortController = null
+
+function beginHistoryRequest(get, selectedId) {
+  const generation = carregarConversaGeneration
+  const controller = new AbortController()
+  historyAbortController = controller
+  return {
+    controller,
+    isCurrent: () => !controller.signal.aborted &&
+      historyAbortController === controller && generation === carregarConversaGeneration &&
+      String(get().selectedId) === String(selectedId),
+  }
+}
 
 function isAbortError(err) {
   if (!err) return false
@@ -291,6 +304,8 @@ function isAbortError(err) {
 }
 
 function cancelConversationRequests() {
+  historyAbortController?.abort()
+  historyAbortController = null
   refreshConversaAbortController?.abort()
   refreshConversaAbortController = null
   if (carregarConversaAbortController) {
@@ -1076,14 +1091,23 @@ export const useConversaStore = create((set, get) => {
           // Fila offline sobrevive ao F5/refresh: reinstala bolhas que ainda nao tem linha no banco.
           if (!mensagens_bloqueadas) mensagens = hydrateOutboxBubblesForConversa(id, mensagens)
           mensagens = attachReplyMeta(id, mensagens)
+          // Refresh relê apenas a página recente; não pode recuar o cursor do
+          // histórico já percorrido, inclusive quando uma paginação terminou durante o GET.
+          const currentTime = Date.parse(state.cursor)
+          const nextTime = Date.parse(nextCursor)
+          const preserveCursor = !mensagens_bloqueadas && existing.length > 0 && (
+            (!state.hasMore && !state.cursor) ||
+            (state.cursor && nextCursor && (currentTime < nextTime ||
+              (currentTime === nextTime && Number(state.cursorId) <= Number(nextCursorId))))
+          )
           return {
             conversa: merged,
             mensagens,
             tags,
             loading: false,
-            cursor: nextCursor,
-            cursorId: Number.isFinite(nextCursorId) ? nextCursorId : null,
-            hasMore: !!nextCursor,
+            cursor: preserveCursor ? state.cursor : nextCursor,
+            cursorId: preserveCursor ? state.cursorId : (Number.isFinite(nextCursorId) ? nextCursorId : null),
+            hasMore: preserveCursor ? state.hasMore : !!nextCursor,
           }
         })
 
@@ -1127,9 +1151,10 @@ export const useConversaStore = create((set, get) => {
 
     loadMore: async () => {
       const { selectedId, cursor, cursorId, hasMore, loadingMore, conversa } = get()
-      if (!selectedId || !hasMore || !cursor || loadingMore) return
+      if (!selectedId || !hasMore || !cursor || loadingMore || get().loading) return
       if (conversa?.mensagens_bloqueadas) return
 
+      const { controller, isCurrent } = beginHistoryRequest(get, selectedId)
       set({ loadingMore: true })
 
       try {
@@ -1137,12 +1162,10 @@ export const useConversaStore = create((set, get) => {
           cursor,
           cursorId,
           limit: PAGE_LIMIT,
+          signal: controller.signal,
         })
 
-        if (String(get().selectedId) !== String(selectedId)) {
-          set({ loadingMore: false })
-          return
-        }
+        if (!isCurrent()) return
 
         const conversa = data?.conversa ? data.conversa : (data ?? null)
         const mais = data?.mensagens ?? conversa?.mensagens ?? []
@@ -1155,6 +1178,7 @@ export const useConversaStore = create((set, get) => {
             : null
 
         set((state) => {
+          if (!isCurrent()) return state
           const merged = get()._mergeMensagensFromApi(mais || [], state.mensagens || [], selectedId)
           return {
             mensagens: attachReplyMeta(selectedId, merged),
@@ -1165,15 +1189,19 @@ export const useConversaStore = create((set, get) => {
           }
         })
       } catch (e) {
-        console.error("Erro loadMore:", e)
-        set({ loadingMore: false })
+        if (isCurrent() && !isAbortError(e)) console.error("Erro loadMore:", e)
+      } finally {
+        if (isCurrent()) {
+          historyAbortController = null
+          set({ loadingMore: false })
+        }
       }
     },
 
     loadAllMessages: async () => {
       const initial = get()
       const selectedId = initial.selectedId
-      if (!selectedId || initial.loadingMore || initial.conversa?.mensagens_bloqueadas) {
+      if (!selectedId || initial.loading || initial.loadingMore || initial.conversa?.mensagens_bloqueadas) {
         return { ok: true, pagesLoaded: 0, messagesAdded: 0 }
       }
 
@@ -1188,11 +1216,12 @@ export const useConversaStore = create((set, get) => {
         return { ok: true, pagesLoaded: 0, messagesAdded: 0 }
       }
 
+      const { controller, isCurrent } = beginHistoryRequest(get, selectedId)
       set({ loadingMore: true })
 
       try {
         while (hasMore && cursor && pagesLoaded < LOAD_ALL_MESSAGES_MAX_PAGES) {
-          if (String(get().selectedId) !== String(selectedId)) {
+          if (!isCurrent()) {
             return { ok: false, aborted: true, pagesLoaded, messagesAdded: 0 }
           }
 
@@ -1204,9 +1233,10 @@ export const useConversaStore = create((set, get) => {
             cursor,
             cursorId,
             limit: PAGE_LIMIT,
+            signal: controller.signal,
           })
 
-          if (String(get().selectedId) !== String(selectedId)) {
+          if (!isCurrent()) {
             return { ok: false, aborted: true, pagesLoaded, messagesAdded: 0 }
           }
 
@@ -1220,6 +1250,7 @@ export const useConversaStore = create((set, get) => {
               : null
 
           set((state) => {
+            if (!isCurrent()) return state
             const merged = get()._mergeMensagensFromApi(mais || [], state.mensagens || [], selectedId)
             return {
               mensagens: attachReplyMeta(selectedId, merged),
@@ -1238,7 +1269,7 @@ export const useConversaStore = create((set, get) => {
         }
 
         const finalState = get()
-        if (String(finalState.selectedId) === String(selectedId)) {
+        if (isCurrent()) {
           writeConversaMensagensCache(selectedId, finalState)
         }
         const afterCount = Array.isArray(finalState.mensagens) ? finalState.mensagens.length : beforeCount
@@ -1249,10 +1280,12 @@ export const useConversaStore = create((set, get) => {
           reachedSafetyLimit: pagesLoaded >= LOAD_ALL_MESSAGES_MAX_PAGES && !!get().cursor,
         }
       } catch (e) {
+        if (!isCurrent() || isAbortError(e)) return { ok: false, aborted: true, pagesLoaded, messagesAdded: 0 }
         console.error("Erro loadAllMessages:", e)
         return { ok: false, error: e, pagesLoaded, messagesAdded: 0 }
       } finally {
-        if (String(get().selectedId) === String(selectedId)) {
+        if (isCurrent()) {
+          historyAbortController = null
           set({ loadingMore: false })
         }
       }

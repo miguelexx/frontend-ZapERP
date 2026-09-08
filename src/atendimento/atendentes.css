@@ -123,14 +123,14 @@
   background: var(--wa-surface-hover, #f9fafb);
 }
 .wa-participante--principal {
-  background: rgba(0, 168, 132, 0.08);
-  border: 1px solid rgba(0, 168, 132, 0.32);
+  background: rgba(46, 134, 255, 0.08);
+  border: 1px solid rgba(46, 134, 255, 0.32);
 }
 .wa-participante-avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--ds-accent, var(--wa-green, #00a884));
+  background: var(--ds-accent, var(--wa-green, #2E86FF));
   color: #fff;
   display: flex;
   align-items: center;
@@ -159,7 +159,7 @@
   color: var(--ds-text-secondary, #3A536A);
 }
 .wa-participante-crown {
-  color: var(--ds-accent, #00a884);
+  color: var(--ds-accent, #2E86FF);
 }
 .wa-participante-remove {
   background: none;
@@ -216,8 +216,8 @@
   outline: none;
 }
 .wa-atendentes-searchInput:focus {
-  border-color: var(--ds-accent, #00a884);
-  box-shadow: 0 0 0 3px var(--ds-accent-soft, rgba(0, 168, 132, 0.22));
+  border-color: var(--ds-accent, #2E86FF);
+  box-shadow: 0 0 0 3px var(--ds-accent-soft, rgba(46, 134, 255, 0.22));
 }
 .wa-atendentes-searchInput::placeholder {
   color: var(--ds-text-muted, #65809A);
@@ -257,7 +257,7 @@
 }
 .wa-atendentes-adicionarBtn {
   margin-left: auto;
-  background: var(--ds-accent, var(--wa-green, #00a884));
+  background: var(--ds-accent, var(--wa-green, #2E86FF));
   color: #fff;
   border: none;
   border-radius: 20px;
@@ -342,7 +342,7 @@ html[data-theme="dark"] .wa-atendentes-searchInput::placeholder {
 }
 :root[data-theme="dark"] .wa-participante--principal,
 html[data-theme="dark"] .wa-participante--principal {
-  background: rgba(0, 168, 132, 0.14);
+  background: rgba(46, 134, 255, 0.14);
   border-color: rgba(6, 207, 156, 0.42);
 }
 :root[data-theme="dark"] .wa-participante-crown,
@@ -361,7 +361,7 @@ html[data-theme="dark"] .wa-participante:hover {
 }
 :root[data-theme="dark"] .wa-atendentes-adicionarBtn:hover:not(:disabled),
 html[data-theme="dark"] .wa-atendentes-adicionarBtn:hover:not(:disabled) {
-  background: var(--ds-accent-hover, #06cf9c);
+  background: var(--ds-accent-hover, #4D9BFF);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -381,7 +381,7 @@ html[data-theme="dark"] .wa-atendentes-adicionarBtn:hover:not(:disabled) {
     color: var(--ds-text-primary, #e9edef);
   }
   html:not([data-theme="light"]) .wa-participante--principal {
-    background: rgba(0, 168, 132, 0.14);
+    background: rgba(46, 134, 255, 0.14);
     border-color: rgba(6, 207, 156, 0.42);
   }
 }

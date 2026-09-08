@@ -34,7 +34,7 @@ export default function ConversaTagsPanel({
             <div className="wa-tagsList">
               {allTags.map((tag) => {
                 const selected = selectedTagIds.includes(String(tag.id));
-                const busy = tagMutatingId === tag.id;
+                const busy = tagMutatingId != null;
                 return (
                   <button
                     key={tag.id}

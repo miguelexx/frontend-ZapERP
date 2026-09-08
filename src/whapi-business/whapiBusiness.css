@@ -37,7 +37,7 @@
 .wb-ambient--one {
   top: -250px;
   right: -140px;
-  background: radial-gradient(circle, rgba(0, 168, 132, 0.14), transparent 68%);
+  background: radial-gradient(circle, rgba(46, 134, 255, 0.14), transparent 68%);
 }
 
 .wb-ambient--two {

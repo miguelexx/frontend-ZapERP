@@ -29,7 +29,7 @@
 }
 
 .admin-atendente-filter__trigger:focus-visible {
-  outline: 2px solid var(--ds-accent, #00a884);
+  outline: 2px solid var(--ds-accent, #2E86FF);
   outline-offset: 2px;
 }
 
@@ -190,7 +190,7 @@
 }
 
 .admin-atendente-filter__option.is-selected {
-  background: rgba(0, 168, 132, 0.2);
+  background: rgba(46, 134, 255, 0.2);
 }
 
 .admin-atendente-filter__option-name {
@@ -211,7 +211,7 @@
 }
 
 [data-theme="dark"] .admin-atendente-filter__avatar {
-  background: rgba(0, 168, 132, 0.18);
+  background: rgba(46, 134, 255, 0.18);
   color: #5fe3c0;
 }
 

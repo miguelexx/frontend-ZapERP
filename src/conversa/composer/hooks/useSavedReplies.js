@@ -92,12 +92,24 @@ export function useSavedReplies({ conversaId, departamentoId }) {
     });
   }, [close]);
 
+  // Invalidar o escopo antes do efeito que inicia a consulta. Na ordem inversa,
+  // a troca de conversa/setor invalidava a própria requisição recém-criada.
   useEffect(() => {
-    if (!open || !conversaId) return undefined;
+    requestGenerationRef.current += 1;
+    cacheRef.current = { depKey: null, list: null };
+    setList([]);
+  }, [conversaId, departamentoId]);
+
+  useEffect(() => {
+    if (!open || !conversaId) {
+      setLoading(false);
+      return undefined;
+    }
     const depKey = departamentoId != null ? String(departamentoId) : "none";
     const cached = cacheRef.current;
     if (cached.depKey === depKey && Array.isArray(cached.list)) {
       setList(cached.list);
+      setLoading(false);
       return undefined;
     }
     const generation = requestGenerationRef.current + 1;
@@ -123,11 +135,6 @@ export function useSavedReplies({ conversaId, departamentoId }) {
       if (generation === requestGenerationRef.current) requestGenerationRef.current += 1;
     };
   }, [open, conversaId, departamentoId]);
-
-  useEffect(() => {
-    requestGenerationRef.current += 1;
-    cacheRef.current = { depKey: null, list: null };
-  }, [conversaId, departamentoId]);
 
   useEffect(() => {
     setActiveIndex(0);

@@ -14,7 +14,7 @@
   --ds-surface-2:      var(--ds-surface-2,        #F2F6FB);
   --ds-text:           var(--ds-text-primary,     #081A2B);
   --ds-text-secondary: var(--ds-text-secondary,   #3A536A);
-  --ds-primary:        var(--ds-accent,           #00A884);
+  --ds-primary:        var(--ds-accent,           #2E86FF);
   --ds-primary-hover:  var(--ds-accent-hover,     #008F70);
   --ds-input-bg:       #FFFFFF;
 
@@ -25,9 +25,9 @@
   --dispatch-surface:       var(--ds-surface-1,        #FFFFFF);
   --dispatch-surface-soft:  var(--ds-bg-raised,        #F2F6FB);
   --dispatch-border:        var(--ds-border,            #C3D2E1);
-  --dispatch-primary:       var(--ds-accent,            #00A884);
+  --dispatch-primary:       var(--ds-accent,            #2E86FF);
   --dispatch-primary-strong:var(--ds-accent-hover,      #008F70);
-  --dispatch-ring:          rgba(0,168,132,.14);
+  --dispatch-ring:          rgba(46, 134, 255,.14);
   --dispatch-shadow:        var(--ds-shadow-md, 0 6px 18px rgba(8,26,43,.1));
   --dispatch-shadow-soft:   var(--ds-shadow-sm, 0 2px 8px rgba(8,26,43,.07));
 }
@@ -38,8 +38,8 @@
   --ds-surface-2:      var(--ds-surface-2,     #1a2332);
   --ds-text:           var(--ds-text-primary,  #e9edef);
   --ds-text-secondary: var(--ds-text-secondary,#b4b9be);
-  --ds-primary:        var(--ds-accent,        #00a884);
-  --ds-primary-hover:  var(--ds-accent-hover,  #06cf9c);
+  --ds-primary:        var(--ds-accent,        #2E86FF);
+  --ds-primary-hover:  var(--ds-accent-hover,  #4D9BFF);
   --ds-input-bg:       #2a3942;
 
   /* dispatch tokens dark */
@@ -49,9 +49,9 @@
   --dispatch-surface:       var(--ds-surface-1,        #111b21);
   --dispatch-surface-soft:  var(--ds-surface-2,        #1a2332);
   --dispatch-border:        var(--ds-border,            rgba(255,255,255,.06));
-  --dispatch-primary:       var(--ds-accent,            #00a884);
+  --dispatch-primary:       var(--ds-accent,            #2E86FF);
   --dispatch-primary-strong:#2bd5aa;
-  --dispatch-ring:          rgba(0,168,132,.18);
+  --dispatch-ring:          rgba(46, 134, 255,.18);
   --dispatch-shadow:        var(--ds-shadow-md, 0 4px 14px rgba(0,0,0,.4));
   --dispatch-shadow-soft:   var(--ds-shadow-sm, 0 2px 6px rgba(0,0,0,.3));
 }
@@ -278,9 +278,9 @@
 .disparo-status--rascunho    { background: rgba(100,116,139,.12); color: var(--ds-text-muted, #64748b); border: 1px solid rgba(100,116,139,.2); }
 .disparo-status--configurando{ background: rgba(59,130,246,.1); color: #60a5fa; border: 1px solid rgba(59,130,246,.2); }
 .disparo-status--agendada    { background: rgba(251,191,36,.1); color: #f59e0b; border: 1px solid rgba(251,191,36,.2); }
-.disparo-status--em_execucao { background: var(--ds-accent-soft, rgba(0,168,132,.1)); color: var(--ds-accent, #00a884); border: 1px solid rgba(0,168,132,.25); }
+.disparo-status--em_execucao { background: var(--ds-accent-soft, rgba(46, 134, 255,.1)); color: var(--ds-accent, #2E86FF); border: 1px solid rgba(46, 134, 255,.25); }
 .disparo-status--pausada     { background: rgba(251,146,60,.1); color: #fb923c; border: 1px solid rgba(251,146,60,.2); }
-.disparo-status--concluida   { background: var(--ds-accent-soft, rgba(0,168,132,.1)); color: var(--ds-accent, #00a884); border: 1px solid rgba(0,168,132,.25); }
+.disparo-status--concluida   { background: var(--ds-accent-soft, rgba(46, 134, 255,.1)); color: var(--ds-accent, #2E86FF); border: 1px solid rgba(46, 134, 255,.25); }
 .disparo-status--cancelada   { background: rgba(220,38,38,.1); color: #f87171; border: 1px solid rgba(220,38,38,.2); }
 .disparo-status--arquivada   { background: rgba(148,163,184,.08); color: var(--ds-text-muted, #94a3b8); border: 1px solid rgba(148,163,184,.15); }
 
@@ -1138,7 +1138,7 @@
   --dispatch-surface: var(--ds-surface-1, #fff);
   --dispatch-surface-soft: var(--ds-surface-2, #f2f6fb);
   --dispatch-border: color-mix(in srgb, var(--ds-border, #c3d2e1) 72%, transparent);
-  --dispatch-primary: var(--ds-accent, #00a884);
+  --dispatch-primary: var(--ds-accent, #2E86FF);
   --dispatch-primary-strong: var(--ds-accent-hover, #008f70);
   --dispatch-navy: #092c3e;
   --dispatch-navy-2: #0b4350;
@@ -1153,7 +1153,7 @@
   gap: 18px;
   padding: clamp(18px, 2.2vw, 34px);
   background:
-    radial-gradient(circle at 7% 3%, rgba(0, 168, 132, .11), transparent 25rem),
+    radial-gradient(circle at 7% 3%, rgba(46, 134, 255, .11), transparent 25rem),
     radial-gradient(circle at 92% 5%, rgba(29, 111, 234, .08), transparent 24rem),
     var(--ds-bg-base, #e8eff6);
 }
@@ -1477,7 +1477,7 @@
   box-shadow: 0 34px 90px rgba(2, 18, 28, .35), inset 0 1px 0 rgba(255,255,255,.1);
 }
 .dp-modal__header { padding: 24px 24px 0; }
-.dp-modal__icon { border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(0,168,132,.1); }
+.dp-modal__icon { border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(46, 134, 255,.1); }
 .dp-modal__title { color: var(--dispatch-ink); font-size: 18px; letter-spacing: -.02em; }
 .dp-modal__sub { color: var(--dispatch-muted); }
 .dp-modal__steps { padding: 20px 24px 17px; border-color: var(--dispatch-border); }
@@ -1503,7 +1503,7 @@
 
 [data-theme="dark"] .dp-page {
   background:
-    radial-gradient(circle at 7% 3%, rgba(0, 168, 132, .09), transparent 25rem),
+    radial-gradient(circle at 7% 3%, rgba(46, 134, 255, .09), transparent 25rem),
     radial-gradient(circle at 92% 5%, rgba(59, 130, 246, .06), transparent 24rem),
     var(--ds-bg-base);
 }

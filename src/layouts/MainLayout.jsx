@@ -19,6 +19,7 @@ import {
   IconUsers,
   IconTicket,
 } from "@tabler/icons-react";
+import ZapERPLogo from "../brand/ZapERPLogo";
 import { useAuthStore } from "../auth/authStore";
 import { usePermissoesStore } from "../auth/permissoesStore";
 import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
@@ -277,6 +278,14 @@ export default function MainLayout() {
       <InternalChatGlobalSocketBridge />
       <HelpDeskGlobalSocketBridge />
       <aside className="sidebar sidebar--compact sidebar--v2" aria-label="Menu">
+        <NavLink
+          to="/atendimento"
+          className="sidebar-brand"
+          title="ZapERP"
+          aria-label="ZapERP — início"
+        >
+          <ZapERPLogo variant="compact" size="sm" interactive={false} title="ZapERP" />
+        </NavLink>
         <nav className="sidebar-nav sidebar-nav--compact sidebar-nav--v2">
           {navItems.map((item) => (
             <SidebarNavItem key={`${item.to}-${item.label}`} {...item} />

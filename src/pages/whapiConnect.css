@@ -67,12 +67,12 @@
 }
 
 .whapi-instance:hover {
-  background: color-mix(in srgb, var(--dash-blue, #00a884) 8%, transparent);
+  background: color-mix(in srgb, var(--dash-blue, #2E86FF) 8%, transparent);
 }
 
 .whapi-instance.is-selected {
-  border-color: var(--dash-blue, #00a884);
-  background: color-mix(in srgb, var(--dash-blue, #00a884) 12%, transparent);
+  border-color: var(--dash-blue, #2E86FF);
+  background: color-mix(in srgb, var(--dash-blue, #2E86FF) 12%, transparent);
 }
 
 .whapi-instance-name {

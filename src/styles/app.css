@@ -131,7 +131,7 @@ html:not([data-theme="dark"]) .atendimento-sidebar {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 16% 8%, rgba(0, 168, 132, 0.14), transparent 34%),
+    radial-gradient(circle at 16% 8%, rgba(46, 134, 255, 0.14), transparent 34%),
     radial-gradient(circle at 90% 14%, rgba(29, 111, 234, 0.1), transparent 36%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 46%);
   opacity: 0.88;
@@ -313,6 +313,27 @@ body {
   min-height: 12px;
 }
 
+/* Marca ZapERP no topo do menu lateral */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.sidebar-brand:hover {
+  background: var(--ds-accent-soft);
+  transform: translateY(-1px);
+}
+.sidebar-brand:active {
+  transform: scale(0.96);
+}
+
 .sidebar-nav-item,
 .sidebar-logout,
 .sidebar-theme-toggle {
@@ -365,10 +386,10 @@ body {
   height: 9px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle at 35% 28%, #6ee7b7, #059669);
+  background: radial-gradient(circle at 35% 28%, #7FB6FF, #1E6FE8);
   box-shadow:
     0 0 0 2px var(--ds-surface-1),
-    0 2px 6px rgba(5, 150, 105, 0.45);
+    0 2px 6px rgba(30, 111, 232, 0.45);
   animation: zapUnreadDotPulse 2.5s ease-in-out infinite;
 }
 
@@ -744,6 +765,11 @@ body {
   .app-layout--crm .sidebar--v2 .sidebar-v2-divider {
     display: none;
   }
+
+  /* Barra inferior no mobile: marca não faz sentido aqui */
+  .sidebar-brand {
+    display: none;
+  }
 }
 
 /* ==============================
@@ -1115,9 +1141,9 @@ body:has(.login-wrap) {
   inset: -50%;
   z-index: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 20%, rgba(0, 229, 255, 0.28), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 20% 20%, rgba(46, 134, 255, 0.28), transparent 50%),
     radial-gradient(ellipse 60% 80% at 80% 80%, rgba(124, 58, 237, 0.22), transparent 50%),
-    radial-gradient(ellipse 100% 60% at 50% 50%, rgba(0, 168, 132, 0.14), transparent 60%);
+    radial-gradient(ellipse 100% 60% at 50% 50%, rgba(46, 134, 255, 0.14), transparent 60%);
   animation: loginBgMesh 12s ease-in-out infinite;
   pointer-events: none;
 }
@@ -1136,7 +1162,7 @@ body:has(.login-wrap) {
   height: 500px;
   top: -15%;
   left: -10%;
-  background: radial-gradient(circle, rgba(0, 229, 255, 0.55) 0%, rgba(0, 229, 255, 0.15) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(46, 134, 255, 0.55) 0%, rgba(46, 134, 255, 0.15) 40%, transparent 70%);
   animation: loginBgOrb1 12s ease-in-out infinite;
 }
 
@@ -1155,7 +1181,7 @@ body:has(.login-wrap) {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(0, 168, 132, 0.35) 0%, rgba(0, 168, 132, 0.08) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(46, 134, 255, 0.35) 0%, rgba(46, 134, 255, 0.08) 40%, transparent 70%);
   animation: loginBgOrb3 10s ease-in-out infinite;
 }
 
@@ -1170,7 +1196,7 @@ body:has(.login-wrap) {
   z-index: 1;
   background: radial-gradient(
     ellipse 65% 50% at 50% 30%,
-    rgba(0, 229, 255, 0.35),
+    rgba(46, 134, 255, 0.35),
     rgba(124, 58, 237, 0.18),
     transparent 55%
   );
@@ -1184,8 +1210,8 @@ body:has(.login-wrap) {
   inset: 0;
   z-index: 2;
   background-image:
-    linear-gradient(rgba(0, 229, 255, 0.2) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 229, 255, 0.2) 1px, transparent 1px);
+    linear-gradient(rgba(46, 134, 255, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46, 134, 255, 0.2) 1px, transparent 1px);
   background-size: 28px 28px;
   animation: loginBgGridMove 25s linear infinite;
   pointer-events: none;
@@ -1199,9 +1225,9 @@ body:has(.login-wrap) {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(0, 229, 255, 0.08) 47%,
+    rgba(46, 134, 255, 0.08) 47%,
     rgba(124, 58, 237, 0.2) 50%,
-    rgba(0, 229, 255, 0.08) 53%,
+    rgba(46, 134, 255, 0.08) 53%,
     transparent 100%
   );
   background-size: 100% 120px;
@@ -1286,8 +1312,8 @@ body:has(.login-wrap) {
   border: none;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.2),
-    0 0 0 2px rgba(0, 229, 255, 0.15),
-    0 0 100px rgba(0, 229, 255, 0.12),
+    0 0 0 2px rgba(46, 134, 255, 0.15),
+    0 0 100px rgba(46, 134, 255, 0.12),
     0 0 200px rgba(124, 58, 237, 0.08),
     0 12px 40px rgba(0, 0, 0, 0.35),
     0 32px 80px rgba(0, 0, 0, 0.4);
@@ -1306,7 +1332,7 @@ body:has(.login-wrap) {
     from 0deg,
     #00e5ff,
     #7c3aed,
-    #00a884,
+    #2E86FF,
     #00e5ff
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -1323,8 +1349,8 @@ body:has(.login-wrap) {
 
 .login-form:hover {
   box-shadow:
-    0 0 0 1px rgba(0, 229, 255, 0.3),
-    0 0 100px rgba(0, 229, 255, 0.12),
+    0 0 0 1px rgba(46, 134, 255, 0.3),
+    0 0 100px rgba(46, 134, 255, 0.12),
     0 0 0 1px rgba(124, 58, 237, 0.1),
     0 8px 32px rgba(0, 0, 0, 0.35),
     0 24px 64px rgba(0, 0, 0, 0.5);
@@ -1332,18 +1358,18 @@ body:has(.login-wrap) {
 
 [data-theme="dark"] .login-form {
   background: rgba(17, 27, 33, 0.75);
-  border-color: rgba(0, 229, 255, 0.15);
+  border-color: rgba(46, 134, 255, 0.15);
   box-shadow:
-    0 0 0 1px rgba(0, 229, 255, 0.18),
-    0 0 100px rgba(0, 229, 255, 0.08),
+    0 0 0 1px rgba(46, 134, 255, 0.18),
+    0 0 100px rgba(46, 134, 255, 0.08),
     0 8px 32px rgba(0, 0, 0, 0.5),
     0 24px 64px rgba(0, 0, 0, 0.65);
 }
 
 [data-theme="dark"] .login-form:hover {
   box-shadow:
-    0 0 0 1px rgba(0, 229, 255, 0.28),
-    0 0 120px rgba(0, 229, 255, 0.12),
+    0 0 0 1px rgba(46, 134, 255, 0.28),
+    0 0 120px rgba(46, 134, 255, 0.12),
     0 0 0 1px rgba(124, 58, 237, 0.12),
     0 8px 32px rgba(0, 0, 0, 0.55),
     0 24px 64px rgba(0, 0, 0, 0.7);
@@ -1355,14 +1381,14 @@ body:has(.login-wrap) {
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #0d9488 0%, #00a884 50%, #06b6d4 100%);
+  background: linear-gradient(135deg, #2E9BFF 0%, #1E6FE8 50%, #1B54D6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 [data-theme="dark"] .login-form .login-title {
-  background: linear-gradient(135deg, #06cf9c 0%, #00a884 50%, #22d3ee 100%);
+  background: linear-gradient(135deg, #48A9FF 0%, #2E86FF 50%, #2059DE 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1399,8 +1425,8 @@ body:has(.login-wrap) {
 
 .login-form input:focus {
   outline: none;
-  border-color: #00a884;
-  box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.2);
+  border-color: #2E86FF;
+  box-shadow: 0 0 0 3px rgba(46, 134, 255, 0.2);
 }
 
 [data-theme="dark"] .login-form input {
@@ -1410,8 +1436,8 @@ body:has(.login-wrap) {
 }
 
 [data-theme="dark"] .login-form input:focus {
-  border-color: #00a884;
-  box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.25);
+  border-color: #2E86FF;
+  box-shadow: 0 0 0 3px rgba(46, 134, 255, 0.25);
 }
 
 .login-form button {
@@ -1420,18 +1446,18 @@ body:has(.login-wrap) {
   padding: 14px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #0d9488 0%, #00a884 100%);
+  background: var(--zaperp-brand-grad, linear-gradient(135deg, #2E9BFF 0%, #1E6FE8 50%, #1B54D6 100%));
   color: #fff;
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 14px rgba(0, 168, 132, 0.4);
+  box-shadow: 0 4px 14px rgba(46, 134, 255, 0.4);
 }
 
 .login-form button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 168, 132, 0.5);
+  box-shadow: 0 6px 20px rgba(46, 134, 255, 0.5);
 }
 
 .login-form button:active:not(:disabled) {
@@ -1499,7 +1525,7 @@ body:has(.login-wrap) {
   display: inline-block;
   padding: 10px 20px;
   border-radius: 8px;
-  background: var(--green, #00a884);
+  background: var(--green, #2E86FF);
   color: #fff;
   font-weight: 600;
   text-decoration: none;
@@ -1542,7 +1568,7 @@ body:has(.login-wrap) {
   padding: 10px 20px;
   border-radius: 8px;
   border: none;
-  background: var(--green, #00a884);
+  background: var(--green, #2E86FF);
   color: #fff;
   font-weight: 600;
   cursor: pointer;
@@ -1724,7 +1750,7 @@ body:has(.login-wrap) {
 
 /* Botão */
 .page button {
-  background: #00a884;
+  background: #2E86FF;
   border: none;
   padding: 14px;
   border-radius: 10px;

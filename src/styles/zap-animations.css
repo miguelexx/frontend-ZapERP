@@ -234,8 +234,8 @@
 }
 
 [data-theme="dark"] .chat-list-row.zap-conversation-card.is-active {
-  background: var(--cl-green-soft, rgba(0, 168, 132, 0.18));
-  box-shadow: 0 0 0 1px rgba(0, 168, 132, 0.22);
+  background: var(--cl-green-soft, rgba(46, 134, 255, 0.18));
+  box-shadow: 0 0 0 1px rgba(46, 134, 255, 0.22);
 }
 
 /* ---- 8) Entrada de mensagens ---- */

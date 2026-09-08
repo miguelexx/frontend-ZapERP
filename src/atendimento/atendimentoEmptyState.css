@@ -1,7 +1,7 @@
 /* Empty state — área central do atendimento (sem conversa selecionada) */
 
 .atendimento-empty {
-  --ae-accent: var(--ds-accent, var(--cl-green, #00a884));
+  --ae-accent: var(--ds-accent, var(--cl-green, #2E86FF));
   --ae-accent-soft: color-mix(in srgb, var(--ae-accent) 16%, transparent);
   --ae-line: color-mix(in srgb, var(--ae-accent) 38%, transparent);
   --ae-panel: color-mix(in srgb, var(--zaperp-card-bg, #101d2a) 88%, transparent);
@@ -226,7 +226,7 @@
 }
 
 .atendimento-empty__btn--primary:hover:not(:disabled) {
-  background: var(--ds-accent-hover, #06cf9c);
+  background: var(--ds-accent-hover, #4D9BFF);
   box-shadow: 0 10px 26px color-mix(in srgb, var(--ae-accent) 34%, transparent);
 }
 

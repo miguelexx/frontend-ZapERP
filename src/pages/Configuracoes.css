@@ -111,7 +111,7 @@
 
 .config-wrap .ia-error-banner.is-ok {
   background: var(--ds-success-soft);
-  border-color: rgba(0, 168, 132, 0.25);
+  border-color: rgba(46, 134, 255, 0.25);
   color: var(--ds-success);
 }
 

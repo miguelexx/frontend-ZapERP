@@ -17,11 +17,11 @@
   --light-chat-bg: #E6EEF5;
   --light-surface: #FFFFFF;
   --light-surface-secondary: #F2F6FB;
-  --light-surface-hover: #DFF7ED;
-  --light-surface-selected: #C9F2E0;
+  --light-surface-hover: #E4EEFE;
+  --light-surface-selected: #D3E3FE;
   --light-border: #C3D2E1;
   --light-border-soft: #D7E2EC;
-  --light-border-selected: #2DD4A8;
+  --light-border-selected: #4C8DF5;
   --light-border-input: #B0C3D4;
   --light-border-hover: #97AFC4;
   --light-text-primary: #081A2B;
@@ -29,17 +29,18 @@
   --light-text-muted: #65809A;
   --light-text-disabled: #90A4B6;
   --light-text-action: #274860;
-  --light-text-bubble-out: #0A2F27;
-  --light-primary: #00A884;
-  --light-primary-hover: #008F70;
-  --light-primary-soft: #CFF8E9;
-  --light-primary-border: #3FD4AE;
-  --light-bubble-out: #C3F0DC;
-  --light-bubble-out-border: #8FE0C1;
-  --light-bubble-out-grad: linear-gradient(155deg, #D8F7E9 0%, #C1F0D9 52%, #B0EACF 100%);
-  --light-bubble-out-tail: #B0EACF;
-  --light-bubble-in-grad: linear-gradient(160deg, #FFFFFF 0%, #F3F8FD 100%);
-  --light-bubble-in-tail: #F3F8FD;
+  --light-text-bubble-out: #FFFFFF;
+  --light-primary: #1E6FE8;
+  --light-primary-hover: #1657C7;
+  --light-primary-soft: #DEEAFF;
+  --light-primary-border: #7FA8F5;
+  /* ---- Balão enviado: azul da marca (gradiente da logo) ---- */
+  --light-bubble-out: #2A7DF4;
+  --light-bubble-out-border: #4C8DF5;
+  --light-bubble-out-grad: linear-gradient(150deg, #2E9BFF 0%, #1E6FE8 50%, #1B54D6 100%);
+  --light-bubble-out-tail: #1E6FE8;
+  --light-bubble-in-grad: linear-gradient(160deg, #FFFFFF 0%, #F1F6FD 100%);
+  --light-bubble-in-tail: #F1F6FD;
   --light-success: #0A9B6A;
   --light-success-bg: #CFF8E8;
   --light-success-border: #45D0A0;
@@ -55,7 +56,7 @@
   --light-messages-bg:
     radial-gradient(
       circle at bottom right,
-      rgba(0, 168, 132, 0.11),
+      rgba(46, 134, 255, 0.11),
       transparent 38%
     ),
     radial-gradient(
@@ -67,7 +68,7 @@
       145deg,
       #F3F8FC 0%,
       #E5EEF6 52%,
-      #DFF5EC 100%
+      #E7F0FD 100%
     );
 
   /* ---- Atendimento premium (tokens compartilhados; aplicados no dark) ---- */
@@ -78,20 +79,23 @@
   --zaperp-card-bg: #101D2A;
   --zaperp-card-hover: #142433;
   --zaperp-border: rgba(148, 163, 184, 0.12);
-  --zaperp-bubble-in: #131F2E;
-  --zaperp-bubble-in-grad: linear-gradient(158deg, #1A2A3D 0%, #121E2C 60%, #0F1926 100%);
-  --zaperp-bubble-out-solid: #06664B;
-  --zaperp-bubble-out: linear-gradient(152deg, #0DAA7C 0%, #0A8B65 48%, #06664B 100%);
+  --zaperp-bubble-in: #14202F;
+  --zaperp-bubble-in-grad: linear-gradient(158deg, #1B2B3F 0%, #131F2D 60%, #101927 100%);
+  --zaperp-bubble-out-solid: #1B54D6;
+  --zaperp-bubble-out: linear-gradient(152deg, #2E9BFF 0%, #1E6FE8 48%, #1B54D6 100%);
   --zaperp-messages-glow-br: radial-gradient(
     circle at bottom right,
-    rgba(0, 120, 85, 0.12),
+    rgba(30, 111, 232, 0.13),
     transparent 34%
   );
   --zaperp-messages-glow-tl: radial-gradient(
     circle at top left,
-    rgba(20, 65, 105, 0.10),
+    rgba(46, 155, 255, 0.09),
     transparent 38%
   );
+  /* Gradiente da marca (logo) — botões primários, logo, destaques */
+  --zaperp-brand-grad: linear-gradient(135deg, #2E9BFF 0%, #1E6FE8 48%, #1B54D6 100%);
+  --zaperp-brand-grad-hover: linear-gradient(135deg, #48A9FF 0%, #2E7DF4 48%, #2059DE 100%);
   --zaperp-messages-bg:
     var(--zaperp-messages-glow-br),
     var(--zaperp-messages-glow-tl),
@@ -130,9 +134,9 @@
 
   /* ---- Sombras (profundidade premium; leve tint teal) ---- */
   --ds-shadow-xs: 0 1px 2px rgba(8, 26, 43, 0.06);
-  --ds-shadow-sm: 0 2px 8px rgba(8, 26, 43, 0.07), 0 1px 2px rgba(0, 168, 132, 0.04);
-  --ds-shadow-md: 0 6px 18px rgba(8, 26, 43, 0.1), 0 2px 6px rgba(0, 168, 132, 0.05);
-  --ds-shadow-lg: 0 12px 32px rgba(8, 26, 43, 0.12), 0 4px 12px rgba(0, 168, 132, 0.06);
+  --ds-shadow-sm: 0 2px 8px rgba(8, 26, 43, 0.07), 0 1px 2px rgba(46, 134, 255, 0.04);
+  --ds-shadow-md: 0 6px 18px rgba(8, 26, 43, 0.1), 0 2px 6px rgba(46, 134, 255, 0.05);
+  --ds-shadow-lg: 0 12px 32px rgba(8, 26, 43, 0.12), 0 4px 12px rgba(46, 134, 255, 0.06);
 
   /* ---- Espaçamento ---- */
   --ds-space-1: 4px;
@@ -156,7 +160,7 @@
   --ds-radius-full: 9999px;
 
   /* ---- Sombras extras ---- */
-  --ds-shadow-toast: 0 10px 28px rgba(8, 26, 43, 0.12), 0 2px 8px rgba(0, 168, 132, 0.06);
+  --ds-shadow-toast: 0 10px 28px rgba(8, 26, 43, 0.12), 0 2px 8px rgba(46, 134, 255, 0.06);
 
   /* ---- Transições — WhatsApp: rápidas, leves, responsivas ---- */
   --ds-transition: 0.12s cubic-bezier(0.4, 0, 0.2, 1);
@@ -179,7 +183,7 @@
   --wa-pattern-opacity: 0.045;
   --wa-pattern-size: 420px 420px;
   --wa-glow-opacity: 0.55;
-  --wa-glow-1: radial-gradient(circle at bottom right, rgba(0, 168, 132, 0.1) 0%, transparent 38%);
+  --wa-glow-1: radial-gradient(circle at bottom right, rgba(46, 134, 255, 0.1) 0%, transparent 38%);
   --wa-glow-2: radial-gradient(circle at top left, rgba(29, 111, 234, 0.05) 0%, transparent 42%);
   --wa-glow-3: none;
   --wa-pattern-blend: soft-light;
@@ -232,19 +236,19 @@
   --ds-border-strong: rgba(255, 255, 255, 0.10);
 
   /* ---- Acentos ---- */
-  --ds-accent: #00a884;
-  --ds-accent-soft: rgba(0, 168, 132, 0.18);
-  --ds-accent-hover: #06cf9c;
-  --ds-accent-muted: rgba(0, 168, 132, 0.12);
+  --ds-accent: #2E86FF;
+  --ds-accent-soft: rgba(46, 134, 255, 0.18);
+  --ds-accent-hover: #4D9BFF;
+  --ds-accent-muted: rgba(46, 134, 255, 0.12);
 
   /* ---- Estados interativos ---- */
   --ds-hover: rgba(255, 255, 255, 0.06);
   --ds-hover-strong: rgba(255, 255, 255, 0.10);
   --ds-active: rgba(255, 255, 255, 0.08);
-  --ds-focus-ring: rgba(0, 168, 132, 0.5);
+  --ds-focus-ring: rgba(46, 134, 255, 0.5);
 
   /* ---- Estados semânticos (dark) ---- */
-  --ds-success: #06cf9c;
+  --ds-success: #4D9BFF;
   --ds-success-soft: rgba(6, 207, 156, 0.18);
   --ds-error: #f87171;
   --ds-error-soft: rgba(248, 113, 113, 0.15);

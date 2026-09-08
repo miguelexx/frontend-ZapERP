@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { fetchChats, CHAT_LIST_PRESERVE_MAX_PAGES } from "../chatService";
 import { useChatStore } from "../chatsStore";
 import { getChatListRowsCacheRevision, persistChatListRowsForFilterToSession, persistChatListSidebarToSession } from "../chatListSidebarCache";
@@ -43,15 +43,28 @@ export function useChatListPagination({
   mensagensDisparadasCount,
   filterOptimisticRemovedForTab,
 }) {
+  const requestRef = useRef(null);
+  useEffect(() => () => {
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+  }, [filterScopeKey, filterRequestKey]);
+
   const handleLoadMoreChats = useCallback(async () => {
     const page = chatListPageRef.current;
     const baseParams = lastListParamsRef.current;
     if (!baseParams || !page?.hasMore || !page?.nextCursor || page.loading) return;
 
     const requestId = loadRequestIdRef.current;
+    // Ref trava chamadas no mesmo frame, antes de React publicar loading=true.
+    if (requestRef.current?.requestId === requestId) return;
+    requestRef.current?.controller.abort();
     const cacheRevision = getChatListRowsCacheRevision(filterScopeKey);
     setChatListPage((prev) => ({ ...prev, loading: true, error: "" }));
     const loadMoreAbort = new AbortController();
+    const request = { requestId, controller: loadMoreAbort };
+    requestRef.current = request;
+    const isCurrent = () => requestRef.current === request &&
+      !loadMoreAbort.signal.aborted && requestId === loadRequestIdRef.current;
 
     try {
       const data = await fetchChats(
@@ -63,7 +76,7 @@ export function useChatListPagination({
         },
         { signal: loadMoreAbort.signal }
       );
-      if (requestId !== loadRequestIdRef.current) return;
+      if (!isCurrent()) return;
 
       const adminPorFuncionario =
         adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
@@ -108,13 +121,15 @@ export function useChatListPagination({
         mensagensDisparadasCount,
       });
     } catch (e) {
-      if (isAbortError(e)) return;
+      if (!isCurrent() || isAbortError(e)) return;
       const msg =
         e?.response?.data?.error ||
         e?.response?.data?.message ||
         e?.message ||
         "Não foi possível carregar mais conversas.";
       setChatListPage((prev) => ({ ...prev, loading: false, error: String(msg) }));
+    } finally {
+      if (requestRef.current === request) requestRef.current = null;
     }
   }, [
     adminAtendenteFilterId,

@@ -42,7 +42,7 @@
   --cl-chip-secondary-active-text: var(--light-primary-hover);
   --cl-chip-secondary-active-border: var(--light-primary-border);
 
-  --cl-shadow-subtle: 0 1px 3px rgba(8, 26, 43, 0.07), 0 1px 2px rgba(0, 168, 132, 0.04);
+  --cl-shadow-subtle: 0 1px 3px rgba(8, 26, 43, 0.07), 0 1px 2px rgba(46, 134, 255, 0.04);
 
   --cl-radius-xs: 6px;
   --cl-radius-sm: 8px;
@@ -75,8 +75,8 @@
   --cl-beige-300: var(--zaperp-card-hover);
 
   --cl-green: var(--ds-accent);
-  --cl-green-soft: rgba(0, 168, 132, 0.35);
-  --cl-green-border: rgba(0, 168, 132, 0.5);
+  --cl-green-soft: rgba(46, 134, 255, 0.35);
+  --cl-green-border: rgba(46, 134, 255, 0.5);
   --cl-chip-active: var(--ds-accent);
   --cl-beige-light: var(--zaperp-card-hover);
   --cl-beige-warm: var(--zaperp-panel-bg);
@@ -88,15 +88,15 @@
   --cl-border: var(--zaperp-border);
   --cl-border-subtle: var(--zaperp-border);
   --cl-chips-primary-bg: var(--zaperp-panel-bg);
-  --cl-chip-secondary-active-bg: rgba(0, 168, 132, 0.18);
+  --cl-chip-secondary-active-bg: rgba(46, 134, 255, 0.18);
   --cl-chip-secondary-active-text: #5fe3c0;
-  --cl-chip-secondary-active-border: rgba(0, 168, 132, 0.42);
+  --cl-chip-secondary-active-border: rgba(46, 134, 255, 0.42);
 }
 
 /* Sidebar dark: selecionado plano (borda verde fina, sem glow) */
 [data-theme="dark"] .chat-list-row.is-active {
   background: var(--zaperp-card-bg);
-  border-color: rgba(0, 168, 132, 0.55);
+  border-color: rgba(46, 134, 255, 0.55);
   box-shadow: none;
 }
 
@@ -133,8 +133,8 @@
 
 [data-theme="dark"] .chat-list-search-box:focus-within {
   background: #ffffff;
-  border-color: rgba(0, 168, 132, 0.45);
-  box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.16);
+  border-color: rgba(46, 134, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(46, 134, 255, 0.16);
   outline: none;
 }
 
@@ -222,7 +222,7 @@
 }
 
 [data-theme="dark"] .chat-list-row.is-active .chat-list-badge-grupo {
-  background: rgba(0, 168, 132, 0.5);
+  background: rgba(46, 134, 255, 0.5);
   color: #e9edef !important;
 }
 
@@ -880,27 +880,27 @@ html:not([data-theme="dark"]) .chat-list-chips--secondary .chat-list-chip.is-act
   background: var(--light-primary);
   color: #fff;
   border-color: var(--light-primary-hover);
-  box-shadow: 0 2px 8px rgba(0, 168, 132, 0.28);
+  box-shadow: 0 2px 8px rgba(46, 134, 255, 0.28);
 }
 
 [data-theme="dark"] .chat-list-chip--primary {
-  background: linear-gradient(180deg, rgba(0, 168, 132, 0.12), rgba(0, 168, 132, 0.06));
-  border-color: rgba(0, 168, 132, 0.22);
+  background: linear-gradient(180deg, rgba(46, 134, 255, 0.12), rgba(46, 134, 255, 0.06));
+  border-color: rgba(46, 134, 255, 0.22);
   box-shadow:
     0 2px 10px rgba(0, 0, 0, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="dark"] .chat-list-chip--primary:hover {
-  background: linear-gradient(180deg, rgba(0, 168, 132, 0.16), rgba(0, 168, 132, 0.09));
-  border-color: rgba(0, 168, 132, 0.32);
+  background: linear-gradient(180deg, rgba(46, 134, 255, 0.16), rgba(46, 134, 255, 0.09));
+  border-color: rgba(46, 134, 255, 0.32);
 }
 
 [data-theme="dark"] .chat-list-chip--primary.is-active {
-  background: linear-gradient(180deg, rgba(0, 168, 132, 0.88), rgba(0, 168, 132, 0.78)) !important;
+  background: linear-gradient(180deg, rgba(46, 134, 255, 0.88), rgba(46, 134, 255, 0.78)) !important;
   color: #fff !important;
-  border-color: rgba(0, 168, 132, 0.86) !important;
-  box-shadow: 0 2px 8px rgba(0, 168, 132, 0.17);
+  border-color: rgba(46, 134, 255, 0.86) !important;
+  box-shadow: 0 2px 8px rgba(46, 134, 255, 0.17);
 }
 
 .chat-list-chip--primary .chat-list-chip-count {
@@ -1387,7 +1387,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card {
 html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   background: var(--light-surface-selected);
   border-color: var(--light-border-selected);
-  box-shadow: 0 2px 10px rgba(0, 168, 132, 0.12), 0 1px 2px rgba(8, 26, 43, 0.05);
+  box-shadow: 0 2px 10px rgba(46, 134, 255, 0.12), 0 1px 2px rgba(8, 26, 43, 0.05);
 }
 
 .chat-list-row.zap-conversation-card.is-active::before {
@@ -1410,7 +1410,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
 
 [data-theme="dark"] .chat-list-row.zap-conversation-card.is-active {
   background: var(--zaperp-card-bg);
-  border: 1px solid rgba(0, 168, 132, 0.55);
+  border: 1px solid rgba(46, 134, 255, 0.55);
   box-shadow: none;
 }
 
@@ -1438,7 +1438,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
 
 .chat-list-row.is-opening {
   background: var(--cl-green-soft);
-  box-shadow: 0 0 0 1px rgba(0, 168, 132, 0.12);
+  box-shadow: 0 0 0 1px rgba(46, 134, 255, 0.12);
 }
 
 .chat-list-row:not(.chat-list-row--atendimento-calm):not(.chat-list-row--atendimento-alerta):not(
@@ -1691,7 +1691,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
 }
 
 [data-theme="dark"] .chat-list-row.chat-list-row--await-staff-premium.is-active {
-  border: 1px solid rgba(0, 168, 132, 0.55);
+  border: 1px solid rgba(46, 134, 255, 0.55);
   border-left: 4px solid #3b82f6;
   background: var(--zaperp-card-bg);
   box-shadow: none;
@@ -1769,7 +1769,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
 
   .chat-list-row.chat-list-row--await-client-card.is-active {
     box-shadow:
-      0 0 0 1px rgba(0, 168, 132, 0.12),
+      0 0 0 1px rgba(46, 134, 255, 0.12),
       0 0 12px rgba(180, 83, 9, 0.1);
   }
 }
@@ -1811,7 +1811,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
 }
 
 [data-theme="dark"] .chat-list-row.chat-list-row--await-client-card.is-active {
-  border: 1px solid rgba(0, 168, 132, 0.55);
+  border: 1px solid rgba(46, 134, 255, 0.55);
   border-left: 4px solid #f59e0b;
   background: var(--zaperp-card-bg);
   box-shadow: none;
@@ -2211,7 +2211,7 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   height: 5px;
   border-radius: 999px;
   flex: 0 0 auto;
-  background: rgba(0, 168, 132, .58);
+  background: rgba(46, 134, 255, .58);
 }
 
 .chat-list-assignee-text {
@@ -5097,7 +5097,7 @@ html:not([data-theme="dark"]) .chat-list-status-tech-staff-main.zap-badge-aguard
 
 [data-theme="dark"] .chat-list-row.chat-list-row--somente-aberta-card.is-active {
   background: var(--zaperp-card-bg);
-  border: 1px solid rgba(0, 168, 132, 0.55);
+  border: 1px solid rgba(46, 134, 255, 0.55);
   box-shadow: none;
 }
 

@@ -12,6 +12,7 @@ const WITH_VITE_ENV_SHIM = new Set([
 ]);
 
 const tests = [
+  "test-atendimento-history-races.mjs",
   "test-atendimento-actions-scroll.mjs",
   "test-audio-merge.mjs",
   "test-audio-playback-candidates.mjs",

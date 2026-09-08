@@ -1943,7 +1943,7 @@
   font-weight: 500;
   color: var(--ds-accent);
   background: var(--ds-accent-muted);
-  border: 1px dashed rgba(0, 168, 132, 0.4);
+  border: 1px dashed rgba(46, 134, 255, 0.4);
   padding: 10px 16px;
   border-radius: 8px;
   cursor: pointer;
@@ -2331,7 +2331,7 @@
 .chatbot-bubble--out {
   align-self: flex-end;
   background: var(--ds-bubble-out);
-  border: 1px solid rgba(0, 168, 132, 0.2);
+  border: 1px solid rgba(46, 134, 255, 0.2);
 }
 
 .chatbot-bubble-time {
@@ -3214,7 +3214,7 @@
   font-weight: 500;
   color: var(--ds-accent);
   background: var(--ds-accent-muted);
-  border: 1px dashed rgba(0, 168, 132, 0.4);
+  border: 1px dashed rgba(46, 134, 255, 0.4);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
@@ -3621,7 +3621,7 @@
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border-left: 3px solid var(--ds-accent, #00a884);
+  border-left: 3px solid var(--ds-accent, #2E86FF);
   background: var(--ds-surface-1, rgba(15, 23, 42, 0.02));
   color: var(--dash-muted);
   font-size: 13px;
@@ -3764,7 +3764,7 @@
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  background: var(--ds-accent, #00a884);
+  background: var(--ds-accent, #2E86FF);
 }
 
 .sla-preview-list {

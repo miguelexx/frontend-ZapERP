@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConversaStore } from "../conversaStore";
 import { useChatStore } from "../../chats/chatsStore";
 import {
   listarTags,
@@ -23,6 +24,12 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
   const [tagsOpen, setTagsOpen] = useState(false);
   const [tagsLoading, setTagsLoading] = useState(false);
   const [tagMutatingId, setTagMutatingId] = useState(null);
+  const mutationRef = useRef(null);
+  useEffect(() => {
+    mutationRef.current = null;
+    setTagMutatingId(null);
+    return () => { mutationRef.current = null; };
+  }, [conversaId]);
 
   const selectedTagIds = useMemo(
     () => (Array.isArray(tags) ? tags.map((t) => String(t?.id)) : []),
@@ -65,7 +72,10 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
 
   const handleToggleTag = useCallback(
     async (tag) => {
-      if (!conversaId || !tag?.id) return;
+      if (!conversaId || !tag?.id || mutationRef.current) return;
+      if (String(useConversaStore.getState().selectedId) !== String(conversaId)) return;
+      const mutation = {};
+      mutationRef.current = mutation;
       const alreadySelected = selectedTagIds.includes(String(tag.id));
       const previousTags = Array.isArray(tags) ? tags : [];
       const nextTags = alreadySelected
@@ -89,8 +99,16 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
         if (!alreadySelected && err?.response?.status === 409) {
           return;
         }
-        setTags(previousTags);
-        useChatStore.getState().updateChat({ id: conversaId, tags: previousTags });
+        // Reverte só a etiqueta alterada; eventos de outras etiquetas continuam válidos.
+        const current = useConversaStore.getState();
+        if (mutationRef.current === mutation && String(current.selectedId) === String(conversaId)) {
+          const currentTags = Array.isArray(current.tags) ? current.tags : [];
+          setTags(alreadySelected
+            ? [...currentTags.filter((t) => String(t.id) !== String(tag.id)), tag]
+            : currentTags.filter((t) => String(t.id) !== String(tag.id)));
+        }
+        if (alreadySelected) useChatStore.getState().adicionarTag(conversaId, tag);
+        else useChatStore.getState().removerTag(conversaId, tag.id);
         console.error("Erro ao atualizar tag da conversa:", err);
         showToast({
           type: "error",
@@ -98,7 +116,10 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
           message: "Não foi possível atualizar as tags desta conversa.",
         });
       } finally {
-        setTagMutatingId(null);
+        if (mutationRef.current === mutation) {
+          mutationRef.current = null;
+          setTagMutatingId(null);
+        }
       }
     },
     [conversaId, selectedTagIds, setTags, showToast, tags]

@@ -1,5 +1,5 @@
 /** Merge/dedupe de mensagens — módulo puro (sem React/socket) para store + testes. */
-import { pollOptionHashClient } from "./utils/pollOptionHash"
+import { pollOptionHashClient } from "./utils/pollOptionHash.js"
 
 function cleanupOptimisticBlobFields(merged) {
   if (!merged || typeof merged !== "object") return merged
