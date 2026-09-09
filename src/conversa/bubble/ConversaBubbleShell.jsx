@@ -353,7 +353,11 @@ const Bubble = memo(function Bubble({
           !isApagadaParaTodos &&
           safeString(msg?.usuario_nome) &&
           mostrarNomeAoCliente ? (
-            <div className="wa-bubble-atendente" aria-label={`Enviado por ${msg.usuario_nome}`}>
+            <div
+              className="wa-bubble-atendente"
+              aria-label={`Enviado por ${msg.usuario_nome}`}
+              title={`Atendente: ${msg.usuario_nome}`}
+            >
               {msg.usuario_nome}
             </div>
           ) : null}

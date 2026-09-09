@@ -8284,33 +8284,29 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 5px;
-  max-width: min(100%, 17rem);
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   margin: 0 0 5px;
-  padding: 3px 8px 3px 6px;
+  padding: 0;
   border: 1px solid rgba(37, 99, 235, 0.22);
-  border-radius: 999px;
+  border-radius: 8px;
   color: #1859b8;
   background: rgba(255, 255, 255, 0.56);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.015em;
-  line-height: 1.2;
+  font-size: 0;
+  line-height: 0;
   opacity: 0.92;
-  white-space: normal;
-  overflow: visible;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  overflow: hidden;
 }
 .wa-bubble-atendente::before {
   content: "";
   flex: 0 0 auto;
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #18b981;
-  box-shadow: 0 0 0 2px rgba(24, 185, 129, 0.13);
+  box-shadow: 0 0 0 3px rgba(24, 185, 129, 0.13), 0 2px 6px rgba(24, 185, 129, 0.22);
 }
 .wa-bubble-out:hover .wa-bubble-atendente {
   border-color: rgba(37, 99, 235, 0.34);
@@ -8328,6 +8324,45 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   border-color: rgba(126, 183, 255, 0.42);
   background: rgba(8, 27, 54, 0.60);
   opacity: 1;
+}
+
+/* Edição: estado visual claro, sem alterar a mecânica do composer. */
+.wa-replyBar--edit {
+  background:
+    radial-gradient(circle at 8% 50%, rgba(46, 134, 255, 0.13), transparent 28%),
+    var(--wa-header-bg);
+  border-top-color: rgba(46, 134, 255, 0.22);
+  border-bottom: 1px solid rgba(46, 134, 255, 0.12);
+}
+.wa-replyBar--edit .wa-replyBar-title {
+  letter-spacing: 0.01em;
+}
+.wa-replyBar--edit .wa-replyBar-text {
+  color: var(--wa-text);
+  opacity: 0.82;
+}
+.wa-footer--edit {
+  box-shadow: inset 0 2px 0 rgba(46, 134, 255, 0.36);
+}
+.wa-footer--edit .wa-input {
+  border-color: rgba(46, 134, 255, 0.68);
+  box-shadow: 0 0 0 3px rgba(46, 134, 255, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.wa-footer--edit .wa-sendBtn {
+  background: linear-gradient(145deg, #3188ff, #2563eb);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.28);
+}
+.wa-bubble-edited {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 3px;
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.01em;
+  opacity: 0.72;
 }
 
 /* Tipografia da conversa: leitura mais refinada sem alterar a escala dos balões. */
