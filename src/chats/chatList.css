@@ -2218,6 +2218,30 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   line-height: 1.25;
 }
 
+/* Tipografia da central de conversas: mais limpa e consistente com os balões. */
+.chat-list-heading,
+.chat-list-search-input,
+.chat-list-title,
+.chat-list-preview,
+.chat-list-subline,
+.chat-list-time,
+.chat-list-chip,
+.chat-list-status,
+.chat-list-unread {
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+.chat-list-heading h1 {
+  letter-spacing: -0.035em;
+}
+.chat-list-title {
+  letter-spacing: -0.008em;
+}
+.chat-list-preview {
+  letter-spacing: -0.004em;
+}
+
 .chat-list-subline {
   margin-top: 2px;
   font-size: var(--cl-font-size-xs);

@@ -8281,28 +8281,74 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 }
 
 .wa-bubble-atendente {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 5px;
+  max-width: min(100%, 17rem);
+  margin: 0 0 5px;
+  padding: 3px 8px 3px 6px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 999px;
+  color: #1859b8;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46);
   font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: #0b5d4c;
-  opacity: 0.7;
-  margin-bottom: 4px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
   line-height: 1.2;
-  max-width: 100%;
+  opacity: 0.92;
   white-space: normal;
   overflow: visible;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+.wa-bubble-atendente::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #18b981;
+  box-shadow: 0 0 0 2px rgba(24, 185, 129, 0.13);
+}
 .wa-bubble-out:hover .wa-bubble-atendente {
-  opacity: 0.9;
+  border-color: rgba(37, 99, 235, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+  opacity: 1;
 }
 [data-theme="dark"] .wa-bubble-atendente {
-  color: rgba(255, 255, 255, 0.85);
-  opacity: 0.65;
+  border-color: rgba(126, 183, 255, 0.25);
+  color: #d9e9ff;
+  background: rgba(8, 27, 54, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  opacity: 0.94;
 }
 [data-theme="dark"] .wa-bubble-out:hover .wa-bubble-atendente {
-  opacity: 0.9;
+  border-color: rgba(126, 183, 255, 0.42);
+  background: rgba(8, 27, 54, 0.60);
+  opacity: 1;
+}
+
+/* Tipografia da conversa: leitura mais refinada sem alterar a escala dos balões. */
+.wa-bubble,
+.wa-bubble-text,
+.wa-bubble-caption,
+.wa-bubble-audioCaption,
+.wa-bubble-remetente-nome,
+.wa-bubble-time,
+.wa-inlineMeta {
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+.wa-bubble-text,
+.wa-bubble-caption,
+.wa-bubble-audioCaption {
+  letter-spacing: -0.006em;
+}
+.wa-bubble-text {
+  line-height: 1.42;
 }
 
 /* highlight ao scroll para mensagem citada (reply) — inovador: glow + leve breathe */

@@ -57,6 +57,39 @@ function triagemErrorMessage(err) {
   return raw;
 }
 
+function MenuPreview({ mode, active }) {
+  const labels = ["Suporte", "Financeiro", "Comercial"];
+  const title = mode === "poll" ? "Enquete" : mode === "list" ? "Lista de opções" : "Botões rápidos";
+  return (
+    <article className={`wt-preview${active ? " is-active" : ""}`}>
+      <div className="wt-preview__topline">
+        <span className={`wt-preview__type wt-preview__type--${mode}`}>{title}</span>
+        {active ? <span className="wt-preview__current">Selecionado</span> : null}
+      </div>
+      <div className="wt-preview__phone">
+        <div className="wt-preview__bubble">
+          <span className="wt-preview__eyebrow">ZapERP · atendimento</span>
+          <strong>Como podemos ajudar?</strong>
+          <span className="wt-preview__copy">Escolha o setor para continuar.</span>
+          {mode === "poll" ? (
+            <div className="wt-preview__poll">
+              {labels.map((label, index) => <div key={label}><i />{label}<small>{index + 1}</small></div>)}
+            </div>
+          ) : mode === "list" ? (
+            <>
+              <div className="wt-preview__listButton">Selecionar setor <span>⌄</span></div>
+              <div className="wt-preview__listRows">{labels.map((label) => <div key={label}>{label}<span>›</span></div>)}</div>
+            </>
+          ) : (
+            <div className="wt-preview__buttons">{labels.map((label) => <span key={label}>{label}</span>)}</div>
+          )}
+        </div>
+      </div>
+      <p>{mode === "poll" ? "O cliente vota em um setor." : mode === "list" ? "O cliente abre a lista e escolhe." : "Até 3 escolhas aparecem na mensagem."}</p>
+    </article>
+  );
+}
+
 export default function WhapiTriagemPage() {
   const ctx = useOutletContext() || {};
   const { selectedInstance, loadingInstances, instances } = ctx;
@@ -245,6 +278,21 @@ export default function WhapiTriagemPage() {
                   <span className="wt-mode__hint">{m.hint}</span>
                 </label>
               ))}
+            </div>
+
+            <div className="wt-how-it-works" aria-label="Como a triagem funciona">
+              <div className="wt-how-it-works__heading">
+                <div><span className="wt-kicker">Veja na prática</span><h4>Uma escolha simples para o cliente</h4></div>
+                <span className="wt-how-it-works__note">A prévia usa exemplos. Suas opções aparecem no envio real.</span>
+              </div>
+              <div className="wt-flow">
+                <div><b>01</b><span>Cliente recebe o menu</span></div><i>→</i>
+                <div><b>02</b><span>Escolhe um setor</span></div><i>→</i>
+                <div><b>03</b><span>ZapERP direciona</span></div>
+              </div>
+              <div className="wt-previews">
+                {TRIAGE_MODES.map((m) => <MenuPreview key={m.value} mode={m.value} active={config.mode === m.value} />)}
+              </div>
             </div>
 
             <label className="wt-field">
