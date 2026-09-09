@@ -1607,16 +1607,38 @@ body:has(.login-wrap) {
   border-radius: var(--radius);
 }
 
-/* helper: scroll bonito */
+/* helper: scroll bonito — fino, discreto, azul no hover */
 *::-webkit-scrollbar {
-  width: 10px;
+  width: 9px;
+  height: 9px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.10);
+  background: rgba(9, 26, 43, 0.14);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(46, 134, 255, 0.45);
+  background-clip: padding-box;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(9, 26, 43, 0.18) transparent;
+}
+
+/* Seleção de texto com o azul da marca */
+::selection {
+  background: rgba(46, 134, 255, 0.24);
+  color: inherit;
+}
+::-moz-selection {
+  background: rgba(46, 134, 255, 0.24);
+  color: inherit;
 }
 /* BOTÃO + */
 .btn-new-chat {

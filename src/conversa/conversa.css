@@ -77,9 +77,9 @@
   --wa-audio-border-in: transparent;
   --wa-audio-border-out: transparent;
   --wa-audio-bar: rgba(148, 163, 184, 0.42);
-  --wa-audio-bar-out: rgba(191, 219, 255, 0.45);
+  --wa-audio-bar-out: rgba(27, 84, 214, 0.34);
   --wa-audio-track: rgba(148, 163, 184, 0.28);
-  --wa-audio-track-out: rgba(191, 219, 255, 0.28);
+  --wa-audio-track-out: rgba(27, 84, 214, 0.18);
 }
 
 
@@ -220,17 +220,51 @@
 }
 
 html:not([data-theme="dark"]) .wa-header {
-  background: var(--light-header-bg);
-  border-bottom-color: var(--light-border);
-  box-shadow: none;
+  background:
+    linear-gradient(180deg, rgba(46, 134, 255, 0.06) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, #F6FAFF 0%, var(--light-header-bg) 100%);
+  border-bottom: 1px solid transparent;
+  box-shadow: 0 1px 0 rgba(46, 134, 255, 0.06), 0 14px 30px -30px rgba(9, 26, 43, 0.4);
   backdrop-filter: none;
 }
 
 [data-theme="dark"] .wa-header {
-  background: var(--zaperp-header-bg);
-  border-bottom-color: var(--zaperp-border);
-  box-shadow: none;
+  background:
+    linear-gradient(180deg, rgba(46, 134, 255, 0.10) 0%, rgba(9, 21, 34, 0) 60%),
+    linear-gradient(180deg, #0E1F32 0%, var(--zaperp-header-bg) 100%);
+  border-bottom: 1px solid transparent;
+  box-shadow: 0 14px 34px -30px rgba(0, 0, 0, 0.85);
   backdrop-filter: none;
+}
+
+/* Linha de acento minimalista (gradiente da marca, fade nas pontas) */
+.wa-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(46, 134, 255, 0.5) 22%,
+    rgba(30, 111, 232, 0.55) 50%,
+    rgba(46, 134, 255, 0.5) 78%,
+    transparent 100%
+  );
+}
+
+html:not([data-theme="dark"]) .wa-header::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(46, 134, 255, 0.32) 22%,
+    rgba(30, 111, 232, 0.42) 50%,
+    rgba(46, 134, 255, 0.32) 78%,
+    transparent 100%
+  );
 }
 
 /* Cabeçalho dark — avatar maior + botões ghost/sólidos (referência premium) */
@@ -493,6 +527,20 @@ html:not([data-theme="dark"]) .wa-header {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Halo azul sutil no avatar do contato (cabeçalho) — toque premium */
+.wa-header-left .wa-avatar {
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.08),
+    0 0 0 3px color-mix(in srgb, var(--wa-header-bg) 70%, transparent),
+    0 0 0 4px rgba(46, 134, 255, 0.22);
+}
+[data-theme="dark"] .wa-header-left .wa-avatar {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--zaperp-header-bg) 55%, transparent),
+    0 0 0 4px rgba(46, 134, 255, 0.32),
+    0 6px 18px -8px rgba(46, 134, 255, 0.42);
 }
 
 .wa-header-info {
@@ -2880,11 +2928,11 @@ html:not([data-theme="dark"]) .wa-bubble:hover {
 
 [data-theme="dark"] .wa-bubble-out {
   background: var(--zaperp-bubble-out);
-  border-color: rgba(96, 165, 250, 0.40);
+  border-color: rgba(150, 185, 235, 0.45);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.30),
-    0 16px 34px -26px rgba(10, 36, 96, 0.90),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 16px 34px -26px rgba(10, 36, 96, 0.80),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 /* Cauda (setinha) — usa o tom do topo do gradiente p/ separar do fundo */
@@ -2896,21 +2944,21 @@ html:not([data-theme="dark"]) .wa-bubble:hover {
   background: var(--zaperp-bubble-out-solid);
 }
 
-/* ---- Balão ENVIADO (azul da marca): horário + ticks claros nos 2 temas ---- */
+/* ---- Balão ENVIADO (azul bem claro): horário + ticks escuros/azul nos 2 temas ---- */
 .wa-bubble-out .wa-inlineMeta,
 .wa-bubble-out .wa-bubble-meta,
 .wa-bubble-out .wa-bubble-time,
 .wa-bubble-out .wa-inlineTime {
-  color: rgba(255, 255, 255, 0.82) !important;
+  color: rgba(11, 42, 74, 0.58) !important;
 }
 
 .wa-bubble-out .wa-ticks.isDelivered,
 .wa-bubble-out .wa-ticks.isPending {
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(11, 42, 74, 0.5);
 }
 .wa-bubble-out .wa-ticks.isRead,
 .wa-bubble-out .wa-inlineMeta .wa-ticks.read svg {
-  color: #CDE8FF;
+  color: #1E6FE8;
 }
 
 /* ---- Balão RECEBIDO: horário legível conforme o tema ---- */
@@ -2921,19 +2969,23 @@ html:not([data-theme="dark"]) .wa-bubble:hover {
   color: rgba(233, 237, 239, 0.52);
 }
 
-/* ---- Balão ENVIADO azul: conteúdo sempre claro (nome, texto, links) ---- */
+/* ---- Balão ENVIADO azul claro: conteúdo escuro legível (nome, texto, links) ---- */
 .wa-bubble-out .wa-bubble-text,
 .wa-bubble-out .wa-bubble-caption,
 .wa-bubble-out .wa-bubble-audioCaption {
-  color: #F4F8FF;
+  color: #0B2A4A;
 }
 .wa-bubble-out .wa-bubble-remetente-nome {
-  color: #FFFFFF;
+  color: #1B54D6;
 }
 .wa-bubble-out .wa-bubble-text a {
-  color: #EAF3FF;
+  color: #1657C7;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+/* Links do balão recebido legíveis no tema claro (fundo branco) */
+html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
+  color: #1657C7;
 }
 
 /* Placeholder “apagada para todos” — texto discreto tipo WhatsApp */
@@ -5887,7 +5939,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   border: 1px solid rgba(0,0,0,.10);
   background:
     radial-gradient(120% 120% at 30% 20%, rgba(46, 134, 255,.22) 0%, rgba(46, 134, 255,.10) 35%, rgba(255,255,255,.75) 100%);
-  color: rgba(0, 92, 70, 0.95);
+  color: rgba(27, 84, 214, 0.95);
   display:flex;
   align-items:center;
   justify-content:center;
@@ -6125,7 +6177,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 .wa-audioSpeedBtn.isActive {
   background: rgba(46, 134, 255, 0.18);
   border-color: rgba(46, 134, 255, 0.45);
-  color: rgba(0, 92, 70, 0.98);
+  color: rgba(27, 84, 214, 0.98);
 }
 .wa-bubble-out .wa-audioSpeedBtn {
   background: rgba(255, 255, 255, 0.45);
@@ -6201,12 +6253,12 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 [data-theme="dark"] .wa-bubble-out .wa-audioPlayBtn {
   background: #f8fafc;
   border-color: rgba(248, 250, 252, 0.95);
-  color: #056247;
+  color: #1B54D6;
   box-shadow: none;
 }
 [data-theme="dark"] .wa-bubble-out .wa-audioPlayBtn:hover:not(:disabled) {
   background: #ffffff;
-  color: #04503a;
+  color: #1746C9;
 }
 [data-theme="dark"] .wa-audioSub {
   color: rgba(226, 232, 240, 0.72);
@@ -6266,7 +6318,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   opacity: 1;
 }
 [data-theme="dark"] .wa-bubble-out .wa-audioBar.isPlayed {
-  background: #a7f3d0;
+  background: #1E6FE8;
 }
 [data-theme="dark"] .wa-audioWave::before {
   height: 2px;
@@ -6281,7 +6333,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   box-shadow: none;
 }
 [data-theme="dark"] .wa-bubble-out .wa-audioWave::after {
-  background: #a7f3d0;
+  background: #1E6FE8;
 }
 [data-theme="dark"] .wa-audioDot {
   width: 8px;
@@ -6460,7 +6512,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   .wa-bubble-audio .wa-audioSpeedBtn.isActive,
   .wa-bubble.audio-message .wa-audioSpeedBtn.isActive {
     background: rgba(46, 134, 255, 0.2);
-    color: rgba(0, 92, 70, 0.95);
+    color: rgba(27, 84, 214, 0.95);
   }
 
   .wa-bubble-out.audio-message .wa-audioSpeedBtn,
@@ -6540,7 +6592,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   [data-theme="dark"] .wa-bubble-out.audio-message .wa-audioPlayBtn {
     background: #f8fafc;
     border-color: rgba(248, 250, 252, 0.95);
-    color: #056247;
+    color: #1B54D6;
     box-shadow: none;
   }
 
@@ -11837,7 +11889,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 .wa-sideCliente-miniPill.isEdit{
   background: rgba(46, 134, 255,.10);
   border-color: rgba(46, 134, 255,.22);
-  color: rgba(0, 92, 70, 0.95);
+  color: rgba(27, 84, 214, 0.95);
 }
 .wa-sideCliente-miniPill.isRead{
   background: rgba(0,0,0,.03);
@@ -11921,7 +11973,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   text-overflow: ellipsis;
 }
 .wa-sideCliente-saveStatus.isOk{
-  color: rgba(0, 92, 70, 0.95);
+  color: rgba(27, 84, 214, 0.95);
 }
 .wa-sideCliente-saveStatus.isWarn{
   color: rgba(17,27,33,.82);

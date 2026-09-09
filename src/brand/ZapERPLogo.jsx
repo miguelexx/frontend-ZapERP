@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useId } from "react";
 import "./ZapERPLogo.css";
 
 /**
@@ -28,6 +28,7 @@ export default function ZapERPLogo({
   const s = String(size || "md");
 
   const rootRef = useRef(null);
+  const gradId = `zpl-z-${useId().replace(/:/g, "")}`;
 
   useEffect(() => {
     if (!interactive || !rootRef.current) return;
@@ -134,15 +135,30 @@ export default function ZapERPLogo({
       {v !== "wordmark" && (
         <span className="zpl-mark" aria-hidden="true">
           <svg className="zpl-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Balão flat — ícone minimal e reconhecível */}
+            <defs>
+              <linearGradient id={gradId} x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#1746C9" />
+                <stop offset="0.52" stopColor="#1E6FE8" />
+                <stop offset="1" stopColor="#2E9BFF" />
+              </linearGradient>
+            </defs>
+            {/* Z geométrico com gradiente da marca */}
             <path
-              className="zpl-bubble"
-              d="M18 14h28a8 8 0 0 1 8 8v20a8 8 0 0 1-8 8H34l-10 8v-8h-6a8 8 0 0 1-8-8V22a8 8 0 0 1 8-8Z"
-              fill="var(--zpl-bubble-fill)"
-              stroke="var(--zpl-primary)"
-              strokeWidth="1.5"
+              className="zpl-z"
+              d="M12 12 H52 V24 L28 41 H52 V52 H12 V40 L36 23 H12 Z"
+              fill={`url(#${gradId})`}
+              stroke={`url(#${gradId})`}
+              strokeWidth="2.6"
               strokeLinejoin="round"
-              strokeLinecap="round"
+            />
+            {/* Raio (energia) cruzando o Z */}
+            <path
+              className="zpl-bolt"
+              d="M36 18 L25 34 L31.5 33 L28 47 L40 29 L33.5 30 L38 18 Z"
+              fill="var(--zpl-bolt, #F2F8FF)"
+              stroke="rgba(9, 32, 84, 0.14)"
+              strokeWidth="0.6"
+              strokeLinejoin="round"
             />
           </svg>
         </span>

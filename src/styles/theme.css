@@ -29,16 +29,16 @@
   --light-text-muted: #65809A;
   --light-text-disabled: #90A4B6;
   --light-text-action: #274860;
-  --light-text-bubble-out: #FFFFFF;
+  --light-text-bubble-out: #0B2A4A;
   --light-primary: #1E6FE8;
   --light-primary-hover: #1657C7;
   --light-primary-soft: #DEEAFF;
   --light-primary-border: #7FA8F5;
-  /* ---- Balão enviado: azul da marca (gradiente da logo) ---- */
-  --light-bubble-out: #2A7DF4;
-  --light-bubble-out-border: #4C8DF5;
-  --light-bubble-out-grad: linear-gradient(150deg, #2E9BFF 0%, #1E6FE8 50%, #1B54D6 100%);
-  --light-bubble-out-tail: #1E6FE8;
+  /* ---- Balão enviado: azul claro visível (periwinkle), texto escuro ---- */
+  --light-bubble-out: #B4CDF6;
+  --light-bubble-out-border: #8FB4EC;
+  --light-bubble-out-grad: linear-gradient(150deg, #CFE0FF 0%, #B4CDF6 55%, #A1C0F2 100%);
+  --light-bubble-out-tail: #B4CDF6;
   --light-bubble-in-grad: linear-gradient(160deg, #FFFFFF 0%, #F1F6FD 100%);
   --light-bubble-in-tail: #F1F6FD;
   --light-success: #0A9B6A;
@@ -81,8 +81,8 @@
   --zaperp-border: rgba(148, 163, 184, 0.12);
   --zaperp-bubble-in: #14202F;
   --zaperp-bubble-in-grad: linear-gradient(158deg, #1B2B3F 0%, #131F2D 60%, #101927 100%);
-  --zaperp-bubble-out-solid: #1B54D6;
-  --zaperp-bubble-out: linear-gradient(152deg, #2E9BFF 0%, #1E6FE8 48%, #1B54D6 100%);
+  --zaperp-bubble-out-solid: #B6CFF7;
+  --zaperp-bubble-out: linear-gradient(152deg, #CFE0FF 0%, #B6CFF7 52%, #A2C1F3 100%);
   --zaperp-messages-glow-br: radial-gradient(
     circle at bottom right,
     rgba(30, 111, 232, 0.13),
@@ -291,10 +291,17 @@
 [data-theme="dark"] *::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 [data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(77, 155, 255, 0.55);
+  background-clip: padding-box;
+}
+
+[data-theme="dark"] * {
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
 }
 
 /* ==============================

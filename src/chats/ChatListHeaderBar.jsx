@@ -1,8 +1,7 @@
 import { memo } from "react";
 import { createPortal } from "react-dom";
-import CompanyBrand from "../brand/CompanyBrand";
+import ZapERPLogo from "../brand/ZapERPLogo";
 import { Icon } from "./chatListUiPrimitives";
-import { useEmpresaStore } from "../auth/empresaStore";
 
 function HeaderButton({ title, onClick, children, innerRef, disabled }) {
   return (
@@ -37,14 +36,16 @@ function ChatListHeaderBar({
   canConsultarProdutos,
   onOpenProdutos,
 }) {
-  const logoUrl   = useEmpresaStore((s) => s.empresa?.logo_url);
-  const nome      = useEmpresaStore((s) => s.empresa?.nome);
-  const nomeFonte = useEmpresaStore((s) => s.empresa?.nome_fonte);
-
   return (
     <header className="chat-list-header">
       <div className="chat-list-header-left">
-        <CompanyBrand logoUrl={logoUrl} nome={nome} nomeFonte={nomeFonte} />
+        <ZapERPLogo
+          variant="horizontal"
+          size="md"
+          tagline=""
+          title="ZapERP"
+          interactive={false}
+        />
       </div>
 
       <div className="chat-list-header-actions">
