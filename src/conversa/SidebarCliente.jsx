@@ -1,7 +1,7 @@
 import "./conversa.css";
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
-import { salvarObservacao, vincularClienteConversa, atualizarNomeContatoConversa } from "./conversaService";
+import { salvarObservacao, vincularClienteConversa, atualizarNomeContatoConversa, apagarConversaCompleta } from "./conversaService";
 import { useConversaStore } from "./conversaStore";
 import { useChatStore } from "../chats/chatsStore";
 import { useAuthStore } from "../auth/authStore";
@@ -10,8 +10,9 @@ import { getDisplayName } from "../chats/chatList";
 import * as cfg from "../api/configService";
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
-import { IconClipboard, IconClose, IconLinkOut, IconPhone } from "./conversaViewIcons";
+import { IconClipboard, IconClose, IconLinkOut, IconPhone, IconTrash } from "./conversaViewIcons";
 import SidebarGrupo from "./SidebarGrupo";
+import { removeChatIdFromFilterRowCaches } from "../chats/chatListSidebarCache";
 
 function initials(nome = "") {
   const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
@@ -296,6 +297,7 @@ export default function SidebarCliente({
   });
   const [nomeContatoBase, setNomeContatoBase] = useState("");
   const [savingNomeContato, setSavingNomeContato] = useState(false);
+  const [deletingContact, setDeletingContact] = useState(false);
   const skipClienteHydrateRef = useRef(false);
 
   const hydrateFromCliente = useCallback((c) => {
@@ -448,6 +450,65 @@ export default function SidebarCliente({
       onStartWhatsappCall?.({ deviceCallOpened });
     }
   }, [callSending, telDigits, canWhatsappCall, onStartWhatsappCall]);
+
+  const canDeleteContact = useMemo(() => {
+    if (isGroup) return false;
+    const role = String(user?.perfil || user?.role || "").toLowerCase();
+    return role === "admin";
+  }, [isGroup, user?.perfil, user?.role]);
+
+  const handleExcluirContato = useCallback(async () => {
+    const convId = conversa?.id;
+    if (!convId || deletingContact) return;
+    const nome =
+      String(cliNome || clienteNome || telefone || "este contato").trim() || "este contato";
+    const ok = window.confirm(
+      `Excluir permanentemente ${nome}?\n\nIsso apaga a conversa, todas as mensagens e o cadastro do cliente. Não dá para desfazer.`
+    );
+    if (!ok) return;
+
+    setDeletingContact(true);
+    try {
+      await apagarConversaCompleta(convId);
+      useChatStore.getState().removeChat(convId);
+      try {
+        removeChatIdFromFilterRowCaches(undefined, convId);
+      } catch (_) {}
+      useConversaStore.getState().setSelectedId?.(null);
+      useConversaStore.setState({
+        conversa: null,
+        mensagens: [],
+        tags: [],
+      });
+      onClose?.();
+      showToast?.({
+        type: "success",
+        title: "Contato excluído",
+        message: "Conversa, mensagens e cadastro foram removidos.",
+      });
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.erro ||
+        err?.message ||
+        "Não foi possível excluir o contato.";
+      showToast?.({
+        type: "error",
+        title: "Falha ao excluir",
+        message: String(msg),
+      });
+    } finally {
+      setDeletingContact(false);
+    }
+  }, [
+    conversa?.id,
+    deletingContact,
+    cliNome,
+    clienteNome,
+    telefone,
+    onClose,
+    showToast,
+  ]);
 
   const syncNomeContatoFromConversa = useCallback(() => {
     const dn = String(getDisplayName(conversa) || "").trim();
@@ -1052,7 +1113,7 @@ export default function SidebarCliente({
     () => String(observacao || "") !== String(obsBase || ""),
     [observacao, obsBase]
   );
-  const savingAny = Boolean(savingObs || savingCliente || creatingCliente || savingNomeContato);
+  const savingAny = Boolean(savingObs || savingCliente || creatingCliente || savingNomeContato || deletingContact);
   const hasAnyChanges = Boolean(hasObsChanges || hasClienteChanges || hasNomeContatoChanges);
 
   const handleSalvarTudo = useCallback(async () => {
@@ -1227,6 +1288,19 @@ export default function SidebarCliente({
               </button>
             )}
           </div>
+          {canDeleteContact ? (
+            <button
+              type="button"
+              className="wa-sideCliente-dangerBtn"
+              title="Excluir conversa, mensagens e cadastro do cliente"
+              aria-label="Excluir contato"
+              disabled={deletingContact || savingAny}
+              onClick={handleExcluirContato}
+            >
+              <IconTrash />
+              <span>{deletingContact ? "Excluindo…" : "Excluir contato"}</span>
+            </button>
+          ) : null}
         </section>
 
         <section className="wa-sideCliente-card" aria-label="Informações do contato">

@@ -332,24 +332,27 @@ function ConversaViewBody() {
     if (isGroupConversation(conversa)) return true;
     if (isClosedAttendance(conversa)) return conversaElegivelAutoReabrir;
     if (conversa?.mensagens_bloqueadas) return false;
+    const userRole = String(user?.role || user?.perfil || "").toLowerCase();
     const atendenteId = conversa?.atendente_id ?? null;
     if (atendenteId == null || atendenteId === "") {
       if (user?.atendimento_modo_simples === true || conversa?.atendimento_modo_simples === true) {
         const departamentoId = normalizeDepartamentoIdForAccess(conversa?.departamento_id);
-        const userRole = String(user?.role || user?.perfil || "").toLowerCase();
         const isPrivileged = userRole === "admin" || userRole === "supervisor";
         const userDepIds = getUserDepartamentoIdSet(user);
         return isPrivileged || !departamentoId || userDepIds.has(departamentoId);
       }
       return conversaElegivelAutoAssumir;
     }
-    // Principal OU co-atendente ativo podem enviar
+    // Principal, admin (sem roubar a conversa) ou co-atendente ativo
     if (String(atendenteId) === String(user.id)) return true;
+    if (userRole === "admin") return true;
     return atendentesParticipantes.some(
       (p) => p.tipo === "participante" && Number(p.usuario_id) === Number(user.id)
     );
   }, [
     user?.id,
+    user?.role,
+    user?.perfil,
     user?.atendimento_modo_simples,
     conversa?.id,
     conversa?.atendimento_modo_simples,
@@ -363,6 +366,7 @@ function ConversaViewBody() {
     conversa?.status_atendimento,
     conversa?.mensagens_bloqueadas,
     conversa?.atendente_id,
+    conversa?.departamento_id,
     conversaElegivelAutoAssumir,
     conversaElegivelAutoReabrir,
     atendentesParticipantes,

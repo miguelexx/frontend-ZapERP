@@ -272,12 +272,30 @@ export function preserveNewerOptimisticMembership(apiRow, localRow) {
   return applyNewerOptimisticMembershipTo(next, apiRow, localRow);
 }
 
-/** Ordena conversas por atividade mais recente (DESC). */
+/**
+ * Desempate determinístico quando duas conversas têm o MESMO timestamp de atividade.
+ * Espelha o `id DESC` do backend. Sem isso, o `sort` (estável) mantinha a ordem do array de
+ * entrada — que difere entre a lista ao vivo (store) e o GET de reconciliação — fazendo duas
+ * conversas recentes "trocarem" de lugar a cada atualização. Com o desempate, a ordem é a
+ * mesma dos dois lados: some o pisca-pisca.
+ */
+export function compareChatRowIdDesc(a, b) {
+  const na = Number(a?.id);
+  const nb = Number(b?.id);
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return nb - na;
+  const sa = String(a?.id ?? "");
+  const sb = String(b?.id ?? "");
+  if (sa === sb) return 0;
+  return sa < sb ? 1 : -1;
+}
+
+/** Ordena conversas por atividade mais recente (DESC), com desempate estável por id. */
 export function sortChatListByRecent(arr) {
   if (!Array.isArray(arr) || arr.length <= 1) return arr;
-  return [...arr].sort(
-    (a, b) => getChatListSortTimestampMs(b) - getChatListSortTimestampMs(a)
-  );
+  return [...arr].sort((a, b) => {
+    const d = getChatListSortTimestampMs(b) - getChatListSortTimestampMs(a);
+    return d !== 0 ? d : compareChatRowIdDesc(a, b);
+  });
 }
 
 /**
@@ -297,7 +315,9 @@ export function sortChatRowsBySearchRelevance(arr) {
     const ar = rank(a);
     const br = rank(b);
     if (ar !== br) return ar - br;
-    return getChatListSortTimestampMs(b) - getChatListSortTimestampMs(a);
+    const d = getChatListSortTimestampMs(b) - getChatListSortTimestampMs(a);
+    // Empate de recência dentro da mesma faixa → desempate estável por id (sem "troca").
+    return d !== 0 ? d : compareChatRowIdDesc(a, b);
   });
 }
 

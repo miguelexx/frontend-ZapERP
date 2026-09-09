@@ -18,7 +18,8 @@ const EMPTY_RESUMO = {
  * Contadores e filtro clicável de pendências — confia 100% no backend.
  */
 export function useMinhasPendencias(scopeKey, opts = {}) {
-  const skipInitial = opts.skipInitial === true;
+  const enabled = opts.enabled !== false;
+  const skipInitial = opts.skipInitial === true || !enabled;
   const initialDelayMs = Math.max(0, Number(opts.initialDelayMs) || 0);
   const resyncDelayMs = Math.max(0, Number(opts.resyncDelayMs) || 0);
   const [minhasPendencias, setMinhasPendencias] = useState(EMPTY_RESUMO);
@@ -135,7 +136,7 @@ export function useMinhasPendencias(scopeKey, opts = {}) {
   }, [scopeKey, refreshContadores, initialDelayMs, skipInitial]);
 
   useEffect(() => {
-    if (!chatListResyncNonce) return undefined;
+    if (!enabled || !chatListResyncNonce) return undefined;
     let cancelled = false;
     const run = () => {
       if (!cancelled) void refresh();
@@ -151,7 +152,7 @@ export function useMinhasPendencias(scopeKey, opts = {}) {
     return () => {
       cancelled = true;
     };
-  }, [chatListResyncNonce, refresh, resyncDelayMs]);
+  }, [enabled, chatListResyncNonce, refresh, resyncDelayMs]);
 
   return {
     minhasPendencias,

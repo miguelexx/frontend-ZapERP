@@ -14,6 +14,7 @@ import {
   isConversaPagamentoPendente,
   getChatListSortTimestampMs,
   mergeChatRowListaAtividade,
+  compareChatRowIdDesc,
 } from "./chatListRowAtendimento";
 import { chatRowStableKey } from "./chatRowStableKey";
 import { getChatsPageMeta } from "./chatService";
@@ -391,11 +392,13 @@ function getChatSortTs(c) {
 }
 
 export function sortChatRowsByOrder(list, order) {
-  return [...(Array.isArray(list) ? list : [])].sort((a, b) =>
-    order === "antigas"
-      ? new Date(getChatSortTs(a)) - new Date(getChatSortTs(b))
-      : new Date(getChatSortTs(b)) - new Date(getChatSortTs(a))
-  );
+  return [...(Array.isArray(list) ? list : [])].sort((a, b) => {
+    const ta = getChatSortTs(a);
+    const tb = getChatSortTs(b);
+    const d = order === "antigas" ? ta - tb : tb - ta;
+    // Empate de atividade → desempate estável por id (evita "troca" a cada reconciliação).
+    return d !== 0 ? d : compareChatRowIdDesc(a, b);
+  });
 }
 
 export function dedupeChatRowsByStableKey(list) {

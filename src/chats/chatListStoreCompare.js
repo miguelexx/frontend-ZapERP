@@ -25,7 +25,13 @@ export function chatRowListStoreKey(c) {
     Boolean(c.finalizada_automaticamente),
     String(c.aguardando_cliente_desde ?? ""),
     String(c.ui_hint_reaberto_ausencia_cliente ?? ""),
+    Boolean(c.reaberta_por_falta_interacao),
+    String(c.reaberta_falta_interacao_em ?? ""),
+    String(c.pagamento_prazo_ate ?? ""),
+    String(c.pagamento_prazo_origem ?? ""),
+    String(c.pagamento_concluido_em ?? ""),
     Boolean(c.exibir_badge_aberta),
+    Boolean(c.aguardando_resposta_campanha),
     pa.silenciado,
     pa.fixada,
     pa.favorita,
@@ -45,6 +51,7 @@ export function chatRowListStoreKey(c) {
     Boolean(c?.atendimento_modo_simples),
     Boolean(c?.lida),
     chatRowLastPreviewKey(c),
+    ultimaMensagemOutboundStatusKey(c),
     chatRowContactSurfaceKey(c),
   ];
   return parts.join("\x1e");

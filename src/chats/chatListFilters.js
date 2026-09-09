@@ -6,7 +6,7 @@ import {
   isModoSimplesAguardandoAtendente,
   isModoSimplesAguardandoCliente,
 } from "../utils/conversaUtils";
-import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance } from "./chatListRowAtendimento";
+import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance, compareChatRowIdDesc } from "./chatListRowAtendimento";
 import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
 import { chatRowIsStaleForTab, conversaPertenceAMinhaFila, getAdminAtendenteFilterScope, rowMatchesPublishedListFilters } from "./chatListQueryHelpers";
 import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
@@ -553,7 +553,9 @@ export function computeChatsFiltrados({
     }
     const aTs = getChatListSortTimestampMs(a);
     const bTs = getChatListSortTimestampMs(b);
-    return order === "antigas" ? aTs - bTs : bTs - aTs;
+    if (aTs !== bTs) return order === "antigas" ? aTs - bTs : bTs - aTs;
+    // Empate de atividade → desempate estável por id (mesma ordem no ao vivo e no GET).
+    return compareChatRowIdDesc(a, b);
   });
 
   return list;

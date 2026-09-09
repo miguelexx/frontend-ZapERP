@@ -16,6 +16,8 @@ Cache in-memory de mensagens: Map TTL ~20 min, teto ~48 conversas.
 
 Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMensagem`, remover, marcar temp erro / envio incerto / aguardando conexão, `applyPendingOutgoingWatchdog`, assumir/transferir/encerrar/reabrir/aguardar, `patchConversa` / `patchLock`.
 
+**Envio por admin em conversa de outro (2026-09-09):** `podeEnviar` libera **apenas** `perfil/role === admin` quando há outro `atendente_id`. O admin não assume a conversa no otimista (`shouldAutoAssumirOnOutgoingSend` já ignora dono alheio). Backend: `assertPodeEnviarMensagem` reason `admin_envio_sem_assumir`. Supervisor/atendente continuam bloqueados.
+
 **Auto-assumir no envio (CONFIRMADO 2026-09-02):** `applyOutgoingStatusOptimistic` em `ConversaView.jsx` assume na hora se a conversa está **Aberta** (sem outro dono). Falha do POST reverte. Detalhe da lista: `07-LISTA-DE-CONVERSAS.md`.
 
 ## UI
@@ -37,7 +39,7 @@ Outras actions: `anexarMensagem` / `Imediata`, `reconciliarMensagem`, `patchMens
 | `composer/hooks/*` | draft, typing, respostas, anexos/câmera, autocorreção, pickers e gravação |
 | `composer/utils/*` | funções puras de teclado, mídia gravada, chaves/contexto e comparação de props |
 | `components/ConversaHeader.jsx` | clique em avatar+nome abre o perfil (`onOpenClienteSide`); foto ampliada só no painel |
-| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp; **Ligar** abre `tel:` para conversar no telefone e, no Whapi, também dispara `POST /chats/:id/ligacao` (toque de atenção); UltraMSG só `tel:`; observação, vínculo, rename; clique fora fecha; clique na foto abre o lightbox |
+| `SidebarCliente.jsx` | lazy; perfil estilo WhatsApp; **Ligar** abre `tel:` para conversar no telefone e, no Whapi, também dispara `POST /chats/:id/ligacao` (toque de atenção); UltraMSG só `tel:`; **Excluir contato** (admin) → `DELETE /chats/:id?apagar_cliente=1` remove conversa+mensagens+cliente; observação, vínculo, rename; clique fora fecha; clique na foto abre o lightbox |
 | `composerDraftStore.js` | rascunho por conversa |
 
 Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRESHOLD`); senão lista estática. Medir mídia **durante** scroll de histórico não pode soltar a âncora do fundo.
@@ -224,3 +226,9 @@ Backend: `PATCH /chats/:conversaId/mensagens/:mensagemId` com `{ texto }` (alias
 - `company_id` nunca no body. Fechar a thread não encerra o atendimento.
 
 Hotkeys: `hooks/useGlobalHotkeys.js`. Encaminhar/contato/local/enquete: hooks `useForwardFlow`, `useShareContact`, `useShareLocation`, `useSendPoll`.
+
+## Auditoria estática de 2026-09-09
+
+messageRowVisualSignature agora inclui reply_meta.poll serializado quando houver enquete. O evento mensagem_editada pode atualizar results/last_vote com editada:false e sem alterar texto/status/editada_em; comparar apenas a citação fazia ThreadRow ignorar a atualização visual da enquete.
+
+useAutoScroll, visualViewport, envio otimista e barras sticky foram preservados. Permanecem pendentes a validação visual da transição da pinBar e a recuperação de nota interna em erro/socket indisponível. A análise não equivale a homologação em navegador ou celular; nenhum teste foi executado nesta auditoria. Evidências, limites e roteiros no [relatório de certificação](C:/Users/Miguel/Documents/whatsapp-plataforma/frontend/docs/audits/certificacao-atendimento-2026-09-09.md).

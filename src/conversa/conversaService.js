@@ -484,3 +484,13 @@ export async function removerTagConversa(conversaId, tagId) {
   const { data } = await api.delete(`/chats/${conversaId}/tags/${tagId}`);
   return data;
 }
+
+/** DELETE /chats/:id?apagar_cliente=1 — apaga conversa, mensagens e cadastro do cliente (admin). */
+export async function apagarConversaCompleta(conversaId) {
+  const id = Number(conversaId);
+  if (!Number.isFinite(id) || id <= 0) throw new Error("ID da conversa inválido");
+  const { data } = await api.delete(`/chats/${id}`, {
+    params: { apagar_cliente: 1 },
+  });
+  return data;
+}

@@ -1,31 +1,10 @@
-import { MessageSquarePlus, Search } from "lucide-react";
+import { MessageSquarePlus, Search, MessageCircle, CheckCheck, Sparkles, ArrowUpRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import Button from "../components/ui/Button";
 import "../components/ui/button.css";
 import { ZAPERP_FOCUS_CHAT_SEARCH_EVENT } from "./atendimentoUiEvents";
 import "./atendimentoEmptyState.css";
-
-function TechOrnament({ side = "left" }) {
-  return (
-    <span
-      className={`atendimento-empty__ornament atendimento-empty__ornament--${side}`}
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 160 48" preserveAspectRatio="none" focusable="false">
-        <path d="M0 24 H54 M54 24 V10 H78 M78 10 H104 M104 10 V24 H160" />
-        <path d="M28 24 V38 H52 M52 38 H76 M76 38 V24" />
-        <path d="M118 24 V14 H140" />
-        <circle cx="54" cy="24" r="2.1" />
-        <circle cx="78" cy="10" r="1.7" />
-        <circle cx="104" cy="10" r="1.7" />
-        <circle cx="52" cy="38" r="1.7" />
-        <circle cx="118" cy="24" r="1.5" className="is-pulse" />
-        <circle cx="140" cy="14" r="1.3" />
-      </svg>
-    </span>
-  );
-}
 
 /**
  * Área central quando nenhuma conversa está selecionada.
@@ -45,31 +24,31 @@ export default function AtendimentoEmptyState() {
   };
 
   return (
-    <div className="atendimento-empty" role="status" aria-live="polite">
+    <div className="atendimento-empty atendimento-empty--studio">
       <div className="atendimento-empty__glow" aria-hidden="true" />
       <div className="atendimento-empty__grid" aria-hidden="true" />
 
       <div className="atendimento-empty__inner">
-        <div className="atendimento-empty__brand">
-          <TechOrnament side="left" />
-          <div className="atendimento-empty__logo">
-            <ZapERPLogo
-              variant="horizontal"
-              size="lg"
-              tone="full"
-              interactive
-              title="ZapERP — Atendimento inteligente"
-              name="ZapERP"
-              tagline="Atendimento inteligente"
-            />
+        <div className="studio-scene" aria-hidden="true">
+          <div className="studio-scene__orbit studio-scene__orbit--outer" />
+          <div className="studio-scene__orbit studio-scene__orbit--inner" />
+          <div className="studio-scene__core"><ZapERPLogo variant="compact" size="lg" interactive={false} /></div>
+          <div className="studio-scene__message studio-scene__message--in">
+            <span className="studio-scene__avatar"><MessageCircle size={19} /></span>
+            <span><i /><i /></span>
           </div>
-          <TechOrnament side="right" />
+          <div className="studio-scene__message studio-scene__message--out">
+            <span><i /><i /></span><CheckCheck size={18} />
+          </div>
+          <span className="studio-scene__spark"><Sparkles size={20} strokeWidth={1.6} /></span>
+          <span className="studio-scene__dot" />
         </div>
 
         <div className="atendimento-empty__panel">
-          <h2 className="atendimento-empty__title">Nenhuma conversa selecionada</h2>
+          <span className="studio-eyebrow">CONEXÕES QUE FAZEM A DIFERENÇA</span>
+          <h2 className="atendimento-empty__title">Grandes relações.<br /><span>Uma conversa de cada vez.</span></h2>
           <p className="atendimento-empty__desc">
-            Selecione uma conversa na lista ou inicie um novo atendimento.
+            Seu próximo bom atendimento começa aqui. Selecione uma conversa ao lado ou dê início a uma nova conexão.
           </p>
 
           <div className="atendimento-empty__divider" aria-hidden="true">
@@ -87,6 +66,7 @@ export default function AtendimentoEmptyState() {
             >
               <MessageSquarePlus size={18} strokeWidth={1.75} aria-hidden />
               Nova conversa
+              <ArrowUpRight size={16} aria-hidden="true" />
             </Button>
             <Button
               type="button"
@@ -108,3 +88,4 @@ export default function AtendimentoEmptyState() {
     </div>
   );
 }
+

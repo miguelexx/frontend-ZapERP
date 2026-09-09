@@ -78,7 +78,7 @@ Scope key: empresa + usuário. É stale-while-revalidate, não fonte de verdade.
 - Resync por nonce, não “fetchChats() em todo evento”.
 - Boot mobile: atrasar status Z-API (nome legado), counts, filtros pesados.
 
-HTTP: `chats/chatService.js`, `conversationActionsService.js`, `whatsappInstancesService.js`, `minhasPendenciasService.js`.
+HTTP: `chats/chatService.js`, `conversationActionsService.js`, `whatsappInstancesService.js`. (`minhasPendenciasService.js` / card Transferidos·Aguardando·Atraso e botão **Suporte ZapERP** foram removidos da toolbar da lista em 2026-09-09 — `useMinhasPendencias({ enabled: false })`.)
 
 Socket que mexe na lista: `nova_mensagem`, `nova_conversa`, `conversa_atualizada` / `atualizar_conversa`, `conversa_apagada` / `encerrada` / `transferida` / `reaberta` / `atribuida`, tags, `contato_atualizado`. Sempre `shouldIgnoreByCompany` antes.
 
@@ -139,3 +139,13 @@ Busca com termo continua global. Fechar a thread na UI continua ≠ encerrar.
 - Setor: socket não “inventa” conversa invisível; `addChatIfAuthorized`.
 - Fechar atendimento na API remove/atualiza row; fechar thread na UI não.
 - Foto: não limpar URL http válida. `contato_atualizado` / `conversa_atualizada` **podem** trocar a URL se a nova for http diferente (correção de foto trocada). Não usar `msg.photo` (mídia) como avatar.
+
+## Auditoria estática de 2026-09-09
+
+As correções desta auditoria foram verificadas por leitura de fluxo, TypeScript sem emissão e diff --check; não foram executados testes ou homologação visual. Relatório, limitações e reprodução: [certificacao-atendimento-2026-09-09.md](C:/Users/Miguel/Documents/whatsapp-plataforma/frontend/docs/audits/certificacao-atendimento-2026-09-09.md).
+
+- Durante resync em background com cards já visíveis, os callbacks da primeira página de Minha fila/filas progressivas não publicam setChats(partial). Preservam a lista até o merge final; cold start vazio continua progressivo.
+- chatRowListStoreKey inclui status outbound da última mensagem e aguardando_resposta_campanha. Os campos de prazo/conclusão de pagamento e reabertura por falta de interação participam tanto dessa assinatura quanto do comparador do card.
+- sanitizeChatRowForSidebarCache conserva nove campos escalares de modo simples, campanha, finalização automática, reabertura e pagamento. Cache antigo só ganha esses campos ao ser regravado; formato e TTL permanecem.
+- Regra atual de resync preservada: aproximadamente seis eventos ou cinco segundos, com force imediato. Referências históricas acima a throttle de 2,5s não descrevem esse hook atual.
+- Não há certificação integral: guard de membership otimista pode bloquear rollback; Minha fila pode truncar pelo badge desatualizado; estimativa de altura e outros cenários precisam da validação descrita no relatório. Não retirar proteções nem religar medidas dinâmicas preventivamente.

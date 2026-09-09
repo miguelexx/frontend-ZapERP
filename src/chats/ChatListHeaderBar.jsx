@@ -2,6 +2,7 @@ import { memo } from "react";
 import { createPortal } from "react-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { Icon } from "./chatListUiPrimitives";
+import { IconPackage } from "@tabler/icons-react";
 
 function HeaderButton({ title, onClick, children, innerRef, disabled }) {
   return (
@@ -81,9 +82,7 @@ function ChatListHeaderBar({
 
         {canConsultarProdutos ? (
           <HeaderButton title="Consultar produtos" onClick={onOpenProdutos}>
-            <span className="chat-list-header-btnEmoji" aria-hidden="true">
-              📦
-            </span>
+            <IconPackage size={17} stroke={1.7} aria-hidden="true" />
           </HeaderButton>
         ) : null}
       </div>

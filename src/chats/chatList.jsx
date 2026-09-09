@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+﻿import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 import { useMatchMedia } from "../hooks/useMatchMedia";
 import {
@@ -72,7 +72,6 @@ import {
 import ChatListBody from "./ChatListBody";
 import ChatListHeaderBar from "./ChatListHeaderBar";
 import ChatListAdvancedFiltersPanel from "./ChatListAdvancedFiltersPanel";
-import MinhasPendenciasCard from "./MinhasPendenciasCard";
 import { useMinhasPendencias } from "./hooks/useMinhasPendencias";
 import { useWhatsappInstanceStatus } from "./hooks/useWhatsappInstanceStatus";
 import { useChatListFilterState } from "./hooks/useChatListFilterState";
@@ -115,8 +114,6 @@ const MOBILE_SUPERVISAO_POLL_DELAY_MS = 6000;
 const MOBILE_PENDENCIAS_INITIAL_DELAY_MS = 2600;
 const MOBILE_PENDENCIAS_RESYNC_DELAY_MS = 1400;
 const OPTIMISTIC_MINHA_FILA_REMOVE_TTL_MS = 90_000;
-/** Contato oficial do Suporte ZapERP (DDD 34). */
-const SUPORTE_ZAPERP_WHATSAPP_URL = "https://wa.me/5534999911246";
 
 /** Filas menores que "Todas/Hoje": 1ª página na hora, resto em background. */
 const PROGRESSIVE_QUEUE_TABS = new Set([
@@ -183,21 +180,16 @@ export default function ChatList() {
 
   const filterScopeKey = useMemo(() => buildChatListFiltersScopeKey(user), [user]);
   const {
-    minhasPendencias,
     pendenciaAtiva,
-    loadingPendencias,
-    loadingPendenciaCategoria,
     conversaIdsPendenciaAtiva,
-    onPendenciaClick,
     clearPendenciaAtiva,
-    refresh: refreshMinhasPendencias,
   } = useMinhasPendencias(filterScopeKey, {
-    skipInitial: isMobileLayout,
+    // UI de Minhas Pendências / Suporte ZapERP removida da lista.
+    enabled: false,
+    skipInitial: true,
     initialDelayMs: isMobileLayout ? MOBILE_PENDENCIAS_INITIAL_DELAY_MS : 0,
     resyncDelayMs: isMobileLayout ? MOBILE_PENDENCIAS_RESYNC_DELAY_MS : 0,
   });
-  const refreshMinhasPendenciasRef = useRef(refreshMinhasPendencias);
-  refreshMinhasPendenciasRef.current = refreshMinhasPendencias;
   const conversaIdsPendenciaQuery = useMemo(() => {
     if (conversaIdsPendenciaAtiva == null) return null;
     const ids = Array.from(conversaIdsPendenciaAtiva)
@@ -344,14 +336,6 @@ export default function ChatList() {
   const novoBtnRef = useRef(null);
   const novoMenuRef = useRef(null);
 
-  const handlePendenciaClick = useCallback(
-    (categoria) => {
-      clearChatSearch();
-      setTab("todas");
-      void onPendenciaClick(categoria);
-    },
-    [clearChatSearch, onPendenciaClick, setTab]
-  );
   const [zapFilterSkeleton, setZapFilterSkeleton] = useState(false);
 
   /** GET /chats?minha_fila=1 — fila do atendente (abertas + em atendimento comigo); sem status_atendimento na query. */
@@ -532,10 +516,6 @@ export default function ChatList() {
   }, [tab, searchInput, debouncedSearch, adminAtendenteFilterId, pendentesFuncionarioIds, departamentoFilter, onlyFinalizadasAusencia, aguardandoClienteOnly]);
 
   const showToast = useNotificationStore((s) => s.showToast);
-
-  const handleSuporteZapERPClick = useCallback(() => {
-    window.location.assign(SUPORTE_ZAPERP_WHATSAPP_URL);
-  }, []);
 
   useEffect(() => {
     if (location.state?.openNovoContatoModal) {
@@ -955,7 +935,6 @@ export default function ChatList() {
         const scope = filterScopeKey;
         void runAuxBadgeFetch(scope, "chatCounts", () => refreshChatFilterCounts({ silent: true, reuseIfFresh: true }));
         void runAuxBadgeFetch(scope, "supervisao", () => refreshSupervisaoData());
-        void refreshMinhasPendenciasRef.current?.();
       };
       if (minhaFilaAuxPrimed) {
         persistChatListSidebarToSession(filterScopeKey, useChatStore.getState().chats || [], {
@@ -1892,25 +1871,6 @@ export default function ChatList() {
     ]
   );
 
-  const toolbarMetaLeftSlot = useMemo(
-    () => (
-      <MinhasPendenciasCard
-        minhasPendencias={minhasPendencias}
-        pendenciaAtiva={pendenciaAtiva}
-        loadingPendencias={loadingPendencias}
-        loadingPendenciaCategoria={loadingPendenciaCategoria}
-        onPendenciaClick={handlePendenciaClick}
-      />
-    ),
-    [
-      minhasPendencias,
-      pendenciaAtiva,
-      loadingPendencias,
-      loadingPendenciaCategoria,
-      handlePendenciaClick,
-    ]
-  );
-
   return (
     <div className="chat-list-root">
       {zapiStatusLoaded && zapiConnected === false && (
@@ -2005,11 +1965,10 @@ export default function ChatList() {
         loadMoreChatsError={chatListPage.error}
         onLoadMoreChats={handleLoadMoreChats}
         listRefreshing={listRefreshing}
-        middleSlot={toolbarMetaLeftSlot}
+        middleSlot={null}
         filtersPanelSlot={advancedFiltersSlot}
         conversaIdsPendenciaAtiva={conversaIdsPendenciaAtiva}
         hasActivePendencia={!!pendenciaAtiva}
-        onSuporteClick={handleSuporteZapERPClick}
       />
 
       <ConfirmDialog

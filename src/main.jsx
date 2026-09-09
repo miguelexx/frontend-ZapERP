@@ -10,6 +10,7 @@ import { initNotificationDiagnostics } from "./push/notificationDiagnostics";
 import { installVitePreloadRecovery } from "./runtime/vitePreloadRecovery";
 import "./styles/theme.css";
 import "./styles/app.css";
+import "./styles/studio.css";
 
 if (typeof window !== "undefined") {
   installVitePreloadRecovery(window);

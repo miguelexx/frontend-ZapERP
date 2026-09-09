@@ -55,6 +55,8 @@ export function messageRowVisualSignature(item) {
     item.editado === true || item.editada === true ? "1" : "0",
     safeStr(item.editada_em),
     safeReplySig(item.reply_meta),
+    // Votos chegam por mensagem_editada sem mudar texto, status ou editada_em.
+    item.reply_meta?.poll ? JSON.stringify(item.reply_meta.poll) : "",
     safeStr(item.location_live),
     item.location_meta ? JSON.stringify(item.location_meta) : "",
   ].join("\u0001");

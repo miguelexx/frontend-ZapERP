@@ -206,6 +206,24 @@ export function sanitizeChatRowForSidebarCache(chat) {
 
     status_atendimento_real: chat.status_atendimento_real,
 
+    atendimento_modo_simples: chat.atendimento_modo_simples,
+
+    modo_simples_aguardando: chat.modo_simples_aguardando,
+
+    aguardando_resposta_campanha: chat.aguardando_resposta_campanha,
+
+    finalizada_automaticamente: chat.finalizada_automaticamente,
+
+    reaberta_por_falta_interacao: chat.reaberta_por_falta_interacao,
+
+    reaberta_falta_interacao_em: chat.reaberta_falta_interacao_em,
+
+    pagamento_prazo_ate: chat.pagamento_prazo_ate,
+
+    pagamento_prazo_origem: chat.pagamento_prazo_origem,
+
+    pagamento_concluido_em: chat.pagamento_concluido_em,
+
     exibir_badge_aberta: chat.exibir_badge_aberta,
 
     finalizacao_motivo: chat.finalizacao_motivo,

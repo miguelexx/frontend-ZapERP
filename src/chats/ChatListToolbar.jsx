@@ -4,7 +4,6 @@ import { isSupervisorOrAdmin } from "../auth/permissions";
 import AdminAtendenteFilter from "./AdminAtendenteFilter";
 import { ChatListSearchBox } from "./ChatListSearchBox";
 import { Icon, Chip } from "./chatListUiPrimitives";
-import "./minhasPendencias.css";
 
 function isAppAdmin(user) {
   return isSupervisorOrAdmin(user);
@@ -69,8 +68,6 @@ function ChatListToolbar({
   middleSlot = null,
   filtersPanelSlot = null,
   hasActivePendencia = false,
-  onSuporteClick = null,
-  suporteBusy = false,
 }) {
   const isMainChipActive = (targetTab) => !hasActivePendencia && tab === targetTab;
   const hintLoading = loading && !hasStoreChats;
@@ -93,6 +90,13 @@ function ChatListToolbar({
 
   return (
     <div className="chat-list-toolbar">
+      <div className="chat-list-heading">
+        <div>
+          <span className="chat-list-heading__eyebrow">SEU ESPAÇO DE TRABALHO</span>
+          <h1>Conversas<span aria-hidden="true">.</span></h1>
+        </div>
+        <span className="chat-list-heading__icon" aria-hidden="true"><IconHeadset size={21} stroke={1.6} /></span>
+      </div>
       <div className="chat-list-search-wrap chat-list-toolbar-row--search">
         <div className="chat-list-search-row">
           <div className="chat-list-search-box">
@@ -235,68 +239,6 @@ function ChatListToolbar({
         </div>
       </div>
 
-      {typeof onSuporteClick === "function" ? (
-        <div className="chat-list-toolbar-suporte-row">
-          <span className="suporte-zaperp-ornament suporte-zaperp-ornament--left" aria-hidden="true">
-            <svg viewBox="0 0 148 28" preserveAspectRatio="xMaxYMid meet" focusable="false">
-              <defs>
-                <linearGradient id="suporteOrnGradL" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-                  <stop offset="28%" stopColor="currentColor" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="currentColor" stopOpacity="0.95" />
-                </linearGradient>
-              </defs>
-              <path className="is-soft" d="M4 14 H58" stroke="url(#suporteOrnGradL)" />
-              <path d="M58 14 H86 M86 14 V7 H104 M104 7 H122 M122 7 V14 H144" />
-              <path className="is-soft" d="M34 14 V21 H52 M52 21 H72 M72 21 V14" />
-              <path className="is-soft" d="M96 14 V20 H112" />
-              <rect className="is-chip" x="82.2" y="10.4" width="7.6" height="7.6" rx="1.4" transform="rotate(45 86 14)" />
-              <circle className="is-core" cx="104" cy="7" r="2" />
-              <circle className="is-ring" cx="104" cy="7" r="3.4" />
-              <circle cx="122" cy="7" r="1.55" />
-              <circle cx="52" cy="21" r="1.45" />
-              <circle className="is-pulse" cx="72" cy="21" r="1.35" />
-              <circle className="is-pulse is-pulse-delay" cx="136" cy="14" r="1.5" />
-            </svg>
-          </span>
-          <button
-            type="button"
-            className="suporte-zaperp-btn"
-            onClick={onSuporteClick}
-            disabled={suporteBusy}
-            aria-busy={suporteBusy || undefined}
-            title="Abrir conversa com o Suporte ZapERP"
-          >
-            <IconHeadset size={16} stroke={1.75} className="suporte-zaperp-btn__icon" aria-hidden="true" />
-            <span className="suporte-zaperp-btn__label">
-              {suporteBusy ? "Abrindo…" : "Suporte ZapERP"}
-            </span>
-          </button>
-          <span className="suporte-zaperp-ornament suporte-zaperp-ornament--right" aria-hidden="true">
-            <svg viewBox="0 0 148 28" preserveAspectRatio="xMinYMid meet" focusable="false">
-              <defs>
-                <linearGradient id="suporteOrnGradR" x1="1" y1="0" x2="0" y2="0">
-                  <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-                  <stop offset="28%" stopColor="currentColor" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="currentColor" stopOpacity="0.95" />
-                </linearGradient>
-              </defs>
-              <path className="is-soft" d="M144 14 H90" stroke="url(#suporteOrnGradR)" />
-              <path d="M90 14 H62 M62 14 V7 H44 M44 7 H26 M26 7 V14 H4" />
-              <path className="is-soft" d="M114 14 V21 H96 M96 21 H76 M76 21 V14" />
-              <path className="is-soft" d="M52 14 V20 H36" />
-              <rect className="is-chip" x="57.8" y="10.4" width="7.6" height="7.6" rx="1.4" transform="rotate(45 61.6 14)" />
-              <circle className="is-core" cx="44" cy="7" r="2" />
-              <circle className="is-ring" cx="44" cy="7" r="3.4" />
-              <circle cx="26" cy="7" r="1.55" />
-              <circle cx="96" cy="21" r="1.45" />
-              <circle className="is-pulse" cx="76" cy="21" r="1.35" />
-              <circle className="is-pulse is-pulse-delay" cx="12" cy="14" r="1.5" />
-            </svg>
-          </span>
-        </div>
-      ) : null}
-
       <div className="chat-list-toolbar-row--meta">
         {middleSlot ? <div className="chat-list-toolbar-meta-left">{middleSlot}</div> : null}
         <div className="chat-list-search-hint chat-list-toolbar-meta-count" aria-live="polite">
@@ -348,8 +290,6 @@ function toolbarPropsAreEqual(prev, next) {
   if (prev.middleSlot !== next.middleSlot) return false;
   if (prev.filtersPanelSlot !== next.filtersPanelSlot) return false;
   if (prev.hasActivePendencia !== next.hasActivePendencia) return false;
-  if (prev.onSuporteClick !== next.onSuporteClick) return false;
-  if (prev.suporteBusy !== next.suporteBusy) return false;
   if (prev.searchRef !== next.searchRef) return false;
   if (prev.onSearchDebounced !== next.onSearchDebounced) return false;
   if (prev.onSearchInputChange !== next.onSearchInputChange) return false;

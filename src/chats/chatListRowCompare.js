@@ -88,6 +88,11 @@ export function chatRowPropsAreEqual(prev, next) {
     Boolean(a.finalizada_automaticamente) === Boolean(b.finalizada_automaticamente) &&
     String(a.aguardando_cliente_desde ?? "") === String(b.aguardando_cliente_desde ?? "") &&
     String(a.ui_hint_reaberto_ausencia_cliente ?? "") === String(b.ui_hint_reaberto_ausencia_cliente ?? "") &&
+    Boolean(a.reaberta_por_falta_interacao) === Boolean(b.reaberta_por_falta_interacao) &&
+    String(a.reaberta_falta_interacao_em ?? "") === String(b.reaberta_falta_interacao_em ?? "") &&
+    String(a.pagamento_prazo_ate ?? "") === String(b.pagamento_prazo_ate ?? "") &&
+    String(a.pagamento_prazo_origem ?? "") === String(b.pagamento_prazo_origem ?? "") &&
+    String(a.pagamento_concluido_em ?? "") === String(b.pagamento_concluido_em ?? "") &&
     Boolean(a.exibir_badge_aberta) === Boolean(b.exibir_badge_aberta) &&
     Boolean(a.aguardando_resposta_campanha) === Boolean(b.aguardando_resposta_campanha) &&
     pa.silenciado === pb.silenciado &&

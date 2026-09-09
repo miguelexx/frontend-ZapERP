@@ -269,7 +269,7 @@ export default function MainLayout() {
   const userInitial = getUserInitial(user);
 
   return (
-    <div className="app-layout app-layout--crm">
+    <div className="app-layout app-layout--crm app-layout--studio">
       <a href="#main-content" className="ds-skip-link">
         Pular para o conteúdo principal
       </a>
