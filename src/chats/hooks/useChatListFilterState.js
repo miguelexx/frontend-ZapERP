@@ -74,6 +74,21 @@ export function useChatListFilterState({
     }
   }, [user, tab]);
 
+  // Chips removidos da toolbar (2026-09-09): abertas, aguardando_cliente, finalizadas_auto,
+  // pagamentos_pendentes, em_atraso — se a aba persistida for uma delas, volta ao default.
+  useEffect(() => {
+    const removedTabs = new Set([
+      "abertas",
+      "aguardando_cliente",
+      "finalizadas_auto",
+      "pagamentos_pendentes",
+      "em_atraso",
+    ]);
+    if (removedTabs.has(tab)) {
+      setTab(getDefaultChatListTab(user));
+    }
+  }, [tab, user]);
+
   useEffect(() => {
     if (user?.atendimento_modo_simples && tab === "minha_fila") {
       setTab("aguardando_atendente");
@@ -87,7 +102,6 @@ export function useChatListFilterState({
       user?.atendimento_modo_simples &&
       tab !== "todas" &&
       tab !== "aguardando_atendente" &&
-      tab !== "aguardando_cliente" &&
       tab !== "campanhas"
     ) {
       setTab(getDefaultChatListTab(user));
@@ -105,12 +119,6 @@ export function useChatListFilterState({
       setTab(getDefaultChatListTab(user));
     }
   }, [user?.modulo_campanhas_ativo, tab, user]);
-
-  useEffect(() => {
-    if (!isFinanceiroUser && (tab === "pagamentos_pendentes" || tab === "em_atraso")) {
-      setTab(getDefaultChatListTab(user));
-    }
-  }, [isFinanceiroUser, tab, user?.atendimento_modo_simples]);
 
   useEffect(() => {
     if (!separarMensagensDisparadasLigado && statusFilter === "mensagem_disparada") {

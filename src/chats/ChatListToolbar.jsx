@@ -165,23 +165,12 @@ function ChatListToolbar({
                 >
                   Aguardando atendente
                 </Chip>
-                <Chip
-                  active={isMainChipActive("aguardando_cliente")}
-                  onClick={onTabAguardandoCliente}
-                  className="chat-list-chip--aguardando-cliente"
-                  count={countAguardandoCliente}
-                >
-                  Aguardando cliente
-                </Chip>
               </>
             ) : null}
             {!user?.atendimento_modo_simples ? (
               <>
                 <Chip active={isMainChipActive("hoje")} onClick={onTabHoje} count={countHoje}>
                   Hoje
-                </Chip>
-                <Chip active={isMainChipActive("abertas")} onClick={onTabAbertas} count={countAbertas}>
-                  Abertas
                 </Chip>
                 {separarMensagensDisparadasLigado ? (
                   <Chip active={isMainChipActive("mensagens_disparadas")} onClick={onTabMensagensDisparadas} count={mensagensDisparadasCount}>
@@ -194,32 +183,6 @@ function ChatListToolbar({
                 <Chip active={isMainChipActive("finalizadas")} onClick={onTabFinalizadas} count={countFinalizadas}>
                   Finalizadas
                 </Chip>
-                <Chip active={isMainChipActive("finalizadas_auto")} onClick={onTabFinalizadasAuto} count={countFinalizadasAuto}>
-                  Por ausência
-                </Chip>
-                <Chip active={isMainChipActive("aguardando_cliente")} onClick={onTabAguardandoCliente} count={countAguardandoCliente}>
-                  Aguardando cliente
-                </Chip>
-                {isFinanceiroUser ? (
-                  <>
-                    <Chip
-                      active={isMainChipActive("pagamentos_pendentes")}
-                      onClick={onTabPagamentosPendentes}
-                      className="chat-list-chip--pagamento-pendente"
-                      count={countPagamentosPendentes}
-                    >
-                      Pagamentos pendentes
-                    </Chip>
-                    <Chip
-                      active={isMainChipActive("em_atraso")}
-                      onClick={onTabEmAtraso}
-                      className="chat-list-chip--em-atraso"
-                      count={countEmAtraso}
-                    >
-                      Em atraso
-                    </Chip>
-                  </>
-                ) : null}
                 {isSupervisorOrAdmin(user) ? (
                   <Chip
                     active={isMainChipActive("aguardando_funcionario")}

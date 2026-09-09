@@ -190,6 +190,10 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   const isContact = !!contactBubbleMeta;
   const isLocation = tipoMsg === "location";
   const isPoll = tipoMsg === "poll" || tipoMsg === "enquete" || !!(msg?.reply_meta?.poll);
+  const triageMeta = (!isApagadaParaTodos && msg?.reply_meta?.whapi_triage && typeof msg.reply_meta.whapi_triage === "object")
+    ? msg.reply_meta.whapi_triage
+    : null;
+  const isInteractive = !!triageMeta && !isPoll;
   const isCall = !isApagadaParaTodos && tipoMsg === "call";
   const textoRaw = safeString(msg?.texto);
   const textoRawNorm = String(textoRaw || "").trim().toLowerCase();
@@ -245,6 +249,8 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     isLocation,
     isPoll,
     pollMeta,
+    isInteractive,
+    triageMeta,
     isCall,
     contactBubbleMeta,
     texto,

@@ -4952,6 +4952,15 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 /* Enquete (poll) — bolha clean / premium */
+.wa-triage { min-width: 230px; max-width: 340px; padding: 10px 12px; }
+.wa-triage__title { font-weight: 600; white-space: pre-wrap; }
+.wa-triage__footer, .wa-triage__hint { margin-top: 7px; font-size: 11px; opacity: .72; }
+.wa-triage__options { display: grid; gap: 6px; margin-top: 10px; }
+.wa-triage__option { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid currentColor; border-radius: 8px; opacity: .9; }
+.wa-triage__index { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.08); font-size: 11px; }
+.wa-triage__button { margin-top: 9px; padding: 7px 8px; text-align: center; border-radius: 7px; background: rgba(0,0,0,.08); font-weight: 600; }
+
+/* Enquete (poll) — bolha clean / premium */
 .wa-poll {
   min-width: 220px;
   max-width: 300px;
@@ -4988,7 +4997,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble-out .wa-poll-badge {
-  color: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
   background: rgba(255, 255, 255, 0.14);
 }
 
@@ -5001,6 +5010,12 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding-top: 1px;
+}
+
+/* A bolha enviada usa fundo claro; mantenha toda a tipografia da enquete legível. */
+.wa-bubble-out .wa-poll-title,
+.wa-bubble-out .wa-poll-optionText {
+  color: #0f172a;
 }
 
 .wa-poll-options {
@@ -5068,7 +5083,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble-out .wa-poll-radio {
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(15, 23, 42, 0.55);
 }
 
 .wa-poll-radio.is-on {
@@ -5077,7 +5092,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble-out .wa-poll-radio.is-on {
-  border-color: rgba(255, 255, 255, 0.95);
+  border-color: #0f172a;
 }
 
 .wa-poll-optionText {
@@ -5098,7 +5113,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble-out .wa-poll-count {
-  color: rgba(255, 255, 255, 0.7);
+  color: #0f172a;
 }
 
 .wa-poll-hint {
@@ -5109,7 +5124,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble-out .wa-poll-hint {
-  color: rgba(255, 255, 255, 0.62);
+  color: #334155;
 }
 
 .wa-pollModal-overlay {
@@ -9866,6 +9881,16 @@ main.main-content--crm .wa-mediaPreview-composer {
   box-shadow: none !important;
 }
 
+/* No tema claro, mantém o contraste existente e usa a mesma profundidade com tons neutros. */
+html:not([data-theme="dark"]) .wa-shell .wa-messages {
+  background-color: #edf2f7 !important;
+  background-image:
+    radial-gradient(ellipse 72% 58% at 50% 5%, rgba(67, 125, 198, 0.075), transparent 72%),
+    radial-gradient(ellipse 110% 92% at 50% 48%, transparent 48%, rgba(31, 51, 74, 0.09) 100%),
+    linear-gradient(rgba(55, 83, 112, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(55, 83, 112, 0.055) 1px, transparent 1px) !important;
+}
+
 .wa-imageSend-reactCrop .ReactCrop__drag-handle.ord-nw {
   width: 22px !important;
   height: 22px !important;
@@ -10094,6 +10119,14 @@ main.main-content--crm .wa-mediaPreview--imageUnified .wa-mediaPreview-composer 
   .main-content.main-content--crm:has(.wa-mediaPreview),
   .app-layout:has(.wa-mediaPreview) .main-content {
     padding-bottom: 0 !important;
+  }
+
+  html:not([data-theme="dark"]) .wa-shell .wa-messages {
+    background-image:
+      radial-gradient(ellipse 92% 52% at 50% 0%, rgba(67, 125, 198, 0.06), transparent 76%),
+      radial-gradient(ellipse 125% 96% at 50% 46%, transparent 42%, rgba(31, 51, 74, 0.1) 100%),
+      linear-gradient(rgba(55, 83, 112, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(55, 83, 112, 0.04) 1px, transparent 1px) !important;
   }
 }
 
@@ -16184,5 +16217,145 @@ html[data-theme="dark"] .wa-notaBadge {
 @media (prefers-reduced-motion: reduce) {
   .wa-iconBtn:active:not(:disabled) {
     transform: none;
+  }
+}
+
+/* =========================================================
+   FUNDO PREMIUM DO HISTÓRICO — isolado em .wa-messages
+   Apenas composição visual: não altera a área de scroll nem o conteúdo.
+========================================================= */
+.wa-shell .wa-messages {
+  background-color: #07111f !important;
+  background-image:
+    radial-gradient(ellipse 68% 54% at 50% 0%, rgba(46, 119, 224, 0.24), transparent 70%),
+    radial-gradient(ellipse 42% 34% at 50% 31%, rgba(61, 132, 235, 0.075), transparent 72%),
+    radial-gradient(ellipse 45% 72% at 0% 50%, rgba(20, 74, 150, 0.07), transparent 78%),
+    radial-gradient(ellipse 45% 72% at 100% 50%, rgba(20, 74, 150, 0.055), transparent 78%),
+    linear-gradient(180deg, rgba(157, 198, 248, 0.04), transparent 26%, rgba(1, 7, 17, 0.18) 100%),
+    radial-gradient(ellipse 112% 96% at 50% 48%, transparent 43%, rgba(1, 6, 15, 0.65) 100%),
+    linear-gradient(rgba(157, 196, 238, 0.062) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(157, 196, 238, 0.062) 1px, transparent 1px) !important;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat !important;
+  background-position: center, center, left center, right center, center, center, 0 0, 0 0 !important;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 64px 64px, 64px 64px !important;
+  background-attachment: scroll, scroll, scroll, scroll, scroll, scroll, scroll, scroll !important;
+  box-shadow: none !important;
+}
+
+html:not([data-theme="dark"]) .wa-shell .wa-messages {
+  background-color: #eaf1f8 !important;
+  background-image:
+    radial-gradient(ellipse 62% 55% at 50% -4%, rgba(70, 143, 236, 0.14), transparent 74%),
+    radial-gradient(ellipse 52% 85% at 88% 42%, rgba(74, 143, 236, 0.085), transparent 76%),
+    radial-gradient(ellipse 48% 82% at 8% 100%, rgba(61, 119, 194, 0.055), transparent 78%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 28%, rgba(49, 79, 111, 0.045) 100%),
+    radial-gradient(ellipse 112% 96% at 50% 48%, transparent 46%, rgba(50, 76, 103, 0.12) 100%),
+    linear-gradient(rgba(69, 105, 139, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(69, 105, 139, 0.07) 1px, transparent 1px) !important;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat !important;
+  background-position: center, center, center, center, center, 0 0, 0 0 !important;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 64px 64px, 64px 64px !important;
+}
+
+/* Remove wallpapers anteriores sem remover as pseudo-camadas da árvore de conteúdo. */
+.wa-shell .wa-messages::before,
+.wa-shell .wa-messages::after {
+  content: none !important;
+  display: none !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 640px) {
+  .wa-shell .wa-messages {
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 52px 52px, 52px 52px !important;
+    background-image:
+      radial-gradient(ellipse 92% 52% at 50% 0%, rgba(46, 119, 224, 0.18), transparent 76%),
+      radial-gradient(ellipse 48% 32% at 50% 30%, rgba(61, 132, 235, 0.045), transparent 72%),
+      radial-gradient(ellipse 58% 74% at 0% 50%, rgba(20, 74, 150, 0.045), transparent 78%),
+      radial-gradient(ellipse 58% 74% at 100% 50%, rgba(20, 74, 150, 0.035), transparent 78%),
+      linear-gradient(180deg, rgba(157, 198, 248, 0.025), transparent 28%, rgba(1, 7, 17, 0.14) 100%),
+      radial-gradient(ellipse 125% 96% at 50% 46%, transparent 38%, rgba(1, 6, 15, 0.7) 100%),
+      linear-gradient(rgba(157, 196, 238, 0.044) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(157, 196, 238, 0.044) 1px, transparent 1px) !important;
+  }
+
+  html:not([data-theme="dark"]) .wa-shell .wa-messages {
+    background-image:
+      radial-gradient(ellipse 76% 56% at 50% -2%, rgba(70, 143, 236, 0.095), transparent 76%),
+      radial-gradient(ellipse 62% 82% at 88% 42%, rgba(74, 143, 236, 0.055), transparent 78%),
+      radial-gradient(ellipse 58% 80% at 8% 100%, rgba(61, 119, 194, 0.035), transparent 80%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent 30%, rgba(49, 79, 111, 0.03) 100%),
+      radial-gradient(ellipse 125% 96% at 50% 46%, transparent 40%, rgba(50, 76, 103, 0.14) 100%),
+      linear-gradient(rgba(69, 105, 139, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(69, 105, 139, 0.045) 1px, transparent 1px) !important;
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 52px 52px, 52px 52px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-shell .wa-messages {
+    background-attachment: scroll, scroll, scroll, scroll, scroll, scroll, scroll, scroll !important;
+  }
+}
+
+/* =========================================================
+   FUNDO PREMIUM DO HEADER — somente superfície do .wa-header
+   Filhos, dimensões, overflow e interações permanecem inalterados.
+========================================================= */
+.wa-shell .wa-header {
+  background-color: #071321 !important;
+  background-image:
+    radial-gradient(ellipse 82% 230% at 91% 48%, rgba(52, 139, 255, 0.2), rgba(27, 84, 174, 0.07) 34%, transparent 76%),
+    radial-gradient(ellipse 62% 150% at 56% -42%, rgba(44, 128, 255, 0.17), transparent 72%),
+    radial-gradient(ellipse 52% 120% at 4% 112%, rgba(22, 83, 185, 0.09), transparent 76%),
+    radial-gradient(circle at 112% 48%, transparent 0 37%, rgba(102, 175, 255, 0.045) 37.2% 37.48%, transparent 37.8% 55%, rgba(102, 175, 255, 0.024) 55.2% 55.45%, transparent 55.9% 72%),
+    linear-gradient(180deg, rgba(153, 201, 255, 0.06), transparent 20%, rgba(2, 9, 19, 0.25) 100%),
+    radial-gradient(ellipse 116% 102% at 50% 45%, transparent 42%, rgba(1, 5, 13, 0.64) 100%),
+    linear-gradient(135deg, #0d2038 0%, #0a192c 46%, #061321 100%) !important;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat !important;
+  background-position: center, center, center, center, center, center, center !important;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100% !important;
+  border-bottom-color: rgba(70, 130, 220, 0.14) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.028),
+    0 8px 30px rgba(0, 0, 0, 0.18) !important;
+  isolation: isolate;
+}
+
+/* Arco abstrato recortado pela própria área do pseudo-elemento; não toca no layout. */
+.wa-shell .wa-header::before {
+  content: none;
+  display: none;
+  pointer-events: none;
+}
+
+/* Mantém a linha de marca existente acima da nova superfície. */
+.wa-shell .wa-header::after {
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+html:not([data-theme="dark"]) .wa-shell .wa-header {
+  background-color: #dce9f7 !important;
+  background-image:
+    radial-gradient(ellipse 84% 235% at 92% 46%, rgba(38, 120, 255, 0.19), rgba(27, 84, 174, 0.06) 34%, transparent 76%),
+    radial-gradient(ellipse 62% 150% at 56% -42%, rgba(70, 143, 236, 0.12), transparent 72%),
+    radial-gradient(ellipse 44% 110% at 6% 112%, rgba(20, 80, 180, 0.065), transparent 76%),
+    radial-gradient(ellipse 64% 125% at 50% 48%, rgba(255, 255, 255, 0.16), transparent 72%),
+    radial-gradient(circle at 112% 48%, transparent 0 37%, rgba(77, 148, 255, 0.045) 37.2% 37.48%, transparent 37.8% 55%, rgba(77, 148, 255, 0.022) 55.2% 55.45%, transparent 55.9% 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 25%, rgba(42, 71, 105, 0.075) 100%),
+    radial-gradient(ellipse 115% 100% at 50% 46%, transparent 43%, rgba(31, 51, 74, 0.16) 100%),
+    linear-gradient(135deg, #f3f8fd 0%, #e5eff9 52%, #d6e5f4 100%) !important;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat !important;
+  background-position: center, center, center, center, center, center, center !important;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100% !important;
+  border-bottom-color: rgba(47, 116, 208, 0.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 30px rgba(20, 44, 74, 0.14) !important;
+}
+
+@media (max-width: 640px) {
+  .wa-shell .wa-header {
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100% !important;
   }
 }

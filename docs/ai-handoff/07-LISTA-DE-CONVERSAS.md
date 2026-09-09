@@ -42,7 +42,9 @@ Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instanc
 
 ## Filtros, tabs, paginação, busca (CONFIRMADO)
 
-Tabs em `chatListFilters.js` (exemplos): `minha_fila`, `campanhas`, `abertas`, `em_atendimento`, `aguardando_*`, `pagamentos_pendentes`, `em_atraso`, …
+Tabs em `chatListFilters.js` (exemplos): `minha_fila`, `campanhas`, `em_atendimento`, `aguardando_funcionario` / `aguardando_atendente`, …
+
+**Chips ocultos (2026-09-09):** `abertas`, `aguardando_cliente`, `finalizadas_auto` (Por ausência), `pagamentos_pendentes`, `em_atraso` — removidos da toolbar; aba persistida nesses valores redireciona ao default.
 
 O filtro **Campanhas** (`GET /chats?campanhas=1`) só aparece se `user.modulo_campanhas_ativo === true` (admin ativa em Configurações → Geral com senha + botão **Ativar**; a flag no `authStore` atualiza o chip sem F5). Lista só conversas com `aguardando_resposta_campanha=true` (disparo enviado, contato ainda não respondeu). Não reutiliza `mensagem_disparada` de envio pelo celular. Na primeira resposta inbound a flag é limpa, a conversa fica **aberta sem atendente** para quem estiver disponível assumir; chatbot/URA/boas-vindas não rodam. Atendimento humano já ativo (`em_atendimento` / `aguardando_cliente` / financeiro) não é reclassificado. Com o módulo off, `campanhas=1` devolve lista vazia e o contador fica 0.
 

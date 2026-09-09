@@ -153,50 +153,6 @@ function ChatListAdvancedFiltersPanel({
           <input type="checkbox" checked={mineOnly} onChange={(e) => onMineOnlyChange(e.target.checked)} />
           <span>Minhas conversas</span>
         </label>
-        <label className="chat-list-check">
-          <input
-            type="checkbox"
-            checked={onlyFinalizadasAusencia}
-            onChange={(e) => onOnlyFinalizadasAusenciaChange(e.target.checked)}
-          />
-          <span title="Restringe às conversas encerradas automaticamente por falta de resposta do cliente">
-            Só finalizadas por ausência
-          </span>
-        </label>
-        <label className="chat-list-check">
-          <input
-            type="checkbox"
-            checked={aguardandoClienteOnly}
-            onChange={(e) => onAguardandoClienteOnlyChange(e.target.checked)}
-          />
-          <span title="Conversas em atendimento com atendente, aguardando retorno do cliente após mensagem da equipe">
-            Aguardando resposta do cliente
-          </span>
-        </label>
-        {showFinanceiroFilters ? (
-          <>
-            <label className="chat-list-check">
-              <input
-                type="checkbox"
-                checked={pagamentosPendentesOnly}
-                onChange={(e) => onPagamentosPendentesOnlyChange(e.target.checked)}
-              />
-              <span title="Cobrança enviada — aguardando pagamento dentro do prazo">
-                Pagamentos pendentes
-              </span>
-            </label>
-            <label className="chat-list-check">
-              <input
-                type="checkbox"
-                checked={emAtrasoOnly}
-                onChange={(e) => onEmAtrasoOnlyChange(e.target.checked)}
-              />
-              <span title="Prazo de pagamento vencido — necessária nova cobrança">
-                Em atraso
-              </span>
-            </label>
-          </>
-        ) : null}
         <label className="chat-list-field">
           <span>Ordem</span>
           <select value={order} onChange={(e) => onOrderChange(e.target.value)} className="chat-list-select">

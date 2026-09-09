@@ -47,6 +47,16 @@ function normalizeConfig(cfg) {
   };
 }
 
+function triagemErrorMessage(err) {
+  const raw = apiErrorMessage(err, "Não foi possível carregar a triagem interativa.");
+  const status = err?.response?.status;
+  const lower = String(raw).toLowerCase();
+  if (status === 500 && lower.includes("permission denied")) {
+    return "O banco encontrou a tabela da triagem, mas o usuário do backend não tem permissão para acessá-la. Aplique a migration e conceda acesso ao service_role no Supabase.";
+  }
+  return raw;
+}
+
 export default function WhapiTriagemPage() {
   const ctx = useOutletContext() || {};
   const { selectedInstance, loadingInstances, instances } = ctx;
@@ -80,7 +90,7 @@ export default function WhapiTriagemPage() {
       setMigrationPending(cfgResp?.migrationPending === true);
       setDepartamentos(Array.isArray(deps) ? deps : []);
     } catch (err) {
-      setError(apiErrorMessage(err, "Não foi possível carregar a triagem interativa."));
+      setError(triagemErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -112,11 +122,17 @@ export default function WhapiTriagemPage() {
     () => config.options.filter((o) => o.active && o.departamento_id && o.label.trim()).length,
     [config.options]
   );
+  const modeLimit = config.mode === "button" ? 3 : config.mode === "list" ? 10 : 12;
+  const minActive = config.mode === "poll" ? 2 : 1;
 
   async function handleSave() {
     if (!instanceId) return;
-    if (config.enabled && activeValidCount < 1) {
-      showToast({ type: "error", title: "Triagem", message: "Adicione ao menos uma opção com setor para ativar." });
+    if (config.enabled && activeValidCount < minActive) {
+      showToast({ type: "error", title: "Triagem", message: config.mode === "poll" ? "A enquete precisa de ao menos 2 opções ativas com setor." : "Adicione ao menos uma opção ativa com setor." });
+      return;
+    }
+    if (activeValidCount > modeLimit) {
+      showToast({ type: "error", title: "Triagem", message: `O modo ${config.mode} aceita no máximo ${modeLimit} opções ativas.` });
       return;
     }
     setSaving(true);
@@ -284,7 +300,8 @@ export default function WhapiTriagemPage() {
             </div>
             <p className="wt-hint">
               <IconInfoCircle size={14} /> Cada opção tem um identificador interno estável — trocar o nome
-              exibido não quebra o direcionamento.
+              exibido não quebra o direcionamento. Este modo aceita até {modeLimit} opções ativas
+              {config.mode === "poll" ? " e exige pelo menos 2 para a enquete." : "."}
             </p>
 
             <div className="wt-options">
@@ -337,7 +354,7 @@ export default function WhapiTriagemPage() {
             </div>
 
             {isAdmin ? (
-              <button type="button" className="wt-add" onClick={addOption}>
+              <button type="button" className="wt-add" onClick={addOption} disabled={config.options.length >= modeLimit}>
                 <IconPlus size={16} /> Adicionar opção
               </button>
             ) : null}

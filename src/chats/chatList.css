@@ -1582,6 +1582,53 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   border-color: var(--zaperp-border);
 }
 
+/* Estado selecionado premium — somente superfície do card da conversa. */
+.chat-list-row.zap-conversation-card.is-active {
+  background:
+    radial-gradient(ellipse 88% 145% at 100% 50%, rgba(46, 134, 255, 0.16), transparent 68%),
+    linear-gradient(105deg, rgba(46, 134, 255, 0.13) 0%, rgba(46, 134, 255, 0.07) 48%, rgba(46, 134, 255, 0.11) 100%) !important;
+  border: 1px solid rgba(46, 134, 255, 0.58) !important;
+  border-left: 3px solid #2e86ff !important;
+  box-shadow:
+    0 0 0 1px rgba(46, 134, 255, 0.1),
+    0 8px 24px rgba(46, 134, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(46, 134, 255, 0.12) !important;
+}
+
+.chat-list-row.zap-conversation-card.is-active::before {
+  display: block !important;
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #63b3ff 0%, #2e86ff 52%, #1e6fe8 100%);
+  box-shadow: 0 0 12px rgba(46, 134, 255, 0.55);
+  pointer-events: none;
+}
+
+html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
+  background:
+    radial-gradient(ellipse 88% 145% at 100% 50%, rgba(46, 134, 255, 0.16), transparent 68%),
+    linear-gradient(105deg, rgba(46, 134, 255, 0.13) 0%, rgba(255, 255, 255, 0.62) 48%, rgba(46, 134, 255, 0.1) 100%) !important;
+  border-color: rgba(46, 134, 255, 0.62) !important;
+  box-shadow:
+    0 0 0 1px rgba(46, 134, 255, 0.1),
+    0 8px 22px rgba(46, 134, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(46, 134, 255, 0.12) !important;
+}
+
+[data-theme="dark"] .chat-list-row.zap-conversation-card.is-active {
+  background:
+    radial-gradient(ellipse 88% 145% at 100% 50%, rgba(46, 134, 255, 0.2), transparent 68%),
+    linear-gradient(105deg, rgba(20, 67, 126, 0.72) 0%, rgba(15, 42, 78, 0.82) 48%, rgba(13, 31, 57, 0.9) 100%) !important;
+  border-color: rgba(46, 134, 255, 0.68) !important;
+}
+
 /* Lista dark: cards flat — sem barra/glow nas bordas (tags de status intactas) */
 [data-theme="dark"] .chat-list-row.chat-list-row--atendimento-calm:not(.is-active) {
   background: var(--zaperp-card-bg);

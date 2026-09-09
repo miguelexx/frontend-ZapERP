@@ -6,6 +6,7 @@ import DocumentMessage from "./DocumentMessage";
 import LocationMessage from "./LocationMessage";
 import ContactMessage from "./ContactMessage";
 import PollMessage from "./PollMessage";
+import WhapiTriageMessage from "./WhapiTriageMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
 
 export default function BubbleTypedContent({
@@ -38,6 +39,8 @@ export default function BubbleTypedContent({
     isContact,
     isPoll,
     pollMeta,
+    isInteractive,
+    triageMeta,
     isCall,
     hasText,
     texto,
@@ -126,6 +129,9 @@ export default function BubbleTypedContent({
   }
   if (isPoll) {
     return <PollMessage msg={msg} pollMeta={pollMeta} texto={texto} />;
+  }
+  if (isInteractive) {
+    return <WhapiTriageMessage meta={triageMeta} texto={texto} />;
   }
   if (isContact) {
     return (

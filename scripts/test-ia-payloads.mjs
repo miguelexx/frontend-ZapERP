@@ -36,6 +36,7 @@ assert.deepEqual(buildTriagemPayload(triagemInput), {
   transferMode: "departamento",
   reopenMenuCommand: "0",
   tipo_distribuicao: "fila",
+  usarMenuSetores: false,
   options: [{ key: "1", label: "Suporte", departamento_id: 10, active: true }],
   finalizar_por_ausencia_ativo: false,
   finalizar_por_ausencia_prazo: 24,
