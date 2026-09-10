@@ -832,7 +832,11 @@ export async function getZapiStatus() {
  * por engano. GET /chats/whapi-status (auth simples, todos os perfis).
  */
 export async function getWhapiChannelStatus() {
-  const { data } = await api.get("/chats/whapi-status");
+  // Polling de overlay: nunca spammar toast global se o status falhar.
+  const { data } = await api.get("/chats/whapi-status", {
+    skipGlobal500Toast: true,
+    skipGlobalNetworkToast: true,
+  });
   return data;
 }
 

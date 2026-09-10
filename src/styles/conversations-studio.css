@@ -14,9 +14,6 @@
   border-bottom-color: var(--studio-edge) !important;
   box-shadow: inset 0 1px 0 #ffffff12, 0 3px 12px #0a183007 !important;
 }
-.app-layout--studio #main-content .wa-messages {
-  background: radial-gradient(ellipse at 85% 12%, color-mix(in srgb, var(--studio-accent) 5%, transparent), transparent 65%), var(--ds-bg-base) !important;
-}
 
 .app-layout--studio #main-content .chat-list-heading {
   position: relative;
@@ -321,9 +318,6 @@
   background: linear-gradient(110deg, var(--studio-surface), color-mix(in srgb, var(--studio-accent) 4%, var(--studio-surface))) !important;
   border-bottom-color: var(--studio-edge) !important;
   box-shadow: inset 0 1px 0 #ffffff12, 0 3px 12px #0a183007 !important;
-}
-.app-layout--studio #main-content .wa-messages {
-  background: radial-gradient(ellipse at 85% 12%, color-mix(in srgb, var(--studio-accent) 5%, transparent), transparent 65%), var(--ds-bg-base) !important;
 }
 .app-layout--studio #main-content .wa-footer { box-shadow: inset 0 1px 0 #ffffff12, 0 6px 24px #0c203010; border-color: var(--studio-edge); }
 .app-layout--studio #main-content .wa-footer:focus-within { border-color: color-mix(in srgb, var(--studio-accent) 38%, var(--studio-line)); }
