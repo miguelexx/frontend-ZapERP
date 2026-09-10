@@ -30,6 +30,8 @@ export default function AtendimentoEmptyState() {
 
       <div className="atendimento-empty__inner">
         <div className="studio-scene" aria-hidden="true">
+          <div className="studio-scene__platform" />
+          <div className="studio-scene__connection" />
           <div className="studio-scene__orbit studio-scene__orbit--outer" />
           <div className="studio-scene__orbit studio-scene__orbit--inner" />
           <div className="studio-scene__core"><ZapERPLogo variant="compact" size="lg" interactive={false} /></div>

@@ -3,6 +3,7 @@ import EmptyState from "../components/feedback/EmptyState";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
 import ConversationActionMenu from "./ConversationActionMenu";
 import ChatListRows from "./ChatListRows";
+import ConversationEmptyIllustration from "./ConversationEmptyIllustration";
 
 /**
  * Área rolável + linhas — re-render quando `chatsFiltrados` ou estado de lista mudam.
@@ -112,6 +113,7 @@ function ChatListRowsPane({
             {showPaginationFooter ? (
               <>
                 <EmptyState
+                  icon={<ConversationEmptyIllustration />}
                   title="Carregando conversas…"
                   description="Há mais conversas além desta página. Continue para ver o histórico antigo."
                   actionLabel={loadingMoreChats ? "Carregando…" : "Carregar mais conversas"}
@@ -121,6 +123,7 @@ function ChatListRowsPane({
               </>
             ) : searchAtivo ? (
               <EmptyState
+                icon={<ConversationEmptyIllustration />}
                 title="Nenhum cliente encontrado"
                 description="Nenhum cliente com esse nome ou telefone. Verifique a busca ou cadastre um novo contato."
                 actionLabel="Criar novo contato"
@@ -128,11 +131,13 @@ function ChatListRowsPane({
               />
             ) : tab === "campanhas" ? (
               <EmptyState
+                icon={<ConversationEmptyIllustration />}
                 title="Nenhuma campanha aguardando resposta"
                 description="Contatos que receberam um disparo e ainda não responderam aparecem aqui. Quando o cliente responder, a conversa vai para Minha fila."
               />
             ) : (
               <EmptyState
+                icon={<ConversationEmptyIllustration />}
                 title="Nenhuma conversa encontrada"
                 description="Suas conversas aparecerão aqui quando você receber mensagens ou iniciar um atendimento."
                 actionLabel="Criar novo contato"

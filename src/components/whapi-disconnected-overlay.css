@@ -1,0 +1,116 @@
+/* Overlay vermelho de tela cheia — canal Whapi desconectado.
+   z-index bem acima de qualquer modal/toast do sistema (máx atual ~13000):
+   este é um alerta crítico que precisa cobrir TUDO, inclusive a sidebar. */
+.whapi-down-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: #fff;
+  background: #b00020;
+  background: radial-gradient(circle at 50% 40%, #d5122e 0%, #a2001a 70%, #7d0014 100%);
+  animation: whapi-down-pulse 1.4s ease-in-out infinite;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@keyframes whapi-down-pulse {
+  0%,
+  100% {
+    background: radial-gradient(circle at 50% 40%, #d5122e 0%, #a2001a 70%, #7d0014 100%);
+  }
+  50% {
+    background: radial-gradient(circle at 50% 40%, #ef1e3b 0%, #b30020 70%, #8a0016 100%);
+  }
+}
+
+.whapi-down-overlay__content {
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.whapi-down-overlay__icon {
+  color: #fff;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.35));
+  animation: whapi-down-shake 1.4s ease-in-out infinite;
+}
+
+@keyframes whapi-down-shake {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(-6deg) scale(1.04);
+  }
+  75% {
+    transform: rotate(6deg) scale(1.04);
+  }
+}
+
+.whapi-down-overlay__title {
+  margin: 4px 0 0;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+
+.whapi-down-overlay__lead {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.6vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.whapi-down-overlay__lead strong {
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.whapi-down-overlay__hint {
+  margin: 0;
+  font-size: clamp(0.9rem, 2vw, 1.05rem);
+  font-weight: 500;
+  opacity: 0.92;
+  line-height: 1.45;
+}
+
+.whapi-down-overlay__btn {
+  margin-top: 10px;
+  padding: 14px 30px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #a2001a;
+  background: #fff;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.whapi-down-overlay__btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 28px rgba(0, 0, 0, 0.38);
+}
+
+.whapi-down-overlay__btn:active {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whapi-down-overlay,
+  .whapi-down-overlay__icon {
+    animation: none;
+  }
+}

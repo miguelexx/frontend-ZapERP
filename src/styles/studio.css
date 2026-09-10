@@ -304,11 +304,12 @@ html[data-theme="dark"] {
 }
 @media (max-width: 640px) {
   .app-layout--studio #main-content .chat-list-header { padding: 12px 16px; }
-  .app-layout--studio #main-content .chat-list-header-btn { min-width: 40px; min-height: 40px; }
-  .app-layout--studio #main-content .chat-list-chip { min-height: 40px; padding-inline: 12px; font-size: 12px; }
+  .app-layout--studio #main-content .chat-list-header-btn { min-width: 38px; min-height: 38px; width: 38px; height: 38px; }
+  .app-layout--studio #main-content .chat-list-header-left .zpl--md .zpl-mark { width: 38px; height: 38px; }
+  .app-layout--studio #main-content .chat-list-chip { min-height: 38px; padding-inline: 12px; font-size: 12px; }
   .app-layout--studio #main-content .chat-list-search-input { font-size: 16px; }
   .app-layout--studio #main-content .chat-list-search-box,
-  .app-layout--studio #main-content .admin-atendente-filter__trigger { min-height: 44px; }
+  .app-layout--studio #main-content .admin-atendente-filter__trigger { min-height: 42px; }
   .app-layout--studio #main-content .wa-header-name { font-size: 15px; }
   .app-layout--studio #main-content .wa-footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 }

@@ -91,11 +91,20 @@ function ChatListToolbar({
   return (
     <div className="chat-list-toolbar">
       <div className="chat-list-heading">
-        <div>
+        <div className="chat-list-heading__copy">
           <span className="chat-list-heading__eyebrow">SEU ESPAÇO DE TRABALHO</span>
           <h1>Conversas<span aria-hidden="true">.</span></h1>
+          <p className="chat-list-heading__description">Organize, responda e acompanhe todos os seus atendimentos em um só lugar.</p>
         </div>
-        <span className="chat-list-heading__icon" aria-hidden="true"><IconHeadset size={21} stroke={1.6} /></span>
+        <div className="chat-list-heading__scene" aria-hidden="true">
+          <span className="chat-list-heading__orbit" />
+          <span className="chat-list-heading__plate" />
+          <span className="chat-list-heading__icon">
+            <IconHeadset className="chat-list-heading__headset-depth" size={42} stroke={2.6} />
+            <IconHeadset className="chat-list-heading__headset" size={42} stroke={2.6} />
+          </span>
+          <span className="chat-list-heading__note"><span />Atendimento<br />mais eficiente</span>
+        </div>
       </div>
       <div className="chat-list-search-wrap chat-list-toolbar-row--search">
         <div className="chat-list-search-row">

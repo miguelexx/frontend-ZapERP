@@ -11,6 +11,7 @@ import { installVitePreloadRecovery } from "./runtime/vitePreloadRecovery";
 import "./styles/theme.css";
 import "./styles/app.css";
 import "./styles/studio.css";
+import "./styles/conversations-studio.css";
 
 if (typeof window !== "undefined") {
   installVitePreloadRecovery(window);

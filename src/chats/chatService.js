@@ -824,6 +824,18 @@ export async function getZapiStatus() {
   return data;
 }
 
+/**
+ * Status dedicado do canal Whapi para o overlay vermelho de desconexão.
+ * Backend só devolve { isWhapi:true, connected:false } quando a empresa usa
+ * Whapi E o canal está comprovadamente fora do AUTH; em qualquer outro caso
+ * (provider diferente, erro) devolve connected:true — o overlay nunca aparece
+ * por engano. GET /chats/whapi-status (auth simples, todos os perfis).
+ */
+export async function getWhapiChannelStatus() {
+  const { data } = await api.get("/chats/whapi-status");
+  return data;
+}
+
 /** Finalização por ausência em lote (supervisor/admin). Body: conversa_ids, dry_run?, execute?, confirm? */
 export async function postFinalizacaoAusenciaLote(body) {
   const { data } = await api.post("/chats/finalizacao-ausencia-lote", body || {});

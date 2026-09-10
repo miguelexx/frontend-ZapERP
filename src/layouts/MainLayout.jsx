@@ -35,6 +35,7 @@ import InternalChatGlobalSocketBridge from "../internal-chat/InternalChatGlobalS
 import { useInternalChatNotifyStore, selectInternalChatUnreadTotal } from "../internal-chat/internalChatNotifyStore";
 import HelpDeskGlobalSocketBridge from "../helpdesk/HelpDeskGlobalSocketBridge";
 import { useHelpDeskNotifyStore, selectHelpDeskUnreadTotal } from "../helpdesk/helpDeskNotifyStore";
+import WhapiDisconnectedOverlay from "../components/WhapiDisconnectedOverlay";
 import "../components/layout/skip-link.css";
 
 const THEME_KEY = "theme";
@@ -275,6 +276,7 @@ export default function MainLayout() {
       </a>
       <GlobalNotifications />
       <PushPermissionPrompt />
+      <WhapiDisconnectedOverlay />
       <InternalChatGlobalSocketBridge />
       <HelpDeskGlobalSocketBridge />
       <aside className="sidebar sidebar--compact sidebar--v2" aria-label="Menu">
