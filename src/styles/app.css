@@ -266,6 +266,38 @@ body {
   }
 }
 
+/* Shell fixo em QUALQUER largura (desktop/tablet inclusive): no Atendimento a
+   rolagem acontece só dentro do layout (lista + chat), nunca na janela.
+   Espelha o bloco mobile (≤640px) acima — que já travava html/body/#root — mas
+   fora do media query, pois no desktop faltava e a página inteira rolava,
+   cortando o topo/rodapé. Escopado a :has(.atendimento-layout), então páginas
+   roláveis (Dashboard, CRM, IA) seguem com scroll normal no .main-content. */
+html:has(.atendimento-layout),
+body:has(.atendimento-layout) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body:has(.atendimento-layout) #root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.main-content:has(.atendimento-layout) {
+  overflow: hidden;
+}
+/* Prende o layout ao container (não à viewport): evita o 100dvh aninhado que
+   estourava a altura do shell. */
+.main-content .atendimento-layout {
+  height: 100%;
+  min-height: 0;
+}
+/* Rail de ícones rola internamente em telas baixas, em vez de empurrar o shell. */
+.sidebar--v2 {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 @media (max-width: 480px) {
   html,
   body {
