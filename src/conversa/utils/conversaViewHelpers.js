@@ -873,16 +873,38 @@ export function resolveDownloadFilename(nomeArquivo, mediaUrl) {
  * Constrói URL de acesso via proxy autenticado com filename e disposition corretos.
  * Só usa o proxy para URLs externas; /uploads continua direto.
  */
+/**
+ * Arquivo em /uploads da API: o nome em disco é técnico (ex.: inbound-c1-m2-a1b2.docx) e, com o
+ * frontend em outro host, o navegador ignora `<a download>`. O backend aceita
+ * `?filename=&disposition=` e devolve Content-Disposition com o nome real.
+ */
+function withUploadDownloadHints(href, filename, disposition) {
+  const s = String(href || "").trim();
+  const name = String(filename || "").trim();
+  if (!s || !name) return s;
+  try {
+    const u = new URL(s);
+    if (!u.pathname.startsWith("/uploads/")) return s;
+    const apiOrigin = getApiOrigin();
+    if (apiOrigin && u.origin !== apiOrigin) return s;
+    u.searchParams.set("filename", name);
+    if (disposition) u.searchParams.set("disposition", disposition);
+    return u.toString();
+  } catch {
+    return s;
+  }
+}
+
 function buildMediaAccessHref(rawUrl, rawUrlAbsoluta, filename, disposition) {
   const abs = getMediaUrl(rawUrl, rawUrlAbsoluta);
   if (!abs) return abs;
 
   // Proxy já está na URL: normaliza host/camadas e completa os metadados.
   const normalizedProxy = normalizeExistingMediaProxyUrl(abs, filename, disposition);
-  if (normalizedProxy) return normalizedProxy;
+  if (normalizedProxy) return withUploadDownloadHints(normalizedProxy, filename, disposition);
 
   // URL local (/uploads ou same-origin) — não precisa de proxy.
-  if (!needsProxiedMediaPlayback(abs)) return abs;
+  if (!needsProxiedMediaPlayback(abs)) return withUploadDownloadHints(abs, filename, disposition);
 
   // URL externa — o filename também permite ao backend corrigir MIME genérico.
   const token = getAuthTokenFromStorage();

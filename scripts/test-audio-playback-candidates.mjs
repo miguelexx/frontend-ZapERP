@@ -9,6 +9,7 @@
  * Executar: node --import ./scripts/vite-env-shim.mjs scripts/test-audio-playback-candidates.mjs
  */
 import {
+  buildMediaDownloadHref,
   buildMediaOpenHref,
   buildViewerImageCandidates,
   getMediaPlaybackUrl,
@@ -131,8 +132,32 @@ const BLOB = "blob:http://app.local/abc-123";
   checar("clique usa a foto já visível na bolha", got === src, got);
 }
 
+// 12) "Salvar como…" de arquivo em /uploads leva o nome real (nome em disco é técnico).
+{
+  const href = buildMediaDownloadHref("/uploads/inbound-c1-m2-a1b2c3.docx", null, "Contrato Social — 2026.docx");
+  const parsed = new URL(href);
+  checar("download local continua direto em /uploads", parsed.pathname === "/uploads/inbound-c1-m2-a1b2c3.docx", href);
+  checar("download local não passa pelo proxy", !href.includes("/media/proxy"), href);
+  checar("download local envia filename real", parsed.searchParams.get("filename") === "Contrato Social — 2026.docx", href);
+  checar("download local força attachment", parsed.searchParams.get("disposition") === "attachment", href);
+}
+
+// 13) Abrir PDF local: inline com o nome real (título/salvar do visualizador).
+{
+  const href = buildMediaOpenHref("/uploads/1753600001234-ab12cd.pdf", null, "Boleto março.pdf");
+  const parsed = new URL(href);
+  checar("abrir PDF local usa inline", parsed.searchParams.get("disposition") === "inline", href);
+  checar("abrir PDF local leva o nome", parsed.searchParams.get("filename") === "Boleto março.pdf", href);
+}
+
+// 14) Reprodução (<audio>/<img>) de /uploads não ganha parâmetros extras.
+{
+  const playback = getMediaPlaybackUrl("/uploads/inbound-c1-m2-xyz.ogg", null);
+  checar("playback de /uploads sem query", !playback.includes("?"), playback);
+}
+
 if (falhas > 0) {
   console.error(`\n${falhas} verificação(ões) falharam.`);
   process.exit(1);
 }
-console.log("OK — regressão de mídia/arquivos passou (11 cenários).");
+console.log("OK — regressão de mídia/arquivos passou (14 cenários).");

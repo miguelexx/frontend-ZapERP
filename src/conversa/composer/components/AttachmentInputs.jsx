@@ -47,7 +47,7 @@ export default function AttachmentInputs({
         ref={documentInputRef}
         type="file"
         style={{ display: "none" }}
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html,.htm,.rtf,.zip,.rar,.7z,.xml,.json,.sql,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,text/markdown,text/html,application/rtf,application/zip,application/x-zip-compressed,application/vnd.rar,application/x-rar-compressed,application/x-7z-compressed,application/xml,text/xml,application/json,application/sql"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html,.htm,.rtf,.zip,.rar,.7z,.xml,.json,.sql,.odt,.ods,.odp,.ofx,.rem,.ret,.eml,.msg,.key,.pages,.numbers,.epub,.vcf,.ics,.log,.gz,.tar,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,text/markdown,text/html,application/rtf,application/zip,application/x-zip-compressed,application/vnd.rar,application/x-rar-compressed,application/x-7z-compressed,application/xml,text/xml,application/json,application/sql"
         multiple
         onChange={onDocumentInputChange}
       />
