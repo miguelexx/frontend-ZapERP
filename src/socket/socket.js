@@ -39,6 +39,9 @@ import { getStatusAtendimentoEffective, isClosedAttendance } from "../utils/conv
 
 const TYPING_EXPIRY_MS = 5000
 const typingExpiryTimers = new Map()
+// Expira "digitando/gravando" do contato caso o Whapi não envie "paused"
+const CONTACT_TYPING_EXPIRY_MS = 10000
+const contactPresenceExpiryTimers = new Map()
 let unreadSnapshotSync = null
 let unsubscribeUnreadChanges = null
 let reconnectRecovery = null
@@ -1044,12 +1047,26 @@ export function initSocket(token) {
     const conversa = convStore.conversa
     if (!conversa || String(conversa.id) !== String(selectedId)) return
     if (!presenceMatchesConversa(payload, conversa)) return
+    const _sid = String(selectedId)
+    const status = String(payload.status ?? "").toLowerCase()
     convStore.setContactPresence(selectedId, {
       status: payload.status ?? null,
       last_seen: payload.last_seen ?? null,
       entry_id: payload.chat_id ?? payload.entry_id ?? null,
       source: "socket",
     })
+    // Timer de expiração: se o Whapi não enviar "paused" quando o cliente para de digitar,
+    // limpamos automaticamente após CONTACT_TYPING_EXPIRY_MS
+    if (contactPresenceExpiryTimers.has(_sid)) {
+      clearTimeout(contactPresenceExpiryTimers.get(_sid))
+      contactPresenceExpiryTimers.delete(_sid)
+    }
+    if (status === "typing" || status === "recording") {
+      contactPresenceExpiryTimers.set(_sid, setTimeout(() => {
+        contactPresenceExpiryTimers.delete(_sid)
+        useConversaStore.getState().clearContactPresence(_sid)
+      }, CONTACT_TYPING_EXPIRY_MS))
+    }
   })
 
   /* ===========================
@@ -1863,6 +1880,11 @@ export function disconnectSocket() {
   try {
     typingExpiryTimers.forEach((id) => clearTimeout(id))
     typingExpiryTimers.clear()
+  } catch (_) {}
+
+  try {
+    contactPresenceExpiryTimers.forEach((id) => clearTimeout(id))
+    contactPresenceExpiryTimers.clear()
   } catch (_) {}
 
   try {
