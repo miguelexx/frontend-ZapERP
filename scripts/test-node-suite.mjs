@@ -9,6 +9,7 @@ const WITH_VITE_ENV_SHIM = new Set([
   "test-conversa-bubble.mjs",
   "test-lock-card-avatar.mjs",
   "test-mic-stream-service.mjs",
+  "test-thread-media-prefetch.mjs",
 ]);
 
 const tests = [
@@ -46,6 +47,7 @@ const tests = [
   "test-sequential-messages.mjs",
   "test-specialty-outbound-accept.mjs",
   "test-status-mensagem-batch.mjs",
+  "test-thread-media-prefetch.mjs",
 ];
 
 const failures = [];

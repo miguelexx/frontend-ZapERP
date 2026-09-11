@@ -358,7 +358,7 @@ const Bubble = memo(function Bubble({
               aria-label={`Enviado por ${msg.usuario_nome}`}
               title={`Atendente: ${msg.usuario_nome}`}
             >
-              {msg.usuario_nome}:
+              {msg.usuario_nome}
             </div>
           ) : null}
           {remetente ? (

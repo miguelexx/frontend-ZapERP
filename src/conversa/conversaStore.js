@@ -41,6 +41,7 @@ import {
   stripPersistedIdIfConflictsWithList,
 } from "./conversaOutboundMediaMerge.js"
 import { hydrateOutboxBubblesForConversa } from "./offlineOutbox.js"
+import { prefetchThreadImages } from "./utils/prefetchThreadMedia.js"
 
 export { stableSyntheticMessageKey, mapDedupeKey, getMessageListReactKey, isPendingOutgoingTemp }
 
@@ -917,6 +918,9 @@ export const useConversaStore = create((set, get) => {
         }
         set(nextState)
         writeConversaMensagensCache(normalizedId, nextState)
+        // Aquece o cache das imagens recentes em background para elas já aparecerem carregadas
+        // quando as bolhas montarem (não bloqueia render/scroll; best-effort).
+        prefetchThreadImages(mensagens)
 
         const socket = getSocket?.()
         if (socket && !isEmpresaModoSimplesAtivoCliente()) {

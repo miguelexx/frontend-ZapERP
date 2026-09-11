@@ -193,7 +193,7 @@ Não substitua isso por “espera o POST e só então pinta a bolha”.
 
 ## Mídia
 
-Composer, `PendingMediaPreview`, `ImageSendPreviewMobile`. Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Nome do atendente (`.wa-bubble-atendente`) e remetente de grupo (`.wa-bubble-remetente-nome`): negrito + `:` + uma linha de espaço antes do corpo. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
+Composer, `PendingMediaPreview`, `ImageSendPreviewMobile`. Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
 
 Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard/contato, call, **poll/enquete** (`PollMessage`; meta em `reply_meta.poll`). Renderers em `bubble/components/*`; classificação em `classifyBubbleMessage`. **Nota interna** e movimentação interna continuam em `ThreadRow.jsx` (não passam pela Bubble). Player de áudio: `useAudioPlayback` (`el.load()` ao trocar src; um elemento ativo; pause no unmount). Status visual: `resolveOutgoingTick`. Retry de envio: `getRetryUiState` — reusa o `id` existente, não cria bolha nova.
 

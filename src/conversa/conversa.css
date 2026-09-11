@@ -3102,7 +3102,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   font-size:12px;
   font-weight:500;
 
-  margin-bottom:0;
+  margin-bottom:2px;
 
   color:#667781;
 }
@@ -3934,9 +3934,9 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 .wa-bubble-remetente-nome {
   display: block;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--wa-text);
-  margin-bottom: 1.25rem;
+  margin-bottom: 1px;
   max-width: 100%;
   white-space: normal;
   word-break: break-word;
@@ -3950,7 +3950,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 .wa-bubble-audio .wa-bubble-remetente-nome,
 .wa-bubble.audio-message .wa-bubble-remetente-nome {
-  margin-bottom: 1.25rem;
+  margin-bottom: 4px;
 }
 
 .wa-bubble-media {
@@ -3994,7 +3994,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble.image-message .wa-bubble-remetente-nome {
-  margin-bottom: 1.25rem;
+  margin-bottom: 0;
   line-height: 1.2;
 }
 
@@ -8352,7 +8352,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   display: block;
   align-self: flex-start;
   max-width: 100%;
-  margin: 0 0 1.25rem;
+  margin: 0 0 3px;
   padding: 0;
   color: rgba(10, 21, 38, 0.88);
   font-size: 10px;
