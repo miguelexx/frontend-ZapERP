@@ -503,6 +503,7 @@ export function buildCountsQueryParams({
   dataFim,
   debouncedSearch,
   adminAtendenteFilterId,
+  whatsappInstanceFilter,
 }) {
   const adminPorFuncionario =
     adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "";
@@ -519,6 +520,10 @@ export function buildCountsQueryParams({
     const aid = Number(adminAtendenteFilterId);
     params.atendente_id =
       Number.isFinite(aid) && aid > 0 ? aid : adminAtendenteFilterId;
+  }
+  // Filtro por número WhatsApp (multi-instância): contadores das abas escopados pelo número.
+  if (whatsappInstanceFilter && whatsappInstanceFilter !== "todos") {
+    params.whatsapp_instance_id = whatsappInstanceFilter;
   }
   return params;
 }
@@ -550,6 +555,7 @@ export function buildChatListFetchParams({
   tagFilter,
   departamentoFilter,
   atendenteFilter,
+  whatsappInstanceFilter,
   dataInicio,
   dataFim,
   debouncedSearch,
@@ -683,6 +689,11 @@ export function buildChatListFetchParams({
   if (!searchBypassesTabFilters && tempoParadoFilter) params.tempo_parado = tempoParadoFilter;
   if (!searchBypassesTabFilters && conversaIdsPendenciaQuery != null) {
     params.conversa_ids = conversaIdsPendenciaQuery;
+  }
+
+  // Filtro por número WhatsApp (multi-instância): escopo, vale em todas as abas e também na busca.
+  if (whatsappInstanceFilter && whatsappInstanceFilter !== "todos") {
+    params.whatsapp_instance_id = whatsappInstanceFilter;
   }
 
   return {

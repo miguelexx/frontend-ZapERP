@@ -72,6 +72,7 @@ import {
 import ChatListBody from "./ChatListBody";
 import ChatListHeaderBar from "./ChatListHeaderBar";
 import ChatListAdvancedFiltersPanel from "./ChatListAdvancedFiltersPanel";
+import { useWhatsappInstancesStore } from "./whatsappInstancesStore";
 import { useMinhasPendencias } from "./hooks/useMinhasPendencias";
 import { useWhatsappInstanceStatus } from "./hooks/useWhatsappInstanceStatus";
 import { useChatListFilterState } from "./hooks/useChatListFilterState";
@@ -269,6 +270,7 @@ export default function ChatList() {
     dataInicio,
     dataFim,
     atendenteFilter,
+    whatsappInstanceFilter,
     departamentoFilter,
     mineOnly,
     order,
@@ -288,6 +290,7 @@ export default function ChatList() {
     handleTagFilterChange,
     handleDepartamentoFilterChange,
     handleAtendenteFilterChange,
+    handleWhatsappInstanceFilterChange,
     handleDataInicioChange,
     handleDataFimChange,
     handleMineOnlyChange,
@@ -307,6 +310,13 @@ export default function ChatList() {
     conversaIdsPendenciaQuery,
     filterScopeKey,
   });
+
+  // Multi-instância: números ativos da empresa para o filtro por número (visível só quando há 2+).
+  const whatsappInstances = useWhatsappInstancesStore((s) => s.instances);
+  const showWhatsappInstanceFilter = useWhatsappInstancesStore((s) => s.hasMultiple);
+  useEffect(() => {
+    useWhatsappInstancesStore.getState().load();
+  }, []);
 
   const [chatListPage, setChatListPage] = useState({
     hasMore: false,
@@ -551,6 +561,7 @@ export default function ChatList() {
       dataFim,
       debouncedSearch,
       adminAtendenteFilterId,
+      whatsappInstanceFilter,
     });
     const paramsKey = JSON.stringify(params);
     const now = Date.now();
@@ -594,6 +605,7 @@ export default function ChatList() {
     dataFim,
     debouncedSearch,
     adminAtendenteFilterId,
+    whatsappInstanceFilter,
   ]);
 
   const refreshSupervisaoData = useCallback(async () => {
@@ -676,6 +688,7 @@ export default function ChatList() {
         tagFilter,
         departamentoFilter,
         atendenteFilter,
+        whatsappInstanceFilter,
         dataInicio,
         dataFim,
         debouncedSearch,
@@ -988,6 +1001,7 @@ export default function ChatList() {
     departamentoFilter,
     statusFilter,
     atendenteFilter,
+    whatsappInstanceFilter,
     dataInicio,
     dataFim,
     mineOnly,
@@ -1798,6 +1812,10 @@ export default function ChatList() {
         atendenteFilter={atendenteFilter}
         onAtendenteFilterChange={handleAtendenteFilterChange}
         atendentes={atendentes}
+        showWhatsappInstanceFilter={showWhatsappInstanceFilter}
+        whatsappInstanceFilter={whatsappInstanceFilter}
+        onWhatsappInstanceFilterChange={handleWhatsappInstanceFilterChange}
+        whatsappInstances={whatsappInstances}
         dataInicio={dataInicio}
         onDataInicioChange={handleDataInicioChange}
         dataFim={dataFim}
@@ -1843,6 +1861,10 @@ export default function ChatList() {
       atendenteFilter,
       handleAtendenteFilterChange,
       atendentes,
+      showWhatsappInstanceFilter,
+      whatsappInstanceFilter,
+      handleWhatsappInstanceFilterChange,
+      whatsappInstances,
       dataInicio,
       handleDataInicioChange,
       dataFim,
@@ -1921,6 +1943,7 @@ export default function ChatList() {
         tagFilter={tagFilter}
         departamentoFilter={departamentoFilter}
         atendenteFilter={atendenteFilter}
+        whatsappInstanceFilter={whatsappInstanceFilter}
         mineOnly={mineOnly}
         order={order}
         tab={tab}

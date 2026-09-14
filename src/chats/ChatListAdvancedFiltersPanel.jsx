@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { whatsappInstanceLabel } from "./whatsappInstancesService";
 
 const TEMPO_PARADO_CHIPS = [
   { v: "", l: "Todos" },
@@ -29,6 +30,10 @@ function ChatListAdvancedFiltersPanel({
   atendenteFilter,
   onAtendenteFilterChange,
   atendentes,
+  showWhatsappInstanceFilter = false,
+  whatsappInstanceFilter = "todos",
+  onWhatsappInstanceFilterChange,
+  whatsappInstances,
   dataInicio,
   onDataInicioChange,
   dataFim,
@@ -131,6 +136,23 @@ function ChatListAdvancedFiltersPanel({
             ))}
           </select>
         </label>
+        {showWhatsappInstanceFilter ? (
+          <label className="chat-list-field">
+            <span>Número</span>
+            <select
+              value={whatsappInstanceFilter}
+              onChange={(e) => onWhatsappInstanceFilterChange?.(e.target.value)}
+              className="chat-list-select"
+            >
+              <option value="todos">Todos os números</option>
+              {(whatsappInstances || []).map((inst) => (
+                <option key={inst.id} value={inst.id}>
+                  {whatsappInstanceLabel(inst) || inst.display_phone || inst.instance_id || `Canal ${inst.id}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className="chat-list-field">
           <span>Data início</span>
           <input
@@ -224,6 +246,10 @@ function panelPropsAreEqual(prev, next) {
   if (prev.showSetorFilter !== next.showSetorFilter) return false;
   if (prev.departamentoFilter !== next.departamentoFilter) return false;
   if (prev.atendenteFilter !== next.atendenteFilter) return false;
+  if (prev.showWhatsappInstanceFilter !== next.showWhatsappInstanceFilter) return false;
+  if (prev.whatsappInstanceFilter !== next.whatsappInstanceFilter) return false;
+  if (prev.whatsappInstances !== next.whatsappInstances) return false;
+  if (prev.onWhatsappInstanceFilterChange !== next.onWhatsappInstanceFilterChange) return false;
   if (prev.dataInicio !== next.dataInicio) return false;
   if (prev.dataFim !== next.dataFim) return false;
   if (prev.mineOnly !== next.mineOnly) return false;

@@ -108,6 +108,7 @@ export function buildChatListFilterRequestKey({
   departamentoFilter = "todos",
   statusFilter = "todos",
   atendenteFilter = "todos",
+  whatsappInstanceFilter = "todos",
   dataInicio = "",
   dataFim = "",
   mineOnly = false,
@@ -129,6 +130,7 @@ export function buildChatListFilterRequestKey({
     departamentoFilter,
     statusFilter,
     atendenteFilter,
+    whatsappInstanceFilter,
     dataInicio,
     dataFim,
     mineOnly ? "mine" : "all",
@@ -364,6 +366,7 @@ export function computeChatsFiltrados({
   tagFilter,
   departamentoFilter,
   atendenteFilter,
+  whatsappInstanceFilter,
   mineOnly,
   order,
   tab,
@@ -511,6 +514,11 @@ export function computeChatsFiltrados({
   ) {
     list = list.filter((c) => String(c?.atendente_id ?? "") === String(atendenteFilter));
   }
+  // Filtro por número WhatsApp (multi-instância): alinha a lista ao número escolhido mesmo após
+  // patches de socket (uma mensagem nova de OUTRO número não vaza na lista filtrada). Escopo puro.
+  if (whatsappInstanceFilter && whatsappInstanceFilter !== "todos") {
+    list = list.filter((c) => String(c?.whatsapp_instance_id ?? "") === String(whatsappInstanceFilter));
+  }
 
   // busca: nome ou telefone da linha (sem acento / sem caixa), espelhando o backend.
   // Roda mesmo durante a busca (skipClientSearch é ignorado quando há termo) para que
@@ -581,6 +589,7 @@ export function buildChatListUiFilterDeps(params) {
     tagFilter: params.tagFilter,
     departamentoFilter: params.departamentoFilter,
     atendenteFilter: params.atendenteFilter,
+    whatsappInstanceFilter: params.whatsappInstanceFilter,
     mineOnly: params.mineOnly,
     order: params.order,
     tab: params.tab,
@@ -605,6 +614,7 @@ export function areChatListUiFilterDepsEqual(a, b) {
     a.tagFilter === b.tagFilter &&
     a.departamentoFilter === b.departamentoFilter &&
     a.atendenteFilter === b.atendenteFilter &&
+    a.whatsappInstanceFilter === b.whatsappInstanceFilter &&
     a.mineOnly === b.mineOnly &&
     a.order === b.order &&
     a.tab === b.tab &&

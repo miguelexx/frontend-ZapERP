@@ -8,6 +8,8 @@ import {
   parearInstanciaPorCodigo,
   configurarWebhooksInstancia,
   desconectarInstanciaWhapi,
+  renomearInstanciaWhapi,
+  desativarInstanciaWhapi,
 } from "../api/whapiInstancesService";
 import { whatsappInstanceLabel } from "../chats/whatsappInstancesService";
 import WhapiAntibanLimitsCard from "./WhapiAntibanLimitsCard";
@@ -62,6 +64,8 @@ export default function WhapiConnectPanel({ showToast }) {
   const [nome, setNome] = useState("");
   const [registrando, setRegistrando] = useState(false);
   const [provisionando, setProvisionando] = useState(false);
+  const [adicionando, setAdicionando] = useState(false);
+  const [novoNome, setNovoNome] = useState("");
   const [formError, setFormError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -84,6 +88,9 @@ export default function WhapiConnectPanel({ showToast }) {
   const [webhookMsg, setWebhookMsg] = useState("");
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [deactivateBusy, setDeactivateBusy] = useState(false);
 
   const mountedRef = useRef(false);
   const selectedIdRef = useRef(null);
@@ -206,6 +213,12 @@ export default function WhapiConnectPanel({ showToast }) {
     const preferred = instances.find((inst) => inst.is_default) || instances[0];
     selecionarInstancia(preferred);
   }, [instances, selectedId, selecionarInstancia]);
+
+  // Mantém o campo de renomear em sincronia com o número selecionado.
+  useEffect(() => {
+    const inst = instances.find((i) => String(i.id) === String(selectedId));
+    setRenameValue(inst?.nome || "");
+  }, [selectedId, instances]);
 
   const fetchStatus = useCallback(async (instId, { silent = false } = {}) => {
     if (instId == null) return null;
@@ -424,6 +437,38 @@ export default function WhapiConnectPanel({ showToast }) {
     }
   }
 
+  // Multi-número: cria um canal ADICIONAL (não reaproveita o existente). Ver doc 28 §12/§13.
+  async function handleAdicionarNumero() {
+    setAdicionando(true);
+    setListError("");
+    try {
+      const res = await provisionarInstanciaWhapi({ nome: novoNome.trim(), novo: true });
+      if (!res.ok) {
+        const msg =
+          res.code === "WHAPI_MAX_CHANNELS"
+            ? res.error
+            : res.code === "WHAPI_PARTNER_OFF"
+              ? "Provisionamento automático indisponível. Use o cadastro avançado (Channel ID e token)."
+              : res.error || "Não foi possível criar o número.";
+        showToast?.({ type: "error", title: "Adicionar número", message: msg });
+        if (res.code === "WHAPI_PARTNER_OFF") setShowAdvanced(true);
+        return;
+      }
+      showToast?.({
+        type: "success",
+        title: "Número adicionado",
+        message: "Leia o QR Code no celular para autenticar este número.",
+      });
+      setNovoNome("");
+      const list = await loadInstances({ refresh: true });
+      const novaId = res.instance?.id;
+      const found = list.find((inst) => String(inst.id) === String(novaId)) || res.instance;
+      if (found) selecionarInstancia(found);
+    } finally {
+      if (mountedRef.current) setAdicionando(false);
+    }
+  }
+
   async function handleRegistrar(e) {
     e.preventDefault();
     const idCanal = channelId.trim();
@@ -526,6 +571,53 @@ export default function WhapiConnectPanel({ showToast }) {
     }
   }
 
+  async function handleRenomear() {
+    if (!selectedId) return;
+    const novo = renameValue.trim();
+    if (!novo) {
+      showToast?.({ type: "error", title: "Renomear", message: "Informe um nome para o número." });
+      return;
+    }
+    setRenameBusy(true);
+    try {
+      const res = await renomearInstanciaWhapi(selectedId, novo);
+      if (!mountedRef.current) return;
+      if (res.ok) {
+        showToast?.({ type: "success", title: "Número renomeado", message: `Agora aparece como “${novo}”.` });
+        await loadInstances({ refresh: true });
+      } else {
+        showToast?.({ type: "error", title: "Renomear", message: res.error || "Não foi possível renomear." });
+      }
+    } finally {
+      if (mountedRef.current) setRenameBusy(false);
+    }
+  }
+
+  async function handleDesativar() {
+    if (!selectedId) return;
+    setDeactivateBusy(true);
+    try {
+      const res = await desativarInstanciaWhapi(selectedId);
+      if (!mountedRef.current) return;
+      if (res.ok) {
+        showToast?.({
+          type: "success",
+          title: "Número desativado",
+          message: "Ele para de receber e enviar até ser reativado.",
+        });
+        await loadInstances({ refresh: true });
+      } else {
+        showToast?.({
+          type: "error",
+          title: "Desativar número",
+          message: res.error || "Não foi possível desativar. Se for o número padrão, defina outro como padrão antes.",
+        });
+      }
+    } finally {
+      if (mountedRef.current) setDeactivateBusy(false);
+    }
+  }
+
   const badge = statusBadge(connected, statusLoading);
   const canRetryQr = qrRetryIn == null || qrRetryIn <= 0;
   const empty = instances.length === 0 && !listError;
@@ -557,7 +649,7 @@ export default function WhapiConnectPanel({ showToast }) {
       <section className="whapi-card" aria-labelledby="whapi-lista-title">
         <div className="whapi-actions" style={{ justifyContent: "space-between", marginBottom: 10 }}>
           <h3 id="whapi-lista-title" className="whapi-card-title" style={{ margin: 0 }}>
-            {empty ? "Instâncias" : "Instância Whapi"}
+            {empty ? "Instâncias" : "Números Whapi"}
           </h3>
           <button
             type="button"
@@ -603,6 +695,28 @@ export default function WhapiConnectPanel({ showToast }) {
             })}
           </div>
         )}
+
+        {partnerEnabled && !empty ? (
+          <div className="whapi-actions" style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <input
+              className="ia-input"
+              type="text"
+              placeholder="Nome do novo número (ex.: Vendas)"
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              disabled={adicionando}
+              style={{ maxWidth: 240 }}
+            />
+            <button
+              type="button"
+              className="ia-btn ia-btn--outline"
+              onClick={handleAdicionarNumero}
+              disabled={adicionando || instancesLoading}
+            >
+              {adicionando ? "Criando…" : "+ Adicionar número"}
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {selectedInstance ? (
@@ -727,6 +841,46 @@ export default function WhapiConnectPanel({ showToast }) {
                     ) : null}
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="whapi-manage"
+            style={{ borderTop: "1px solid var(--border, #e5e7eb)", marginTop: 12, paddingTop: 12 }}
+          >
+            <h4 className="whapi-card-title">Gerenciar número</h4>
+            <div className="whapi-actions" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                className="ia-input"
+                type="text"
+                placeholder="Nome do número (ex.: Vendas)"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                disabled={renameBusy}
+                style={{ maxWidth: 240 }}
+              />
+              <button
+                type="button"
+                className="ia-btn ia-btn--outline"
+                onClick={handleRenomear}
+                disabled={renameBusy || !renameValue.trim()}
+              >
+                {renameBusy ? "Salvando…" : "Salvar nome"}
+              </button>
+              {selectedInstance && selectedInstance.is_default ? (
+                <span className="whapi-card-desc" style={{ margin: 0 }}>
+                  Número padrão — defina outro como padrão para poder desativar este.
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="ia-btn ia-btn--outline"
+                  onClick={handleDesativar}
+                  disabled={deactivateBusy}
+                >
+                  {deactivateBusy ? "Desativando…" : "Desativar número"}
+                </button>
               )}
             </div>
           </div>

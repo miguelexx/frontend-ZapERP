@@ -83,6 +83,9 @@ export async function fetchChatCounts(params = {}, options = {}) {
   if (params.atendente_id != null && params.atendente_id !== "" && params.atendente_id !== "todos") {
     q.set("atendente_id", params.atendente_id);
   }
+  if (params.whatsapp_instance_id != null && params.whatsapp_instance_id !== "" && params.whatsapp_instance_id !== "todos") {
+    q.set("whatsapp_instance_id", params.whatsapp_instance_id);
+  }
   if (params.palavra && String(params.palavra).trim()) q.set("palavra", String(params.palavra).trim());
   const query = q.toString();
   const response = await api.get(`/chats/counts${query ? `?${query}` : ""}`, {
@@ -103,6 +106,7 @@ export async function fetchChats(params = {}, options = {}) {
   if (params.data_fim) q.set("data_fim", params.data_fim);
   if (params.status_atendimento && params.status_atendimento !== "todos") q.set("status_atendimento", params.status_atendimento);
   if (params.atendente_id != null && params.atendente_id !== "" && params.atendente_id !== "todos") q.set("atendente_id", params.atendente_id);
+  if (params.whatsapp_instance_id != null && params.whatsapp_instance_id !== "" && params.whatsapp_instance_id !== "todos") q.set("whatsapp_instance_id", params.whatsapp_instance_id);
   if (params.palavra && String(params.palavra).trim()) q.set("palavra", String(params.palavra).trim());
   if (params.incluir_todos_clientes === true || params.incluir_todos_clientes === "1") q.set("incluir_todos_clientes", "1");
   if (params.incluir_colaboradores_encaminhar === true || params.incluir_colaboradores_encaminhar === "1") {

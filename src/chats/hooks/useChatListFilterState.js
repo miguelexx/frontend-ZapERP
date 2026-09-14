@@ -44,6 +44,7 @@ export function useChatListFilterState({
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [atendenteFilter, setAtendenteFilter] = useState("todos");
+  const [whatsappInstanceFilter, setWhatsappInstanceFilter] = useState("todos");
   const [departamentoFilter, setDepartamentoFilter] = useState("todos");
   const [mineOnly, setMineOnly] = useState(false);
   const [order, setOrder] = useState("recentes");
@@ -133,6 +134,7 @@ export function useChatListFilterState({
     departamentoFilter,
     statusFilter,
     atendenteFilter,
+    whatsappInstanceFilter,
     dataInicio,
     dataFim,
     mineOnly,
@@ -153,6 +155,7 @@ export function useChatListFilterState({
     departamentoFilter,
     statusFilter,
     atendenteFilter,
+    whatsappInstanceFilter,
     dataInicio,
     dataFim,
     mineOnly,
@@ -186,6 +189,11 @@ export function useChatListFilterState({
   const handleAtendenteFilterChange = useCallback((value) => {
     clearChatSearch();
     setAtendenteFilter(value);
+  }, [clearChatSearch]);
+
+  const handleWhatsappInstanceFilterChange = useCallback((value) => {
+    clearChatSearch();
+    setWhatsappInstanceFilter(value);
   }, [clearChatSearch]);
 
   const handleDataInicioChange = useCallback((value) => {
@@ -259,6 +267,7 @@ export function useChatListFilterState({
       dataInicio,
       dataFim,
       atendenteFilter,
+      whatsappInstanceFilter,
       departamentoFilter,
       mineOnly,
       order,
@@ -277,6 +286,7 @@ export function useChatListFilterState({
       dataInicio,
       dataFim,
       atendenteFilter,
+      whatsappInstanceFilter,
       departamentoFilter,
       mineOnly,
       order,
@@ -302,6 +312,7 @@ export function useChatListFilterState({
     dataInicio,
     dataFim,
     atendenteFilter,
+    whatsappInstanceFilter,
     departamentoFilter,
     mineOnly,
     order,
@@ -321,6 +332,7 @@ export function useChatListFilterState({
     handleTagFilterChange,
     handleDepartamentoFilterChange,
     handleAtendenteFilterChange,
+    handleWhatsappInstanceFilterChange,
     handleDataInicioChange,
     handleDataFimChange,
     handleMineOnlyChange,

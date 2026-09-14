@@ -63,12 +63,17 @@ export async function listarInstanciasWhapi(opts = {}) {
 /**
  * POST /integrations/whatsapp/instances/provision-whapi
  * Cria o canal na Partner API e grava no ZapERP. Sem Channel ID/token no body.
+ *
+ * `novo: true` força a criação de um canal ADICIONAL (multi-número) em vez de reaproveitar
+ * o existente. Sem a flag, o backend é idempotente por empresa (devolve o canal atual).
+ * Ver docs/ai-handoff/28-MULTIPLOS-NUMEROS-WHAPI.md (§12).
  */
-export async function provisionarInstanciaWhapi({ nome } = {}) {
+export async function provisionarInstanciaWhapi({ nome, novo = false } = {}) {
   try {
     const body = {};
     const rotulo = String(nome ?? "").trim();
     if (rotulo) body.nome = rotulo;
+    if (novo === true) body.novo = true;
     const { data, status } = await api.post(`${WHATSAPP_BASE}/instances/provision-whapi`, body);
     return {
       status,
@@ -271,6 +276,36 @@ export async function configurarWebhooksInstancia(instanceId) {
       error: parsed.error,
       raw: parsed.raw,
     };
+  }
+}
+
+/**
+ * PATCH /integrations/whatsapp/instances/:id  { nome }
+ * Renomeia o número (rótulo exibido na lista e no badge do atendimento).
+ */
+export async function renomearInstanciaWhapi(instanceId, nome) {
+  try {
+    const { data, status } = await api.patch(`${WHATSAPP_BASE}/instances/${instanceId}`, {
+      nome: String(nome ?? "").trim(),
+    });
+    return { status, ok: true, instance: data?.instance || null, error: null };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Não foi possível renomear o número.");
+    return { status: parsed.status, ok: false, instance: null, error: parsed.error };
+  }
+}
+
+/**
+ * POST /integrations/whatsapp/instances/:id/deactivate
+ * Desativa o número (para de receber/enviar). Reversível. O backend recusa desativar o número padrão.
+ */
+export async function desativarInstanciaWhapi(instanceId) {
+  try {
+    const { data, status } = await api.post(`${WHATSAPP_BASE}/instances/${instanceId}/deactivate`);
+    return { status, ok: true, instance: data?.instance || null, error: null };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Não foi possível desativar o número.");
+    return { status: parsed.status, ok: false, instance: null, error: parsed.error };
   }
 }
 
