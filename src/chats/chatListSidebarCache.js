@@ -9,7 +9,9 @@
  */
 
 const SIDEBAR_TTL_MS = 2 * 60 * 1000;
-const FILTER_ROWS_TTL_MS = 120 * 1000;
+// Cache de filtro é apenas stale-while-revalidate: filas/status mudam com
+// frequência e não devem sobreviver por mais que uma janela curta.
+const FILTER_ROWS_TTL_MS = 45 * 1000;
 const FILTER_ROWS_MEMORY_MAX = 24;
 const filterRowsMemoryCache = new Map();
 let cacheRevision = 0;

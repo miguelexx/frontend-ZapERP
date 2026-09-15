@@ -2254,38 +2254,14 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   min-width: 0;
 }
 
-.chat-list-setor-line {
-  display: flex;
-  align-items: baseline;
-  gap: 0;
-  min-width: 0;
-  max-width: 100%;
-  margin-top: 1px;
-}
-
 .chat-list-setor {
-  margin-top: 0;
+  margin-top: 1px;
   font-size: var(--cl-font-size-xs);
   color: var(--cl-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  flex: 0 1 auto;
-  max-width: 52%;
-}
-
-.chat-list-setor-line > .chat-list-setor:only-child {
-  max-width: 100%;
-}
-
-.chat-list-setor-sep {
-  flex: 0 0 auto;
-  margin: 0 6px;
-  font-size: 10px;
-  line-height: 1;
-  color: var(--cl-text-muted);
-  opacity: 0.38;
 }
 
 .chat-list-encontrado-por {
@@ -2310,33 +2286,15 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   opacity: .9;
 }
 
-.chat-list-empresa {
-  margin-top: 0;
-  font-size: 10px;
-  line-height: 1.2;
-  font-weight: 400;
-  letter-spacing: 0.02em;
+.chat-list-empresa{
+  margin-top: 1px;
+  font-size: var(--cl-font-size-xs);
   color: var(--cl-text-muted);
-  opacity: 0.52;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  flex: 1 1 0;
-}
-
-.chat-list-setor-line > .chat-list-empresa:only-child {
-  flex: 1 1 auto;
-  max-width: 100%;
-  font-size: 10px;
-}
-
-[data-theme="dark"] .chat-list-empresa {
-  opacity: 0.48;
-}
-
-.chat-list-row.is-active .chat-list-empresa {
-  opacity: 0.58;
+  opacity: .92;
 }
 
 .chat-list-assignee {
@@ -4070,15 +4028,10 @@ html:not([data-theme="dark"]) .chat-list-status-tech-staff-main.zap-badge-aguard
 
   .chat-list-subline,
   .chat-list-setor,
-  .chat-list-assignee {
+  .chat-list-assignee,
+  .chat-list-empresa {
     font-size: 11px;
     line-height: 1.25;
-  }
-
-  .chat-list-empresa {
-    font-size: 10px;
-    line-height: 1.2;
-    font-weight: 400;
   }
 
   .chat-list-preview {

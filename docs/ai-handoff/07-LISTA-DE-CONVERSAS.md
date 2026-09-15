@@ -153,7 +153,3 @@ As correções desta auditoria foram verificadas por leitura de fluxo, TypeScrip
 - sanitizeChatRowForSidebarCache conserva nove campos escalares de modo simples, campanha, finalização automática, reabertura e pagamento. Cache antigo só ganha esses campos ao ser regravado; formato e TTL permanecem.
 - Regra atual de resync preservada: aproximadamente seis eventos ou cinco segundos, com force imediato. Referências históricas acima a throttle de 2,5s não descrevem esse hook atual.
 - Não há certificação integral: guard de membership otimista pode bloquear rollback; Minha fila pode truncar pelo badge desatualizado; estimativa de altura e outros cenários precisam da validação descrita no relatório. Não retirar proteções nem religar medidas dinâmicas preventivamente.
-
-## Empresa no card (CONFIRMADO 2026-09-15)
-
-O nome da empresa do cliente (`cliente.empresa` / `cliente_empresa`) não ocupa mais uma linha própria. Fica na mesma linha do setor (`.chat-list-setor-line`), com fonte ~10px e opacidade baixa. Sem setor, a linha mostra só a empresa. `estimateChatListRowSize` conta uma única linha de meta (`hasSetorLine`). No mobile, a empresa não herda o `font-weight: 700` da lista.

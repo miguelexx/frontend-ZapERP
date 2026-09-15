@@ -19,6 +19,12 @@ export function createOptimisticTempId() {
 
 let optimisticOrderCounter = 0;
 
+function namesLookTheSame(a, b) {
+  const x = String(a || "").trim().toLowerCase();
+  const y = String(b || "").trim().toLowerCase();
+  return Boolean(x && y && x === y);
+}
+
 /**
  * Âncora da bolha otimista: nunca anterior à última mensagem já na thread.
  * `Date.now()` perde para `criado_em` do servidor quando o relógio local atrasou
@@ -36,89 +42,29 @@ export function resolveOptimisticCriadoEm(nowMs, existingMensagens = []) {
   return new Date(ms).toISOString();
 }
 
-function nameKey(v) {
-  return String(v || "").trim().toLowerCase();
-}
-
-function isBlockedAttendantName(nome, blockedKeys) {
-  const key = nameKey(nome);
-  return !key || (blockedKeys instanceof Set && blockedKeys.has(key));
-}
-
 /**
- * Nome do atendente na bolha otimista.
- * O JWT atual vence quando não é o título do chat nem um nome bloqueado
- * (instância WhatsApp / pushname de fromMe do aparelho). Só então herda o
- * último `usuario_nome` já confirmado na thread.
+ * Nome do atendente na bolha otimista. Não usa o nome do contato/conversa
+ * (JWT ou `user.nome` às vezes coincide com o título do chat de teste).
  */
-export function pickOptimisticUsuarioNome({
-  authNome,
-  contactNome,
-  lastOutgoingNomes = [],
-  excludedNomes = [],
-} = {}) {
-  const blocked = new Set(
-    [contactNome, ...(Array.isArray(excludedNomes) ? excludedNomes : [])]
-      .map(nameKey)
-      .filter(Boolean)
-  );
-  const usable = (n) => {
-    const t = String(n || "").trim();
-    return Boolean(t) && !isBlockedAttendantName(t, blocked);
-  };
-
-  const extras = Array.isArray(lastOutgoingNomes) ? lastOutgoingNomes : [];
+export function pickOptimisticUsuarioNome({ authNome, contactNome, lastOutgoingNomes = [] } = {}) {
   const auth = String(authNome || "").trim();
-  if (usable(auth)) return auth;
+  const contact = String(contactNome || "").trim();
+  if (auth && !namesLookTheSame(auth, contact)) return auth;
+  const extras = Array.isArray(lastOutgoingNomes) ? lastOutgoingNomes : [];
   for (let i = 0; i < extras.length; i++) {
     const nome = String(extras[i] || "").trim();
-    if (usable(nome)) return nome;
+    if (nome && !namesLookTheSame(nome, contact)) return nome;
   }
-  return "";
+  return auth;
 }
 
-function isPersistedZapErpOutgoing(m, userId) {
-  if (!isOutgoingLike(m)) return false;
-  if (m.enviado_por_usuario !== true && m.enviado_por_usuario !== 1) return false;
-  const id = m.id ?? m.mensagem_id;
-  if (id == null || String(id).trim() === "" || String(id).startsWith("temp")) return false;
-  if (m.tempId && (m.whatsapp_id == null || String(m.whatsapp_id).trim() === "") && String(m.status || m.status_mensagem || "").toLowerCase() === "pending") {
-    return false;
-  }
-  if (userId != null && String(userId).trim() !== "") {
-    const autor = m.autor_usuario_id ?? m.usuario_id;
-    if (autor != null && String(autor).trim() !== "" && String(autor) !== String(userId)) return false;
-  }
-  return true;
-}
-
-function lastOutgoingUsuarioNomesFromStore(mensagens, userId) {
+function lastOutgoingUsuarioNomesFromStore(mensagens) {
   const list = Array.isArray(mensagens) ? mensagens : [];
   const names = [];
   for (let i = list.length - 1; i >= 0 && names.length < 8; i--) {
     const m = list[i];
-    if (!isPersistedZapErpOutgoing(m, userId)) continue;
-    const n = String(m?.usuario_nome || "").trim();
-    if (n) names.push(n);
-  }
-  return names;
-}
-
-function excludedNomesFromThread(mensagens, conversa) {
-  const names = [];
-  const instanceNome = String(
-    conversa?.whatsapp_instance_nome ||
-      conversa?.whatsappInstanceNome ||
-      conversa?.whatsapp_instance_display_phone ||
-      ""
-  ).trim();
-  if (instanceNome) names.push(instanceNome);
-  const list = Array.isArray(mensagens) ? mensagens : [];
-  for (let i = list.length - 1; i >= 0 && names.length < 12; i--) {
-    const m = list[i];
     if (!isOutgoingLike(m)) continue;
-    if (m.enviado_por_usuario === true || m.enviado_por_usuario === 1) continue;
-    const n = String(m?.usuario_nome || m?.remetente_nome || m?.pushname || "").trim();
+    const n = String(m?.usuario_nome || "").trim();
     if (n) names.push(n);
   }
   return names;
@@ -158,21 +104,19 @@ function currentUserAuthorFields() {
   const authNome = String(user?.nome ?? user?.name ?? user?.nome_completo ?? "").trim();
   let contactNome = "";
   let lastOutgoingNomes = [];
-  let excludedNomes = [];
   try {
     const st = useConversaStore.getState?.();
     contactNome = st?.conversa ? String(getDisplayName(st.conversa) || "").trim() : "";
-    lastOutgoingNomes = lastOutgoingUsuarioNomesFromStore(st?.mensagens, user?.id);
-    excludedNomes = excludedNomesFromThread(st?.mensagens, st?.conversa);
+    lastOutgoingNomes = lastOutgoingUsuarioNomesFromStore(st?.mensagens);
   } catch {
     contactNome = "";
     lastOutgoingNomes = [];
-    excludedNomes = [];
   }
-  const nome = pickOptimisticUsuarioNome({ authNome, contactNome, lastOutgoingNomes, excludedNomes });
+  const nome = pickOptimisticUsuarioNome({ authNome, contactNome, lastOutgoingNomes });
+  if (!nome) return {};
   return {
     enviado_por_usuario: true,
-    ...(nome ? { usuario_nome: nome } : {}),
+    usuario_nome: nome,
     ...(user?.id != null && String(user.id).trim() !== "" ? { autor_usuario_id: user.id } : {}),
   };
 }

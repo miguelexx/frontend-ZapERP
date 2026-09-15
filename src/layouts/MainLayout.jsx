@@ -66,14 +66,10 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const { logout, user } = useAuthStore();
   const isMobileBottomNav = useMatchMedia("(max-width: 768px)");
-  const unreadAtendimentoTotal = useChatStore((s) => {
-    const list = s.chats || [];
-    let n = 0;
-    for (let i = 0; i < list.length; i++) {
-      n += Number(list[i]?.unread_count ?? list[i]?.unread ?? 0) || 0;
-    }
-    return n;
-  });
+  // `unreadTotal` já é a contagem canônica reconciliada pelo snapshot do
+  // servidor. Evita percorrer todas as linhas a cada evento/atualização do
+  // socket apenas para pintar o indicador da navegação mobile.
+  const unreadAtendimentoTotal = useChatStore((s) => Number(s.unreadTotal) || 0);
   const showAtendimentoUnreadDot = isMobileBottomNav && unreadAtendimentoTotal > 0;
   const internalChatUnreadTotal = useInternalChatNotifyStore(selectInternalChatUnreadTotal);
   const showInternalChatUnreadDot = internalChatUnreadTotal > 0;

@@ -1072,6 +1072,7 @@ body:has(.atendimento-layout) #root {
   .atendimento-sidebar .chat-list-preview,
   .atendimento-sidebar .chat-list-setor,
   .atendimento-sidebar .chat-list-subline,
+  .atendimento-sidebar .chat-list-empresa,
   .atendimento-sidebar .chat-list-time,
   .atendimento-sidebar .chat-list-chip,
   .atendimento-sidebar .chat-list-status,
