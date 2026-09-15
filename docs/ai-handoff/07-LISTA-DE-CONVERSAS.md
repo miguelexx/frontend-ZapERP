@@ -22,7 +22,7 @@ Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instanc
 | Header/Toolbar/AdvancedFilters | UI de filtros |
 | `hooks/useChatListFilterState.js` | estado serializável (abas, busca, avançados); `useChatListFilters.js` continua o compute in-memory no Body |
 | `hooks/useWhatsappInstanceStatus.js` | banner WhatsApp desconectado (`GET /chats/zapi-status`, nome legado) |
-| `hooks/useWhapiChannelStatus.js` | overlay vermelho de tela cheia (`GET /chats/whapi-status`); só acende se **todos** os canais Whapi ativos estiverem fora do AUTH. Montado em `MainLayout` via `WhapiDisconnectedOverlay` |
+| `hooks/useWhapiChannelStatus.js` | overlay vermelho (`GET /chats/whapi-status`); só acende com sessão comprovadamente caída. `not_configured` não pinta a tela. Em `MainLayout` via `WhapiDisconnectedOverlay` (oculto em `/configuracoes`) |
 | `hooks/useChatListPagination.js` | carregar mais + auto-avanço de página vazia |
 | `hooks/useChatListResync.js` | nonce do store (debounce no **store**, não no hook), refresh 5 min, `zapi_sync_contatos` |
 | `hooks/useChatListCounts.js` | deriva números dos chips a partir de `chatFilterCounts` já carregados |
