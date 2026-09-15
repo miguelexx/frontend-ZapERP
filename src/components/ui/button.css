@@ -12,11 +12,12 @@
   border: none;
   cursor: pointer;
   transition:
-    background var(--ds-transition),
+    transform 120ms var(--ds-motion-ease),
+    background-color 140ms ease,
     color var(--ds-transition),
-    border-color var(--ds-transition),
-    box-shadow var(--ds-transition),
-    transform var(--ds-transition-fast);
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
 }
 
 .ds-btn:disabled {
@@ -25,7 +26,7 @@
 }
 
 .ds-btn:not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
 .ds-btn:focus-visible {

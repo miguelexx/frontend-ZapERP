@@ -70,7 +70,7 @@ function PendingMediaPreview({
   pendingCaption,
   onCaptionChange,
   sending,
-  headerCompact,
+  headerCompact: _headerCompact,
   rootRef,
   captionRef,
   onCancel,
@@ -78,7 +78,6 @@ function PendingMediaPreview({
   onConfirmSendImageMobile,
 }) {
   const useUnifiedImageSendPreview =
-    headerCompact &&
     pendingFile &&
     pendingPreview &&
     isEditableImageForSend(pendingFile);

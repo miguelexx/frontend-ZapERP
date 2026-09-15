@@ -12,6 +12,8 @@ import "./styles/theme.css";
 import "./styles/app.css";
 import "./styles/studio.css";
 import "./styles/conversations-studio.css";
+import "./styles/zap-animations.css";
+import "./styles/premium-interactions.css";
 
 if (typeof window !== "undefined") {
   installVitePreloadRecovery(window);

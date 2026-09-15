@@ -57,6 +57,7 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
         WebkitOverflowScrolling: "touch",
         overscrollBehavior: "contain",
         zIndex: 10002,
+        transformOrigin: "bottom center",
       });
       return;
     }
@@ -105,6 +106,7 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
       overflowY: maxHeight < menuH - 4 ? "auto" : "visible",
       WebkitOverflowScrolling: "touch",
       zIndex: 10002,
+      transformOrigin: `${placed === "up" ? "bottom" : "top"} ${Math.round(clamp(rect.right - left, 0, w))}px`,
     });
   }, [menuUsesBottomSheet]);
 

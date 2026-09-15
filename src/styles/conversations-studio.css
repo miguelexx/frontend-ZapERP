@@ -214,6 +214,9 @@
 @media (max-width: 640px) {
   .app-layout--studio #main-content .chat-list-heading { padding: 6px 14px; grid-template-columns: minmax(0, 1fr) 112px; }
   .app-layout--studio #main-content .chat-list-heading h1 { font-size: 18px; }
+  /* iOS Safari dá zoom no foco se o input tiver fonte < 16px. Esta regra precisa
+     ficar depois do compact 13px deste arquivo, senão o zoom volta no telefone. */
+  .app-layout--studio #main-content .chat-list-search-input { font-size: 16px; }
 }
 @media (max-height: 740px) {
   .app-layout--studio #main-content .chat-list-heading { padding-block: 6px; }

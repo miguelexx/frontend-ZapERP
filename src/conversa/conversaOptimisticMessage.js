@@ -2,7 +2,8 @@ import { useChatStore } from "../chats/chatsStore";
 import { useConversaStore } from "./conversaStore";
 import { useAuthStore } from "../auth/authStore";
 import { isGroupConversation } from "../utils/conversaUtils";
-import { allocStableInsertSeq } from "./conversaOutboundMediaMerge";
+import { getDisplayName } from "../chats/chatListDisplay";
+import { allocStableInsertSeq, isOutgoingLike, toMillis } from "./conversaOutboundMediaMerge";
 import {
   fileToPreviewURL,
   getAudioFilename,
@@ -18,6 +19,57 @@ export function createOptimisticTempId() {
 
 let optimisticOrderCounter = 0;
 
+function namesLookTheSame(a, b) {
+  const x = String(a || "").trim().toLowerCase();
+  const y = String(b || "").trim().toLowerCase();
+  return Boolean(x && y && x === y);
+}
+
+/**
+ * Âncora da bolha otimista: nunca anterior à última mensagem já na thread.
+ * `Date.now()` perde para `criado_em` do servidor quando o relógio local atrasou
+ * alguns ms (envio em sequência no mesmo minuto) — a bolha nascia no meio e
+ * só ia para o fim na reconciliação (~1s).
+ */
+export function resolveOptimisticCriadoEm(nowMs, existingMensagens = []) {
+  let ms = Number(nowMs);
+  if (!Number.isFinite(ms)) ms = Date.now();
+  const list = Array.isArray(existingMensagens) ? existingMensagens : [];
+  for (let i = 0; i < list.length; i++) {
+    const t = toMillis(list[i]?.criado_em);
+    if (Number.isFinite(t) && t >= ms) ms = t + 1;
+  }
+  return new Date(ms).toISOString();
+}
+
+/**
+ * Nome do atendente na bolha otimista. Não usa o nome do contato/conversa
+ * (JWT ou `user.nome` às vezes coincide com o título do chat de teste).
+ */
+export function pickOptimisticUsuarioNome({ authNome, contactNome, lastOutgoingNomes = [] } = {}) {
+  const auth = String(authNome || "").trim();
+  const contact = String(contactNome || "").trim();
+  if (auth && !namesLookTheSame(auth, contact)) return auth;
+  const extras = Array.isArray(lastOutgoingNomes) ? lastOutgoingNomes : [];
+  for (let i = 0; i < extras.length; i++) {
+    const nome = String(extras[i] || "").trim();
+    if (nome && !namesLookTheSame(nome, contact)) return nome;
+  }
+  return auth;
+}
+
+function lastOutgoingUsuarioNomesFromStore(mensagens) {
+  const list = Array.isArray(mensagens) ? mensagens : [];
+  const names = [];
+  for (let i = list.length - 1; i >= 0 && names.length < 8; i--) {
+    const m = list[i];
+    if (!isOutgoingLike(m)) continue;
+    const n = String(m?.usuario_nome || "").trim();
+    if (n) names.push(n);
+  }
+  return names;
+}
+
 /**
  * Timestamp + seq monotônicos — envios rápidos não colidem na ordenação/dedupe.
  * O `_stableInsertSeq` vem do MESMO alocador global das mensagens recebidas ao vivo
@@ -27,8 +79,14 @@ let optimisticOrderCounter = 0;
  */
 function nextOptimisticInsertTiming() {
   const ord = optimisticOrderCounter++;
+  let existing = [];
+  try {
+    existing = useConversaStore.getState?.().mensagens || [];
+  } catch {
+    existing = [];
+  }
   return {
-    criado_em: new Date(Date.now() + ord).toISOString(),
+    criado_em: resolveOptimisticCriadoEm(Date.now() + ord, existing),
     _stableInsertSeq: allocStableInsertSeq(),
   };
 }
@@ -43,9 +101,24 @@ function nextOptimisticInsertTiming() {
  */
 function currentUserAuthorFields() {
   const user = useAuthStore.getState?.().user;
-  const nome = String(user?.nome ?? user?.name ?? "").trim();
+  const authNome = String(user?.nome ?? user?.name ?? user?.nome_completo ?? "").trim();
+  let contactNome = "";
+  let lastOutgoingNomes = [];
+  try {
+    const st = useConversaStore.getState?.();
+    contactNome = st?.conversa ? String(getDisplayName(st.conversa) || "").trim() : "";
+    lastOutgoingNomes = lastOutgoingUsuarioNomesFromStore(st?.mensagens);
+  } catch {
+    contactNome = "";
+    lastOutgoingNomes = [];
+  }
+  const nome = pickOptimisticUsuarioNome({ authNome, contactNome, lastOutgoingNomes });
   if (!nome) return {};
-  return { enviado_por_usuario: true, usuario_nome: nome };
+  return {
+    enviado_por_usuario: true,
+    usuario_nome: nome,
+    ...(user?.id != null && String(user.id).trim() !== "" ? { autor_usuario_id: user.id } : {}),
+  };
 }
 
 function normalizeOptimisticConversaId(conversaId) {

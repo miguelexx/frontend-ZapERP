@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import useMotionPresence from "../../../components/ui/useMotionPresence";
 import {
   IconCamera as TablerCamera,
   IconChartBar,
@@ -42,6 +43,8 @@ export default function AttachmentMenu({
   onOpenPoll,
   onUpdateAutoCorrectPreference,
 }) {
+  const motion = useMotionPresence(open);
+  const motionProps = { "data-motion-state": motion.state, inert: !open ? "" : undefined, "aria-hidden": !open || undefined };
   const items = (
     <>
       <div className="wa-attachMenu-head">
@@ -241,7 +244,7 @@ export default function AttachmentMenu({
       >
         <IconPlus />
       </button>
-      {open
+      {motion.present
         ? portal && typeof document !== "undefined"
           ? createPortal(
               <>
@@ -250,9 +253,11 @@ export default function AttachmentMenu({
                   className="wa-attachBackdrop wa-attachBackdrop--portal"
                   aria-label="Fechar opções de anexo"
                   onClick={onClose}
+                  style={!open ? { pointerEvents: "none" } : undefined}
                 />
                 <div
                   ref={panelRef}
+                  {...motionProps}
                   className="wa-attachMenu wa-attachMenu--portal"
                   role="menu"
                   aria-label="Anexos"
@@ -263,7 +268,7 @@ export default function AttachmentMenu({
               document.body
             )
           : (
-              <div ref={panelRef} className="wa-attachMenu" role="menu" aria-label="Anexos">
+              <div ref={panelRef} {...motionProps} className="wa-attachMenu" role="menu" aria-label="Anexos">
                 {items}
               </div>
             )

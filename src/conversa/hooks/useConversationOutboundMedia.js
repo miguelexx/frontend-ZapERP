@@ -668,7 +668,7 @@ export function useConversationOutboundMedia({
   }, [pendingFile, pendingCaption, pendingSendOptions, conversaId, clearPending, handleEnviarArquivo]);
   
   const handleConfirmSendImageMobile = useCallback(
-    async ({ sendAsOriginal, croppedAreaPixels, rotation, fileName, mimeType }) => {
+    async ({ sendAsOriginal, croppedAreaPixels, fileName, mimeType, imageSrc, filterId, strokes }) => {
       if (!pendingFile || !pendingPreview || confirmSendLockRef.current) return;
       if (pendingConversaIdRef.current && String(pendingConversaIdRef.current) !== String(conversaId)) {
         clearPending();
@@ -678,12 +678,17 @@ export function useConversationOutboundMedia({
       try {
         const captionToSend = pendingCaption;
         let fileToSend = pendingFile;
-        if (!sendAsOriginal && croppedAreaPixels) {
-          const { exportCroppedImageFile } = await import("../utils/imageCropExport.js");
-          fileToSend = await exportCroppedImageFile({
-            imageSrc: pendingPreview,
+        const sourceUrl = imageSrc || pendingPreview;
+        const { exportEditedImageFile, getImageSendFilterCss } = await import("../utils/imageCropExport.js");
+        const filterCss = getImageSendFilterCss(filterId);
+        const hasDraw = Array.isArray(strokes) && strokes.length > 0;
+        const hasFilter = filterCss && filterCss !== "none";
+        if (!sendAsOriginal && (croppedAreaPixels || hasDraw || hasFilter || sourceUrl !== pendingPreview)) {
+          fileToSend = await exportEditedImageFile({
+            imageSrc: sourceUrl,
             pixelCrop: croppedAreaPixels,
-            rotation: rotation || 0,
+            filterCss,
+            strokes: hasDraw ? strokes : [],
             fileName: fileName || pendingFile.name,
             mimeType: mimeType || pendingFile.type,
           });

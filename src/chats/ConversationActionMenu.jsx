@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import useMotionPresence from "../components/ui/useMotionPresence";
 
 const MENU_WIDTH = 232;
 const MENU_GAP = 6;
@@ -17,6 +18,8 @@ export default function ConversationActionMenu({
   onAction,
 }) {
   const menuRef = useRef(null);
+  const motion = useMotionPresence(isOpen);
+  const retainedActions = useRef([]);
   const [focusedIdx, setFocusedIdx] = useState(0);
   const [position, setPosition] = useState({ top: 0, left: 0, placement: "bottom" });
 
@@ -24,8 +27,11 @@ export default function ConversationActionMenu({
     () => (Array.isArray(actions) ? actions.filter((a) => a?.visible !== false) : []),
     [actions]
   );
+  useLayoutEffect(() => {
+    if (isOpen) retainedActions.current = availableActions;
+  }, [isOpen, availableActions]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen || !anchorRect) return;
     const menuHeight = menuRef.current?.offsetHeight || 232;
     const viewportW = window.innerWidth;
@@ -78,7 +84,7 @@ export default function ConversationActionMenu({
     };
   }, [isOpen, onRequestClose]);
 
-  if (!isOpen || !anchorRect) return null;
+  if (!motion.present) return null;
 
   const onKeyDown = (e) => {
     if (!availableActions.length) return;
@@ -112,13 +118,16 @@ export default function ConversationActionMenu({
   return createPortal(
     <div
       ref={menuRef}
+      data-motion-state={motion.state}
+      inert={!isOpen ? "" : undefined}
+      aria-hidden={!isOpen || undefined}
       className={`conversation-action-menu is-${position.placement}`}
       role="menu"
       aria-label="Ações da conversa"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
       onKeyDown={onKeyDown}
     >
-      {availableActions.map((action, idx) => (
+      {(isOpen ? availableActions : retainedActions.current).map((action, idx) => (
         <button
           key={action.id}
           type="button"

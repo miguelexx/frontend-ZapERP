@@ -46,6 +46,10 @@ Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRES
 
 **Texto longo sem espaço (CONFIRMADO 2026-09-02):** token/hash/URL esticava a bolha (`overflow-wrap: break-word` não reduz min-content). Bolha/texto/legenda usam `overflow-wrap: anywhere`. Texto + hora inline vai em `.wa-bubble-textBody`.
 
+**Seleção de texto na bolha (CONFIRMADO 2026-09-14):** no desktop (`hover: hover` + `pointer: fine`, sem `.wa-bubble--mobileUx` e fora do `selectMode`) o texto/legenda/link da mensagem pode ser destacado com o mouse (arrastar, duplo clique, Ctrl+C), como no WhatsApp Web. O `selectstart` da bolha só chama `preventDefault` em `selectMode` ou `mobileMessageChrome` — no toque a seleção nativa continua bloqueada para o long-press do menu não abrir o highlight azul do iOS. Horário/ticks (`.wa-inlineMeta`) não entram na seleção.
+
+**Selecionar uma mensagem com o mouse (CONFIRMADO 2026-09-14):** o círculo ao lado da bolha no hover é **reação**, não seleção. Para marcar aquela mensagem: (1) checkbox vazio `.wa-selectChk--hover` ao lado da bolha no desktop; (2) **Ctrl+clique** (Cmd no Mac) na linha; (3) menu ▾ → **Selecionar**. Isso chama `startSelect` e abre a barra `.wa-selectBar`. No modo seleção, clicar a linha/bolha alterna o checkbox. Mobile: long-press → Selecionar. O hover-checkbox não aparece em `pointer: coarse`.
+
 **Cores da nota interna e do modal de atendentes (CONFIRMADO 2026-09-02):** a nota usava texto âmbar claro (`prefers-color-scheme: dark` sem guard de `data-theme`) em card beige — contraste baixo. Card/composer agora têm tokens `--note-*` opacos no próprio card; dark só com `[data-theme=dark]` ou `html:not([data-theme=light])`. Modal `AtendentesModal` (`atendentes.css`): avatares/busca/botão Adicionar no verde `--ds-accent` (sumiu o roxo `#7c3aed`); cargo/empty usam `--ds-text-secondary` / `#cbd5e1` no dark. CSS em `conversa.css` (`.wa-internalNote-*`, `.wa-footer--nota`, `.wa-notaBadge`) e `atendimento/atendentes.css`.
 
 ## Composer modularizado (CONFIRMADO 2026-08-27)
@@ -176,6 +180,8 @@ Painel **Dados do contato** (`SidebarCliente`, 2026-09-07): clicar no bloco iden
 
 Não substitua isso por “espera o POST e só então pinta a bolha”.
 
+**Glitch de ~1s no envio (CONFIRMADO 2026-09-14):** a bolha otimista usava `Date.now()` como `criado_em`. Em envios seguidos no mesmo minuto o relógio local fica alguns ms atrás do timestamp que o servidor já gravou nas bolhas anteriores — o sort por `criado_em` enfiava a mensagem nova no meio (ex.: “I” entre “Calma” e “Oi”) e o nome do contato/conversa podia aparecer no lugar do atendente até o HTTP/socket reconciliar. Correção: `resolveOptimisticCriadoEm` ancora depois da última mensagem da thread; no mesmo segundo a bolha `temp` sem id/wa vai ao fim; `pickOptimisticUsuarioNome` não reutiliza o título do chat; a bolha não pinta `usuario_nome` igual ao `peerName`. Testes: `scripts/test-optimistic-send-glitch.mjs` + cenário 12 de `test-sequential-messages.mjs`.
+
 ## Watchdog — `pendingMessageWatchdog.js`
 
 - Soft ~45s → `envio_demorado`
@@ -193,7 +199,9 @@ Não substitua isso por “espera o POST e só então pinta a bolha”.
 
 ## Mídia
 
-Composer, `PendingMediaPreview`, `ImageSendPreviewMobile`. Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
+Composer, `PendingMediaPreview`, `ImageSendPreviewMobile` (editor unificado no envio de foto, **desktop e mobile**). Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
+
+**Editor de foto no envio / print (CONFIRMADO 2026-09-14):** ao colar um print ou anexar JPG/PNG/WebP, `PendingMediaPreview` abre o editor (`ImageSendPreviewMobile`) também no desktop — não só em `headerCompact`. Ferramentas: **Cortar** (quadro `react-image-crop`), **Editar** (caneta com cores), **Filtro** (Vívido/Quente/Frio/P&B/Contraste/Suave), girar 90°, redefinir e enviar original. Exporta em `exportEditedImageFile` (`imageCropExport.js`) a partir do blob já girado (`imageSrc`), com filtro + traços + recorte. GIF/SVG continuam sem editor (`isEditableImageForSend`). Vídeo/arquivo seguem o preview estático. Teste: `scripts/test-image-send-edit.mjs`.
 
 Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard/contato, call, **poll/enquete** (`PollMessage`; meta em `reply_meta.poll`). Renderers em `bubble/components/*`; classificação em `classifyBubbleMessage`. **Nota interna** e movimentação interna continuam em `ThreadRow.jsx` (não passam pela Bubble). Player de áudio: `useAudioPlayback` (`el.load()` ao trocar src; um elemento ativo; pause no unmount). Status visual: `resolveOutgoingTick`. Retry de envio: `getRetryUiState` — reusa o `id` existente, não cria bolha nova.
 

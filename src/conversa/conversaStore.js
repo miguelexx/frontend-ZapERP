@@ -966,11 +966,15 @@ export const useConversaStore = create((set, get) => {
             ? "Conversa não encontrada. Ela pode ter sido unificada com outro contato — volte à lista e abra novamente."
             : apiMsg
         console.error("Erro ao carregar conversa:", err)
-        if (status === 404) {
+        if (status === 404 || status === 403) {
           try {
             useChatStore.getState().removeChat?.(normalizedId)
             useChatStore.getState().requestChatListResync?.({ force: true })
           } catch (_) {}
+        }
+        if (status === 403) {
+          get().setSelectedId(null)
+          return
         }
         set({ loading: false, loadError: msg, conversa: conversaShellWithId })
       } finally {
@@ -1144,6 +1148,15 @@ export const useConversaStore = create((set, get) => {
         }
       } catch (err) {
         if (!isCurrent()) return
+        const status = Number(err?.response?.status)
+        if (status === 403 || status === 404) {
+          try {
+            useChatStore.getState().removeChat?.(id)
+            useChatStore.getState().requestChatListResync?.({ force: true })
+          } catch (_) {}
+          get().setSelectedId(null)
+          return
+        }
         if (!isAbortError(err)) console.error("Erro ao atualizar conversa:", err)
       } finally {
         if (isCurrent()) {

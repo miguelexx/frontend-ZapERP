@@ -181,10 +181,16 @@ const Bubble = memo(function Bubble({
   useLayoutEffect(() => {
     const el = bubbleRef.current;
     if (!el) return;
-    const onSelectStart = (ev) => ev.preventDefault();
+    const onSelectStart = (ev) => {
+      // Desktop: permite selecionar o texto da mensagem (WhatsApp Web).
+      // Mobile/tablet e modo seleção: bloqueia a seleção nativa para não brigar com long-press / checkbox.
+      if (selectMode || mobileMessageChrome) ev.preventDefault();
+    };
     el.addEventListener("selectstart", onSelectStart);
     return () => el.removeEventListener("selectstart", onSelectStart);
-  }, [msg?.id]);
+  }, [msg?.id, selectMode, mobileMessageChrome]);
+
+  const canSelectMessage = Boolean(msg?.id) && !msg?.apagada_para_todos;
 
   const handleToggleSelect = useCallback(
     (e) => {
@@ -193,6 +199,39 @@ const Bubble = memo(function Bubble({
       onToggleSelected?.(msg);
     },
     [onToggleSelected, msg]
+  );
+
+  const handleStartSelectFromMouse = useCallback(
+    (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      if (!canSelectMessage) return;
+      if (selectMode) {
+        onToggleSelected?.(msg);
+        return;
+      }
+      onStartSelect?.(msg);
+    },
+    [canSelectMessage, selectMode, onToggleSelected, onStartSelect, msg]
+  );
+
+  const handleRowClick = useCallback(
+    (e) => {
+      if (!canSelectMessage) return;
+      if (selectMode) {
+        if (e.target?.closest?.(".wa-selectChk, .wa-msgMenuBtn, .wa-reactionBtn, .wa-reactionPicker, a[href], button")) {
+          return;
+        }
+        handleToggleSelect(e);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        onStartSelect?.(msg);
+      }
+    },
+    [canSelectMessage, selectMode, handleToggleSelect, onStartSelect, msg]
   );
 
   const doCopy = useCallback(async () => {
@@ -245,16 +284,27 @@ const Bubble = memo(function Bubble({
         }${captionBundleFollow ? " wa-row--captionBundleFollow" : ""}${menuOpen ? " wa-row--menuOpen" : ""}`}
         data-msg-id={msg?.id}
         data-group-start={showRemetente && !out ? "1" : "0"}
+        onClick={canSelectMessage ? handleRowClick : undefined}
+        onClickCapture={selectMode && canSelectMessage ? (event) => {
+          // A media button/link must select, never open its viewer in selection mode.
+          if (event.target.closest?.(".wa-selectChk")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          handleToggleSelect(event);
+        } : undefined}
       >
-      {selectMode && !msg?.apagada_para_todos ? (
+      {selectMode && canSelectMessage ? (
         <button
           type="button"
           className={`wa-selectChk ${selected ? "isOn" : ""}`}
           onClick={handleToggleSelect}
           title={selected ? "Desmarcar" : "Selecionar"}
           aria-label={selected ? "Desmarcar mensagem" : "Selecionar mensagem"}
+          aria-pressed={selected}
         >
-          {selected ? "✓" : ""}
+          <svg className="wa-selectChk-check" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.5 8.4 6.6 11.4 12.5 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       ) : null}
 
@@ -308,7 +358,6 @@ const Bubble = memo(function Bubble({
           mobileMessageChrome ? "wa-bubble--mobileUx" : "",
           msg?.apagada_para_todos ? "wa-bubble--revokedEveryone" : "",
         ].filter(Boolean).join(" ")}
-        onClick={selectMode && !msg?.apagada_para_todos ? handleToggleSelect : undefined}
         onPointerDown={mobileMessageChrome && !selectMode ? onBubblePointerDown : undefined}
         onContextMenu={mobileMessageChrome ? (ev) => ev.preventDefault() : undefined}
         role="group"
@@ -327,7 +376,20 @@ const Bubble = memo(function Bubble({
             title="Mais opções"
             aria-label="Abrir opções da mensagem"
           >
-            ▾
+            <svg
+              className="wa-msgMenuBtn-caret"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M4.6 6.4 8 9.6l3.4-3.2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         ) : null}
         <div className="wa-bubble-body">
@@ -352,7 +414,13 @@ const Bubble = memo(function Bubble({
           msg?.enviado_por_usuario &&
           !isApagadaParaTodos &&
           safeString(msg?.usuario_nome) &&
-          mostrarNomeAoCliente ? (
+          mostrarNomeAoCliente &&
+          !(
+            !msg?.id &&
+            !msg?.whatsapp_id &&
+            msg?.tempId &&
+            safeString(msg?.usuario_nome).toLowerCase() === safeString(peerName).toLowerCase()
+          ) ? (
             <div
               className="wa-bubble-atendente"
               aria-label={`Enviado por ${msg.usuario_nome}`}
@@ -382,6 +450,15 @@ const Bubble = memo(function Bubble({
             />
           ) : null}
         </div>
+        {!selectMode && !mobileMessageChrome && canSelectMessage ? (
+          <button
+            type="button"
+            className="wa-selectChk wa-selectChk--hover"
+            onClick={handleStartSelectFromMouse}
+            title="Selecionar mensagem (Ctrl+clique)"
+            aria-label="Selecionar mensagem"
+          />
+        ) : null}
         {!isCall && !mobileMessageChrome ? (
           <ReactionButton
             reactionOpen={reactionOpen}

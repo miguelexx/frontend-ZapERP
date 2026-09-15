@@ -196,18 +196,18 @@ html:not([data-theme="dark"]) .atendimento-sidebar {
 /* Transições leves — WhatsApp: rápidas, suaves, sistema fluido */
 :where(button, a, input, textarea, select, [role="button"]) {
   transition:
-    background var(--ds-transition, 0.12s ease),
+    transform 120ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1)),
+    background-color 140ms ease,
     color var(--ds-transition, 0.12s ease),
-    border-color var(--ds-transition, 0.12s ease),
-    box-shadow var(--ds-transition, 0.12s ease),
-    transform var(--ds-transition-fast, 0.08s ease),
+    border-color 140ms ease,
+    box-shadow 140ms ease,
     opacity var(--ds-transition, 0.12s ease);
   -webkit-tap-highlight-color: transparent;
 }
 
 /* Feedback de clique — leve, tipo WhatsApp (não poluído) */
-:where(button, [role="button"]):active:not(:disabled) {
-  transform: scale(0.98);
+:where(button, [role="button"]):active:not(:disabled):not(.chat-list-row):not(.crm-kanban-card):not([aria-disabled="true"]):not([draggable="true"]) {
+  /* Preserve each control's positional transform during clicks. */
 }
 
 :where(button, a, input, textarea, select, [role="button"]):focus-visible {
@@ -1072,7 +1072,6 @@ body:has(.atendimento-layout) #root {
   .atendimento-sidebar .chat-list-preview,
   .atendimento-sidebar .chat-list-setor,
   .atendimento-sidebar .chat-list-subline,
-  .atendimento-sidebar .chat-list-empresa,
   .atendimento-sidebar .chat-list-time,
   .atendimento-sidebar .chat-list-chip,
   .atendimento-sidebar .chat-list-status,

@@ -271,6 +271,49 @@ try {
     shouldRemoveChatFromViewerList(sameSectorChat, { tab: "todas", user: attendantUser }),
     false
   );
+  const assumedByColleague = {
+    id: 25,
+    status_atendimento: "em_atendimento",
+    status_atendimento_real: "em_atendimento",
+    departamento_id: 10,
+    atendente_id: 7,
+  };
+  assert.equal(
+    shouldRemoveChatFromViewerList(assumedByColleague, { tab: "todas", user: attendantUser }),
+    true,
+    "perfil atendente nao ve conversa assumida por outro, inclusive em Todas"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(assumedByColleague, { tab: "todas", user: attendantUser }),
+    false,
+    "socket nao reinsere conversa assumida por outro para atendente"
+  );
+  assert.equal(
+    shouldInsertChatRowInActiveList(assumedByColleague, { tab: "em_atendimento", user: attendantUser }),
+    false,
+    "Em atendimento do atendente nao lista conversa de outro"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(assumedByColleague, { tab: "todas", user: supervisorUser }),
+    false,
+    "supervisor continua vendo conversa assumida por outro no setor"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(
+      { ...assumedByColleague, participante_ativo: true },
+      { tab: "todas", user: attendantUser }
+    ),
+    false,
+    "co-atendente ativo continua vendo a conversa"
+  );
+  assert.equal(
+    shouldRemoveChatFromViewerList(
+      { ...assumedByColleague, status_atendimento: "fechada", status_atendimento_real: "fechada" },
+      { tab: "todas", user: attendantUser }
+    ),
+    false,
+    "conversa encerrada permanece visivel para reabertura"
+  );
   assert.equal(
     shouldRemoveChatFromViewerList(assignedToMeOtherSector, { tab: "todas", user: attendantUser }),
     false,
@@ -507,6 +550,32 @@ try {
     emAtendimentoEmpresa.map((c) => c.id).sort((a, b) => a - b),
     [11, 13],
     "Em atendimento mostra atendimentos de todos os atendentes visiveis"
+  );
+
+  const emAtendimentoAtendente = computeChatsFiltrados({
+    ...filterBase,
+    chats: [openMine, otherAttendant],
+    tab: "em_atendimento",
+    user: attendantUser,
+    minhaFilaList: null,
+  });
+  assert.deepEqual(
+    emAtendimentoAtendente.map((c) => c.id),
+    [11],
+    "perfil atendente nao pinta conversa assumida por outro em Em atendimento"
+  );
+
+  const todasAtendenteSemAssumidaAlheia = computeChatsFiltrados({
+    ...filterBase,
+    chats: [openMine, otherAttendant, stillOpen],
+    tab: "todas",
+    user: attendantUser,
+    minhaFilaList: null,
+  });
+  assert.deepEqual(
+    todasAtendenteSemAssumidaAlheia.map((c) => c.id).sort((a, b) => a - b),
+    [11, 16],
+    "perfil atendente nao pinta conversa assumida por outro em Todas"
   );
 
   const emAtendimentoFiltrada = computeChatsFiltrados({

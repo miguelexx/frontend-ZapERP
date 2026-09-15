@@ -20,7 +20,10 @@
   border-radius: var(--ds-radius);
   background: var(--ds-surface-1);
   color: var(--ds-text-primary);
-  transition: border-color var(--ds-transition), box-shadow var(--ds-transition);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
 }
 
 .ds-input::placeholder {

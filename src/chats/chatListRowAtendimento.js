@@ -479,7 +479,6 @@ const VIRTUAL_ROW_METRICS = {
     titleLine: 17.5,
     setor: 15,
     assignee: 15,
-    empresa: 15,
     preview: 17,
     mainGap: 2,
     badgeGridExtra: 0,
@@ -493,7 +492,6 @@ const VIRTUAL_ROW_METRICS = {
     titleLine: 16.2,
     setor: 12.5,
     assignee: 13.5,
-    empresa: 13.5,
     preview: 14.8,
     mainGap: 3,
     badgeGridExtra: 23,
@@ -540,7 +538,7 @@ function estimateMetaColumnHeight(chat, pendentesIdSet, isMobileLayout) {
 }
 
 /**
- * Altura fixa por card na virtualização — calculada pelo conteúdo (título até 2 linhas, setor, badges).
+ * Altura fixa por card na virtualização — calculada pelo conteúdo (título até 2 linhas, setor+empresa na mesma linha, badges).
  * Deve ser >= altura real; measureElement fica desligado para o layout não “pular” após abrir/atualizar.
  */
 export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = null, showAssigneeNames = false) {
@@ -565,20 +563,20 @@ export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = n
   const hasEmpresa = !isGroup
     ? Boolean(String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim())
     : false;
+  const hasSetorLine = hasSetor || hasEmpresa;
   const hasAssignee = showAssigneeNames && !isGroup && getAtendimentoAssigneeNames(chat).length > 0;
   const hasEncontradoPor = !isGroup && Boolean(String(chat?.encontrado_por || "").trim());
 
   let titleBlock = titleLines * m.titleLine;
   if (hasEncontradoPor) titleBlock += m.setor;
-  if (hasSetor) titleBlock += m.setor;
+  if (hasSetorLine) titleBlock += m.setor;
   if (hasAssignee) titleBlock += m.assignee;
-  if (hasEmpresa) titleBlock += m.empresa;
 
   const metaCol = estimateMetaColumnHeight(chat, pendentesIdSet, isMobileLayout);
   const mobileBadgeGrid = isMobileLayout && chatRowUsesMobileBadgeGrid(chat, pendentesIdSet);
   let topBlock = titleBlock;
   if (mobileBadgeGrid) {
-    topBlock = titleLines * m.titleLine + (hasEncontradoPor ? m.setor : 0) + (hasSetor ? m.setor : 0) + (hasEmpresa ? m.empresa : 0) + m.badgeGridExtra;
+    topBlock = titleLines * m.titleLine + (hasEncontradoPor ? m.setor : 0) + (hasSetorLine ? m.setor : 0) + m.badgeGridExtra;
   } else if (metaCol > 0) {
     topBlock = Math.max(titleBlock, metaCol);
   }

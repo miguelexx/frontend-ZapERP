@@ -13,15 +13,15 @@ function ConversationActionMenuTriggerBase({
       aria-label="Abrir ações da conversa"
       aria-haspopup="menu"
       aria-expanded={isOpen ? "true" : "false"}
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onToggle?.(conversationId, e.currentTarget);
       }}
-      title="Ações da conversa"
     >
       <span className="chat-row-action-trigger-chev" aria-hidden>
-        <ChevronDown size={15} strokeWidth={2} />
+        <ChevronDown size={17} strokeWidth={1.8} />
       </span>
     </button>
   );

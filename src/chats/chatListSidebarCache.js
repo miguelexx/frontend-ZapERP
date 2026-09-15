@@ -234,6 +234,10 @@ export function sanitizeChatRowForSidebarCache(chat) {
 
     atendente_nome: chat.atendente_nome,
 
+    participante_ativo: chat.participante_ativo === true,
+
+    usuario_transferiu: chat.usuario_transferiu === true,
+
     departamento_id: chat.departamento_id,
 
     departamento: chat.departamento

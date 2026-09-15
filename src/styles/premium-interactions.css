@@ -1,0 +1,198 @@
+/* Final interaction contract. Explicit targets beat lazy-loaded legacy rules.
+   Important declarations are limited to properties overridden by legacy !important. */
+:root {
+  --premium-hover: color-mix(in srgb, var(--ds-accent) 6%, var(--ds-surface-1));
+  --premium-selected: color-mix(in srgb, var(--ds-accent) 9%, var(--ds-surface-1));
+  --premium-edge: color-mix(in srgb, var(--ds-text-primary) 8%, transparent);
+  --premium-focus: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 12%, transparent);
+  --premium-menu-shadow: 0 12px 32px #0f172a19, 0 2px 8px #0f172a0d;
+}
+html[data-theme="dark"] { --premium-menu-shadow: 0 12px 32px #0005, 0 2px 8px #0003; }
+
+/* Compact controls only: no virtualized rows, drag handles, media or backdrops. */
+html body :is(.ds-btn, .wa-btn, .wa-header-btn, .wa-iconBtn, .wa-sendBtn,
+  .chat-list-header-btn, .chat-list-chip, .ia-btn, .crm-btn, .ds-confirm-btn,
+  .sidebar-nav-item, .sidebar-theme-toggle, .sidebar-logout,
+  .wa-actions button, .admin-atendente-filter__trigger) {
+  transition: var(--ds-interaction-transition), color 140ms ease !important;
+}
+html body :is(.ds-btn, .wa-btn, .wa-header-btn, .wa-iconBtn, .wa-sendBtn,
+  .chat-list-header-btn, .chat-list-chip, .ia-btn, .crm-btn, .ds-confirm-btn,
+  .sidebar-nav-item, .sidebar-theme-toggle, .sidebar-logout,
+  .wa-actions button, .admin-atendente-filter__trigger):not(:disabled):not([aria-disabled="true"]):hover {
+  transform: none !important;
+}
+html body :is(.ds-btn, .wa-btn, .wa-header-btn, .wa-iconBtn, .wa-sendBtn,
+  .chat-list-header-btn, .chat-list-chip, .ia-btn, .crm-btn, .ds-confirm-btn,
+  .sidebar-nav-item, .sidebar-theme-toggle, .sidebar-logout,
+  .wa-actions button, .admin-atendente-filter__trigger):not(:disabled):not([aria-disabled="true"]):active {
+  transform: none !important;
+}
+
+/* These backdrops still dismiss the menu; they no longer blur the application. */
+html body :is(.wa-msgMenuBackdrop, .wa-attachBackdrop, .wa-atendToolbar-backdrop) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+html body :is(.wa-msgMenu, .wa-attachMenu, .conversation-action-menu,
+  .chat-list-novo-menu, .wa-atendToolbar-dropdown, .admin-atendente-filter__panel) {
+  background: var(--ds-surface-1) !important;
+  color: var(--ds-text-primary);
+  border: 1px solid var(--premium-edge) !important;
+  border-radius: 14px;
+  box-shadow: var(--premium-menu-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Individual translate/scale preserve sheet centering and portal coordinates. */
+html body :is(.wa-msgMenu, .wa-attachMenu, .conversation-action-menu,
+  .chat-list-novo-menu, .wa-atendToolbar-dropdown) {
+  animation: premium-menu-in 180ms var(--ease-premium) both !important;
+  transform-origin: top right;
+}
+html body .wa-msgMenu { transform-origin: top right; }
+html body .wa-msgMenu--sheet { transform-origin: bottom center; }
+html body .wa-attachMenu { transform-origin: bottom left; }
+html body .conversation-action-menu.is-top { transform-origin: bottom right; }
+html body [data-motion-state="closing"] {
+  animation: premium-menu-out 120ms var(--ease-premium) both !important;
+  pointer-events: none !important;
+}
+@keyframes premium-menu-in {
+  from { opacity: 0; translate: 0 -4px; scale: .97; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+@keyframes premium-menu-out {
+  from { opacity: 1; translate: 0 0; scale: 1; }
+  to { opacity: 0; translate: 0 -3px; scale: .98; }
+}
+html body :is(.wa-msgMenuItem, .wa-attachItem, .conversation-action-menu-item,
+  .chat-list-novo-item, .wa-atendToolbar-sheetBtn, .admin-atendente-filter__option) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ds-text-primary);
+  transition: background-color 140ms ease, color 140ms ease !important;
+  transform: none !important;
+}
+html body :is(.wa-msgMenuItem, .wa-attachItem, .conversation-action-menu-item,
+  .chat-list-novo-item, .wa-atendToolbar-sheetBtn, .admin-atendente-filter__option):hover:not(:disabled) {
+  background: var(--premium-hover);
+}
+html body :is(.wa-msgMenuItemDanger, .conversation-action-menu-item.is-danger) { color: var(--ds-error); }
+html body :is(.wa-msgMenuItemDanger, .conversation-action-menu-item.is-danger):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-error) 7%, transparent);
+}
+html body :is(.wa-msgMenuItem > svg, .conversation-action-menu-icon,
+  .chat-list-novo-icon, .wa-atendToolbar-sheetIcon, .wa-attachItem-icon) {
+  width: 20px; height: 20px; flex: 0 0 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+html body .wa-msgMenuItem > svg { stroke-width: 1.7; }
+html body :is(.wa-msgMenuSep, .wa-attachDivider) { background: var(--premium-edge); margin: 5px 8px; }
+html body .wa-attachMenu-head { background: var(--ds-surface-1); }
+
+/* Keep row height/position and semantic urgency badges untouched. */
+html body .app-layout--studio #main-content .chat-list-row.zap-conversation-card {
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease !important;
+}
+html body .app-layout--studio #main-content .chat-list-row.zap-conversation-card.is-active {
+  background: var(--premium-selected) !important;
+  border-color: color-mix(in srgb, var(--ds-accent) 15%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 9%, transparent) !important;
+}
+html body .app-layout--studio #main-content .chat-list-row.zap-conversation-card.is-active::before {
+  opacity: .25; box-shadow: none !important;
+}
+html body .app-layout--studio #main-content .chat-list-chip.is-active {
+  background: var(--premium-selected) !important;
+  color: var(--ds-accent) !important;
+  border-color: color-mix(in srgb, var(--ds-accent) 22%, transparent) !important;
+  box-shadow: none !important;
+}
+html body .app-layout--studio #main-content .chat-list-chip.is-active .chat-list-chip-count {
+  background: color-mix(in srgb, var(--ds-accent) 12%, transparent);
+  color: inherit;
+}
+html body :is(.ds-input, .crm-input, .crm-select, .ia-input, .ia-select) {
+  border-radius: 10px;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+html body :is(.ds-input, .crm-input, .crm-select, .ia-input, .ia-select):focus:not([aria-invalid="true"]) {
+  border-color: color-mix(in srgb, var(--ds-accent) 48%, var(--ds-border));
+  box-shadow: var(--premium-focus);
+}
+html body .app-layout--studio #main-content .wa-footer:focus-within {
+  box-shadow: var(--premium-focus);
+}
+html body .sidebar--v2 .sidebar-nav-label {
+  transition: opacity 140ms var(--ease-premium), transform 140ms var(--ease-premium), visibility 140ms;
+}
+/* The wait badge used to intercept clicks on the absolutely positioned trigger. */
+html body .chat-list-row .chat-row-action-trigger {
+  z-index: 5;
+  background: var(--ds-surface-1);
+  transition: opacity 120ms ease, background-color 140ms ease;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--premium-edge);
+  color: var(--ds-text-secondary);
+  box-shadow: 0 1px 3px #0f172a0a;
+  transform: translateY(-50%) !important;
+  scale: none !important;
+  backdrop-filter: none;
+}
+html body .chat-row-action-trigger-chev { opacity: 1; transform: none; }
+html body .chat-row-action-trigger:is(:hover, .is-open) {
+  background: var(--premium-hover);
+  color: var(--ds-accent);
+  border-color: color-mix(in srgb, var(--ds-accent) 24%, transparent);
+}
+@media (pointer: coarse) {
+  html body .chat-list-row .chat-row-action-trigger { width: 38px; height: 38px; }
+}
+/* Selection highlights the chosen row, without a viewport-sized dark layer. */
+html body .wa-bubble.isSelected { animation: none !important; }
+html body .wa-messages .wa-selectBar {
+  border-radius: 10px;
+  background: var(--ds-surface-1);
+  color: var(--ds-text-primary);
+  border-color: var(--premium-edge);
+  box-shadow: 0 2px 6px #0f172a0a;
+  backdrop-filter: none;
+  padding: 8px 12px;
+}
+html body .wa-selectBar-close:is(:hover, :active) { transform: none; }
+html body .wa-selectChk { scale: none; }
+@media (hover: hover) {
+  html body .app-layout--studio #main-content .chat-list-row.zap-conversation-card:not(.is-active):hover {
+    background: var(--premium-hover) !important;
+    box-shadow: inset 0 0 0 1px var(--premium-edge) !important;
+  }
+}
+html body :is(.ds-confirm-dialog, .crm-modal, .ncm-dialog) {
+  animation: premium-dialog-in 180ms var(--ease-premium);
+}
+@keyframes premium-dialog-in {
+  from { opacity: 0; translate: 0 4px; scale: .98; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body :is([data-motion-state], .wa-msgMenu, .wa-attachMenu, .wa-atendToolbar-dropdown,
+    .ds-confirm-dialog, .crm-modal, .ncm-dialog) { animation: none !important; }
+  html body :is(.ds-btn, .wa-btn, .wa-header-btn, .wa-iconBtn, .wa-sendBtn,
+    .chat-list-header-btn, .chat-list-chip, .ia-btn, .crm-btn, .ds-confirm-btn,
+    .sidebar-nav-item, .sidebar-theme-toggle, .sidebar-logout,
+    .wa-actions button, .admin-atendente-filter__trigger):active { transform: none !important; }
+  html body :is(button, a, input, select, .chat-list-row) { transition-duration: 0s !important; }
+}

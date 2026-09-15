@@ -401,7 +401,7 @@ export function isImageFile(file) {
   return /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(name);
 }
 
-/** Imagens estáticas editáveis no mobile (sem GIF/SVG). */
+/** Imagens estáticas editáveis no envio (crop/filtro/desenho; sem GIF/SVG). */
 export function isEditableImageForSend(file) {
   if (!file || !isImageFile(file)) return false;
   const t = String(file.type || "").toLowerCase();

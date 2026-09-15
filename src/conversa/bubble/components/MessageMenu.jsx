@@ -1,5 +1,7 @@
 import { createPortal } from "react-dom";
 import { ReactionPicker } from "./MessageReactions";
+import useMotionPresence from "../../../components/ui/useMotionPresence";
+import { Info, Reply, Copy, Forward, Pin, Star, CheckSquare, Pencil, Trash2 } from "lucide-react";
 
 export default function MessageMenu({
   menuOpen,
@@ -24,13 +26,15 @@ export default function MessageMenu({
   onExpandToggle,
   onReactionPicked,
 }) {
-  if (!menuOpen) return null;
+  const motion = useMotionPresence(menuOpen);
+  if (!motion.present) return null;
 
   return createPortal(
     <>
       <div
         className={`wa-msgMenuBackdrop${menuUsesBottomSheet ? " wa-msgMenuBackdrop--sheet" : ""}`}
         aria-hidden="true"
+        style={!menuOpen ? { pointerEvents: "none" } : undefined}
         onPointerDown={(e) => {
           if (e.target !== e.currentTarget) return;
           e.preventDefault();
@@ -39,6 +43,9 @@ export default function MessageMenu({
       />
       <div
         ref={menuElRef}
+        data-motion-state={motion.state}
+        inert={!menuOpen ? "" : undefined}
+        aria-hidden={!menuOpen || undefined}
         className={`wa-msgMenu${menuUsesBottomSheet ? " wa-msgMenu--sheet" : ""}`}
         style={menuStyle || { position: "fixed", top: -9999, left: -9999 }}
         role="menu"
@@ -66,48 +73,48 @@ export default function MessageMenu({
         {out ? (
           <>
             <button type="button" className="wa-msgMenuItem" onClick={() => onAction("info")} role="menuitem">
-              Dados da mensagem
+              <Info aria-hidden="true" /> Dados da mensagem
             </button>
             <div className="wa-msgMenuSep" aria-hidden="true" />
           </>
         ) : null}
         {!apagadaParaTodos ? (
           <button type="button" className="wa-msgMenuItem" onClick={() => onAction("reply")} role="menuitem">
-            Responder
+            <Reply aria-hidden="true" /> Responder
           </button>
         ) : null}
         <button type="button" className="wa-msgMenuItem" onClick={() => onAction("copy")} role="menuitem">
-          Copiar
+          <Copy aria-hidden="true" /> Copiar
         </button>
         {!apagadaParaTodos ? (
           <>
             <button type="button" className="wa-msgMenuItem" onClick={() => onAction("forward")} role="menuitem">
-              Encaminhar
+              <Forward aria-hidden="true" /> Encaminhar
             </button>
             <button type="button" className="wa-msgMenuItem" onClick={() => onAction("pin")} role="menuitem">
-              {isPinned ? "Desafixar" : "Fixar"}
+              <Pin aria-hidden="true" /> {isPinned ? "Desafixar" : "Fixar"}
             </button>
             <button type="button" className="wa-msgMenuItem" onClick={() => onAction("star")} role="menuitem">
-              {isStarred ? "Desfavoritar" : "Favoritar"}
+              <Star aria-hidden="true" /> {isStarred ? "Desfavoritar" : "Favoritar"}
             </button>
             <button type="button" className="wa-msgMenuItem" onClick={() => onAction("select")} role="menuitem">
-              Selecionar
+              <CheckSquare aria-hidden="true" /> Selecionar
             </button>
           </>
         ) : null}
         <div className="wa-msgMenuSep" aria-hidden="true" />
         {canEdit ? (
           <button type="button" className="wa-msgMenuItem" onClick={() => onAction("edit")} role="menuitem">
-            Editar
+            <Pencil aria-hidden="true" /> Editar
           </button>
         ) : null}
         <button
           type="button"
-          className="wa-msgMenuItem"
+          className="wa-msgMenuItem wa-msgMenuItemDanger"
           onClick={() => onAction("deleteForMe")}
           role="menuitem"
         >
-          Apagar para mim
+          <Trash2 aria-hidden="true" /> Apagar para mim
         </button>
         {canDeleteForEveryone ? (
           <button
@@ -116,7 +123,7 @@ export default function MessageMenu({
             onClick={() => onAction("deleteForEveryone")}
             role="menuitem"
           >
-            Apagar para todos
+            <Trash2 aria-hidden="true" /> Apagar para todos
           </button>
         ) : null}
       </div>

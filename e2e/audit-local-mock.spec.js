@@ -59,6 +59,8 @@ function conversationPayload(id) {
 }
 
 async function installAuditSession(page) {
+  // External fonts must not gate deterministic local interaction tests.
+  await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
   await page.addInitScript(() => {
     localStorage.setItem(
       "zap_erp_auth",
@@ -152,12 +154,20 @@ async function installFakeAudioRecorder(page) {
 test("composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos", async ({ page }, testInfo) => {
   let savedRepliesRequests = 0;
   await installAuditSession(page);
+  await page.route("**/uploads/selection-fixture.svg", (route) => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="240" height="160" fill="#dbeafe"/></svg>',
+  }));
 
   await page.route(`${API}/**`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
 
+    if (path === "/uploads/selection-fixture.svg") {
+      await route.fallback();
+      return;
+    }
     if (path.startsWith("/socket.io")) {
       await route.abort();
       return;
@@ -192,7 +202,9 @@ test("composer mantém teclado, carregamento lazy, pickers e cancelamento de ane
     }
     const detailMatch = path.match(/^\/chats\/(\d+)$/);
     if (detailMatch && request.method() === "GET") {
-      await route.fulfill({ json: conversationPayload(detailMatch[1]) });
+      const payload = conversationPayload(detailMatch[1]);
+      payload.mensagens.push({ id: 109, conversa_id: Number(detailMatch[1]), tipo: "imagem", url: "/uploads/selection-fixture.svg", direcao: "in", criado_em: "2026-07-24T19:59:00.000Z" });
+      await route.fulfill({ json: payload });
       return;
     }
     if (path === "/dashboard/respostas-salvas") {
@@ -208,6 +220,22 @@ test("composer mantém teclado, carregamento lazy, pickers e cancelamento de ane
   await page.goto("/atendimento");
   const firstRow = page.locator(".chat-list-row").filter({ hasText: "Contato Auditoria" });
   await expect(firstRow).toBeVisible({ timeout: 30_000 });
+  if (!testInfo.project.name.includes("mobile")) {
+    await firstRow.hover();
+    const trigger = firstRow.getByRole("button", { name: "Abrir ações da conversa" });
+    for (let i = 0; i < 3; i += 1) {
+      await trigger.click();
+      await expect(page.getByRole("menu", { name: "Ações da conversa" })).toBeVisible();
+      await trigger.click();
+      await expect(page.locator(".conversation-action-menu")).toHaveCount(0);
+    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await trigger.click();
+    await expect(page.getByRole("menu", { name: "Ações da conversa" })).toHaveCSS("animation-name", "none");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".conversation-action-menu")).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+  }
   if (testInfo.project.name.includes("mobile")) await firstRow.tap();
   else await firstRow.click();
 
@@ -215,12 +243,43 @@ test("composer mantém teclado, carregamento lazy, pickers e cancelamento de ane
   await expect(composer).toBeVisible();
   expect(savedRepliesRequests).toBe(0);
 
+  if (!testInfo.project.name.includes("mobile")) {
+    await page.locator(".wa-bubble").first().hover();
+    await page.locator(".wa-msgMenuBtn").first().click();
+    const messageMenu = page.getByRole("menu", { name: "Opções da mensagem" });
+    await expect(messageMenu).toBeVisible();
+    await expect(page.locator(".wa-msgMenuBackdrop")).toHaveCSS("backdrop-filter", "none");
+    await expect(messageMenu.locator(".wa-msgMenuItem > svg").first()).toBeVisible();
+    await messageMenu.getByRole("menuitem", { name: "Selecionar", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Modo seleção" })).toBeVisible();
+    await expect(page.locator(".wa-messages-selectDim")).toHaveCount(0);
+    await expect(page.locator(".wa-selectChk[aria-pressed='true']")).toHaveCount(1);
+    const receivedImage = page.locator('.wa-row[data-msg-id="109"] img').first();
+    await receivedImage.click();
+    await expect(page.locator(".wa-selectChk[aria-pressed='true']")).toHaveCount(2);
+    await receivedImage.click();
+    await expect(page.locator(".wa-selectChk[aria-pressed='true']")).toHaveCount(1);
+    await page.getByRole("button", { name: "Fechar seleção" }).click();
+    await page.locator(".wa-bubble").first().hover();
+    await page.locator(".wa-msgMenuBtn").first().click();
+    await page.screenshot({ path: testInfo.outputPath("premium-message-menu.png") });
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".wa-msgMenu")).toHaveCount(0);
+  }
+
   await composer.fill("linha um");
   await composer.press("Shift+Enter");
   await composer.type("linha dois");
   await expect(composer).toHaveValue("Linha um\nlinha dois");
 
   await page.getByRole("button", { name: "Anexos e mais" }).click();
+  const attachmentMenu = page.getByRole("menu", { name: "Anexos", exact: true });
+  await expect(attachmentMenu).toBeVisible();
+  await expect(attachmentMenu).toHaveCSS("backdrop-filter", "none");
+  const menuBounds = await attachmentMenu.boundingBox();
+  expect(menuBounds.x).toBeGreaterThanOrEqual(0);
+  expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(page.viewportSize().width + 1);
+  await page.screenshot({ path: testInfo.outputPath("premium-attachments.png") });
   await page.getByRole("menuitem", { name: "Respostas salvas" }).click();
   await expect.poll(() => savedRepliesRequests).toBe(1);
   await page.getByRole("option", { name: /Boas-vindas/ }).click();

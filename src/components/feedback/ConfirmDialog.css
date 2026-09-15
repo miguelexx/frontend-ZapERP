@@ -27,15 +27,15 @@
   background: var(--ds-bg-overlay, var(--ds-surface-elevated, #fff));
   color: var(--ds-text-primary);
   border: 1px solid var(--ds-border);
-  box-shadow: var(--ds-shadow-lg);
+  box-shadow: var(--ds-shadow-modal, var(--ds-shadow-lg));
   padding: var(--ds-space-5);
-  animation: ds-confirm-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: ds-confirm-pop 180ms var(--ease-premium, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 @keyframes ds-confirm-pop {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(6px);
+    transform: translateY(4px) scale(0.98);
   }
   to {
     opacity: 1;

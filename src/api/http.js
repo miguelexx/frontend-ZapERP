@@ -131,7 +131,15 @@ api.interceptors.response.use(
         if (err?.config?.skipGlobalNetworkToast === true) {
           return Promise.reject(err)
         }
-        show({ type: "error", title: "Sem conexão", message: "Verifique sua internet e tente novamente." })
+        // Só avisa "Sem conexão" quando o navegador está realmente offline.
+        // Uma falha isolada de request com internet ativa (ex.: ERR_CONNECTION_CLOSED
+        // por restart/soluço do backend) NÃO é falta de internet do usuário — antes
+        // isso disparava o toast indevidamente em polls de fundo.
+        const browserOffline =
+          typeof navigator !== "undefined" && navigator.onLine === false
+        if (browserOffline) {
+          show({ type: "error", title: "Sem conexão", message: "Verifique sua internet e tente novamente." })
+        }
       }
     }
     return Promise.reject(err)

@@ -42,6 +42,7 @@ Um dono de scroll por região: sidebar lista, thread, painel cliente. Evitar `ov
 - Voltar fecha a thread, não o ticket.
 - Preview de imagem no envio tem fluxo mobile próprio (`ImageSendPreviewMobile`).
 - Gravação de áudio: lifecycle idempotente; não deixar MediaStream vivo ao desmontar.
+- iOS Safari dá zoom em `input` com `font-size` calculado < 16px. A busca da lista (`.chat-list-search-input`) deve ficar em **16px** em `max-width: 640px`. Não “consertar” com `maximum-scale=1` no viewport (quebra pinch-zoom). A compactação studio de 13px no desktop não pode vencer essa regra no telefone.
 
 ## Acessibilidade mínima já presente
 

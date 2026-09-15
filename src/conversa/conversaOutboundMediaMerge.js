@@ -2043,10 +2043,19 @@ function sortMensagensChronological(arr) {
     const persistedIdOrder = comparePersistedMessageIds(a, b)
     if (persistedIdOrder !== 0) return persistedIdOrder
 
+    // Bolha otimista (temp, sem id/wa) no mesmo segundo: vai no fim, não antes das
+    // persistidas. `"".localeCompare("123")` punha o temp no meio/início até o HTTP.
+    const aPend = isPendingOutgoingTemp(a)
+    const bPend = isPendingOutgoingTemp(b)
+    if (aPend !== bPend) return aPend ? 1 : -1
+
     // Somente mensagens ainda sem dois ids persistidos dependem da sequencia local.
+    // Seq ausente conta como 0 — GET antigo sem seq não “engole” o otimista 10M+.
     const seqa = Number(a?._stableInsertSeq)
     const seqb = Number(b?._stableInsertSeq)
-    if (Number.isFinite(seqa) && Number.isFinite(seqb) && seqa !== seqb) return seqa - seqb
+    const va = Number.isFinite(seqa) ? seqa : 0
+    const vb = Number.isFinite(seqb) ? seqb : 0
+    if (va !== vb) return va - vb
     const sid = String(a?.id ?? "").localeCompare(String(b?.id ?? ""))
     if (sid !== 0) return sid
     const wa = String(a?.whatsapp_id || "").localeCompare(String(b?.whatsapp_id || ""))

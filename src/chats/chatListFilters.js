@@ -213,6 +213,8 @@ export function mergeMinhaFilaPrefsFromChats(rows, chatsCanon) {
       "atendente_id",
       "atendente_nome",
       "departamento_id",
+      "participante_ativo",
+      "usuario_transferiu",
     ]);
     if (canonHasNewerActivity || hasNewerOptimisticStatus) {
       copyDefined(live, c, [

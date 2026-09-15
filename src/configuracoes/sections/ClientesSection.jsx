@@ -7,6 +7,8 @@ import { useChatStore } from "../../chats/chatsStore";
 import { useConversaStore } from "../../conversa/conversaStore";
 import * as cfg from "../../api/configService";
 import * as chatService from "../../chats/chatService";
+import { useWhatsappInstancesStore } from "../../chats/whatsappInstancesStore";
+import { whatsappInstanceLabel } from "../../chats/whatsappInstancesService";
 import Switch from "../../components/ui/Switch";
 import SectionState from "../components/SectionState";
 import { useSectionResource } from "../hooks/useSectionResource";
@@ -39,6 +41,25 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
   const searchRequestRef = useRef(0);
   const userPerfil = useAuthStore((s) => s.user?.perfil);
   const isAdmin = String(userPerfil || "").toLowerCase() === "admin";
+
+  // Selo do número (multi-instância): mostra por qual(is) número(s) o contato conversa.
+  // Só aparece quando a empresa tem 2+ números ativos. Contato continua único.
+  const whatsappInstances = useWhatsappInstancesStore((s) => s.instances);
+  const showNumeroSelo = useWhatsappInstancesStore((s) => s.hasMultiple);
+  useEffect(() => {
+    useWhatsappInstancesStore.getState().load();
+  }, []);
+  const numerosDoContato = useCallback(
+    (c) => {
+      const ids = Array.isArray(c?.whatsapp_instance_ids) ? c.whatsapp_instance_ids : [];
+      if (!ids.length) return [];
+      return ids
+        .map((id) => (whatsappInstances || []).find((i) => String(i.id) === String(id)))
+        .filter(Boolean)
+        .map((i) => whatsappInstanceLabel(i) || i.display_phone || i.nome || `#${i.id}`);
+    },
+    [whatsappInstances]
+  );
   useEffect(() => {
     if (!onSearchClientes) return;
     if (!searchMountedRef.current) {
@@ -305,6 +326,27 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
                     {c.encontrado_por ? (
                       <div className="ia-muted" style={{ fontSize: 11, marginTop: 2 }}>
                         Encontrado por: {c.encontrado_por}
+                      </div>
+                    ) : null}
+                    {showNumeroSelo && numerosDoContato(c).length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
+                        {numerosDoContato(c).map((label, i) => (
+                          <span
+                            key={i}
+                            title={`Conversa pelo número: ${label}`}
+                            style={{
+                              fontSize: 10,
+                              lineHeight: 1.6,
+                              padding: "0 6px",
+                              borderRadius: 8,
+                              background: "var(--chip-bg, #e0e7ff)",
+                              color: "var(--chip-fg, #3730a3)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {label}
+                          </span>
+                        ))}
                       </div>
                     ) : null}
                   </td>

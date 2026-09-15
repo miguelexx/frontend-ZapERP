@@ -137,6 +137,8 @@
   --ds-shadow-sm: 0 2px 8px rgba(8, 26, 43, 0.07), 0 1px 2px rgba(46, 134, 255, 0.04);
   --ds-shadow-md: 0 6px 18px rgba(8, 26, 43, 0.1), 0 2px 6px rgba(46, 134, 255, 0.05);
   --ds-shadow-lg: 0 12px 32px rgba(8, 26, 43, 0.12), 0 4px 12px rgba(46, 134, 255, 0.06);
+  --ds-shadow-popover: 0 12px 32px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.05);
+  --ds-shadow-modal: var(--ds-shadow-lg);
 
   /* ---- Espaçamento ---- */
   --ds-space-1: 4px;
@@ -163,9 +165,20 @@
   --ds-shadow-toast: 0 10px 28px rgba(8, 26, 43, 0.12), 0 2px 8px rgba(46, 134, 255, 0.06);
 
   /* ---- Transições — WhatsApp: rápidas, leves, responsivas ---- */
-  --ds-transition: 0.12s cubic-bezier(0.4, 0, 0.2, 1);
-  --ds-transition-fast: 0.08s ease;
-  --ds-transition-smooth: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-premium: var(--ds-motion-ease);
+  --motion-fast: 120ms var(--ease-premium);
+  --motion-normal: 160ms var(--ease-premium);
+  --motion-slow: 200ms var(--ease-premium);
+  --ds-transition: 140ms ease;
+  --ds-transition-fast: 120ms var(--ds-motion-ease);
+  --ds-transition-smooth: 180ms var(--ds-motion-ease);
+  --ds-interaction-transition:
+    transform 120ms var(--ds-motion-ease),
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
 
   /* ---- Estados semânticos ---- */
   --ds-success: var(--light-success);

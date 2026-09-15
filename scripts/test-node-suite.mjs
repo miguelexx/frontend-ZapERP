@@ -9,6 +9,7 @@ const WITH_VITE_ENV_SHIM = new Set([
   "test-conversa-bubble.mjs",
   "test-lock-card-avatar.mjs",
   "test-mic-stream-service.mjs",
+  "test-optimistic-send-glitch.mjs",
   "test-thread-media-prefetch.mjs",
 ]);
 
@@ -28,6 +29,7 @@ const tests = [
   "test-chat-media-display.mjs",
   "test-chat-search-prefix.mjs",
   "test-importar-clientes-helpers.mjs",
+  "test-image-send-edit.mjs",
   "test-contact-conversation-routing.mjs",
   "test-conversation-boundary.mjs",
   "test-conversa-refresh-races.mjs",
@@ -42,6 +44,7 @@ const tests = [
   "test-media-refresh-dedupe.mjs",
   "test-mic-stream-service.mjs",
   "test-offline-outbox.mjs",
+  "test-optimistic-send-glitch.mjs",
   "test-pending-timeout-watchdog.mjs",
   "test-realtime-message-order.mjs",
   "test-sequential-messages.mjs",

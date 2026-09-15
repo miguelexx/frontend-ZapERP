@@ -2,7 +2,8 @@ import { memo } from "react";
 import { createPortal } from "react-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { Icon } from "./chatListUiPrimitives";
-import { IconPackage } from "@tabler/icons-react";
+import { IconPackage, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
+import useMotionPresence from "../components/ui/useMotionPresence";
 
 function HeaderButton({ title, onClick, children, innerRef, disabled }) {
   return (
@@ -37,6 +38,7 @@ function ChatListHeaderBar({
   canConsultarProdutos,
   onOpenProdutos,
 }) {
+  const motion = useMotionPresence(showNovoMenu);
   return (
     <header className="chat-list-header">
       <div className="chat-list-header-left">
@@ -87,10 +89,13 @@ function ChatListHeaderBar({
         ) : null}
       </div>
 
-      {showNovoMenu &&
+      {motion.present &&
         createPortal(
           <div
             ref={novoMenuRef}
+            data-motion-state={motion.state}
+            inert={!showNovoMenu ? "" : undefined}
+            aria-hidden={!showNovoMenu || undefined}
             className="chat-list-novo-menu chat-list-novo-menu-portal"
             role="menu"
             style={{
@@ -107,7 +112,7 @@ function ChatListHeaderBar({
               role="menuitem"
             >
               <span className="chat-list-novo-icon" aria-hidden>
-                👤
+                <IconUserPlus size={19} stroke={1.7} />
               </span>
               <span>Novo contato</span>
             </button>
@@ -118,7 +123,7 @@ function ChatListHeaderBar({
               role="menuitem"
             >
               <span className="chat-list-novo-icon" aria-hidden>
-                👥
+                <IconUsers size={19} stroke={1.7} />
               </span>
               <span>Novo grupo</span>
             </button>
@@ -129,7 +134,7 @@ function ChatListHeaderBar({
               role="menuitem"
             >
               <span className="chat-list-novo-icon" aria-hidden>
-                🌐
+                <IconWorld size={19} stroke={1.7} />
               </span>
               <span>Nova comunidade</span>
             </button>

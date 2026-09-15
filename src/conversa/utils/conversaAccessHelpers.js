@@ -6,7 +6,7 @@
  * mesma normalização de IDs de departamento que estava inline.
  */
 
-import { isGroupConversation } from "../../utils/conversaUtils";
+import { isGroupConversation, isClosedAttendance } from "../../utils/conversaUtils";
 
 export function normalizeDepartamentoIdForAccess(value) {
   if (value == null || value === "") return null;
@@ -38,11 +38,18 @@ export function isEmpresaAdminUser(user) {
   return r === "admin" || r === "administrador";
 }
 
+/** Perfil operacional (não admin/supervisor): isolamento de conversas assumidas. */
+export function isAtendenteProfileUser(user) {
+  const r = String(user?.role || user?.perfil || "").toLowerCase();
+  return r === "atendente";
+}
+
 /**
  * Mesma regra do GET /chats e da visibilidade Socket: admin vê tudo;
  * conversa assumida pelo usuário permanece; sem setor → todos;
  * com setor → só quem pertence ao departamento.
- * Grupos ficam de fora (política própria no GET).
+ * Perfil atendente não vê individual assumida por outro (exceto encerrada,
+ * participante ativo ou quem transferiu). Grupos ficam de fora (política própria no GET).
  */
 export function viewerCanSeeConversationRow(row, user) {
   if (!row) return false;
@@ -52,6 +59,15 @@ export function viewerCanSeeConversationRow(row, user) {
   const myId = user?.id;
   const atendenteId = row.atendente_id ?? row.responsavel_id ?? null;
   if (myId != null && atendenteId != null && String(atendenteId) === String(myId)) return true;
+  if (row.participante_ativo === true || row.usuario_transferiu === true) return true;
+  if (
+    isAtendenteProfileUser(user) &&
+    atendenteId != null &&
+    (myId == null || String(atendenteId) !== String(myId)) &&
+    !isClosedAttendance(row)
+  ) {
+    return false;
+  }
   const convDep = normalizeDepartamentoIdForAccess(row.departamento_id ?? row.departamento?.id);
   if (!convDep) return true;
   return getUserDepartamentoIdSet(user).has(convDep);

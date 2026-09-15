@@ -56,6 +56,8 @@ Busca: termo local no filho (imediato) → debounce 350 ms no pai → GET só co
 
 **Abas de fila (2026-09-03):** `em_atendimento`, `aguardando_cliente`, `aguardando_atendente`, `pagamentos_pendentes` e `em_atraso` usam `fetchChatsProgressivo` (1ª página na hora, resto em background, teto pelo badge). **Todas** e **Hoje** continuam só com paginação.
 
+**Perfil atendente × conversa assumida (2026-09-14):** `viewerCanSeeConversationRow` esconde individual assumida por outro (não encerrada). Admin/supervisor, grupos, fila livre, a própria conversa, co-atendente (`participante_ativo`) e quem transferiu (`usuario_transferiu`) continuam visíveis. GET `/chats` e Socket (`shouldRemoveChatFromViewerList` / 403 no detalhe) aplicam a mesma regra — Todas/Em atendimento não mostram o card de outro atendente.
+
 ## Cache de sidebar — `chatListSidebarCache.js`
 
 | Função | TTL / limite |
@@ -151,3 +153,7 @@ As correções desta auditoria foram verificadas por leitura de fluxo, TypeScrip
 - sanitizeChatRowForSidebarCache conserva nove campos escalares de modo simples, campanha, finalização automática, reabertura e pagamento. Cache antigo só ganha esses campos ao ser regravado; formato e TTL permanecem.
 - Regra atual de resync preservada: aproximadamente seis eventos ou cinco segundos, com force imediato. Referências históricas acima a throttle de 2,5s não descrevem esse hook atual.
 - Não há certificação integral: guard de membership otimista pode bloquear rollback; Minha fila pode truncar pelo badge desatualizado; estimativa de altura e outros cenários precisam da validação descrita no relatório. Não retirar proteções nem religar medidas dinâmicas preventivamente.
+
+## Empresa no card (CONFIRMADO 2026-09-15)
+
+O nome da empresa do cliente (`cliente.empresa` / `cliente_empresa`) não ocupa mais uma linha própria. Fica na mesma linha do setor (`.chat-list-setor-line`), com fonte ~10px e opacidade baixa. Sem setor, a linha mostra só a empresa. `estimateChatListRowSize` conta uma única linha de meta (`hasSetorLine`). No mobile, a empresa não herda o `font-weight: 700` da lista.

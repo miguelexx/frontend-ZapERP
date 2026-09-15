@@ -1497,9 +1497,21 @@ function ChatRow({
                 Encontrado por: {encontradoPor}
               </div>
             ) : null}
-            {!isGroup && setorLabelNome ? (
-              <div className="chat-list-setor" title={`Setor: ${setorLabelNome}`}>
-                {setorLabelNome}
+            {!isGroup && (setorLabelNome || empresa) ? (
+              <div className="chat-list-setor-line">
+                {setorLabelNome ? (
+                  <div className="chat-list-setor" title={`Setor: ${setorLabelNome}`}>
+                    {setorLabelNome}
+                  </div>
+                ) : null}
+                {setorLabelNome && empresa ? (
+                  <span className="chat-list-setor-sep" aria-hidden="true">·</span>
+                ) : null}
+                {empresa ? (
+                  <div className="chat-list-empresa" title={`Empresa: ${empresa}`}>
+                    {empresa}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {!isGroup && atendimentoAssigneeLabel ? (
@@ -1514,11 +1526,6 @@ function ChatRow({
             {!isGroup && whatsappInstanceLabel ? (
               <div className="chat-list-whatsapp-instance" title={`Numero WhatsApp: ${whatsappInstanceLabel}`}>
                 {whatsappInstanceLabel}
-              </div>
-            ) : null}
-            {!isGroup && empresa ? (
-              <div className="chat-list-empresa" title={`Empresa: ${empresa}`}>
-                {empresa}
               </div>
             ) : null}
           </div>

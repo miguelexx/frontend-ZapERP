@@ -26,10 +26,11 @@ export function buildTriagemPayload(vals) {
     foraHorarioEnabled: !!vals.foraHorarioEnabled,
     horarioInicio: formatTime(vals.horarioInicio) || "09:00",
     horarioFim: formatTime(vals.horarioFim) || "18:00",
-    diasSemanaDesativados: dias.length > 0 ? dias : [0, 6],
+    diasSemanaDesativados: Array.isArray(vals.diasSemanaDesativados) ? dias : [0, 6],
     datasEspecificasFechadas: datas,
     mensagemForaHorario: (vals.mensagemForaHorario || "").trim().slice(0, 1024),
-    intervaloEnvioSegundos: Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos) || 3)),
+    intervaloEnvioSegundos: Number.isFinite(Number(vals.intervaloEnvioSegundos ?? 3))
+      ? Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos ?? 3))) : 3,
     sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,
     fallbackToAI: vals.fallbackToAI ?? false,
     businessHoursOnly: vals.businessHoursOnly ?? false,

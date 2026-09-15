@@ -313,4 +313,28 @@ assert(
   "confirmacoes de textos repetidos devem reconciliar com o tempId correto, sem trocar nem duplicar"
 );
 
-console.log("OK - regressao de mensagens sequenciais passou (11 cenarios).");
+// 12) Otimista no mesmo segundo que persistidas fica por último (não no meio).
+const sameSecond = "2026-09-14T20:04:00.000Z";
+const sortedPend = sortMensagensChronological([
+  { id: 10, conversa_id: CONV, direcao: "out", tipo: "texto", texto: "Ok", criado_em: sameSecond },
+  { id: 11, conversa_id: CONV, direcao: "out", tipo: "texto", texto: "Calma", criado_em: sameSecond },
+  {
+    tempId: "temp-i",
+    client_temp_id: "temp-i",
+    conversa_id: CONV,
+    direcao: "out",
+    tipo: "texto",
+    texto: "I",
+    status: "pending",
+    status_mensagem: "pending",
+    criado_em: sameSecond,
+    _stableInsertSeq: 10000060,
+  },
+  { id: 12, conversa_id: CONV, direcao: "out", tipo: "texto", texto: "Oi", criado_em: sameSecond },
+]);
+assert(
+  sortedPend.map((m) => m.texto).join("|") === "Ok|Calma|Oi|I",
+  `otimista no mesmo segundo deve ficar por último: ${sortedPend.map((m) => m.texto).join("|")}`
+);
+
+console.log("OK - regressao de mensagens sequenciais passou (12 cenarios).");

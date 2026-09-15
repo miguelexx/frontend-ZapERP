@@ -78,7 +78,8 @@ export function shouldHideOptimisticClosedFromTab(tab, mutation, view = {}) {
 
 /**
  * Após assumir (envio ou botão), a row sai das abas de fila que não são o recorte novo.
- * "Todas/Hoje" e busca global mantêm o card — só muda o badge.
+ * "Todas/Hoje" e busca global mantêm o card para admin/supervisor — só muda o badge.
+ * Perfil atendente: `viewerCanSeeConversationRow` tira o card se outro assumiu.
  * Filtro admin por funcionário / setor da lista visível vale em qualquer aba.
  */
 export function shouldDropChatFromActiveList(row, view = {}) {

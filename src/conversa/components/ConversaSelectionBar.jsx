@@ -3,7 +3,7 @@ import { IconClose, IconForward } from "../conversaViewIcons";
 import { IconTrash } from "@tabler/icons-react";
 
 /**
- * Camada visual do modo seleção: overlay de escurecimento + barra de ações.
+ * Barra de ações do modo seleção; o histórico permanece legível.
  * Estado, limites e handlers permanecem no ConversaView.
  */
 function ConversaSelectionBar({
@@ -24,7 +24,6 @@ function ConversaSelectionBar({
 
   return (
     <>
-      <div className="wa-messages-selectDim" aria-hidden />
       <div
         className={`wa-selectBar${forwardSelectIntent ? " wa-selectBar--forwardIntent" : ""}${
           compactMessageUx ? " wa-selectBar--compactUx" : ""
@@ -47,7 +46,7 @@ function ConversaSelectionBar({
               Cancelar
             </button>
           ) : null}
-          <span className="wa-selectBar-countBadge">
+          <span className="wa-selectBar-countBadge" aria-live="polite" aria-atomic="true">
             {selectedCount} selecionada{selectedCount !== 1 ? "s" : ""}
           </span>
         </div>

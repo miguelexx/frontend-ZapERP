@@ -325,3 +325,147 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Microinterações globais — resposta física curta e consistente ---- */
+
+:where(
+  button,
+  [role="button"],
+  .wa-btn,
+  .wa-header-btn,
+  .wa-btn-quick,
+  .chat-list-chip,
+  .admin-atendente-filter__trigger,
+  .zap-pg-card
+) {
+  transition:
+    transform 120ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1)),
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease,
+    color 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(
+  button,
+  [role="button"],
+  .wa-btn,
+  .wa-header-btn,
+  .wa-btn-quick,
+  .chat-list-chip,
+  .admin-atendente-filter__trigger,
+  .zap-pg-card
+):active:not(:disabled):not(.chat-list-row):not(.crm-kanban-card):not([aria-disabled="true"]):not([draggable="true"]) {
+  /* Preserve each control's positional transform during clicks. */
+}
+
+/* A lista e cards de conversa preservam sua geometria: respondem com superfície,
+   não com scale, para não alterar o encaixe do virtualizador/drag-and-drop. */
+:where(.chat-list-row, .crm-kanban-card, .crm-pipeline-card)[aria-disabled="true"] {
+  transform: none;
+}
+
+/* Menus montados condicionalmente recebem uma entrada curta, a partir do ponto
+   de origem. O fechamento continua sendo controlado pelo componente anfitrião. */
+:where(
+  [role="menu"],
+  .wa-atendToolbar-dropdown,
+  .conversation-action-menu,
+  .chat-list-novo-menu,
+  .wa-reactionPicker--menuMobile
+) {
+  transform-origin: top right;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--ds-shadow-popover, 0 12px 32px rgba(15, 23, 42, 0.1));
+  animation: zapMenuIn 180ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+@keyframes zapMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.admin-atendente-filter__panel-wrap {
+  transform-origin: top right;
+  transition:
+    opacity 120ms ease,
+    transform 120ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.admin-atendente-filter__panel-wrap:not(.is-visible) {
+  transform: translateY(-4px) scale(0.97);
+}
+
+:where(
+  .wa-atendToolbar-sheetBtn,
+  .wa-atendToolbar-menuAction,
+  .conversation-action-menu-item,
+  .admin-atendente-filter__option,
+  .chat-list-novo-item
+) {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
+}
+
+:where(.conversation-action-menu-item, .chat-list-novo-item) {
+  min-height: 44px;
+  padding-block: 8px;
+}
+
+:where(
+  .conversation-action-menu-item.is-danger,
+  .chat-list-novo-item.is-danger,
+  [role="menu"] [data-destructive="true"]
+) {
+  color: var(--ds-error, #dc2626);
+}
+
+:where(
+  .conversation-action-menu-item.is-danger:hover:not(:disabled),
+  .chat-list-novo-item.is-danger:hover:not(:disabled),
+  [role="menu"] [data-destructive="true"]:hover
+) {
+  background-color: color-mix(in srgb, var(--ds-error, #dc2626) 6%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(
+    button,
+    [role="button"],
+    .wa-btn,
+    .wa-header-btn,
+    .wa-btn-quick,
+    .chat-list-chip,
+    .admin-atendente-filter__trigger,
+    .zap-pg-card
+  ):active:not(:disabled) {
+    transform: none;
+  }
+
+  :where(
+    [role="menu"],
+    .wa-atendToolbar-dropdown,
+    .conversation-action-menu,
+    .chat-list-novo-menu,
+    .wa-reactionPicker--menuMobile
+  ) {
+    animation: none;
+  }
+
+  .admin-atendente-filter__panel-wrap {
+    transition: none;
+  }
+}

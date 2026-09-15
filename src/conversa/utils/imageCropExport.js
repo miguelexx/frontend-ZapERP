@@ -63,6 +63,131 @@ export async function rotateImageBlobUrl(imageSrc) {
 
 export const FULL_IMAGE_CROP_PERCENT = { unit: "%", x: 0, y: 0, width: 100, height: 100 };
 
+export const IMAGE_SEND_FILTERS = Object.freeze([
+  { id: "none", label: "Original", css: "none" },
+  { id: "vivid", label: "Vívido", css: "saturate(1.5) contrast(1.08)" },
+  { id: "warm", label: "Quente", css: "sepia(0.28) saturate(1.25) hue-rotate(-12deg)" },
+  { id: "cool", label: "Frio", css: "saturate(0.92) hue-rotate(14deg) brightness(1.05)" },
+  { id: "mono", label: "P&B", css: "grayscale(1)" },
+  { id: "contrast", label: "Contraste", css: "contrast(1.28) saturate(1.12)" },
+  { id: "fade", label: "Suave", css: "contrast(0.88) brightness(1.08) saturate(0.72)" },
+]);
+
+export const IMAGE_SEND_DRAW_COLORS = Object.freeze([
+  "#ef4444",
+  "#fbbf24",
+  "#22c55e",
+  "#2E86FF",
+  "#ffffff",
+  "#0f172a",
+]);
+
+export function getImageSendFilterCss(filterId) {
+  const found = IMAGE_SEND_FILTERS.find((f) => f.id === filterId);
+  return found?.css || "none";
+}
+
+function canvasToFile(canvas, fileName, mimeType) {
+  const outputMime = mimeType === "image/png" ? "image/png" : "image/jpeg";
+  const quality = outputMime === "image/jpeg" ? 0.92 : undefined;
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Falha ao exportar imagem."));
+          return;
+        }
+        const ext =
+          outputMime === "image/png" ? ".png" : outputMime === "image/webp" ? ".webp" : ".jpg";
+        const safeName = String(fileName || "foto").replace(/\.[^.]+$/, "") + ext;
+        resolve(new File([blob], safeName, { type: outputMime, lastModified: Date.now() }));
+      },
+      outputMime,
+      quality
+    );
+  });
+}
+
+function paintStrokesOnCtx(ctx, strokes, width, height) {
+  if (!Array.isArray(strokes) || !strokes.length) return;
+  for (const stroke of strokes) {
+    const points = Array.isArray(stroke?.points) ? stroke.points : [];
+    if (!points.length) continue;
+    const color = stroke.color || "#ef4444";
+    const lineWidth = Math.max(1.5, Number(stroke.widthNorm || 0) * Math.min(width, height));
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (points.length === 1) {
+      ctx.beginPath();
+      ctx.arc(points[0].x * width, points[0].y * height, lineWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    ctx.beginPath();
+    ctx.moveTo(points[0].x * width, points[0].y * height);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x * width, points[i].y * height);
+    }
+    ctx.stroke();
+  }
+}
+
+/**
+ * Exporta a foto com filtro, traços e recorte. Rotação deve estar já aplicada em `imageSrc`.
+ */
+export async function exportEditedImageFile(opts) {
+  const {
+    imageSrc,
+    pixelCrop = null,
+    filterCss = "none",
+    strokes = [],
+    fileName = `foto-${Date.now()}.jpg`,
+    mimeType = "image/jpeg",
+    maxEdge = 2048,
+  } = opts;
+
+  const image = await loadImageElement(imageSrc);
+  const nw = image.naturalWidth || image.width;
+  const nh = image.naturalHeight || image.height;
+  if (!nw || !nh) throw new Error("Imagem inválida.");
+
+  const work = document.createElement("canvas");
+  work.width = nw;
+  work.height = nh;
+  const ctx = work.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível.");
+  ctx.filter = filterCss && filterCss !== "none" ? filterCss : "none";
+  ctx.drawImage(image, 0, 0, nw, nh);
+  ctx.filter = "none";
+  paintStrokesOnCtx(ctx, strokes, nw, nh);
+
+  const crop =
+    pixelCrop && pixelCrop.width > 0 && pixelCrop.height > 0
+      ? pixelCrop
+      : { x: 0, y: 0, width: nw, height: nh };
+  const sx = Math.max(0, Math.min(nw - 1, Math.round(crop.x || 0)));
+  const sy = Math.max(0, Math.min(nh - 1, Math.round(crop.y || 0)));
+  const sw = Math.max(1, Math.min(nw - sx, Math.round(crop.width || nw)));
+  const sh = Math.max(1, Math.min(nh - sy, Math.round(crop.height || nh)));
+
+  let outW = sw;
+  let outH = sh;
+  const scale = Math.min(1, maxEdge / Math.max(outW, outH, 1));
+  outW = Math.max(1, Math.round(outW * scale));
+  outH = Math.max(1, Math.round(outH * scale));
+
+  const out = document.createElement("canvas");
+  out.width = outW;
+  out.height = outH;
+  const outCtx = out.getContext("2d");
+  if (!outCtx) throw new Error("Canvas indisponível.");
+  outCtx.drawImage(work, sx, sy, sw, sh, 0, 0, outW, outH);
+  return canvasToFile(out, fileName, mimeType);
+}
+
 /**
  * Gera File recortado (com rotação opcional) a partir do crop em pixels.
  * @param {{

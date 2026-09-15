@@ -307,6 +307,23 @@ const gestureSrc = await readFile(new URL("../src/conversa/bubble/hooks/useMessa
 assert.match(gestureSrc, /navigator\.vibrate/);
 assert.match(gestureSrc, /setMenuOpen\(true\)/);
 
+assert.match(shell, /selectstart/);
+assert.match(shell, /selectMode \|\| mobileMessageChrome/);
+assert.doesNotMatch(
+  shell,
+  /const onSelectStart = \(ev\) => ev\.preventDefault\(\);/,
+  "selectstart não pode bloquear seleção de texto no desktop"
+);
+assert.match(shell, /wa-selectChk--hover/);
+assert.match(shell, /handleStartSelectFromMouse/);
+assert.match(shell, /e\.ctrlKey \|\| e\.metaKey/);
+
+assert.match(
+  shell,
+  /tempId &&\s*safeString\(msg\?\.usuario_nome\)\.toLowerCase\(\) === safeString\(peerName\)\.toLowerCase\(\)/,
+  "nome do contato só é omitido na bolha otimista pendente, não em mensagens já reconciliadas"
+);
+
 // ── Áudio: duração, sessão, token, velocidades ───────────────────────────────
 assert.deepEqual(WA_AUDIO_SPEEDS, [1, 1.5, 2]);
 assert.equal(normalizeAudioDuration("3.5"), 3.5);
