@@ -30,6 +30,16 @@ assert.equal(
 
 assert.equal(
   pickOptimisticUsuarioNome({
+    authNome: "Miguel",
+    contactNome: "João da Silva",
+    lastOutgoingNomes: ["Miguel Silva"],
+  }),
+  "Miguel",
+  "JWT atual continua vencendo um nome antigo já persistido na thread"
+);
+
+assert.equal(
+  pickOptimisticUsuarioNome({
     authNome: "Mensagem Teste ZapERP",
     contactNome: "Mensagem Teste ZapERP",
     lastOutgoingNomes: ["Miguel", "Mensagem Teste ZapERP"],
@@ -46,6 +56,39 @@ assert.equal(
   }),
   "Miguel",
   "sem nome no JWT, herda o último outbound da thread"
+);
+
+assert.equal(
+  pickOptimisticUsuarioNome({
+    authNome: "Mensagem Teste ZapERP",
+    contactNome: "João da Silva",
+    lastOutgoingNomes: ["Miguel"],
+    excludedNomes: ["Mensagem Teste ZapERP"],
+  }),
+  "Miguel",
+  "JWT/instância antiga não pode vencer o nome já confirmado na thread"
+);
+
+assert.equal(
+  pickOptimisticUsuarioNome({
+    authNome: "Mensagem Teste ZapERP",
+    contactNome: "João da Silva",
+    lastOutgoingNomes: ["Mensagem Teste ZapERP", "Miguel"],
+    excludedNomes: ["Mensagem Teste ZapERP"],
+  }),
+  "Miguel",
+  "pushname fromMe do aparelho entra em excluded e não pinta a bolha"
+);
+
+assert.equal(
+  pickOptimisticUsuarioNome({
+    authNome: "Mensagem Teste ZapERP",
+    contactNome: "João da Silva",
+    lastOutgoingNomes: [],
+    excludedNomes: ["Mensagem Teste ZapERP"],
+  }),
+  "",
+  "sem nome confirmado na thread, não pintar o nome antigo da instância"
 );
 
 // 2) Relógio local atrasado: âncora depois da última mensagem da thread.

@@ -14,6 +14,8 @@ import { useEmpresaStore } from "./empresaStore"
 function buildUsuarioMePatch(me) {
   if (!me || typeof me !== "object") return null
   const patch = {}
+  const nome = String(me.nome ?? "").trim()
+  if (nome) patch.nome = nome
   if (me.crm_habilitado !== undefined) patch.crm_habilitado = me.crm_habilitado
   if (me.separar_mensagens_disparadas !== undefined) {
     patch.separar_mensagens_disparadas = me.separar_mensagens_disparadas
