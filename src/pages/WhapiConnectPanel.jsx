@@ -10,6 +10,7 @@ import {
   desconectarInstanciaWhapi,
   renomearInstanciaWhapi,
   desativarInstanciaWhapi,
+  salvarSyncHistoricoInstancia,
 } from "../api/whapiInstancesService";
 import { whatsappInstanceLabel } from "../chats/whatsappInstancesService";
 import WhapiAntibanLimitsCard from "./WhapiAntibanLimitsCard";
@@ -91,6 +92,9 @@ export default function WhapiConnectPanel({ showToast }) {
   const [renameValue, setRenameValue] = useState("");
   const [renameBusy, setRenameBusy] = useState(false);
   const [deactivateBusy, setDeactivateBusy] = useState(false);
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [syncDias, setSyncDias] = useState(30);
+  const [syncBusy, setSyncBusy] = useState(false);
 
   const mountedRef = useRef(false);
   const selectedIdRef = useRef(null);
@@ -214,10 +218,13 @@ export default function WhapiConnectPanel({ showToast }) {
     selecionarInstancia(preferred);
   }, [instances, selectedId, selecionarInstancia]);
 
-  // Mantém o campo de renomear em sincronia com o número selecionado.
+  // Mantém o campo de renomear e a config de sincronização em sincronia com o número selecionado.
   useEffect(() => {
     const inst = instances.find((i) => String(i.id) === String(selectedId));
     setRenameValue(inst?.nome || "");
+    const meta = inst?.metadata || {};
+    setSyncEnabled(String(meta.sync_historico || "").toLowerCase() === "on");
+    setSyncDias(Math.min(Math.max(Number(meta.sync_historico_dias) || 30, 1), 30));
   }, [selectedId, instances]);
 
   const fetchStatus = useCallback(async (instId, { silent = false } = {}) => {
@@ -618,6 +625,29 @@ export default function WhapiConnectPanel({ showToast }) {
     }
   }
 
+  async function handleSalvarSync() {
+    if (!selectedId) return;
+    setSyncBusy(true);
+    try {
+      const res = await salvarSyncHistoricoInstancia(selectedId, { enabled: syncEnabled, dias: syncDias });
+      if (!mountedRef.current) return;
+      if (res.ok) {
+        showToast?.({
+          type: "success",
+          title: "Sincronização salva",
+          message: syncEnabled
+            ? `Ao conectar, puxa o histórico de até ${syncDias} dia(s).`
+            : "Ao conectar, NÃO puxa histórico (só mensagens novas).",
+        });
+        await loadInstances({ refresh: true });
+      } else {
+        showToast?.({ type: "error", title: "Sincronização", message: res.error || "Não foi possível salvar." });
+      }
+    } finally {
+      if (mountedRef.current) setSyncBusy(false);
+    }
+  }
+
   const badge = statusBadge(connected, statusLoading);
   const canRetryQr = qrRetryIn == null || qrRetryIn <= 0;
   const empty = instances.length === 0 && !listError;
@@ -740,6 +770,47 @@ export default function WhapiConnectPanel({ showToast }) {
             </p>
           )}
           {statusError ? <div className="ia-error-banner" role="alert">{statusError}</div> : null}
+
+          <div
+            className="whapi-sync"
+            style={{ border: "1px solid var(--border, #e5e7eb)", borderRadius: 8, padding: 10, margin: "8px 0" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={syncEnabled}
+                  onChange={(e) => setSyncEnabled(e.target.checked)}
+                  disabled={syncBusy}
+                />
+                <span className="whapi-card-title" style={{ margin: 0 }}>Sincronizar histórico ao conectar</span>
+              </label>
+              {syncEnabled ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span className="whapi-card-desc" style={{ margin: 0 }}>puxar últimos</span>
+                  <select
+                    className="ia-input"
+                    value={String(syncDias)}
+                    onChange={(e) => setSyncDias(Number(e.target.value))}
+                    disabled={syncBusy}
+                    style={{ maxWidth: 140 }}
+                  >
+                    <option value="7">7 dias</option>
+                    <option value="15">15 dias</option>
+                    <option value="30">30 dias (1 mês)</option>
+                  </select>
+                </span>
+              ) : null}
+              <button type="button" className="ia-btn ia-btn--outline" onClick={handleSalvarSync} disabled={syncBusy}>
+                {syncBusy ? "Salvando…" : "Salvar"}
+              </button>
+            </div>
+            <p className="whapi-card-desc" style={{ margin: "6px 0 0" }}>
+              {syncEnabled
+                ? `Ao conectar, importa as conversas dos últimos ${syncDias} dias (máx. 1 mês).`
+                : "Desligado (recomendado): ao conectar, NÃO importa histórico — só mensagens novas. Evita a enxurrada de conversas antigas."}
+            </p>
+          </div>
 
           <div className="whapi-connect">
             <div>

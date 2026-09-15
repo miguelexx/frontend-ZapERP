@@ -310,6 +310,25 @@ export async function desativarInstanciaWhapi(instanceId) {
 }
 
 /**
+ * PATCH /integrations/whatsapp/instances/:id { metadata }
+ * Config de sincronização de histórico por canal (metadata.sync_historico).
+ * enabled=false → não puxa histórico ao conectar; enabled=true → puxa no máx. `dias` (cap 30).
+ */
+export async function salvarSyncHistoricoInstancia(instanceId, { enabled, dias } = {}) {
+  try {
+    const metadata = { sync_historico: enabled ? "on" : "off" };
+    if (enabled) {
+      metadata.sync_historico_dias = Math.min(Math.max(Number(dias) || 30, 1), 30);
+    }
+    const { data, status } = await api.patch(`${WHATSAPP_BASE}/instances/${instanceId}`, { metadata });
+    return { status, ok: true, instance: data?.instance || null, error: null };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Não foi possível salvar a sincronização.");
+    return { status: parsed.status, ok: false, instance: null, error: parsed.error };
+  }
+}
+
+/**
  * POST /integrations/whatsapp/instances/:id/logout
  * Encerra a sessão WhatsApp do canal (não apaga o cadastro).
  */
