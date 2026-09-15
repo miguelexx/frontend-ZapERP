@@ -17,10 +17,11 @@ const WHAPI_DISCONNECT_CONFIRMATIONS = 2;
  * Monitora o canal Whapi e decide se o overlay de "canal desconectado" deve aparecer.
  *
  * Só acende quando o backend confirma `isWhapi === true && connected === false`
- * em leituras consecutivas; uma única leitura conectada apaga na hora. Empresas
+ * em leituras consecutivas; uma única leitura conectada apaga na hora. Com 2+
+ * canais, o backend só acusa queda se TODOS estiverem fora do AUTH. Empresas
  * que não usam Whapi (ou erro de consulta) nunca disparam o overlay — o backend
- * devolve `connected:true`/`isWhapi:false` nesses casos, e uma falha de rede é
- * tratada como "sem mudança" (não conta como desconexão).
+ * devolve `connected:true` nesses casos, e uma falha de rede é tratada como
+ * "sem mudança" (não conta como desconexão).
  */
 export function useWhapiChannelStatus() {
   const [disconnected, setDisconnected] = useState(false);

@@ -42,6 +42,8 @@ Triagem pode ligar **só a mensagem de boas-vindas** (`usarMenuSetores: false` +
 
 Sem `can()`. `internalChatService.js`. Socket `internal_chat:*`. Bridge global no `MainLayout` para unread. Composer com mídia/local/contato.
 
+O `MainLayout` também monta `WhapiDisconnectedOverlay` (2026-09-15): tela vermelha de canal Whapi caído. O backend (`GET /chats/whapi-status`) consulta **cada** instância Whapi ativa; com 2+ números conectados o overlay **não** aparece. Só acende se todos estiverem comprovadamente fora do AUTH.
+
 ## Supervisão — `pages/Supervisao.jsx` + `supervisao/`
 
 `isSupervisorOrAdmin` (role). `supervisaoService.js`: resumo, pendentes, relatório diário, movimentação. Refresh ~30s. Grupos fora da lista de pendentes (**CONFIRMADO** na auditoria da página).

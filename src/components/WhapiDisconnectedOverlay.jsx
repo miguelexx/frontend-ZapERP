@@ -4,12 +4,13 @@ import { useWhapiChannelStatus } from "../chats/hooks/useWhapiChannelStatus";
 import "./whapi-disconnected-overlay.css";
 
 /**
- * Overlay vermelho de tela cheia quando o canal Whapi cai (desconecta).
+ * Overlay vermelho de tela cheia quando TODOS os canais Whapi caem.
  *
- * Montado uma única vez no MainLayout. Fica invisível enquanto o canal está
- * conectado (ou a empresa não usa Whapi) e cobre TODO o sistema — inclusive a
- * sidebar — quando o hook confirma a desconexão. Mensagem grande e pulsante
- * para que ninguém continue atendendo sem perceber que nada será entregue.
+ * Montado uma única vez no MainLayout. Fica invisível enquanto pelo menos um
+ * canal está AUTH (ou a empresa não usa Whapi) e cobre TODO o sistema —
+ * inclusive a sidebar — quando o hook confirma a desconexão. Mensagem grande
+ * e pulsante para que ninguém continue atendendo sem perceber que nada será
+ * entregue. Com 2+ números conectados o overlay não aparece.
  *
  * Escopo atual: somente Whapi (pedido do Miguel — "por enquanto só a whapi").
  */

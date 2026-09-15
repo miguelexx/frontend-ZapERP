@@ -831,9 +831,10 @@ export async function getZapiStatus() {
 /**
  * Status dedicado do canal Whapi para o overlay vermelho de desconexão.
  * Backend só devolve { isWhapi:true, connected:false } quando a empresa usa
- * Whapi E o canal está comprovadamente fora do AUTH; em qualquer outro caso
- * (provider diferente, erro) devolve connected:true — o overlay nunca aparece
- * por engano. GET /chats/whapi-status (auth simples, todos os perfis).
+ * Whapi E TODOS os canais ativos estão comprovadamente fora do AUTH (com 2+
+ * números, consulta cada instância). Em qualquer outro caso (provider
+ * diferente, pelo menos 1 AUTH, erro) devolve connected:true — o overlay
+ * nunca aparece por engano. GET /chats/whapi-status (auth simples).
  */
 export async function getWhapiChannelStatus() {
   // Polling de overlay: nunca spammar toast global se o status falhar.
