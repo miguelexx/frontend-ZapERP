@@ -4008,7 +4008,9 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   padding: 3px;
   box-sizing: border-box;
   border-radius: 14px;
-  overflow: hidden;
+  /* visible: o chip de reação fica position:absolute abaixo da bolha; o recorte da foto
+     fica em .wa-bubble-body / .wa-bubble-imgLink */
+  overflow: visible;
   box-shadow:
     0 1px 0 rgba(11, 20, 26, 0.04),
     0 2px 8px rgba(11, 20, 26, 0.07);
@@ -4126,7 +4128,9 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   width: fit-content;
   max-width: 100%;
   min-width: 0;
+  overflow: hidden;
   overflow-wrap: break-word;
+  border-radius: 11px;
   align-items: flex-start;
 }
 
@@ -4295,7 +4299,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   padding: 2px 3px 3px 3px;
   box-sizing: border-box;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow:
     0 1px 0.5px rgba(11, 20, 26, 0.09),
     0 1px 3px rgba(11, 20, 26, 0.06);
@@ -4305,6 +4309,8 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   width: fit-content;
   max-width: 100%;
   min-width: 0;
+  overflow: hidden;
+  border-radius: 11px;
   align-items: flex-start;
 }
 
@@ -5568,9 +5574,11 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   justify-content: center;
   gap: 3px;
   font-size: 14px;
+  line-height: 1;
+  overflow: visible;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   pointer-events: none;
-  z-index: 3;
+  z-index: 4;
   opacity: 1;
 }
 
@@ -5585,9 +5593,10 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   color: var(--ds-text-primary);
 }
 
-/* espaço extra embaixo da linha quando há reação */
+/* espaço extra embaixo da linha quando há reação (padding, não só margin:
+   o virtualizer mede offsetHeight; contain:paint no scroll não pode cortar o chip) */
 .wa-row--hasReaction {
-  margin-bottom: 18px;
+  padding-bottom: 16px;
 }
 
 /* Botão de reagir — fora do balão, só no hover (esquerda para enviadas, direita para recebidas) */
@@ -7276,6 +7285,26 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 .wa-bubble-media .wa-msgMenuBtn-caret {
   opacity: 0.95;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+/* Fotos: seta de opções maior e alvo de clique mais fácil (o horário overlay
+   compete o canto; z-index garante que o botão fique por cima). */
+.wa-bubble.image-message .wa-msgMenuBtn--top {
+  width: 56px !important;
+  height: 38px !important;
+  min-width: 56px !important;
+  min-height: 38px !important;
+  padding: 6px 7px 0 0 !important;
+  z-index: 5;
+}
+
+.wa-bubble.image-message .wa-msgMenuBtn-caret {
+  width: 24px;
+  height: 24px;
+}
+
+.wa-bubble.image-message .wa-msgMenuBtn-caret path {
+  stroke-width: 2;
 }
 
 @media (pointer: coarse) {
@@ -14145,14 +14174,14 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
     max-width: min(420px, calc(100vw - 24px), 94%);
     padding: 2px 3px 3px 3px;
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) {
     max-width: min(420px, calc(100vw - 24px), 94%);
     padding: 2px 3px 3px 3px;
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .wa-bubble.image-message .wa-bubble-mediaStack {

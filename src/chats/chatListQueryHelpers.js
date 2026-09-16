@@ -188,15 +188,15 @@ export function shouldBlockHiddenClosedReinsert(hiddenMap, row, now = Date.now()
 }
 
 /**
- * Classificação exclusiva dos chips de filtro (não do badge do card).
- * "Aguardando cliente" é subcondição de atendimento: a row pode continuar
- * `em_atendimento`, mas o chip conta só em um lado.
+ * Chips de filtro (não o badge do card).
+ * "Aguardando cliente" é subcondição de atendimento: o chip visível
+ * Em atendimento inclui essas rows (o chip Aguardando cliente saiu da toolbar).
  */
 export function chatRowChipCountKeys(row) {
   if (!row) return [];
   const s = getStatusAtendimentoEffective(row);
   if (isConversaAguardandoCliente(row) || s === "aguardando_cliente") {
-    return ["aguardando_cliente"];
+    return row.atendente_id != null ? ["em_atendimento", "aguardando_cliente"] : ["aguardando_cliente"];
   }
   if (s === "em_atendimento" && row.atendente_id != null) return ["em_atendimento"];
   if (s === "aberta" && row.exibir_badge_aberta !== false) return ["abertas"];

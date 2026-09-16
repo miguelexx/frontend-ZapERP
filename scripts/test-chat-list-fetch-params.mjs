@@ -751,8 +751,8 @@ try {
   };
   assert.deepEqual(
     chatRowChipCountKeys(waitingAuto),
-    ["aguardando_cliente"],
-    "espera automatica conta so no chip Aguardando cliente"
+    ["em_atendimento", "aguardando_cliente"],
+    "espera automatica entra no chip visivel Em atendimento"
   );
   assert.deepEqual(
     chatRowChipCountKeys({
@@ -760,7 +760,7 @@ try {
       status_atendimento: "aguardando_cliente",
       status_atendimento_real: "aguardando_cliente",
     }),
-    ["aguardando_cliente"]
+    ["em_atendimento", "aguardando_cliente"]
   );
   assert.equal(
     chatRowIsStaleForTab(waitingAuto, "em_atendimento"),
@@ -773,7 +773,7 @@ try {
     chatRowChipCountKeys(waitingAuto),
     1
   );
-  assert.equal(afterWaitingDelta.em_atendimento, 4);
+  assert.equal(afterWaitingDelta.em_atendimento, 5);
   assert.equal(afterWaitingDelta.aguardando_cliente, 2);
   assert.equal(
     applyChatFilterCountsDelta({ em_atendimento: 4, finalizadas: 1 }, ["em_atendimento"], -1)

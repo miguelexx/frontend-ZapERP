@@ -46,6 +46,10 @@ Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRES
 
 **Texto longo sem espaço (CONFIRMADO 2026-09-02):** token/hash/URL esticava a bolha (`overflow-wrap: break-word` não reduz min-content). Bolha/texto/legenda usam `overflow-wrap: anywhere`. Texto + hora inline vai em `.wa-bubble-textBody`.
 
+**Reação na foto (2026-09-16):** o chip `.wa-bubble-reaction` fica `bottom: -13px` na bolha. `overflow: hidden` em `.image-message` / vídeo+legenda cortava o emoji. O recorte da mídia ficou em `.wa-bubble-body` / `.wa-bubble-imgLink`; a bolha e a linha (`.wa-row--hasReaction` com `padding-bottom`) deixam o chip inteiro visível.
+
+**Seta de opções na foto (2026-09-16):** em `.image-message` o caret `.wa-msgMenuBtn-caret` é 24×24 (texto continua 15×15) e o botão 56×38, com `z-index: 5` para ficar acima do horário overlay no canto. Mobile UX (`.wa-bubble--mobileUx`) segue sem setinha fixa (long press).
+
 **Seleção de texto na bolha (CONFIRMADO 2026-09-14):** no desktop (`hover: hover` + `pointer: fine`, sem `.wa-bubble--mobileUx` e fora do `selectMode`) o texto/legenda/link da mensagem pode ser destacado com o mouse (arrastar, duplo clique, Ctrl+C), como no WhatsApp Web. O `selectstart` da bolha só chama `preventDefault` em `selectMode` ou `mobileMessageChrome` — no toque a seleção nativa continua bloqueada para o long-press do menu não abrir o highlight azul do iOS. Horário/ticks (`.wa-inlineMeta`) não entram na seleção.
 
 **Selecionar uma mensagem com o mouse (CONFIRMADO 2026-09-14):** o círculo ao lado da bolha no hover é **reação**, não seleção. Para marcar aquela mensagem: (1) checkbox vazio `.wa-selectChk--hover` ao lado da bolha no desktop; (2) **Ctrl+clique** (Cmd no Mac) na linha; (3) menu ▾ → **Selecionar**. Isso chama `startSelect` e abre a barra `.wa-selectBar`. No modo seleção, clicar a linha/bolha alterna o checkbox. Mobile: long-press → Selecionar. O hover-checkbox não aparece em `pointer: coarse`.
