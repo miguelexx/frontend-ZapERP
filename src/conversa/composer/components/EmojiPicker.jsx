@@ -1,4 +1,3 @@
-import { createPortal } from "react-dom";
 import { IconClose } from "../../conversaComposerIcons";
 import { COMPOSER_EMOJIS, safeString } from "../utils/composerUtils";
 
@@ -12,13 +11,13 @@ export default function EmojiPicker({
   onClose,
   onInsert,
 }) {
-  if (isRecording || !open || typeof document === "undefined") return null;
+  if (isRecording || !open) return null;
 
   const emojis = COMPOSER_EMOJIS.filter(
     (emoji) => !safeString(query) || emoji.includes(safeString(query))
   );
 
-  return createPortal(
+  return (
     <div ref={panelRef} className="wa-emojiPanel" role="dialog" aria-label="Selecionar emoji">
       <div className="wa-emojiHead">
         <input
@@ -57,7 +56,6 @@ export default function EmojiPicker({
       <div className="wa-emojiFoot">
         <span className="wa-muted">Dica: clique para inserir no cursor.</span>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

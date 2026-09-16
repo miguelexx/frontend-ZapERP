@@ -62,7 +62,7 @@ Divisão atual:
 - `useTypingEmitter`: concentra o timer de 400 ms, deduplica `typing_start`/`typing_stop` por conversa e limpa timer/sessão no blur, troca e unmount;
 - `useSavedReplies`: chama `GET /dashboard/respostas-salvas` apenas ao abrir o painel, com `contexto: "atendimento"`, cache por departamento e generation guard para resposta antiga;
 - `useAttachmentPicker`: concentra refs/portal do menu e câmera; stream obtido depois de troca/fechamento é descartado e suas tracks são encerradas;
-- `useEmojiPicker` e `useStickerPicker`: estado, fechamento externo, busca e recents; envio/formatos continuam delegados aos callbacks existentes;
+- `useEmojiPicker` e `useStickerPicker`: estado, fechamento externo, busca e recents; envio/formatos continuam delegados aos callbacks existentes. **Emoji picker (2026-09-16):** renderizado *dentro* de `.wa-composerStack` (mesmo padrão de `.wa-savedRepliesPanel`: `position:absolute; bottom:100%`). Não usa portal em `document.body` — o `position:fixed; left:16px` antigo desenhava o painel sobre a lista de conversas. Figurinhas ainda portalam para `body` (fora deste ajuste);
 - `useComposerAutocorrect`: preferência, rastreamento e aplicação da autocorreção sem mudar as regras de texto;
 - `useVoiceRecording`: `MediaRecorder`, chunks, duração, metadados, cancelamento e cleanup de stream/track. O envio FIFO e a bolha otimista continuam em `ConversaView.jsx` e não foram movidos;
 - `ComposerFooter` e componentes visuais mantêm as classes existentes. Câmera, emojis, stickers e painel de respostas são lazy chunks carregados somente ao abrir. `conversa.css` não foi alterado nesta sessão.

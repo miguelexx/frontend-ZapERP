@@ -63,6 +63,7 @@ export default function ConversaViewOverlays({
   setForwardQuery,
   forwardSending,
   forwardSelectedConversaIds,
+  forwardSelectedClienteIds,
   forwardMax10Msg,
   forwardMultiProgress,
   forwardColaboradoresLoading,
@@ -73,9 +74,11 @@ export default function ConversaViewOverlays({
   closeForward,
   confirmForwardToColaborador,
   toggleForwardConversaSelect,
+  toggleForwardClienteSelect,
   confirmForwardTo,
   confirmForwardToCliente,
   confirmForwardToMany,
+  confirmForwardToSelected,
   pixModalOpen,
   pixTipoChave,
   pixChave,
@@ -230,6 +233,7 @@ export default function ConversaViewOverlays({
             onForwardQueryChange={setForwardQuery}
             forwardSending={forwardSending}
             forwardSelectedConversaIds={forwardSelectedConversaIds}
+            forwardSelectedClienteIds={forwardSelectedClienteIds}
             forwardMax10Msg={forwardMax10Msg}
             forwardMultiProgress={forwardMultiProgress}
             forwardColaboradoresLoading={forwardColaboradoresLoading}
@@ -240,9 +244,8 @@ export default function ConversaViewOverlays({
             onClose={closeForward}
             onConfirmForwardToColaborador={confirmForwardToColaborador}
             onToggleForwardConversaSelect={toggleForwardConversaSelect}
-            onConfirmForwardTo={confirmForwardTo}
-            onConfirmForwardToCliente={confirmForwardToCliente}
-            onConfirmForwardToMany={confirmForwardToMany}
+            onToggleForwardClienteSelect={toggleForwardClienteSelect}
+            onConfirmForwardToSelected={confirmForwardToSelected}
           />
         </Suspense>
       ) : null}

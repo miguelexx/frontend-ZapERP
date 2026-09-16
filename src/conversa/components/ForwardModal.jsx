@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FORWARD_DEST_MAX } from "../conversaConstants";
 import { safeString } from "../utils/conversaViewHelpers";
-import { IconClose } from "../conversaViewIcons";
+import { IconClose, IconForward } from "../conversaViewIcons";
 import { isGroupConversation } from "../../utils/conversaUtils";
 import {
   IconArrowForwardUp,
-  IconMessage2,
+  IconCheck,
   IconSearch,
-  IconUser,
   IconUsers,
 } from "@tabler/icons-react";
 
@@ -37,7 +36,7 @@ function isValidAvatarUrl(url) {
   return s.length > 0 && /^https?:\/\//i.test(s) && s.toLowerCase() !== "null";
 }
 
-function Avatar({ name, foto, size = 36 }) {
+function Avatar({ name, foto, size = 44 }) {
   const [imgError, setImgError] = useState(false);
   const { initials, bg, color } = getAvatar(name);
   const showImg = !imgError && isValidAvatarUrl(foto);
@@ -67,8 +66,35 @@ function Avatar({ name, foto, size = 36 }) {
   );
 }
 
+/** Linha de destino estilo WhatsApp: quadradinho + avatar + nome/subtítulo. */
+function DestRow({ name, sub, badge, foto, checked, disabled, onToggle }) {
+  return (
+    <button
+      type="button"
+      className={`wa-fwdRow${checked ? " isChecked" : ""}`}
+      onClick={disabled ? undefined : onToggle}
+      disabled={disabled}
+      aria-pressed={checked}
+    >
+      <span className={`wa-fwdCheck${checked ? " isOn" : ""}`} aria-hidden="true">
+        {checked ? <IconCheck size={15} strokeWidth={3} /> : null}
+      </span>
+      <Avatar name={name} foto={foto} />
+      <span className="wa-fwdRow-info">
+        <span className="wa-fwdRow-name">{name}</span>
+        {badge ? (
+          <span className={`wa-forwardBadge wa-forwardBadge--${badge.kind}`}>{badge.label}</span>
+        ) : sub ? (
+          <span className="wa-fwdRow-sub">{sub}</span>
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
 /**
- * Modal de encaminhamento de mensagens. Estado e regras de envio permanecem no pai.
+ * Modal de encaminhamento — seletor de destinos estilo WhatsApp.
+ * Estado e regras de envio permanecem no hook useForwardFlow.
  */
 export default function ForwardModal({
   open,
@@ -78,8 +104,8 @@ export default function ForwardModal({
   onForwardQueryChange,
   forwardSending,
   forwardSelectedConversaIds,
+  forwardSelectedClienteIds,
   forwardMax10Msg,
-  forwardMultiProgress,
   forwardColaboradoresLoading,
   forwardColaboradoresFiltered,
   forwardCandidates,
@@ -88,20 +114,42 @@ export default function ForwardModal({
   onClose,
   onConfirmForwardToColaborador,
   onToggleForwardConversaSelect,
-  onConfirmForwardTo,
-  onConfirmForwardToCliente,
-  onConfirmForwardToMany,
+  onToggleForwardClienteSelect,
+  onConfirmForwardToSelected,
 }) {
+  const selConversaSet = useMemo(
+    () => new Set((forwardSelectedConversaIds || []).map(String)),
+    [forwardSelectedConversaIds]
+  );
+  const selClienteSet = useMemo(
+    () => new Set((forwardSelectedClienteIds || []).map(String)),
+    [forwardSelectedClienteIds]
+  );
+
+  // Contatos que já aparecem como conversa recente (dedup por cliente_id).
+  const conversaClienteIds = useMemo(() => {
+    const set = new Set();
+    (forwardCandidates || []).forEach((c) => {
+      if (c?.cliente_id != null) set.add(String(c.cliente_id));
+    });
+    return set;
+  }, [forwardCandidates]);
+
+  const contatos = useMemo(() => {
+    const list = Array.isArray(forwardClientes) ? forwardClientes : [];
+    return list.filter((c) => c?.id != null && !conversaClienteIds.has(String(c.id))).slice(0, 200);
+  }, [forwardClientes, conversaClienteIds]);
+
   if (!open || !forwardMsgs?.length) return null;
 
-  const selCount = forwardSelectedConversaIds.length;
+  const totalSel = selConversaSet.size + selClienteSet.size;
   const hasQuery = safeString(forwardQuery).trim().length > 0;
 
   return createPortal(
     <div
       className="wa-modalOverlay wa-forwardOverlay"
       role="dialog"
-      aria-label="Encaminhar mensagens"
+      aria-label="Encaminhar mensagem para"
       onMouseDown={(e) => {
         if (e.target !== e.currentTarget) return;
         onClose?.();
@@ -113,11 +161,11 @@ export default function ForwardModal({
         {/* Header */}
         <div className="wa-modal-head">
           <div className="wa-forwardHeadLeft">
-            <div className="wa-modal-title">Encaminhar</div>
+            <div className="wa-modal-title">Encaminhar mensagem para</div>
             <div className="wa-forwardHeadCounter" aria-live="polite">
-              {selCount > 0
-                ? `${selCount} selecionada(s) · até ${FORWARD_DEST_MAX} destinos`
-                : `Selecione até ${FORWARD_DEST_MAX} destinos`}
+              {totalSel > 0
+                ? `${totalSel} de ${FORWARD_DEST_MAX} selecionado(s)`
+                : `Escolha até ${FORWARD_DEST_MAX} destinos`}
             </div>
           </div>
           <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar">
@@ -126,22 +174,16 @@ export default function ForwardModal({
         </div>
 
         <div className="wa-modal-body wa-forwardBody">
-          {/* Preview da mensagem */}
+          {/* Preview do que será encaminhado */}
           <div className="wa-forwardPreviewChip">
             <IconArrowForwardUp size={13} strokeWidth={2.2} aria-hidden="true" />
             <span>{forwardPreviewLabel}</span>
           </div>
 
-          {/* Dica compacta */}
-          <p className="wa-forwardTip">
-            Toque em <strong>Apenas esta</strong> para envio direto, ou marque conversas e clique em{" "}
-            <strong>Encaminhar selecionados</strong>.
-          </p>
-
           {/* Busca */}
           <div className="wa-forwardSearchWrap">
             <IconSearch
-              size={15}
+              size={16}
               strokeWidth={1.8}
               className="wa-forwardSearchIcon"
               aria-hidden="true"
@@ -150,158 +192,101 @@ export default function ForwardModal({
               className="wa-input wa-forwardSearch"
               value={forwardQuery}
               onChange={(e) => onForwardQueryChange?.(e.target.value)}
-              placeholder="Buscar por nome ou telefone..."
-              aria-label="Buscar contato"
+              placeholder="Pesquisar nome ou telefone…"
+              aria-label="Pesquisar contato"
               autoFocus
             />
           </div>
 
-          {/* Conversas */}
-          <div className="wa-forwardSection">
-            <div className="wa-forwardSectionHead">
-              <div className="wa-forwardSectionTitle">
-                <IconMessage2 size={12} strokeWidth={2} aria-hidden="true" />
-                Conversas
-              </div>
-              <span className="wa-forwardSectionCap">máx. {FORWARD_DEST_MAX}</span>
-            </div>
-            {forwardMax10Msg ? (
-              <p className="wa-forwardMaxHint" role="status" aria-live="polite">
-                {forwardMax10Msg}
-              </p>
-            ) : null}
-            {forwardCandidates.length === 0 ? (
-              <div className="wa-muted wa-forwardEmpty">
-                {forwardQuery.trim() ? "Nenhuma conversa encontrada." : "Carregando conversas…"}
-              </div>
-            ) : (
+          {forwardMax10Msg ? (
+            <p className="wa-forwardMaxHint" role="status" aria-live="polite">
+              {forwardMax10Msg}
+            </p>
+          ) : null}
+
+          {/* Conversas recentes */}
+          {forwardCandidates.length > 0 ? (
+            <div className="wa-forwardSection">
+              <div className="wa-forwardSectionTitle">Conversas recentes</div>
               <div className="wa-forwardList">
                 {forwardCandidates.map((c) => {
                   const isGroup = isGroupConversation(c);
-                  const n = safeString(
-                    isGroup
-                      ? (c?.nome_grupo || c?.contato_nome || c?.nome_contato_cache || c?.nome || c?.telefone)
-                      : (c?.contato_nome || c?.nome_contato_cache || c?.cliente_nome || c?.nome || c?.cliente?.nome || c?.telefone)
-                  ) || "Conversa";
+                  const n =
+                    safeString(
+                      isGroup
+                        ? c?.nome_grupo || c?.contato_nome || c?.nome_contato_cache || c?.nome || c?.telefone
+                        : c?.contato_nome ||
+                            c?.nome_contato_cache ||
+                            c?.cliente_nome ||
+                            c?.nome ||
+                            c?.cliente?.nome ||
+                            c?.telefone
+                    ) || "Conversa";
                   const foto = isGroup
-                    ? (c?.foto_grupo ?? null)
-                    : (c?.foto_perfil ?? c?.foto_perfil_contato_cache ?? c?.cliente?.foto_perfil ?? c?.clientes?.foto_perfil ?? null);
+                    ? c?.foto_grupo ?? null
+                    : c?.foto_perfil ??
+                      c?.foto_perfil_contato_cache ??
+                      c?.cliente?.foto_perfil ??
+                      c?.clientes?.foto_perfil ??
+                      null;
                   const telLinha = isGroup
                     ? null
                     : safeString(c?.telefone_exibivel ?? c?.telefoneExibivel ?? c?.telefone);
-                  const atNome = safeString(c?.atendente_nome ?? c?.atendenteNome).trim();
-                  const atMail = safeString(c?.atendente_email ?? c?.atendenteEmail).trim();
-                  const atendenteTitle = [atNome ? `Atendente: ${atNome}` : "", atMail]
-                    .filter(Boolean)
-                    .join(" · ");
                   const idStr = String(c.id);
-                  const sel = forwardSelectedConversaIds.includes(idStr);
                   return (
-                    <div
+                    <DestRow
                       key={`conv-${c.id}`}
-                      className={`wa-forwardItem wa-forwardItem--row ${sel ? "isSelected" : ""}`}
-                    >
-                      <label className="wa-forwardItem-checkLabel">
-                        <input
-                          type="checkbox"
-                          className="wa-forwardItem-check"
-                          checked={sel}
-                          onChange={() => onToggleForwardConversaSelect?.(c.id)}
-                          disabled={forwardSending}
-                          aria-label={`Incluir conversa: ${n}`}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="wa-forwardItem-main"
-                        onClick={() => !forwardSending && onToggleForwardConversaSelect?.(c.id)}
-                        disabled={forwardSending}
-                      >
-                        <Avatar name={n} size={34} foto={foto} />
-                        <div className="wa-forwardItem-info">
-                          <div className="wa-forwardItem-name">{n}</div>
-                          {isGroup ? (
-                            <span className="wa-forwardBadge wa-forwardBadge--group">Grupo</span>
-                          ) : telLinha ? (
-                            <div className="wa-forwardItem-sub">{telLinha}</div>
-                          ) : null}
-                          {!isGroup && atNome ? (
-                            <div
-                              className="wa-forwardItem-atendente"
-                              title={atendenteTitle || undefined}
-                            >
-                              {atNome}
-                            </div>
-                          ) : !isGroup ? (
-                            <div className="wa-forwardItem-atendente wa-forwardItem-atendente--empty">
-                              Sem atendente
-                            </div>
-                          ) : null}
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        className="wa-forwardItem-solo"
-                        onClick={() => onConfirmForwardTo?.(c.id)}
-                        disabled={forwardSending}
-                        title="Encaminhar somente para esta conversa"
-                      >
-                        Apenas esta
-                      </button>
-                    </div>
+                      name={n}
+                      sub={telLinha}
+                      badge={isGroup ? { kind: "group", label: "Grupo" } : null}
+                      foto={foto}
+                      checked={selConversaSet.has(idStr)}
+                      disabled={forwardSending}
+                      onToggle={() => onToggleForwardConversaSelect?.(c.id)}
+                    />
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
+          ) : null}
 
-          {/* Clientes */}
+          {/* Todos os contatos */}
           <div className="wa-forwardSection">
             <div className="wa-forwardSectionTitle">
-              <IconUser size={12} strokeWidth={2} aria-hidden="true" />
-              Clientes
+              {hasQuery ? "Contatos" : "Todos os contatos"}
             </div>
-            {forwardClientesLoading ? (
-              <div className="wa-muted wa-forwardEmpty">Buscando…</div>
-            ) : forwardClientes.length === 0 ? (
+            {forwardClientesLoading && contatos.length === 0 ? (
+              <div className="wa-muted wa-forwardEmpty">Carregando contatos…</div>
+            ) : contatos.length === 0 ? (
               <div className="wa-muted wa-forwardEmpty">
-                {safeString(forwardQuery).trim().length >= 2
-                  ? "Nenhum cliente encontrado."
-                  : "Digite pelo menos 2 caracteres para buscar."}
+                {hasQuery ? "Nenhum contato encontrado." : "Nenhum contato disponível."}
               </div>
             ) : (
               <div className="wa-forwardList">
-                {forwardClientes.slice(0, 60).map((c) => {
-                  const n = safeString(c?.nome || c?.telefone) || "Cliente";
+                {contatos.map((c) => {
+                  const n = safeString(c?.nome || c?.telefone) || "Contato";
+                  const idStr = String(c.id);
                   return (
-                    <button
+                    <DestRow
                       key={`cli-${c.id}`}
-                      type="button"
-                      className="wa-forwardItem"
-                      onClick={() => onConfirmForwardToCliente?.(c)}
-                      title={`Encaminhar para ${n}`}
+                      name={n}
+                      sub={c?.telefone ? String(c.telefone) : null}
+                      foto={c?.foto_perfil ?? null}
+                      checked={selClienteSet.has(idStr)}
                       disabled={forwardSending}
-                    >
-                      <Avatar name={n} foto={c?.foto_perfil ?? null} />
-                      <div className="wa-forwardItem-info">
-                        <div className="wa-forwardItem-name">{n}</div>
-                        {c?.telefone ? (
-                          <div className="wa-forwardItem-sub">{String(c.telefone)}</div>
-                        ) : null}
-                      </div>
-                    </button>
+                      onToggle={() => onToggleForwardClienteSelect?.(c)}
+                    />
                   );
                 })}
               </div>
             )}
           </div>
 
-          {/* Colaboradores — só aparece quando o usuário busca */}
+          {/* Colaboradores — envio direto ao chat interno (só na busca) */}
           {hasQuery && (
             <div className="wa-forwardSection">
               <div className="wa-forwardSectionTitle">
-                <IconUsers size={12} strokeWidth={2} aria-hidden="true" />
-                Colaboradores
+                <IconUsers size={12} strokeWidth={2} aria-hidden="true" /> Colaboradores
               </div>
               {forwardColaboradoresLoading ? (
                 <div className="wa-muted wa-forwardEmpty">Carregando…</div>
@@ -323,7 +308,7 @@ export default function ForwardModal({
                         title={`Encaminhar para ${nome} (chat interno)`}
                         disabled={forwardSending || uid == null}
                       >
-                        <Avatar name={nome} />
+                        <Avatar name={nome} size={40} />
                         <div className="wa-forwardItem-info">
                           <div className="wa-forwardItem-name">{nome}</div>
                           {email ? <div className="wa-forwardItem-sub">{email}</div> : null}
@@ -340,20 +325,20 @@ export default function ForwardModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="wa-forwardFooter">
-          <button type="button" className="wa-btn wa-btn-ghost" onClick={onClose}>
-            Cancelar
-          </button>
+        {/* Botão flutuante de envio (estilo WhatsApp) */}
+        {totalSel > 0 ? (
           <button
             type="button"
-            className="wa-btn wa-btn-primary"
-            onClick={onConfirmForwardToMany}
-            disabled={selCount < 1}
+            className="wa-fwdSendFab"
+            onClick={onConfirmForwardToSelected}
+            disabled={forwardSending}
+            aria-label={`Encaminhar para ${totalSel} destino(s)`}
+            title="Encaminhar"
           >
-            {selCount > 0 ? `Encaminhar (${selCount})` : "Encaminhar selecionados"}
+            <IconForward />
+            <span className="wa-fwdSendFab-badge">{totalSel}</span>
           </button>
-        </div>
+        ) : null}
       </div>
     </div>,
     document.body

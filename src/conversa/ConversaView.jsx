@@ -1951,16 +1951,19 @@ function ConversaViewBody() {
     forwardColaboradoresFiltered,
     forwardColaboradoresLoading,
     forwardSelectedConversaIds,
+    forwardSelectedClienteIds,
     forwardMax10Msg,
     forwardMultiProgress,
     forwardPreviewLabel,
     closeForward,
     openForwardFromSelection,
     toggleForwardConversaSelect,
+    toggleForwardClienteSelect,
     confirmForwardToCliente,
     confirmForwardTo,
     confirmForwardToColaborador,
     confirmForwardToMany,
+    confirmForwardToSelected,
   } = useForwardFlow({
     conversa,
     conversaId,
@@ -2134,9 +2137,11 @@ function ConversaViewBody() {
       }
       return;
     }
-    // Go directly to the forward modal — no intermediate selection step needed
-    openForwardFromSelection([String(msg.id)], mensagens);
-  }, [showToast, openForwardFromSelection, mensagens]);
+    // Estilo WhatsApp: entra no modo de seleção com a mensagem já marcada, para o
+    // usuário poder marcar outras. A seta na barra inferior abre o seletor de destinos.
+    startSelect(msg);
+    setForwardSelectIntent(true);
+  }, [showToast, startSelect, setForwardSelectIntent]);
 
   const handleForwardAdvance = useCallback(() => {
     openForwardFromSelection(orderedSelectedIds, mensagens);
@@ -2779,7 +2784,11 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
   }
 
   return (
-    <div ref={waShellRef} className="wa-shell" onDragEnter={onDragEnter}>
+    <div
+      ref={waShellRef}
+      className={`wa-shell${selectMode ? " wa-shell--select" : ""}`}
+      onDragEnter={onDragEnter}
+    >
         <ConversaDropOverlay
           open={dragOver}
           onDragOver={onDragOver}
@@ -2879,6 +2888,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           setForwardQuery={setForwardQuery}
           forwardSending={forwardSending}
           forwardSelectedConversaIds={forwardSelectedConversaIds}
+          forwardSelectedClienteIds={forwardSelectedClienteIds}
           forwardMax10Msg={forwardMax10Msg}
           forwardMultiProgress={forwardMultiProgress}
           forwardColaboradoresLoading={forwardColaboradoresLoading}
@@ -2889,9 +2899,11 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           closeForward={closeForward}
           confirmForwardToColaborador={confirmForwardToColaborador}
           toggleForwardConversaSelect={toggleForwardConversaSelect}
+          toggleForwardClienteSelect={toggleForwardClienteSelect}
           confirmForwardTo={confirmForwardTo}
           confirmForwardToCliente={confirmForwardToCliente}
           confirmForwardToMany={confirmForwardToMany}
+          confirmForwardToSelected={confirmForwardToSelected}
           pixModalOpen={pixModalOpen}
           pixTipoChave={pixTipoChave}
           pixChave={pixChave}
@@ -2997,16 +3009,6 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           role="log"
           aria-label="Mensagens"
         >
-          <ConversaSelectionBar
-            open={selectMode}
-            forwardSelectIntent={forwardSelectIntent}
-            compactMessageUx={compactMessageUx}
-            selectedCount={selectedSet.size}
-            forwardSending={forwardSending}
-            onDismiss={dismissSelectionOverlay}
-            onForward={handleForwardAdvance}
-            onDelete={handleDeleteSelected}
-          />
           {!selectMode && showMarcarLidaModoSimplesBar ? (
             <div className="wa-modoSimplesLidaBar">
               <button
@@ -3094,6 +3096,18 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
 
           <div ref={bottomRef} />
         </div>
+
+        {/* Barra de seleção estilo WhatsApp — overlay fixo no rodapé (fora do scroll) */}
+        <ConversaSelectionBar
+          open={selectMode}
+          forwardSelectIntent={forwardSelectIntent}
+          compactMessageUx={compactMessageUx}
+          selectedCount={selectedSet.size}
+          forwardSending={forwardSending}
+          onDismiss={dismissSelectionOverlay}
+          onForward={handleForwardAdvance}
+          onDelete={handleDeleteSelected}
+        />
 
         <PendingMediaPreview
           pendingFile={pendingFile}

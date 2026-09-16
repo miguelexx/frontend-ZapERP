@@ -208,6 +208,7 @@ export default function ComposerFooter({
 
         {!headerCompact ? (
           <button
+            ref={emojiPicker.buttonRef}
             type="button"
             className={`wa-iconBtn ${emojiPicker.open ? "isActive" : ""}`}
             onMouseDown={(event) => event.preventDefault()}
@@ -219,6 +220,7 @@ export default function ComposerFooter({
             }}
             title="Emojis"
             aria-label="Emojis"
+            aria-expanded={emojiPicker.open}
             disabled={sending || !canType}
           >
             <IconEmoji />

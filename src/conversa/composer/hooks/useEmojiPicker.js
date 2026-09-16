@@ -5,6 +5,7 @@ export function useEmojiPicker({ texto, setTexto, inputRef }) {
   const [query, setQuery] = useState("");
   const panelRef = useRef(null);
   const searchRef = useRef(null);
+  const buttonRef = useRef(null);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -40,7 +41,7 @@ export function useEmojiPicker({ texto, setTexto, inputRef }) {
   useEffect(() => {
     if (!open) return undefined;
     const onDocumentPointer = (event) => {
-      if (panelRef.current?.contains(event.target)) return;
+      if (panelRef.current?.contains(event.target) || buttonRef.current?.contains(event.target)) return;
       close();
     };
     document.addEventListener("mousedown", onDocumentPointer);
@@ -48,5 +49,5 @@ export function useEmojiPicker({ texto, setTexto, inputRef }) {
     return () => document.removeEventListener("mousedown", onDocumentPointer);
   }, [close, open]);
 
-  return { open, setOpen, query, setQuery, panelRef, searchRef, close, insert };
+  return { open, setOpen, query, setQuery, panelRef, searchRef, buttonRef, close, insert };
 }

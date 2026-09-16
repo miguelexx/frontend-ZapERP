@@ -658,6 +658,23 @@ const ConversaComposer = forwardRef(function ConversaComposer(
           />
         </Suspense>
       ) : null}
+      {emojiOpen && !isRecording ? (
+        <Suspense fallback={null}>
+          <EmojiPicker
+            open={emojiOpen}
+            isRecording={isRecording}
+            panelRef={emojiPanelRef}
+            searchRef={emojiSearchRef}
+            query={emojiQuery}
+            onQueryChange={setEmojiQuery}
+            onClose={() => {
+              setEmojiOpen(false);
+              setEmojiQuery("");
+            }}
+            onInsert={insertEmoji}
+          />
+        </Suspense>
+      ) : null}
       <ReplyBar
         preview={replyBarPreview}
         variant={editMode ? "edit" : "reply"}
@@ -747,24 +764,6 @@ const ConversaComposer = forwardRef(function ConversaComposer(
             onQueryChange={setStickerQuery}
             onSendStickerFile={onSendStickerFile}
             showToast={showToast}
-          />
-        </Suspense>
-      ) : null}
-
-      {emojiOpen && !isRecording ? (
-        <Suspense fallback={null}>
-          <EmojiPicker
-            open={emojiOpen}
-            isRecording={isRecording}
-            panelRef={emojiPanelRef}
-            searchRef={emojiSearchRef}
-            query={emojiQuery}
-            onQueryChange={setEmojiQuery}
-            onClose={() => {
-              setEmojiOpen(false);
-              setEmojiQuery("");
-            }}
-            onInsert={insertEmoji}
           />
         </Suspense>
       ) : null}

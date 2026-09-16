@@ -5640,6 +5640,14 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   pointer-events: auto;
 }
 
+/* Revela a reação ao passar o mouse em qualquer ponto da LINHA (fora do modo seleção). */
+.wa-messages:not(.wa-messages--selectDim) .wa-row:hover .wa-reactionBtn {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  opacity: 1;
+  pointer-events: auto;
+}
+
 [data-theme="dark"] .wa-reactionBtn:hover:not(:disabled),
 [data-theme="dark"] .wa-reactionBtn.isOpen {
   background: rgba(255, 255, 255, 0.08);
@@ -7855,8 +7863,8 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 .wa-selectChk {
   width: 22px;
   height: 22px;
-  border-radius: 999px;
-  /* anel discreto e vazado (estilo WhatsApp) */
+  border-radius: 6px;
+  /* quadradinho vazado (estilo WhatsApp) */
   border: 1.5px solid rgba(0, 0, 0, 0.28);
   background: transparent;
   color: #fff;
@@ -8016,17 +8024,10 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   background: rgba(0, 0, 0, 0.45);
 }
 
-.wa-messages.wa-messages--selectDim > .wa-selectBar {
-  position: sticky;
-  top: 0;
-  z-index: 6;
-}
-
 .wa-messages.wa-messages--selectDim .wa-row:has(.wa-bubble.isSelected) {
   z-index: 2;
 }
 
-.wa-selectBar,
 .wa-pinBar {
   position: sticky;
   top: 0;
@@ -8076,35 +8077,55 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   cursor: not-allowed;
 }
 
+/* Em modo seleção, a barra (overlay) substitui o campo de digitar: escondemos o
+   composer preservando a caixa no fluxo (sem mudar altura -> sem pulo de scroll). */
+.wa-shell--select .wa-composerStack {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ===== Barra de seleção estilo WhatsApp — overlay fino no rodapé ===== */
 .wa-selectBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding: 10px clamp(12px, 3%, 28px);
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  background: var(--wa-header-bg, var(--wa-panel, #0b1622));
+  border-top: 1px solid var(--wa-panel-border, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.22);
+  color: var(--wa-text);
+  animation: wa-selectBarIn 0.16s ease;
+}
+
+html:not([data-theme="dark"]) .wa-selectBar {
+  background: #ffffff;
+  border-top-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes wa-selectBarIn {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .wa-selectBar-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
-.wa-selectBar-count {
-  font-size: 13px;
-  color: #475569;
-  white-space: nowrap;
-}
-
 .wa-selectBar-countBadge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--wa-green, #2E86FF);
-  background: color-mix(in srgb, var(--wa-green, #2E86FF) 11%, transparent);
-  border-radius: 20px;
-  padding: 3px 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--wa-text);
   white-space: nowrap;
   letter-spacing: 0.01em;
 }
@@ -8113,118 +8134,53 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
-  flex-wrap: wrap;
 }
 
-/* Encaminhar + Apagar: mesma largura base no desktop (evita “faixa” verde enorme). */
-.wa-selectBar--forwardIntent .wa-selectBar-actions {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: min(100%, 360px);
-  gap: 10px;
-}
-
-.wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn-primary,
-.wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn-danger {
-  flex: 1 1 0%;
-  min-width: 0;
-  min-height: 40px;
-  justify-content: center;
-  font-weight: 600;
-  padding-left: 12px;
-  padding-right: 12px;
-}
-
-.wa-selectBar .wa-btn-ghost {
-  color: #0f172a;
-  background: rgba(15, 23, 42, 0.07);
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  font-weight: 600;
-}
-
-.wa-selectBar .wa-btn-ghost:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.11);
-  border-color: rgba(15, 23, 42, 0.14);
-}
-
-.wa-selectBar--compactUx {
-  padding: 10px 12px;
-  border-radius: 14px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-}
-
-.wa-selectBar-close {
+/* Botões de ação em ícone (encaminhar / apagar / fechar) */
+.wa-selectBar-iconBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   padding: 0;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: none;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
+  background: transparent;
+  color: var(--wa-text);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 
-.wa-selectBar-close:hover {
-  background: rgba(15, 23, 42, 0.12);
-  border-color: rgba(15, 23, 42, 0.18);
+.wa-selectBar-iconBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-text) 12%, transparent);
 }
 
-.wa-selectBar-close:active {
-  transform: scale(0.94);
+.wa-selectBar-iconBtn:active:not(:disabled) {
+  transform: scale(0.92);
 }
 
-.wa-selectBar-forwardFab {
-  min-height: 44px;
-  padding: 10px 18px !important;
-  border-radius: 999px !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+.wa-selectBar-iconBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
-.wa-selectBar-forwardFab svg {
-  flex-shrink: 0;
-}
-
-.wa-selectBar-forwardText {
-  margin-left: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.wa-selectBar-deleteBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-/* Apagar ao lado de Encaminhar: contraste sólido (evita rosa “lavado”). */
-.wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn-danger {
-  background: #c5342d;
+.wa-selectBar-iconBtn--forward {
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  border-radius: 999px !important;
+  background: var(--wa-green, #2E86FF);
 }
-.wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn-danger:hover:not(:disabled) {
-  background: #ae2e28;
-  filter: none;
+
+.wa-selectBar-iconBtn--forward:hover:not(:disabled) {
+  background: var(--wa-green, #2E86FF);
+  filter: brightness(1.08);
 }
-.wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn-danger:active:not(:disabled) {
-  background: #9c2924;
-}
-.wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn-danger:disabled {
-  opacity: 0.55;
+
+.wa-selectBar-iconBtn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #e2445c 20%, transparent);
+  color: #e2445c;
 }
 
 .wa-pinBar {
@@ -8762,11 +8718,12 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 
 /* Modal de encaminhar (mais confiável que painel flutuante) */
 .wa-forwardModal {
-  width: min(720px, calc(100vw - 24px));
-  max-height: min(78vh, 680px);
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(82vh, 720px);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative; /* ancora o FAB de envio */
 }
 
 .wa-forwardSheetHandle {
@@ -8791,6 +8748,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   overflow: auto;
   flex: 1 1 auto;
   min-height: 0;
+  padding-bottom: 84px; /* espaço para o botão flutuante de envio */
 }
 .wa-forwardSection {
   margin-top: 6px;
@@ -9012,39 +8970,161 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   align-items: flex-start;
 }
 
-/* Barra de seleção + encaminhar: no celular empilha ações para não “espremender” */
+/* ===== Seletor de destinos estilo WhatsApp (linha + quadradinho + FAB) ===== */
+.wa-fwdRow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+
+.wa-fwdRow:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .wa-fwdRow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.wa-fwdRow.isChecked {
+  background: color-mix(in srgb, var(--wa-green, #2E86FF) 8%, transparent);
+}
+
+.wa-fwdRow:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wa-fwdCheck {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 6px;
+  border: 2px solid color-mix(in srgb, var(--wa-text-muted) 70%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.wa-fwdRow:hover .wa-fwdCheck {
+  border-color: var(--wa-green, #2E86FF);
+}
+
+.wa-fwdCheck.isOn {
+  background: var(--wa-green, #2E86FF);
+  border-color: var(--wa-green, #2E86FF);
+  transform: scale(1.04);
+}
+
+.wa-fwdRow-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.wa-fwdRow-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wa-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-fwdRow-sub {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Botão flutuante verde de envio */
+.wa-fwdSendFab {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--wa-green, #2E86FF);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--wa-green, #2E86FF) 45%, rgba(0, 0, 0, 0.35));
+  cursor: pointer;
+  z-index: 6;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  animation: wa-fwdFabIn 0.16s ease;
+}
+
+@keyframes wa-fwdFabIn {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.wa-fwdSendFab:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+}
+
+.wa-fwdSendFab:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+.wa-fwdSendFab:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wa-fwdSendFab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--wa-green, #2E86FF);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* Barra de seleção (WhatsApp) no celular: alvos de toque maiores */
 @media (max-width: 640px) {
-  .wa-selectBar--forwardIntent {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    padding: 12px 14px;
+  .wa-selectBar {
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   }
 
-  .wa-selectBar--forwardIntent .wa-selectBar-left {
-    width: 100%;
-    justify-content: space-between;
+  .wa-selectBar-iconBtn {
+    width: 46px;
+    height: 46px;
   }
 
-  .wa-selectBar--forwardIntent .wa-selectBar-count {
-    font-size: 14px;
-    font-weight: 600;
-    color: #334155;
-  }
-
-  .wa-selectBar--forwardIntent .wa-selectBar-actions {
-    width: 100%;
-    max-width: none;
-    justify-content: stretch;
-    gap: 10px;
-  }
-
-  .wa-selectBar--forwardIntent .wa-selectBar-actions .wa-btn {
-    flex: 1 1 0%;
-    min-height: 46px;
-    font-size: 14px;
-    font-weight: 600;
-    justify-content: center;
+  .wa-selectBar-countBadge {
+    font-size: 16px;
   }
 }
 
@@ -9312,6 +9392,39 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
     font-size: 13px;
     line-height: 1.4;
     word-break: break-word;
+  }
+
+  /* Linhas de destino WhatsApp — alvos de toque maiores no celular */
+  .wa-forwardOverlay .wa-fwdRow {
+    min-height: 56px;
+    padding: 10px 8px;
+    border-radius: 14px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .wa-forwardOverlay .wa-fwdCheck {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+  }
+
+  .wa-forwardOverlay .wa-fwdRow-name {
+    font-size: 15px;
+  }
+
+  .wa-forwardOverlay .wa-fwdRow-sub {
+    font-size: 13px;
+  }
+
+  /* FAB acompanha a safe-area do bottom sheet */
+  .wa-forwardOverlay .wa-fwdSendFab {
+    right: 18px;
+    bottom: max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
+  }
+
+  .wa-forwardOverlay .wa-forwardBody {
+    padding-bottom: max(90px, calc(80px + env(safe-area-inset-bottom, 0px)));
   }
 }
 
@@ -11363,21 +11476,25 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   color: var(--wa-text);
 }
 
-/* Emoji picker — leve, profissional, não bloqueia a UI */
+/* Emoji picker — ancorado no composer da conversa (não no viewport).
+   Mesmo padrão do .wa-savedRepliesPanel: absolute + bottom:100% sobre o thread,
+   sem portal em document.body (evita cobrir a lista de conversas). */
 .wa-emojiPanel{
-  position: fixed;
-  left: 16px;
-  bottom: 82px; /* acima do footer */
-  width: min(360px, calc(100vw - 32px));
-  max-height: min(420px, calc(100vh - 120px));
+  position: absolute;
+  left: 10px;
+  bottom: 100%;
+  margin-bottom: 8px;
+  width: min(392px, calc(100% - 20px));
+  max-height: min(460px, 62vh);
   background: #fff;
   border: 1px solid rgba(0,0,0,.10);
   border-radius: 14px;
   box-shadow: 0 18px 60px rgba(0,0,0,.18);
-  z-index: 10001;
+  z-index: 62;
   display:flex;
   flex-direction:column;
   overflow:hidden;
+  animation: wa-panelAppear 0.2s ease-out;
 }
 
 .wa-stickerPanel {
@@ -11509,6 +11626,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   border-color: var(--ds-border);
 }
 .wa-emojiHead{
+  flex: 0 0 auto;
   padding: 10px 10px;
   display:flex;
   gap: 10px;
@@ -11537,6 +11655,8 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   gap: 6px;
   overflow:auto;
   background: #fff;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .wa-emojiBtn{
   height: 38px;
@@ -11558,6 +11678,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   transform: scale(.96);
 }
 .wa-emojiFoot{
+  flex: 0 0 auto;
   padding: 10px 12px;
   border-top: 1px solid rgba(0,0,0,.06);
   background: #fff;
@@ -11586,10 +11707,9 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 
 @media (max-width: 520px){
   .wa-emojiPanel{
-    left: 10px;
-    right: 10px;
+    left: 8px;
+    right: 8px;
     width: auto;
-    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
     max-height: min(360px, calc(var(--wa-visual-height, 100vh) - 148px));
   }
   .wa-emojiGrid{

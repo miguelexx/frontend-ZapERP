@@ -106,11 +106,25 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
   const [forwardColaboradores, setForwardColaboradores] = useState([]);
   const [forwardColaboradoresLoading, setForwardColaboradoresLoading] = useState(false);
   const [forwardSelectedConversaIds, setForwardSelectedConversaIds] = useState([]);
+  const [forwardSelectedClienteIds, setForwardSelectedClienteIds] = useState([]);
   const [forwardMax10Msg, setForwardMax10Msg] = useState("");
   const [forwardMultiProgress, setForwardMultiProgress] = useState(null);
   const forwardMax10TimerRef = useRef(null);
+  /** Cache da lista completa de contatos (carregada ao abrir, sem busca). */
+  const forwardAllContatosRef = useRef(null);
+  /** Mapa id->cliente dos contatos marcados, para resolver no envio. */
+  const forwardClientesByIdRef = useRef(new Map());
   /** Evita duplo clique; não bloqueia o modal (envio segue em background). */
   const forwardJobLockRef = useRef(false);
+
+  const flashForwardMaxMsg = useCallback(() => {
+    setForwardMax10Msg(`Máximo de ${FORWARD_DEST_MAX} destinos.`);
+    if (forwardMax10TimerRef.current) clearTimeout(forwardMax10TimerRef.current);
+    forwardMax10TimerRef.current = setTimeout(() => {
+      setForwardMax10Msg("");
+      forwardMax10TimerRef.current = null;
+    }, 4000);
+  }, []);
 
   const forwardCandidates = useMemo(() => {
     const list = Array.isArray(useChatStore.getState().chats) ? useChatStore.getState().chats : [];
@@ -173,6 +187,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
       setForwardClientesLoading(false);
       setForwardColaboradores([]);
       setForwardColaboradoresLoading(false);
+      forwardAllContatosRef.current = null;
       return;
     }
 
@@ -214,11 +229,35 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
         });
     }, 0);
 
+    const curClienteId = conversa?.cliente_id != null ? String(conversa.cliente_id) : null;
+    const excludeCurrent = (arr) =>
+      curClienteId ? arr.filter((c) => String(c.id) !== curClienteId) : arr;
+
     const q = safeString(forwardQuery).trim();
     let clientesTimer = null;
     if (q.length < 2) {
-      setForwardClientes([]);
-      setForwardClientesLoading(false);
+      // Sem busca: mostra TODOS os contatos (carregados uma vez e cacheados).
+      const cached = forwardAllContatosRef.current;
+      if (Array.isArray(cached)) {
+        setForwardClientes(excludeCurrent(cached));
+        setForwardClientesLoading(false);
+      } else {
+        setForwardClientesLoading(true);
+        clientesTimer = setTimeout(async () => {
+          if (cancelled) return;
+          try {
+            const list = await cfg.getClientes({ limit: 500 });
+            if (cancelled) return;
+            const arr = Array.isArray(list) ? list : [];
+            forwardAllContatosRef.current = arr;
+            setForwardClientes(excludeCurrent(arr));
+          } catch (_) {
+            if (!cancelled) setForwardClientes([]);
+          } finally {
+            if (!cancelled) setForwardClientesLoading(false);
+          }
+        }, 0);
+      }
     } else {
       setForwardClientesLoading(true);
       clientesTimer = setTimeout(async () => {
@@ -227,8 +266,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
           const list = await cfg.getClientes({ palavra: q, limit: 60 });
           if (cancelled) return;
           const arr = Array.isArray(list) ? list : [];
-          const curClienteId = conversa?.cliente_id != null ? String(conversa.cliente_id) : null;
-          setForwardClientes(curClienteId ? arr.filter((c) => String(c.id) !== curClienteId) : arr);
+          setForwardClientes(excludeCurrent(arr));
         } catch (_) {
           if (!cancelled) setForwardClientes([]);
         } finally {
@@ -264,6 +302,9 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     setForwardQuery("");
     setForwardSending(false);
     setForwardSelectedConversaIds([]);
+    setForwardSelectedClienteIds([]);
+    forwardClientesByIdRef.current = new Map();
+    forwardAllContatosRef.current = null;
     setForwardMax10Msg("");
     setForwardMultiProgress(null);
   }, []);
@@ -281,6 +322,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     setForwardMsgs(msgs);
     setForwardQuery("");
     setForwardSelectedConversaIds([]);
+    setForwardSelectedClienteIds([]);
+    forwardClientesByIdRef.current = new Map();
     setForwardOpen(true);
   }, []);
 
@@ -310,23 +353,39 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     [showToast, openForwardWithMsgs]
   );
 
-  const toggleForwardConversaSelect = useCallback((rawId) => {
-    if (rawId == null) return;
-    const s = String(rawId);
-    setForwardSelectedConversaIds((prev) => {
-      if (prev.includes(s)) return prev.filter((x) => x !== s);
-      if (prev.length >= FORWARD_DEST_MAX) {
-        setForwardMax10Msg("Máximo de 10 contatos.");
-        if (forwardMax10TimerRef.current) clearTimeout(forwardMax10TimerRef.current);
-        forwardMax10TimerRef.current = setTimeout(() => {
-          setForwardMax10Msg("");
-          forwardMax10TimerRef.current = null;
-        }, 4000);
-        return prev;
-      }
-      return [...prev, s];
-    });
-  }, []);
+  const toggleForwardConversaSelect = useCallback(
+    (rawId) => {
+      if (rawId == null) return;
+      const s = String(rawId);
+      setForwardSelectedConversaIds((prev) => {
+        if (prev.includes(s)) return prev.filter((x) => x !== s);
+        if (prev.length + forwardSelectedClienteIds.length >= FORWARD_DEST_MAX) {
+          flashForwardMaxMsg();
+          return prev;
+        }
+        return [...prev, s];
+      });
+    },
+    [forwardSelectedClienteIds.length, flashForwardMaxMsg]
+  );
+
+  const toggleForwardClienteSelect = useCallback(
+    (cliente) => {
+      const id = cliente?.id;
+      if (id == null) return;
+      const s = String(id);
+      forwardClientesByIdRef.current.set(s, cliente);
+      setForwardSelectedClienteIds((prev) => {
+        if (prev.includes(s)) return prev.filter((x) => x !== s);
+        if (prev.length + forwardSelectedConversaIds.length >= FORWARD_DEST_MAX) {
+          flashForwardMaxMsg();
+          return prev;
+        }
+        return [...prev, s];
+      });
+    },
+    [forwardSelectedConversaIds.length, flashForwardMaxMsg]
+  );
 
   const resolveDestConversaMeta = useCallback(
     (destConversaId) => {
@@ -603,6 +662,111 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     showToast,
   ]);
 
+  /**
+   * Envio unificado (estilo WhatsApp): destinos marcados podem ser conversas
+   * existentes e/ou contatos (clientes). Reusa as mesmas primitivas de envio.
+   */
+  const confirmForwardToSelected = useCallback(() => {
+    const convIds = (forwardSelectedConversaIds || []).filter((x) => x != null && String(x) !== "");
+    const cliIds = (forwardSelectedClienteIds || []).filter((x) => x != null && String(x) !== "");
+    const msgs = Array.isArray(forwardMsgs) ? [...forwardMsgs] : [];
+    const total = convIds.length + cliIds.length;
+    if (total < 1 || total > FORWARD_DEST_MAX || !msgs.length) return;
+    if (forwardJobLockRef.current) return;
+    forwardJobLockRef.current = true;
+
+    const convJobs = convIds.map((destId) => ({
+      destId,
+      tempIds: applyForwardOptimisticFor(destId, msgs),
+    }));
+    const cliJobs = cliIds
+      .map((cid) => forwardClientesByIdRef.current.get(cid))
+      .filter((c) => c && c.id != null);
+
+    releaseForwardUi({ destCount: total, msgCount: msgs.length });
+
+    runForwardInBackground(async () => {
+      const ok = [];
+      const fail = [];
+      const assumeFail = [];
+
+      for (const { destId, tempIds } of convJobs) {
+        try {
+          const { assumeError } = await processForwardToDest(destId, msgs, tempIds, {
+            quietBatchItemToasts: true,
+          });
+          ok.push(destId);
+          if (assumeError) assumeFail.push({ id: destId, error: assumeError });
+        } catch (e) {
+          const errMsg = formatForwardHttpError(e);
+          tempIds.forEach((tid) =>
+            useConversaStore.getState().marcarMensagemTempErro(tid, { erro_mensagem: errMsg })
+          );
+          fail.push({ id: destId, error: errMsg });
+        }
+      }
+
+      for (const cliente of cliJobs) {
+        let tempIds = [];
+        try {
+          const data = await abrirConversaCliente(cliente.id);
+          const conv = data?.conversa || data || null;
+          const destId = conv?.id || null;
+          if (!destId) throw new Error("Não foi possível abrir a conversa do contato.");
+          try {
+            useChatStore.getState().addChat(conv);
+          } catch (_) {}
+          tempIds = applyForwardOptimisticFor(destId, msgs);
+          const { assumeError } = await processForwardToDest(destId, msgs, tempIds, {
+            quietBatchItemToasts: true,
+          });
+          ok.push(destId);
+          if (assumeError) assumeFail.push({ id: destId, error: assumeError });
+        } catch (e) {
+          const errMsg = formatForwardHttpError(e);
+          tempIds.forEach((tid) =>
+            useConversaStore.getState().marcarMensagemTempErro(tid, { erro_mensagem: errMsg })
+          );
+          fail.push({ id: cliente?.id, error: errMsg });
+        }
+      }
+
+      if (ok.length > 0 && fail.length === 0 && assumeFail.length === 0) {
+        showToast({
+          type: "success",
+          title: "Encaminhamento concluído",
+          message: `Concluído para ${ok.length} destino(s).`,
+        });
+      } else if (ok.length > 0) {
+        const bits = [];
+        if (fail.length) {
+          bits.push(`Falha em ${fail.length} destino(s): ${fail.map((f) => `#${f.id}`).join(", ")}.`);
+        }
+        if (assumeFail.length) {
+          bits.push(
+            `Não foi possível assumir em ${assumeFail.length} destino(s): ${assumeFail.map((a) => `#${a.id}`).join(", ")}.`
+          );
+        }
+        showToast({ type: "warning", title: "Resultado parcial", message: bits.join(" ") });
+      } else {
+        showToast({
+          type: "error",
+          title: "Falha ao encaminhar",
+          message: fail.map((f) => f.error).filter(Boolean).join(" · ") || "Não foi possível encaminhar.",
+        });
+      }
+    });
+  }, [
+    forwardSelectedConversaIds,
+    forwardSelectedClienteIds,
+    forwardMsgs,
+    applyForwardOptimisticFor,
+    releaseForwardUi,
+    runForwardInBackground,
+    processForwardToDest,
+    showToast,
+  ]);
+
   const confirmForwardTo = useCallback(
     (destConversaId) => {
       const msgs = Array.isArray(forwardMsgs) ? [...forwardMsgs] : [];
@@ -755,6 +919,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     forwardColaboradoresFiltered,
     forwardColaboradoresLoading,
     forwardSelectedConversaIds,
+    forwardSelectedClienteIds,
     forwardMax10Msg,
     forwardMultiProgress,
     forwardPreviewLabel,
@@ -762,10 +927,12 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     resetForwardFlow,
     openForwardFromSelection,
     toggleForwardConversaSelect,
+    toggleForwardClienteSelect,
     execEncaminharFor,
     confirmForwardToCliente,
     confirmForwardTo,
     confirmForwardToColaborador,
     confirmForwardToMany,
+    confirmForwardToSelected,
   };
 }
