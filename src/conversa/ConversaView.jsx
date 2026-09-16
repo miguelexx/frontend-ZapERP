@@ -2830,6 +2830,10 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           onOpenClienteSide={handleOpenClienteSide}
           onOpenMessageSearch={openMessageSearch}
           whatsappInstanceLabel={whatsappInstanceLabel}
+          whatsappLabelsContext={{
+            instanceId: conversa?.whatsapp_instance_id ?? fromChat?.whatsapp_instance_id,
+            chat: conversa?.telefone ?? fromChat?.telefone,
+          }}
           clienteSideOpen={showClienteSide}
         />
 

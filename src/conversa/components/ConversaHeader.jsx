@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import AtendimentoActions from "../../atendimento/AtendimentoActions";
 import SendToCrmChatButton, { IconFunnelSend } from "../SendToCrmChatButton";
 import { IconClock, IconMore, IconTag, IconContact, IconSearch } from "../conversaViewIcons";
+import ConversationWhatsappLabels from "./ConversationWhatsappLabels";
 
 function HeaderOverflowSheetBtn({ icon, label, onClick, disabled = false }) {
   return (
@@ -61,8 +62,13 @@ function ConversaHeader({
   onOpenMessageSearch,
   whatsappInstanceLabel,
   clienteSideOpen = false,
+  whatsappLabelsContext = null,
 }) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const closeLabels = useCallback(() => setLabelsOpen(false), []);
+  const openLabels = useCallback(() => setLabelsOpen(true), []);
+  useEffect(() => { setLabelsOpen(false); setMoreMenuOpen(false); }, [conversaId]);
   const moreMenuWrapRef = useRef(null);
 
   const closeMoreMenu = useCallback(() => setMoreMenuOpen(false), []);
@@ -114,6 +120,14 @@ function ConversaHeader({
         {!isGroup && podeGerenciarTags ? (
           <HeaderOverflowSheetBtn
             icon={<IconTag />}
+            label="Etiquetas do WhatsApp"
+            disabled={!conversaId}
+            onClick={() => { openLabels(); close(); }}
+          />
+        ) : null}
+        {!isGroup && podeGerenciarTags ? (
+          <HeaderOverflowSheetBtn
+            icon={<IconTag />}
             label="Tags do cliente"
             disabled={!conversaId}
             onClick={() => {
@@ -145,6 +159,7 @@ function ConversaHeader({
       podeVerAtendentes,
       totalAtendentes,
       podeGerenciarTags,
+      openLabels,
     ]
   );
 
@@ -469,6 +484,16 @@ function ConversaHeader({
           <span className="wa-header-setorLabel">Setor</span>
           {renderSetorControls({ omitSetorPrefix: true })}
         </div>
+      ) : null}
+      {!isGroup && podeGerenciarTags && conversaId ? (
+        <ConversationWhatsappLabels
+          key={`${conversaId}:${whatsappLabelsContext?.instanceId || ""}:${whatsappLabelsContext?.chat || ""}`}
+          instanceId={whatsappLabelsContext?.instanceId}
+          chat={whatsappLabelsContext?.chat}
+          open={labelsOpen}
+          onClose={closeLabels}
+          onOpen={openLabels}
+        />
       ) : null}
     </div>
   );

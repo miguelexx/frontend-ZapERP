@@ -1,0 +1,44 @@
+.wa-header > .wa-whatsappLabels { grid-column: 1 / -1; grid-row: 3; flex: 0 0 100%; display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; overflow-x: auto; padding: 7px 0 2px; color: var(--wa-text, #24364b); }
+.wa-whatsappLabels > svg { flex-shrink: 0; opacity: .6; }
+.wa-whatsappLabel { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--wa-panel-border, #dce6f0); background: var(--wa-panel, #fff); color: inherit; border-radius: 7px; padding: 4px 8px; font-family: inherit; font-weight: 600; line-height: 1.4; font-size: 11px; cursor: pointer; }
+.wa-whatsappLabel i { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.wa-labelPicker-overlay { position: fixed; inset: 0; z-index: 20000; display: grid; place-items: center; padding: 20px; background: rgb(15 23 42 / 38%); font-family: inherit; }
+.wa-labelPicker { width: min(460px, 100%); max-height: min(640px, calc(100dvh - 40px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dce6ee; border-radius: 22px; background: #fff; color: #203249; box-shadow: 0 24px 80px rgb(15 23 42 / 22%); }
+.wa-labelPicker header { display: flex; align-items: center; gap: 12px; padding: 22px 20px 18px; }
+.wa-labelPicker header > div { min-width: 0; flex: 1; }
+.wa-labelPicker h2 { margin: 0 0 5px; font-size: 17px; line-height: 1.3; font-weight: 750; }
+.wa-labelPicker p { margin: 0; font-size: 12px; line-height: 1.5; color: #60718a; }
+.wa-labelPicker button, .wa-labelPicker input { font: inherit; }
+.wa-labelPicker button { cursor: pointer; }
+.wa-labelPicker button:disabled { cursor: wait; opacity: .65; }
+.wa-labelPicker-icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 14px; background: #e8f7f2; color: #078567; }
+.wa-labelPicker-close { display: grid; place-items: center; border: 0; background: transparent; color: inherit; padding: 7px; border-radius: 8px; }
+.wa-labelPicker-search { display: flex; align-items: center; gap: 9px; margin: 0 20px; padding: 11px 13px; border: 1px solid #dce6ee; border-radius: 11px; color: #718096; }
+.wa-labelPicker-search input { border: 0; outline: 0; width: 100%; min-width: 0; background: transparent; color: inherit; font-size: 13px; }
+.wa-labelPicker-search:focus-within { border-color: #089e7b; box-shadow: 0 0 0 3px #089e7b15; }
+.wa-labelPicker-summary { display: flex; justify-content: space-between; align-items: center; padding: 14px 21px 9px; font-size: 11px; color: #60718a; }
+.wa-labelPicker-summary button { display: inline-flex; gap: 5px; align-items: center; border: 0; background: transparent; color: inherit; font-size: 12px; padding: 5px; }
+.wa-labelPicker-list { display: flex; flex-direction: column; gap: 7px; padding: 4px 20px 18px; overflow-y: auto; min-height: 0; }
+.wa-labelPicker-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px; border: 1px solid #e1e8f0; border-radius: 12px; background: #fff; color: inherit; text-align: left; }
+.wa-labelPicker-option > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 650; }
+.wa-labelPicker-option:hover { background: #f6f9fc; border-color: #b9d1dc; }
+.wa-labelPicker-option.is-selected { background: #f0faf6; border-color: #8acdb9; }
+.wa-labelPicker-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 4%, transparent); }
+.wa-labelPicker-check { display: grid; place-items: center; width: 21px; height: 21px; flex-shrink: 0; border: 1px solid #d7e1e9; border-radius: 50%; }
+.wa-labelPicker-option.is-selected .wa-labelPicker-check { background: #089875; border-color: #089875; color: #fff; }
+.wa-labelPicker-empty { padding: 30px 12px; text-align: center; font-size: 13px; color: #60718a; }
+.wa-labelPicker-error { margin: 5px 20px 12px; border-radius: 9px; padding: 12px; background: #fff0f0; color: #a83030; font-size: 13px; }
+.wa-labelPicker footer { display: flex; align-items: center; gap: 15px; justify-content: space-between; padding: 15px 20px; border-top: 1px solid #e6edf2; background: #fafcfd; }
+.wa-labelPicker footer span { font-size: 11px; color: #60718a; }
+.wa-labelPicker footer button { padding: 10px 17px; border: 0; border-radius: 10px; color: #fff; background: #078567; font-size: 13px; font-weight: 650; }
+.wa-labelPicker button:focus-visible, .wa-whatsappLabel:focus-visible { outline: 2px solid #078567; outline-offset: 3px; }
+.wa-labelPicker-spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: wa-labelPicker-spin .7s linear infinite; }
+@keyframes wa-labelPicker-spin { to { transform: rotate(360deg); } }
+[data-theme="dark"] .wa-labelPicker { background: #17232e; color: #e3edf5; border-color: #354553; }
+[data-theme="dark"] .wa-labelPicker-option { background: #1d2c38; border-color: #354553; }
+[data-theme="dark"] .wa-labelPicker-option.is-selected { background: #183e35; border-color: #31866d; }
+[data-theme="dark"] .wa-labelPicker footer { background: #15212b; border-color: #354553; }
+[data-theme="dark"] .wa-labelPicker-search { border-color: #465968; }
+[data-theme="dark"] .wa-labelPicker p, [data-theme="dark"] .wa-labelPicker-summary, [data-theme="dark"] .wa-labelPicker footer span, [data-theme="dark"] .wa-labelPicker-empty { color: #abbccd; }
+@media (max-width: 640px) { .wa-labelPicker-overlay { padding: 12px; } .wa-labelPicker { max-height: calc(100dvh - 24px); border-radius: 18px; } .wa-labelPicker header { padding: 18px 16px; } .wa-labelPicker h2 { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .wa-labelPicker-spinner { animation: none; } }
