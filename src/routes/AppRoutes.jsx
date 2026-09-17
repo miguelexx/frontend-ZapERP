@@ -32,6 +32,7 @@ const DisparoExecucaoPage = lazy(() => import("../pages/DisparoExecucaoPage"));
 const WhapiBusinessLayout = lazy(() => import("../whapi-business/WhapiBusinessLayout"));
 const BusinessProfilePage = lazy(() => import("../whapi-business/BusinessProfilePage"));
 const WhatsAppLabelsPage = lazy(() => import("../whapi-business/WhatsAppLabelsPage"));
+const CatalogPage = lazy(() => import("../whapi-business/CatalogPage"));
 const WhapiTriagemPage = lazy(() => import("../whapi-business/WhapiTriagemPage"));
 
 const CrmAvancadoRedirect = lazy(() => import("../crm/CrmAvancadoRedirect"));
@@ -239,6 +240,14 @@ export default function AppRoutes() {
               }
             />
             <Route path="labels" element={<WhatsAppLabelsPage />} />
+            <Route
+              path="catalogo"
+              element={
+                <ProtectedRoute canAccess={canAccessSupervisao} redirectTo="/whatsapp-business/labels">
+                  <CatalogPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="triagem-interativa"
               element={
