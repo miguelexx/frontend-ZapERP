@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { normalizeFinalizationMessage } from "../src/pages/iaConfigPayload.js";
+import { FLUSH_COMPOSER_DRAFT_EVENT } from "../src/conversa/composerDraftStore.js";
 import {
   installVitePreloadRecovery,
   isDynamicImportFetchError,
@@ -21,8 +22,14 @@ assert.deepEqual(normalizeFinalizationMessage(false, "Mensagem preservada"), {
   mensagemFinalizacao: "Mensagem preservada",
 });
 
+assert.equal(
+  vitePreloadRecoveryConstants.FLUSH_COMPOSER_DRAFT_EVENT,
+  FLUSH_COMPOSER_DRAFT_EVENT
+);
+
 const storage = new Map();
 const replacedUrls = [];
+const dispatched = [];
 const runtime = {
   location: {
     href: "https://zaperp.wmsistemas.inf.br/ia",
@@ -38,24 +45,28 @@ const runtime = {
       storage.set(key, value);
     },
   },
+  dispatchEvent(event) {
+    dispatched.push(event?.type);
+    return true;
+  },
 };
 
 let prevented = 0;
 const event = { preventDefault: () => { prevented += 1; } };
-assert.equal(recoverFromVitePreloadError(event, runtime, 100_000), true);
+assert.equal(recoverFromVitePreloadError(event, runtime, 100_000), false);
 assert.equal(prevented, 1);
-assert.equal(replacedUrls.length, 1);
-assert.match(replacedUrls[0], /__zaperp_chunk_reload=100000/);
+assert.equal(replacedUrls.length, 0);
+assert.deepEqual(dispatched, [FLUSH_COMPOSER_DRAFT_EVENT]);
 
 assert.equal(recoverFromVitePreloadError(event, runtime, 100_100), false);
 assert.equal(prevented, 2);
-assert.equal(replacedUrls.length, 1);
+assert.equal(replacedUrls.length, 0);
 
 const runtimeWithoutStorage = {
   location: {
     href: "https://zaperp.wmsistemas.inf.br/ia?__zaperp_chunk_reload=100000",
     replace() {
-      throw new Error("nao deveria recarregar durante a protecao");
+      throw new Error("nao deveria recarregar automaticamente");
     },
   },
   sessionStorage: {
@@ -63,19 +74,23 @@ const runtimeWithoutStorage = {
       throw new Error("storage bloqueado");
     },
   },
+  dispatchEvent() {
+    throw new Error("dispatch bloqueado");
+  },
 };
 assert.equal(recoverFromVitePreloadError(event, runtimeWithoutStorage, 100_100), false);
 assert.equal(prevented, 3);
+assert.equal(replacedUrls.length, 0);
 
 const afterGuard = 100_000 + vitePreloadRecoveryConstants.RELOAD_GUARD_MS;
-assert.equal(recoverFromVitePreloadError(event, runtime, afterGuard), true);
+assert.equal(recoverFromVitePreloadError(event, runtime, afterGuard), false);
 assert.equal(prevented, 4);
-assert.equal(replacedUrls.length, 2);
+assert.equal(replacedUrls.length, 0);
 
 assert.equal(
   isDynamicImportFetchError(
     new TypeError(
-      "Failed to fetch dynamically imported module: https://zaperp.vmsistemas.inf.br/assets/IA-SaSgE-fB.js"
+      "Failed to fetch dynamically imported module: https://zaperp.wmsistemas.inf.br/assets/IA-SaSgE-fB.js"
     )
   ),
   true
@@ -93,9 +108,9 @@ assert.match(sourceIndexHtml, /http-equiv="Expires" content="0"/);
 const listeners = new Map();
 const installedRuntime = {
   location: {
-    href: "https://zaperp.vmsistemas.inf.br/ia",
-    replace(url) {
-      this.href = url;
+    href: "https://zaperp.wmsistemas.inf.br/ia",
+    replace() {
+      throw new Error("nao deveria recarregar automaticamente");
     },
   },
   sessionStorage: {
@@ -106,6 +121,9 @@ const installedRuntime = {
   },
   addEventListener(type, listener) {
     listeners.set(type, listener);
+  },
+  dispatchEvent() {
+    return true;
   },
 };
 installVitePreloadRecovery(installedRuntime);
@@ -123,13 +141,13 @@ assert.equal(unrelatedPrevented, 0);
 let dynamicImportPrevented = 0;
 listeners.get("unhandledrejection")({
   reason: new TypeError(
-    "Failed to fetch dynamically imported module: https://zaperp.vmsistemas.inf.br/assets/IA-antigo.js"
+    "Failed to fetch dynamically imported module: https://zaperp.wmsistemas.inf.br/assets/IA-antigo.js"
   ),
   preventDefault() {
     dynamicImportPrevented += 1;
   },
 });
 assert.equal(dynamicImportPrevented, 1);
-assert.match(installedRuntime.location.href, /__zaperp_chunk_reload=/);
+assert.equal(installedRuntime.location.href.includes("__zaperp_chunk_reload="), false);
 
 console.log("deploy recovery and finalization config: ok");

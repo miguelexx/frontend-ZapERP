@@ -62,7 +62,7 @@ Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRES
 
 Divisão atual:
 
-- `useComposerDraft`: restaura e persiste o rascunho por `conversaId`, mantendo o debounce de 220 ms e salvando o valor anterior antes de uma troca rápida;
+- `useComposerDraft`: restaura e persiste o rascunho por `conversaId` **na hora** (sem debounce). Também grava em `pagehide`/`beforeunload` e no evento `zaperp:flush-composer-draft` (ErrorBoundary / falha de chunk), para o texto não sumir se a aba recarregar;
 - `useTypingEmitter`: concentra o timer de 400 ms, deduplica `typing_start`/`typing_stop` por conversa e limpa timer/sessão no blur, troca e unmount;
 - `useSavedReplies`: chama `GET /dashboard/respostas-salvas` apenas ao abrir o painel, com `contexto: "atendimento"`, cache por departamento e generation guard para resposta antiga;
 - `useAttachmentPicker`: concentra refs/portal do menu e câmera; stream obtido depois de troca/fechamento é descartado e suas tracks são encerradas;
@@ -98,7 +98,7 @@ Divisão atual:
 - `QuotedReply` + `MessageCaption`: citação no topo e legenda só quando o texto não é placeholder/nome de arquivo;
 - `useMessageMenu` + `MessageMenu`: portal desktop e bottom sheet mobile; `visualViewport` para teclado;
 - `useMessageGestures`: long press 480 ms / 14 px, skip do tap na mídia após o menu, swipe continua em `SwipeReplyTrack`;
-- `useAudioPlayback`: um `<audio>` ativo via `audioSession`, `el.load()` ao trocar `src` em tempo real, refresh do token do `/media/proxy` no (re)load, waveform, velocidades 1×/1,5×/2×, stall watchdog, retry de fonte e pause no unmount. Cache LRU de duração (teto 1000) sobrevive a remount da mesma `msgKey`.
+- `useAudioPlayback`: um `<audio>` ativo via `audioSession`, `el.load()` ao trocar `src` em tempo real, refresh do token do `/media/proxy` no (re)load, waveform, velocidades 1×/1,5×/2×, stall watchdog, retry de fonte e pause no unmount. Cache LRU de duração (teto 1000) sobrevive a remount da mesma `msgKey`. **Invariante (2026-09-17):** todo reload+retomada de áudio SEMPRE toca no `canplay` (via efeito de `reloadNonce`), NUNCA `play()` logo após `load()`. No despause com `needsReloadBeforeResume=true` (buffer liberado no mobile / erro), o `toggle()` só abre a janela de autoplay e faz bump do `reloadNonce` — não recarrega/toca inline. `play()` antes do `canplay` + seek de retomada trava mudo ou para na metade (só F5 resolvia).
 
 Invariantes preservados: URLs autenticadas de mídia (`resolveBubbleMediaCandidates` / `getMediaPlaybackUrl` / `refreshProxyMediaToken`); retry não cria mensagem nova (reusa `id`/`tempId`); troca de conversa cai no cleanup do player (`pause` + limpa sessão se for o elemento atual).
 

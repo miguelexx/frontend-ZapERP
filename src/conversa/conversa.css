@@ -10994,6 +10994,7 @@ html:not([data-theme="dark"]) .wa-footer .wa-iconBtn:hover:not(:disabled) {
 
 .wa-autocorrectToggle-text {
   white-space: nowrap;
+  font-size: 11px;
 }
 
 /* Ícones do footer: mesma altura do input (44px) para alinhamento perfeito */
@@ -11347,7 +11348,12 @@ html:not([data-theme="dark"]) .wa-footer .wa-iconBtn:hover:not(:disabled) {
 
 .wa-input {
   flex: 1 1 0%;
-  min-width: 80px;
+  /* min-width alto o bastante para o textarea quebrar para a própria linha (via
+     flex-wrap do .wa-footer) e crescer até a largura total quando o composer é
+     estreito — em vez de colapsar e quebrar o texto letra a letra. Baseado na
+     largura real do composer, então resolve também o painel estreito do CRM
+     mesmo com viewport largo. Mobile (<=640px) mantém min-width:0 (regra própria). */
+  min-width: 160px;
   width: 100%;
   min-height: 44px;
   max-height: min(240px, 56vh);

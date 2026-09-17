@@ -1,4 +1,13 @@
 import { Component } from "react";
+import { FLUSH_COMPOSER_DRAFT_EVENT } from "../conversa/composerDraftStore";
+
+function flushComposerDraft() {
+  try {
+    window.dispatchEvent(new Event(FLUSH_COMPOSER_DRAFT_EVENT));
+  } catch (_) {
+    /* ignore */
+  }
+}
 
 export default class ErrorBoundary extends Component {
   state = { hasError: false, error: null };
@@ -8,6 +17,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    flushComposerDraft();
     if (import.meta.env.DEV) {
       console.error("ErrorBoundary:", error, errorInfo);
     }
@@ -23,7 +33,10 @@ export default class ErrorBoundary extends Component {
             <button
               type="button"
               className="error-boundary-button"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                flushComposerDraft();
+                window.location.reload();
+              }}
               aria-label="Recarregar a página"
             >
               Recarregar

@@ -238,7 +238,11 @@ function ConversaViewBody() {
   const headerAtendCompact = headerCompact || atendimentoTabletComposer;
   /** Bolhas: long press + folha de opções; barra de seleção premium (sem alterar desktop largo). */
   const compactMessageUx = headerCompact || atendimentoTabletComposer;
-  const autocorrectToggleInMenu = headerCompact || atendimentoTabletComposer;
+  /* Correção automática inline (com o rótulo "Correção automática") só cabe com folga
+     no desktop largo. Abaixo de 1024px o rótulo espremia a barra e o textarea quebrava
+     letra a letra — nesses casos o toggle vai para o menu (+). Cobre o vão 641–739px
+     que antes ainda mostrava o toggle inline. */
+  const autocorrectToggleInMenu = useMatchMedia("(max-width: 1024px)");
   /** Mobile/tablet: tecla Retorno do teclado virtual insere nova linha; enviar só pelo botão (evita enterKeyHint=send esconder o enter). */
   const composerEnterInsertsNewline = headerCompact || atendimentoTabletComposer;
   const composerAppendQueue = useConversaStore((s) => s.composerAppendQueue);

@@ -16,6 +16,7 @@
 - Nome/foto sticky: nunca sobrescrever com vazio, “Conversa” ou chatName de outbound. Foto http **pode** ser substituída por outra URL http (sync UltraMSG / correção).
 - Envio: bolha otimista imediata; reconciliar; outbox só texto; watchdog 45s/180s.
 - Drop mensagem se `conversa_id` ≠ conversa aberta.
+- **Não** recarregar a SPA sozinha (`location.reload` / `location.replace` em timer ou falha de chunk). O rascunho do composer vai para `sessionStorage` a cada tecla. Recarregar só no clique do usuário (ErrorBoundary).
 
 ## UX de atendimento
 

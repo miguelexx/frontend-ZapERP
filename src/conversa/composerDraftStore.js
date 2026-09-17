@@ -3,6 +3,8 @@
  * Não altera status/atendimento — só texto digitado.
  */
 
+export const FLUSH_COMPOSER_DRAFT_EVENT = "zaperp:flush-composer-draft";
+
 const memoryDrafts = new Map();
 const STORAGE_PREFIX = "zap:composerDraft:";
 

@@ -1,6 +1,7 @@
 const RELOAD_MARKER_KEY = "zaperp:vite-preload-reload-at";
 const RELOAD_QUERY_PARAM = "__zaperp_chunk_reload";
 const RELOAD_GUARD_MS = 60_000;
+const FLUSH_COMPOSER_DRAFT_EVENT = "zaperp:flush-composer-draft";
 
 const DYNAMIC_IMPORT_ERROR_PATTERNS = [
   "failed to fetch dynamically imported module",
@@ -21,36 +22,23 @@ export function isDynamicImportFetchError(value) {
   return DYNAMIC_IMPORT_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
-export function recoverFromVitePreloadError(event, runtime = window, now = Date.now()) {
-  // O Vite relanca o erro quando o evento nao e cancelado. Cancele inclusive
-  // eventos repetidos enquanto a primeira navegacao de recuperacao esta em curso.
+function flushComposerDraft(runtime = window) {
+  try {
+    runtime.dispatchEvent?.(new Event(FLUSH_COMPOSER_DRAFT_EVENT));
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+/**
+ * Trata falha de chunk/preload do Vite sem recarregar a aba.
+ * location.reload/replace apagava o texto que o atendente ainda digitava.
+ * @returns {false} nunca navega; o preventDefault evita o overlay do Vite relançar o erro.
+ */
+export function recoverFromVitePreloadError(event, runtime = window, _now = Date.now()) {
   event?.preventDefault?.();
-
-  let lastReloadAt = 0;
-  try {
-    lastReloadAt = Number(runtime.sessionStorage?.getItem(RELOAD_MARKER_KEY) || 0);
-  } catch (_) {
-    // sessionStorage pode estar bloqueado; o reload com query ainda recupera a aba.
-  }
-
-  const currentUrl = new URL(runtime.location.href);
-  const queryReloadAt = Number(currentUrl.searchParams.get(RELOAD_QUERY_PARAM) || 0);
-  lastReloadAt = Math.max(lastReloadAt, queryReloadAt);
-
-  if (Number.isFinite(lastReloadAt) && now - lastReloadAt < RELOAD_GUARD_MS) {
-    return false;
-  }
-
-  try {
-    runtime.sessionStorage?.setItem(RELOAD_MARKER_KEY, String(now));
-  } catch (_) {
-    // A protecao principal continua sendo a troca da URL abaixo.
-  }
-
-  const url = currentUrl;
-  url.searchParams.set(RELOAD_QUERY_PARAM, String(now));
-  runtime.location.replace(url.toString());
-  return true;
+  flushComposerDraft(runtime);
+  return false;
 }
 
 export function installVitePreloadRecovery(runtime = window) {
@@ -73,6 +61,7 @@ export function installVitePreloadRecovery(runtime = window) {
 
   const url = new URL(runtime.location.href);
   if (!url.searchParams.has(RELOAD_QUERY_PARAM)) return;
+  // URLs antigas ainda podem trazer o query de recuperação; só limpa a barra.
   runtime.setTimeout?.(() => {
     const cleanUrl = new URL(runtime.location.href);
     cleanUrl.searchParams.delete(RELOAD_QUERY_PARAM);
@@ -85,4 +74,5 @@ export const vitePreloadRecoveryConstants = {
   RELOAD_QUERY_PARAM,
   RELOAD_GUARD_MS,
   DYNAMIC_IMPORT_ERROR_PATTERNS,
+  FLUSH_COMPOSER_DRAFT_EVENT,
 };

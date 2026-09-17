@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  FLUSH_COMPOSER_DRAFT_EVENT,
   loadComposerDraft,
   saveComposerDraft,
 } from "../../composerDraftStore";
-import { COMPOSER_DRAFT_SAVE_MS } from "../utils/composerUtils";
 
 export function useComposerDraft(conversaId) {
   const [texto, setTexto] = useState(() => loadComposerDraft(conversaId));
   const textoRef = useRef(texto);
   const lastConversaIdRef = useRef(conversaId);
-  const saveTimerRef = useRef(0);
 
   useEffect(() => {
     textoRef.current = texto;
@@ -31,29 +30,25 @@ export function useComposerDraft(conversaId) {
   }, [conversaId]);
 
   useEffect(() => {
-    if (!conversaId) return undefined;
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = 0;
-    }
-    saveTimerRef.current = window.setTimeout(() => {
-      saveTimerRef.current = 0;
-      saveComposerDraft(conversaId, textoRef.current);
-    }, COMPOSER_DRAFT_SAVE_MS);
-    return () => {
-      if (saveTimerRef.current) {
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = 0;
-      }
-    };
+    if (!conversaId) return;
+    saveComposerDraft(conversaId, textoRef.current);
   }, [texto, conversaId]);
 
   useEffect(() => {
-    return () => {
+    const flush = () => {
       const id = lastConversaIdRef.current;
       if (id != null && id !== "") {
         saveComposerDraft(id, textoRef.current);
       }
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener(FLUSH_COMPOSER_DRAFT_EVENT, flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener(FLUSH_COMPOSER_DRAFT_EVENT, flush);
+      flush();
     };
   }, []);
 

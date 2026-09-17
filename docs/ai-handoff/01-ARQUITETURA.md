@@ -28,7 +28,7 @@
 index.html (#root)
   → src/main.jsx
     → theme.css + app.css
-    → installVitePreloadRecovery
+    → installVitePreloadRecovery (cancela overlay de chunk; **não** recarrega a aba)
     → authStore.restore()
     → listener storage em zap_erp_auth (sync entre abas)
     → FCM nativo, applyTheme (data-theme), SW, diagnósticos de notificação
@@ -104,7 +104,7 @@ Fallback de produção no código (`src/api/baseUrl.js`) **pode diferir** do hos
 | `pages/` | páginas de rota |
 | `push/` | SW, FCM, subscription |
 | `routes/` | `AppRoutes`, `ProtectedRoute` |
-| `runtime/` | recuperação de preload Vite |
+| `runtime/` | falha de preload Vite: `preventDefault`, **sem** `location.reload` |
 | `socket/` | client + batch de status |
 | `styles/` | tokens e layout global |
 | `supervisao/` | painéis da supervisão |

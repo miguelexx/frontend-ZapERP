@@ -356,16 +356,15 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
             currentTime: el.currentTime,
           })
         ) {
-          const resumeAt = Number(el.currentTime) || 0;
-          applyFreshSrc(el);
-          try { el.load(); } catch { /* ignore */ }
-          if (resumeAt > 0.25) {
-            const restaurarPosicao = () => {
-              el.removeEventListener("loadedmetadata", restaurarPosicao);
-              try { el.currentTime = resumeAt; } catch { /* ignore */ }
-            };
-            el.addEventListener("loadedmetadata", restaurarPosicao);
-          }
+          // Buffer liberado (mobile) ou erro: recarrega e retoma quando o elemento estiver
+          // REALMENTE pronto. Delega ao efeito de reload (canplay → play, loadedmetadata →
+          // restaura a posição) em vez de chamar play() logo após load(): esse play() dispara
+          // ANTES do canplay e, com o seek concorrente da retomada, trava mudo ou para na
+          // metade — só um F5 resolvia. Abrir a janela de autoplay + bump do nonce aciona o
+          // mesmo caminho robusto já coberto pelo teste de regressão de pause/play.
+          autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
+          setReloadNonce((n) => n + 1);
+          return;
         }
         await el.play();
       } else {
@@ -381,7 +380,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
         setSourceIdx(plano.sourceIdx);
       }
     }
-  }, [playbackRate, sourceIdx, sourceList.length, applyFreshSrc]);
+  }, [playbackRate, sourceIdx, sourceList.length]);
 
   const tentarNovamente = useCallback(() => {
     setIndisponivel(false);

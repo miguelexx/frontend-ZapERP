@@ -158,7 +158,7 @@ export default function ComposerFooter({
             <span className="wa-autocorrectToggle-track" aria-hidden="true">
               <span className="wa-autocorrectToggle-thumb" />
             </span>
-            <span className="wa-autocorrectToggle-text">Correção automática</span>
+            <span className="wa-autocorrectToggle-text">Correção/A</span>
           </label>
         ) : null}
         <AttachmentInputs
