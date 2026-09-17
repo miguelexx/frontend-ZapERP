@@ -63,10 +63,12 @@
 | `conversa/hooks/useConversationReactions.js` | reações da thread |
 | `conversa/hooks/useConversationThreadActions.js` | CTAs assumir/reabrir/histórico/marcar lida |
 | `conversa/hooks/usePendingOutgoingLifecycle.js` | watchdog tick + flush da outbox |
-| `conversa/hooks/useConversationOutboundMedia.js` | envio de arquivo/lote/sticker (FIFO áudio intacto) |
+| `conversa/hooks/useConversationOutboundMedia.js` | envio de arquivo/lote/sticker (FIFO áudio intacto); `handleIncomingFiles` |
 | `conversa/utils/buildMensagensComSeparadores.js` | lista virtual: dias, remetente, bundle legenda |
 | `conversa/components/ConversaViewOverlays.jsx` | painéis/modais (exceto header/thread/composer/timeline) |
-| `conversa/components/ConversaDropOverlay.jsx` | overlay de arrastar-soltar |
+| `conversa/hooks/useConversationFileDrop.js` | sessão de drag-and-drop de arquivos no shell |
+| `conversa/utils/fileDrop.js` | `dataTransferHasFiles`, lista de arquivos, alvos de dragleave |
+| `conversa/components/ConversaDropOverlay.jsx` | overlay visual de arrastar-soltar (sem handlers) |
 | `conversa/components/ConversaSetorPanel.jsx` | painel transferir setor |
 | `conversa/components/ConversaTagsPanel.jsx` | painel de tags |
 | `conversa/components/ConversaTimelinePanel.jsx` | UI do histórico (apresentacional; dados do `conversaStore`) |

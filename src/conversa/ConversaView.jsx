@@ -94,6 +94,7 @@ import { useConversationReactions } from "./hooks/useConversationReactions";
 import { useConversationSelection } from "./hooks/useConversationSelection";
 import { useConversationThreadActions } from "./hooks/useConversationThreadActions";
 import { useConversationOutboundMedia } from "./hooks/useConversationOutboundMedia";
+import { useConversationFileDrop } from "./hooks/useConversationFileDrop";
 import { useAutoScroll, snapThreadToBottom } from "./hooks/useAutoScroll";
 import { useMobileKeyboardViewport } from "./hooks/useMobileKeyboardViewport";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
@@ -391,7 +392,6 @@ function ConversaViewBody() {
 
   const { toast, setToast, showToast } = useConversationToast();
 
-  const [dragOver, setDragOver] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [pendingSendOptions, setPendingSendOptions] = useState({});
@@ -1617,39 +1617,6 @@ function ConversaViewBody() {
     [openMediaSendPreview]
   );
 
-  const onDragEnter = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
-  }, []);
-
-  const onDragOver = useCallback(
-    (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!dragOver) setDragOver(true);
-    },
-    [dragOver]
-  );
-
-  const onDragLeave = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
-  }, []);
-
-  const onDrop = useCallback(
-    (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragOver(false);
-
-      const file = e.dataTransfer?.files?.[0];
-      if (file) handleDropFile(file);
-    },
-    [handleDropFile]
-  );
-
   const garantirConversaAbertaParaEnvio = useCallback(async () => {
     const atual = useConversaStore.getState().conversa;
     const alvo = atual && String(atual.id) === String(conversaId) ? atual : conversa;
@@ -1672,6 +1639,7 @@ function ConversaViewBody() {
     handleFileInputChange,
     handleCameraInputChange,
     handleFototecaInputChange,
+    handleIncomingFiles,
     handleDocumentInputChange,
     handleConfirmSendFile,
     handleConfirmSendImageMobile,
@@ -1709,6 +1677,11 @@ function ConversaViewBody() {
     pendingSendOptions,
     pendingConversaIdRef,
     confirmSendLockRef,
+  });
+
+  const { dropActive, fileDropHandlers } = useConversationFileDrop({
+    enabled: Boolean(conversaId) && !mediaViewer,
+    onFiles: handleIncomingFiles,
   });
 
   const enviarTextoEmAndamentoRef = useRef(false);
@@ -2786,16 +2759,10 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
   return (
     <div
       ref={waShellRef}
-      className={`wa-shell${selectMode ? " wa-shell--select" : ""}`}
-      onDragEnter={onDragEnter}
+      className={`wa-shell${selectMode ? " wa-shell--select" : ""}${dropActive ? " wa-shell--fileDrop" : ""}`}
+      {...fileDropHandlers}
     >
-        <ConversaDropOverlay
-          open={dragOver}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-        />
-
+        <ConversaDropOverlay open={dropActive} />
 
         <ConversaHeader
           headerRef={waHeaderRef}
@@ -3003,9 +2970,6 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
             selectMode ? "wa-messages--selectDim" : "",
             maskThreadOpening ? "wa-messages--opening" : "",
           ].filter(Boolean).join(" ")}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
-          onDragLeave={onDragLeave}
           role="log"
           aria-label="Mensagens"
         >

@@ -161,8 +161,9 @@ Redução estrutural para o coordenador ficar **abaixo de 3000 linhas** (4456 �
 
 **Toasts de assumir/encerrar (CONFIRMADO 2026-09-02):** `AtendimentoActions` não mostra toast de sucesso ao assumir nem ao encerrar. Erros continuam. O estado aparece no badge / painel de encerrado.
 - `hooks/usePendingOutgoingLifecycle.js` — tick do watchdog + flush da outbox (mesmo intervalo, mesmos payloads);
-- `hooks/useConversationOutboundMedia.js` — `handleEnviarArquivo`, lotes fototeca/documentos, sticker, preview confirm (FIFO de áudio **idêntico**; import dinâmico do crop aponta para `../utils/imageCropExport.js`);
-- `components/ConversaViewOverlays.jsx` + `ConversaDropOverlay` / `ConversaSetorPanel` / `ConversaTagsPanel` — JSX de painéis/modais fora do coordenador. Timeline permanece entre header e mensagens (fluxo de layout).
+- `hooks/useConversationOutboundMedia.js` — `handleEnviarArquivo`, lotes fototeca/documentos, sticker, preview confirm (FIFO de áudio **idêntico**; import dinâmico do crop aponta para `../utils/imageCropExport.js`). `handleIncomingFiles` é a entrada única de arquivos (seletor Documentos + drop);
+- `hooks/useConversationFileDrop.js` + `utils/fileDrop.js` — arrastar arquivos no `.wa-shell`. Overlay é só visual (`pointer-events: none`); não abre com texto/HTML interno; ignora pastas; `dragend` no `window` limpa sessão presa. Um arquivo → preview; vários → mesmo lote de Documentos (`MAX_DOCUMENTOS_LOTE_ENVIO`). Teste: `scripts/test-file-drop.mjs`;
+- `components/ConversaViewOverlays.jsx` + `ConversaDropOverlay` / `ConversaSetorPanel` / `ConversaTagsPanel` — JSX de painéis/modais fora do coordenador. Timeline permanece entre header e mensagens (fluxo de layout). Overlay de drop fica no shell (z-index 110, acima do preview de envio, abaixo do lightbox);
 
 **Contratos:** `onEscape` continua em `conversationEscapeOrder.js`. Scroll/`useAutoScroll`/âncoras continuam no coordenador. `handleEnviar` (texto) permanece inline porque lê `replyTo` e a fila de texto.
 
@@ -203,7 +204,7 @@ Não substitua isso por “espera o POST e só então pinta a bolha”.
 
 ## Mídia
 
-Composer, `PendingMediaPreview`, `ImageSendPreviewMobile` (editor unificado no envio de foto, **desktop e mobile**). Áudios em fila FIFO no `ConversaView`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente).
+Composer, `PendingMediaPreview`, `ImageSendPreviewMobile` (editor unificado no envio de foto, **desktop e mobile**). Áudios em fila FIFO no `ConversaView`. **Drop de arquivos (CONFIRMADO 2026-09-17):** `useConversationFileDrop` no `.wa-shell` (não na lista de mensagens). Overlay `.wa-dropOverlay` permanece montado, some com `visibility`/`opacity` e `pointer-events: none` — não captura `dragleave` das bolhas (flicker antigo). Só reage a `dataTransfer.types` com `Files`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente). Drop fica desligado enquanto o lightbox está aberto.
 
 **Editor de foto no envio / print (CONFIRMADO 2026-09-14):** ao colar um print ou anexar JPG/PNG/WebP, `PendingMediaPreview` abre o editor (`ImageSendPreviewMobile`) também no desktop — não só em `headerCompact`. Ferramentas: **Cortar** (quadro `react-image-crop`), **Editar** (caneta com cores), **Filtro** (Vívido/Quente/Frio/P&B/Contraste/Suave), girar 90°, redefinir e enviar original. Exporta em `exportEditedImageFile` (`imageCropExport.js`) a partir do blob já girado (`imageSrc`), com filtro + traços + recorte. GIF/SVG continuam sem editor (`isEditableImageForSend`). Vídeo/arquivo seguem o preview estático. Teste: `scripts/test-image-send-edit.mjs`.
 

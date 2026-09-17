@@ -462,10 +462,9 @@ export function useConversationOutboundMedia({
     ]
   );
   
-  const handleDocumentInputChange = useCallback(
-    async (e) => {
-      let files = e.target.files ? Array.from(e.target.files) : [];
-      e.target.value = "";
+  const handleIncomingFiles = useCallback(
+    async (incomingFiles) => {
+      let files = Array.from(incomingFiles || []).filter(Boolean);
       if (!files.length || !conversaId) return;
   
       const blocked = files.filter((f) => isArquivoBloqueadoWhatsApp(f));
@@ -492,7 +491,9 @@ export function useConversationOutboundMedia({
         handleDropFile(files[0]);
         return;
       }
-  
+
+      clearPending();
+
       if (!podeEnviar) {
         showToast({
           type: "warning",
@@ -639,6 +640,7 @@ export function useConversationOutboundMedia({
       podeEnviar,
       showToast,
       handleDropFile,
+      clearPending,
       garantirConversaAbertaParaEnvio,
       focusMessageInput,
       marcarMensagemTempErro,
@@ -650,6 +652,15 @@ export function useConversationOutboundMedia({
       scheduleArquivoSendConsistencyCheck,
       setSendingTracked,
     ]
+  );
+
+  const handleDocumentInputChange = useCallback(
+    async (e) => {
+      const files = e.target.files ? Array.from(e.target.files) : [];
+      e.target.value = "";
+      await handleIncomingFiles(files);
+    },
+    [handleIncomingFiles]
   );
   
   const handleConfirmSendFile = useCallback(async () => {
@@ -762,6 +773,7 @@ export function useConversationOutboundMedia({
     handleFileInputChange,
     handleCameraInputChange,
     handleFototecaInputChange,
+    handleIncomingFiles,
     handleDocumentInputChange,
     handleConfirmSendFile,
     handleConfirmSendImageMobile,

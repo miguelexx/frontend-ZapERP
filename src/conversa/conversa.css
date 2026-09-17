@@ -878,13 +878,9 @@ html:not([data-theme="dark"]) .wa-header-setorBtn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes wa-dropOverlayFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes wa-dropCardScale {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes wa-dropCardIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes wa-menuFade {
   from { opacity: 0; transform: translateY(-4px); }
@@ -2070,42 +2066,117 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-danger {
 
 /* =========================================================
    DROP OVERLAY (arrastar arquivo)
+   Visual only: pointer-events none. Eventos ficam no .wa-shell.
 ========================================================= */
+
+.wa-shell--fileDrop {
+  cursor: copy;
+}
 
 .wa-dropOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(239, 234, 226, 0.95);
+  z-index: 110;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 10px;
+  box-sizing: border-box;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  background: rgba(15, 23, 42, 0.42);
+  transition: opacity 160ms ease, visibility 160ms ease;
+}
+
+.wa-dropOverlay--open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.wa-dropOverlay-frame {
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 30;
-  border: 2px dashed rgba(46, 134, 255, 0.4);
-  border-radius: 0;
-  margin: 0;
-  animation: wa-dropOverlayFade 0.2s ease-out;
+  border: 2px dashed color-mix(in srgb, var(--wa-green) 78%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--wa-panel) 72%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wa-green) 16%, transparent);
 }
 
 .wa-dropCard {
   text-align: center;
-  padding: 32px 40px;
-  border-radius: 14px;
+  padding: 22px 28px 24px;
+  border-radius: 16px;
+  max-width: min(360px, calc(100% - 24px));
   background: var(--wa-panel);
-  border: 1px solid var(--wa-panel-border);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  animation: wa-dropCardScale 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
+  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 88%, transparent);
+  box-shadow:
+    0 18px 40px -24px rgba(15, 23, 42, 0.55),
+    0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.wa-dropOverlay--open .wa-dropCard {
+  animation: wa-dropCardIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wa-dropIcon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  color: var(--wa-green);
+  background: color-mix(in srgb, var(--wa-green) 12%, var(--wa-panel));
+  border: 1px solid color-mix(in srgb, var(--wa-green) 22%, transparent);
 }
 
 .wa-dropTitle {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   color: var(--wa-text);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .wa-dropSub {
   font-size: 13px;
+  line-height: 1.4;
   color: var(--wa-text-muted);
+}
+
+[data-theme="dark"] .wa-dropOverlay {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="dark"] .wa-dropOverlay-frame {
+  background: color-mix(in srgb, var(--wa-panel) 55%, transparent);
+}
+
+@media (max-width: 640px) {
+  .wa-dropOverlay {
+    padding: 8px;
+  }
+  .wa-dropOverlay-frame {
+    border-radius: 14px;
+  }
+  .wa-dropCard {
+    padding: 18px 18px 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-dropOverlay {
+    transition: none;
+  }
+  .wa-dropOverlay--open .wa-dropCard {
+    animation: none;
+  }
 }
 
 /* =========================================================

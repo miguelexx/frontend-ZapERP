@@ -218,7 +218,7 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
                 : syncing
                 ? (syncResult.total_agenda
                   ? `Sincronizando: ${syncResult.verificados ?? 0} de ${syncResult.total_agenda} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`
-                  : syncResult.message || "Buscando contatos na UltraMSG…")
+                  : syncResult.message || "Buscando contatos no WhatsApp…")
                 : syncResult.cancelado
                 ? `Importação interrompida: ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos até aqui. Os contatos já importados foram mantidos.`
                 : `Sincronização concluída: ${syncResult.total_contatos ?? 0} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`}
@@ -230,7 +230,7 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
         )}
       </div>
       <div className="ia-field" style={{ marginBottom: 16 }}>
-        <p className="ia-muted">Atualize as fotos de perfil de todos os clientes a partir do WhatsApp (UltraMSG).</p>
+        <p className="ia-muted">Atualize as fotos de perfil de todos os clientes a partir do WhatsApp.</p>
         <button
           type="button"
           className="ia-btn ia-btn--outline"
