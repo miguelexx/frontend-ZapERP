@@ -79,6 +79,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     onShareContact,
     onShareLocation,
     onOpenPoll,
+    onOpenCatalog,
     onUpdateAutoCorrectPreference,
     pixActionBusy,
     pixConfigLoading,
@@ -734,6 +735,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         onShareContact={onShareContact}
         onShareLocation={onShareLocation}
         onOpenPoll={onOpenPoll}
+        onOpenCatalog={onOpenCatalog}
       />
       </div>
 

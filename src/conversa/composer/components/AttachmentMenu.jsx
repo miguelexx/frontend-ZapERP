@@ -8,6 +8,7 @@ import {
   IconMapPin,
   IconPhoto,
   IconSettings2,
+  IconShoppingBag,
   IconUser,
 } from "@tabler/icons-react";
 import {
@@ -41,6 +42,7 @@ export default function AttachmentMenu({
   onShareContact,
   onShareLocation,
   onOpenPoll,
+  onOpenCatalog,
   onUpdateAutoCorrectPreference,
 }) {
   const motion = useMotionPresence(open);
@@ -205,6 +207,23 @@ export default function AttachmentMenu({
         </span>
         <span>Enquete</span>
       </button>
+      {onOpenCatalog ? (
+        <button
+          type="button"
+          className="wa-attachItem"
+          role="menuitem"
+          onClick={() => {
+            onOpenCatalog();
+            onClose();
+          }}
+          disabled={sending || !conversaId || !podeEnviar}
+        >
+          <span className="wa-attachItem-icon wa-attachIcon-catalog" aria-hidden="true">
+            <IconShoppingBag size={16} strokeWidth={1.6} />
+          </span>
+          <span>Catálogo</span>
+        </button>
+      ) : null}
       {autocorrectToggleInMenu ? (
         <button
           type="button"

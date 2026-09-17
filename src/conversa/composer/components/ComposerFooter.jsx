@@ -62,6 +62,7 @@ export default function ComposerFooter({
   onShareContact,
   onShareLocation,
   onOpenPoll,
+  onOpenCatalog,
 }) {
   const canType = Boolean(conversaId) && (editMode || notaInternaAtiva || podeEnviar);
   const canConfirmEdit = Boolean(conversaId) && (editAllowEmpty || hasDraft);
@@ -119,6 +120,7 @@ export default function ComposerFooter({
           onShareContact={onShareContact}
           onShareLocation={onShareLocation}
           onOpenPoll={onOpenPoll}
+          onOpenCatalog={onOpenCatalog}
           onUpdateAutoCorrectPreference={onUpdateAutoCorrectPreference}
         />
         ) : null}

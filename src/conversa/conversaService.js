@@ -443,6 +443,57 @@ export async function enviarEnquete(conversaId, payload = {}) {
   return assertSpecialtyOutboundAccepted(data, "Não foi possível enviar a enquete.");
 }
 
+/** Lê os produtos do catálogo Whapi da instância desta conversa (para o seletor de envio). */
+export async function listarCatalogoConversa(conversaId, { count = 200, signal } = {}) {
+  if (conversaId == null) throw new Error("conversaId obrigatório");
+  const { data } = await api.get(`/chats/${conversaId}/catalogo/produtos`, {
+    params: { count },
+    signal,
+    skipGlobalNetworkToast: true,
+    skipGlobal500Toast: true,
+  });
+  return {
+    products: Array.isArray(data?.products) ? data.products : [],
+    total: Number.isFinite(Number(data?.total)) ? Number(data.total) : null,
+  };
+}
+
+/** Envia um produto do catálogo (cartão rico) para o cliente. */
+export async function enviarProdutoConversa(conversaId, product = {}) {
+  if (conversaId == null) throw new Error("conversaId obrigatório");
+  const productId = String(product.id ?? product.product_id ?? "").trim();
+  if (!productId) throw new Error("Produto inválido");
+  const body = {
+    tipo: "product",
+    product_id: productId,
+    product_name: product.name ?? null,
+    product_price: product.price ?? null,
+    product_currency: product.currency ?? null,
+    product_image: product.image ?? (Array.isArray(product.images) ? product.images[0] : null),
+  };
+  const { data } = await api.post(`/chats/${conversaId}/catalogo`, body, {
+    timeout: HTTP_TIMEOUT_TEXT_MS,
+    skipGlobalNetworkToast: true,
+    skipGlobal500Toast: true,
+  });
+  return assertSpecialtyOutboundAccepted(data, "Não foi possível enviar o produto.");
+}
+
+/** Envia o link/prévia do catálogo completo para o cliente. */
+export async function enviarCatalogoConversa(conversaId, { title, description, body: bodyText } = {}) {
+  if (conversaId == null) throw new Error("conversaId obrigatório");
+  const body = { tipo: "catalog" };
+  if (title != null && String(title).trim()) body.title = String(title).trim();
+  if (description != null && String(description).trim()) body.description = String(description).trim();
+  if (bodyText != null && String(bodyText).trim()) body.body = String(bodyText).trim();
+  const { data } = await api.post(`/chats/${conversaId}/catalogo`, body, {
+    timeout: HTTP_TIMEOUT_TEXT_MS,
+    skipGlobalNetworkToast: true,
+    skipGlobal500Toast: true,
+  });
+  return assertSpecialtyOutboundAccepted(data, "Não foi possível enviar o catálogo.");
+}
+
 export async function registrarLigacao(conversaId, callDuration) {
   const body = {};
   if (callDuration != null) body.callDuration = callDuration;

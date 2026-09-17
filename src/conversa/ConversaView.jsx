@@ -111,6 +111,8 @@ import { usePixConfig } from "./hooks/usePixConfig";
 import { useShareContact } from "./hooks/useShareContact";
 import { useShareLocation } from "./hooks/useShareLocation";
 import { useSendPoll } from "./hooks/useSendPoll";
+import { useSendCatalog } from "./hooks/useSendCatalog";
+import CatalogPickerModal from "./components/CatalogPickerModal";
 import useContactPresence from "./hooks/useContactPresence";
 import { formatContactPresenceLabel } from "./utils/contactPresenceFormat";
 import ConversaSelectionBar from "./components/ConversaSelectionBar";
@@ -1262,6 +1264,20 @@ function ConversaViewBody() {
     handleSendPoll,
     maxOptions: pollMaxOptions,
   } = useSendPoll({ conversaId, showToast, composerRef });
+
+  const {
+    catalogOpen,
+    products: catalogProducts,
+    loading: catalogLoading,
+    error: catalogError,
+    sendingId: catalogSendingId,
+    sendingCatalog,
+    openCatalog,
+    closeCatalog,
+    reloadCatalog,
+    sendProduct: sendCatalogProduct,
+    sendCatalogLink,
+  } = useSendCatalog({ conversaId, showToast, composerRef });
 
   const handleComposerAppendApplied = useCallback(() => {
     showToast({
@@ -3134,6 +3150,7 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           onShareContact={openShareContact}
           onShareLocation={openShareLocation}
           onOpenPoll={openPoll}
+          onOpenCatalog={openCatalog}
           pixActionBusy={pixActionBusy}
           pixConfigLoading={pixConfigLoading}
           appendTextQueue={composerAppendQueue}
@@ -3147,6 +3164,19 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           showToast={showToast}
           podeAnotar={podeAnotar}
           onSendInternalNote={handleAdicionarNotaInterna}
+        />
+
+        <CatalogPickerModal
+          open={catalogOpen}
+          products={catalogProducts}
+          loading={catalogLoading}
+          error={catalogError}
+          sendingId={catalogSendingId}
+          sendingCatalog={sendingCatalog}
+          onClose={closeCatalog}
+          onReload={reloadCatalog}
+          onSendProduct={sendCatalogProduct}
+          onSendCatalogLink={sendCatalogLink}
         />
 
     </div>
