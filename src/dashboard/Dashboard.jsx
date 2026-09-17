@@ -20,6 +20,7 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Sparkles,
   Target,
   TimerReset,
   TrendingUp,
@@ -127,6 +128,7 @@ export default function Dashboard() {
             </select>
           </label>
           <IconButton icon={RefreshCw} label={loading ? 'Atualizando' : 'Atualizar'} onClick={loadDashboard} disabled={loading} />
+          <IconButton icon={Sparkles} label="Assistente IA" onClick={() => navigate('/dashboard/ia')} />
         </div>
       </header>
 

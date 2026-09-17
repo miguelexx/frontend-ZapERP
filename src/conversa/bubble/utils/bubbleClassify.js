@@ -27,6 +27,8 @@ export function getFallbackContentLabel(tipoMsg, textoRawNorm) {
   if (t === "location") return "📍 Localização";
   if (t === "contact" || t === "contato") return "👤 Contato";
   if (t === "poll" || t === "enquete") return "📊 Enquete";
+  if (t === "product") return "🛍️ Produto";
+  if (t === "catalog") return "🛍️ Catálogo";
   const p = textoRawNorm;
   if (p === "(áudio)" || p === "(audio)") return "🎤 Áudio";
   if (p === "(áudio de voz)") return "🎤 Mensagem de voz";
@@ -194,6 +196,14 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     ? msg.reply_meta.whapi_triage
     : null;
   const isInteractive = !!triageMeta && !isPoll;
+  const productMeta = (!isApagadaParaTodos && msg?.reply_meta?.product && typeof msg.reply_meta.product === "object")
+    ? msg.reply_meta.product
+    : null;
+  const catalogMeta = (!isApagadaParaTodos && msg?.reply_meta?.catalog && typeof msg.reply_meta.catalog === "object")
+    ? msg.reply_meta.catalog
+    : null;
+  const isProduct = !isApagadaParaTodos && (tipoMsg === "product" || !!productMeta);
+  const isCatalog = !isApagadaParaTodos && !isProduct && (tipoMsg === "catalog" || !!catalogMeta);
   const isCall = !isApagadaParaTodos && tipoMsg === "call";
   const textoRaw = safeString(msg?.texto);
   const textoRawNorm = String(textoRaw || "").trim().toLowerCase();
@@ -251,6 +261,10 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     pollMeta,
     isInteractive,
     triageMeta,
+    isProduct,
+    productMeta,
+    isCatalog,
+    catalogMeta,
     isCall,
     contactBubbleMeta,
     texto,

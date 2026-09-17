@@ -12,7 +12,6 @@ import {
   IconMessage2,
   IconRobot,
   IconSettings,
-  IconSparkles,
   IconTemplate,
   IconMoon,
   IconSun,
@@ -141,7 +140,9 @@ export default function MainLayout() {
           label: "Equipe",
           title: "Equipe",
           icon: IconUsers,
-          show: canAccessUsers,
+          // Fundido em Configurações → Permissões. Só aparece no rail para quem
+          // tem usuarios_acessar mas NÃO tem config (não entraria em Configurações).
+          show: canAccessUsers && !canAccessConfig,
         },
         {
           to: "/crm",
@@ -180,20 +181,9 @@ export default function MainLayout() {
           icon: IconTemplate,
           show: !canAccessConfig && canAccessRespostasSalvas,
         },
-        {
-          to: "/dashboard/ia",
-          label: "IA",
-          title: "IA / Sparkles",
-          icon: IconSparkles,
-          show: canAccessDashboard_,
-        },
-        {
-          to: "/manual",
-          label: "Manual",
-          title: "Manual do Atendente",
-          icon: IconBook2,
-          show: true,
-        },
+        // Assistente IA (/dashboard/ia) foi fundido ao Analytics: acessível pelo
+        // botão "Assistente IA" no cabeçalho do Dashboard. Manual foi movido para
+        // o rodapé do rail (utilitário de ajuda, fora da navegação principal).
       ].filter((item) => item.show),
     [
       canAccessChatbot_,
@@ -292,6 +282,17 @@ export default function MainLayout() {
         <div className="sidebar-spacer" />
         <div className="sidebar-footer sidebar-footer--compact sidebar-footer--v2">
           <hr className="sidebar-v2-divider" aria-hidden="true" />
+          <NavLink
+            to="/manual"
+            className={({ isActive }) => `sidebar-nav-item${isActive ? " active" : ""}`}
+            title="Manual do Atendente"
+            aria-label="Manual"
+          >
+            <span className="sidebar-nav-icon" aria-hidden>
+              <IconBook2 size={SIDEBAR_ICON_SIZE} stroke={SIDEBAR_ICON_STROKE} />
+            </span>
+            <span className="sidebar-nav-label">Manual</span>
+          </NavLink>
           <button
             type="button"
             className="sidebar-theme-toggle"

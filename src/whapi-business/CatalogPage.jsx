@@ -4,23 +4,35 @@ import {
   IconBuildingStore,
   IconChevronLeft,
   IconChevronRight,
+  IconEdit,
   IconExternalLink,
   IconPackage,
   IconPhoto,
+  IconPlus,
   IconRefresh,
   IconSearch,
   IconShieldCheck,
   IconTag,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 import {
   apiErrorCode,
+  atualizarProdutoCatalogo,
+  criarColecaoCatalogo,
+  criarProdutoCatalogo,
+  editarColecaoCatalogo,
+  excluirColecaoCatalogo,
+  excluirProdutoCatalogo,
   listarColecoesCatalogo,
   listarProdutosCatalogo,
   listarProdutosDaColecao,
 } from "../api/whapiCatalogService";
 import { apiErrorMessage } from "../api/whapiBusinessService";
+import { useNotificationStore } from "../notifications/notificationStore";
 import { whapiInstanceName } from "./WhapiBusinessLayout";
+import ProductFormModal from "./ProductFormModal";
+import CollectionFormModal from "./CollectionFormModal";
 
 const PAGE_SIZE = 60;
 const ALL_COLLECTION = "__all__";
@@ -97,7 +109,7 @@ function ProductThumb({ product }) {
   );
 }
 
-function ProductModal({ product, instanceName, onClose }) {
+function ProductModal({ product, instanceName, onClose, onEdit, onDelete }) {
   const [index, setIndex] = useState(0);
   const [failed, setFailed] = useState(false);
   const closeRef = useRef(null);
@@ -203,6 +215,21 @@ function ProductModal({ product, instanceName, onClose }) {
             <IconShieldCheck size={17} />
             <span>Dados lidos diretamente do catálogo oficial do WhatsApp Business.</span>
           </div>
+
+          {onEdit || onDelete ? (
+            <div className="wb-catalog-modal__actions">
+              {onDelete ? (
+                <button type="button" className="wb-catalog-danger" onClick={() => onDelete(product)}>
+                  <IconTrash size={16} /> Excluir
+                </button>
+              ) : null}
+              {onEdit ? (
+                <button type="button" className="wb-primary-button" onClick={() => onEdit(product)}>
+                  <IconEdit size={16} /> Editar
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -224,8 +251,16 @@ export default function CatalogPage() {
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const offsetRef = useRef(0);
+  const showToast = useNotificationStore((state) => state.showToast);
+
+  // Gestão (CRUD)
+  const [productForm, setProductForm] = useState(null); // { product } | null
+  const [productSaving, setProductSaving] = useState(false);
+  const [collectionForm, setCollectionForm] = useState(null); // { collection } | null
+  const [collectionSaving, setCollectionSaving] = useState(false);
 
   const disabled = !selectedId || selectedInstance?.is_business === false;
+  const canManage = !!selectedId && selectedInstance?.is_business !== false && !businessRequired;
 
   const handleError = useCallback((requestError, fallback) => {
     if (requestError?.name === "CanceledError" || requestError?.code === "ERR_CANCELED") return true;
@@ -334,6 +369,81 @@ export default function CatalogPage() {
     else loadCollection(activeCollection, controller.signal);
   }
 
+  async function submitProduct(payload) {
+    if (!selectedId) return;
+    setProductSaving(true);
+    try {
+      if (productForm?.product?.id) {
+        await atualizarProdutoCatalogo(selectedId, productForm.product.id, payload);
+        showToast?.({ type: "success", title: "Produto atualizado", message: "As alterações foram sincronizadas com o WhatsApp." });
+      } else {
+        await criarProdutoCatalogo(selectedId, payload);
+        showToast?.({ type: "success", title: "Produto criado", message: "O produto foi adicionado ao catálogo." });
+      }
+      setProductForm(null);
+      setSelectedProduct(null);
+      reload();
+    } catch (err) {
+      showToast?.({ type: "error", title: "Erro", message: apiErrorMessage(err, "Não foi possível salvar o produto.") });
+    } finally {
+      setProductSaving(false);
+    }
+  }
+
+  async function handleDeleteProduct(product) {
+    if (!selectedId || !product?.id) return;
+    if (!window.confirm(`Excluir "${product.name || "este produto"}" do catálogo?`)) return;
+    try {
+      await excluirProdutoCatalogo(selectedId, product.id);
+      showToast?.({ type: "success", title: "Produto excluído", message: "Removido do catálogo." });
+      setSelectedProduct(null);
+      reload();
+    } catch (err) {
+      showToast?.({ type: "error", title: "Erro", message: apiErrorMessage(err, "Não foi possível excluir o produto.") });
+    }
+  }
+
+  async function submitCollection(payload) {
+    if (!selectedId) return;
+    setCollectionSaving(true);
+    try {
+      if (payload.mode === "edit") {
+        await editarColecaoCatalogo(selectedId, payload.id, {
+          name: payload.name,
+          add_products: payload.add_products,
+          remove_products: payload.remove_products,
+        });
+        showToast?.({ type: "success", title: "Coleção atualizada" });
+      } else {
+        await criarColecaoCatalogo(selectedId, { name: payload.name, products: payload.products });
+        showToast?.({ type: "success", title: "Coleção criada" });
+      }
+      setCollectionForm(null);
+      reload();
+    } catch (err) {
+      showToast?.({ type: "error", title: "Erro", message: apiErrorMessage(err, "Não foi possível salvar a coleção.") });
+    } finally {
+      setCollectionSaving(false);
+    }
+  }
+
+  async function handleDeleteCollection(collection) {
+    if (!selectedId || !collection?.id) return;
+    if (!window.confirm(`Excluir a coleção "${collection.name || ""}"? Os produtos não são apagados.`)) return;
+    try {
+      await excluirColecaoCatalogo(selectedId, collection.id);
+      showToast?.({ type: "success", title: "Coleção excluída" });
+      if (String(activeCollection) === String(collection.id)) setActiveCollection(ALL_COLLECTION);
+      else reload();
+    } catch (err) {
+      showToast?.({ type: "error", title: "Erro", message: apiErrorMessage(err, "Não foi possível excluir a coleção.") });
+    }
+  }
+
+  const activeCollectionObj = activeCollection === ALL_COLLECTION
+    ? null
+    : collections.find((c) => String(c.id) === String(activeCollection)) || null;
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return products;
@@ -369,33 +479,60 @@ export default function CatalogPage() {
         >
           <IconRefresh className={loading ? "wb-spin" : ""} size={18} />
         </button>
+        {canManage ? (
+          <button type="button" className="wb-primary-button wb-catalog-newBtn" onClick={() => setProductForm({ product: null })}>
+            <IconPlus size={17} /> <span>Novo produto</span>
+          </button>
+        ) : null}
       </div>
 
-      {collections.length ? (
-        <div className="wb-catalog-collections" role="tablist" aria-label="Coleções do catálogo">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeCollection === ALL_COLLECTION}
-            className={`wb-catalog-chip${activeCollection === ALL_COLLECTION ? " is-active" : ""}`}
-            onClick={() => setActiveCollection(ALL_COLLECTION)}
-          >
-            Todos os itens
-            {total != null ? <span>{total}</span> : null}
-          </button>
-          {collections.map((collection) => (
-            <button
-              key={collection.id}
-              type="button"
-              role="tab"
-              aria-selected={String(activeCollection) === String(collection.id)}
-              className={`wb-catalog-chip${String(activeCollection) === String(collection.id) ? " is-active" : ""}`}
-              onClick={() => setActiveCollection(collection.id)}
-            >
-              {collection.name || "Coleção"}
-              {Number.isFinite(Number(collection.products_count)) ? <span>{collection.products_count}</span> : null}
-            </button>
-          ))}
+      {collections.length || canManage ? (
+        <div className="wb-catalog-collectionsRow">
+          {collections.length ? (
+            <div className="wb-catalog-collections" role="tablist" aria-label="Coleções do catálogo">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeCollection === ALL_COLLECTION}
+                className={`wb-catalog-chip${activeCollection === ALL_COLLECTION ? " is-active" : ""}`}
+                onClick={() => setActiveCollection(ALL_COLLECTION)}
+              >
+                Todos os itens
+                {total != null ? <span>{total}</span> : null}
+              </button>
+              {collections.map((collection) => (
+                <button
+                  key={collection.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={String(activeCollection) === String(collection.id)}
+                  className={`wb-catalog-chip${String(activeCollection) === String(collection.id) ? " is-active" : ""}`}
+                  onClick={() => setActiveCollection(collection.id)}
+                >
+                  {collection.name || "Coleção"}
+                  {Number.isFinite(Number(collection.products_count)) ? <span>{collection.products_count}</span> : null}
+                </button>
+              ))}
+            </div>
+          ) : <span className="wb-catalog-collectionsHint">Organize seus produtos em coleções</span>}
+
+          {canManage ? (
+            <div className="wb-catalog-collectionActions">
+              {activeCollectionObj ? (
+                <>
+                  <button type="button" className="wb-chip-action" onClick={() => setCollectionForm({ collection: activeCollectionObj })} title="Editar coleção">
+                    <IconEdit size={15} />
+                  </button>
+                  <button type="button" className="wb-chip-action wb-chip-action--danger" onClick={() => handleDeleteCollection(activeCollectionObj)} title="Excluir coleção">
+                    <IconTrash size={15} />
+                  </button>
+                </>
+              ) : null}
+              <button type="button" className="wb-chip-action wb-chip-action--add" onClick={() => setCollectionForm({ collection: null })}>
+                <IconPlus size={15} /> Coleção
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -472,7 +609,34 @@ export default function CatalogPage() {
       )}
 
       {selectedProduct ? (
-        <ProductModal product={selectedProduct} instanceName={instanceName} onClose={() => setSelectedProduct(null)} />
+        <ProductModal
+          product={selectedProduct}
+          instanceName={instanceName}
+          onClose={() => setSelectedProduct(null)}
+          onEdit={canManage ? (p) => setProductForm({ product: p }) : undefined}
+          onDelete={canManage ? handleDeleteProduct : undefined}
+        />
+      ) : null}
+
+      {productForm ? (
+        <ProductFormModal
+          open
+          product={productForm.product}
+          saving={productSaving}
+          onClose={() => (productSaving ? null : setProductForm(null))}
+          onSubmit={submitProduct}
+        />
+      ) : null}
+
+      {collectionForm ? (
+        <CollectionFormModal
+          open
+          collection={collectionForm.collection}
+          products={products}
+          saving={collectionSaving}
+          onClose={() => (collectionSaving ? null : setCollectionForm(null))}
+          onSubmit={submitCollection}
+        />
       ) : null}
     </div>
   );

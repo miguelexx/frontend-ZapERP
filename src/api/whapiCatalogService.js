@@ -51,3 +51,35 @@ export async function obterProdutoCatalogo(instanceId, productId, { signal, sile
   );
   return data?.product && typeof data.product === "object" ? data.product : null;
 }
+
+// ------------------------------- Gestão (CRUD) -------------------------------
+
+export async function criarProdutoCatalogo(instanceId, payload) {
+  const { data } = await api.post(`${catalogBase(instanceId)}/products`, payload);
+  return data?.product || null;
+}
+
+export async function atualizarProdutoCatalogo(instanceId, productId, payload) {
+  const { data } = await api.patch(`${catalogBase(instanceId)}/products/${encodeURIComponent(productId)}`, payload);
+  return data?.product || null;
+}
+
+export async function excluirProdutoCatalogo(instanceId, productId) {
+  const { data } = await api.delete(`${catalogBase(instanceId)}/products/${encodeURIComponent(productId)}`);
+  return data;
+}
+
+export async function criarColecaoCatalogo(instanceId, payload) {
+  const { data } = await api.post(`${catalogBase(instanceId)}/collections`, payload);
+  return data?.collection || null;
+}
+
+export async function editarColecaoCatalogo(instanceId, collectionId, payload) {
+  const { data } = await api.patch(`${catalogBase(instanceId)}/collections/${encodeURIComponent(collectionId)}`, payload);
+  return data?.collection || null;
+}
+
+export async function excluirColecaoCatalogo(instanceId, collectionId) {
+  const { data } = await api.delete(`${catalogBase(instanceId)}/collections/${encodeURIComponent(collectionId)}`);
+  return data;
+}

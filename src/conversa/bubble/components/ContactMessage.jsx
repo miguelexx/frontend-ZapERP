@@ -3,6 +3,20 @@ import { resolveContactMetaFromMessage } from "../../../utils/conversaUtils";
 import { formatHora } from "../../utils/conversaViewHelpers";
 import MessageStatus from "./MessageStatus";
 
+/** Exibe o telefone como o WhatsApp: +55 11 98765-4321 (fallback: dígitos crus). */
+function formatContactPhone(telefone) {
+  const digits = String(telefone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    const rest = digits.slice(2);
+    const ddd = rest.slice(0, 2);
+    const num = rest.slice(2);
+    const meio = num.length === 9 ? `${num.slice(0, 5)}-${num.slice(5)}` : `${num.slice(0, 4)}-${num.slice(4)}`;
+    return `+55 ${ddd} ${meio}`;
+  }
+  return `+${digits}`;
+}
+
 export default function ContactMessage({
   msg,
   contactMeta,
@@ -17,6 +31,7 @@ export default function ContactMessage({
   if (!meta) return null;
   const nome = meta.nome || "Contato";
   const telefone = meta.telefone || null;
+  const telefoneFmt = formatContactPhone(telefone);
   const fotoPerfil = meta.foto_perfil && String(meta.foto_perfil).trim().startsWith("http")
     ? String(meta.foto_perfil).trim()
     : null;
@@ -51,6 +66,7 @@ export default function ContactMessage({
         </div>
         <div className="wa-bubble-contactInfo">
           <span className="wa-bubble-contactName">{nome}</span>
+          {telefoneFmt ? <span className="wa-bubble-contactPhone">{telefoneFmt}</span> : null}
           <span className="wa-bubble-contactTimeMeta">
             <span className="wa-bubble-contactTime">{formatHora(msg?.criado_em)}</span>
             <MessageStatus msg={msg} isGroup={Boolean(isGroup)} />

@@ -195,14 +195,32 @@ export function isVCardText(text) {
   return text.includes('BEGIN:VCARD')
 }
 
+/*
+ * Alguns provedores entregam o vCard "achatado" numa única linha (campos separados
+ * por espaço em vez de quebra de linha), ex.:
+ *   "BEGIN:VCARD VERSION:3.0 N:;Dyfhersom Celminas;;; FN:Dyfhersom Celminas TEL:+55..."
+ * Aí os regex ancorados em ^/$ (multiline) não casam e o nome cru vaza para a UI.
+ * Reinserimos uma quebra de linha antes de cada propriedade vCard conhecida para que
+ * os parsers baseados em linha voltem a funcionar. É idempotente para vCards que já
+ * vêm com quebras de linha reais.
+ */
+const VCARD_PROP_BOUNDARY =
+  /\s+(?=(?:item\d+\.)?(?:BEGIN|END|VERSION|FN|N|TEL|EMAIL|ORG|TITLE|ROLE|ADR|LABEL|URL|NOTE|BDAY|PHOTO|NICKNAME|CATEGORIES|X-[A-Z0-9-]+)(?:;[^:\s]*)?:)/gi
+
+export function normalizeVCardText(text) {
+  if (!text || typeof text !== 'string') return ''
+  return text.replace(VCARD_PROP_BOUNDARY, '\n')
+}
+
 /** Primeiros dígitos de uma linha TEL de vCard (prioriza linha com mais dígitos). */
 export function parseVCardTelefone(text) {
   if (!text || typeof text !== 'string') return null
+  const normalized = normalizeVCardText(text)
   const re = /^[^\S\r\n]*(?:item\d+\.|ITEM\d+\.)?TEL[^:]*:(.+)$/gim
   let best = null
   let bestLen = 0
   let m
-  while ((m = re.exec(text)) !== null) {
+  while ((m = re.exec(normalized)) !== null) {
     let v = String(m[1] || '').trim()
     v = v.replace(/^tel:/i, '').replace(/^waid\//i, '').trim()
     const digits = v.replace(/\D/g, '')
@@ -219,12 +237,13 @@ export function parseVCardTelefone(text) {
  */
 export function parseVCardDisplayName(text) {
   if (!text || typeof text !== 'string') return null
-  const fnMatch = text.match(/^FN:(.+)$/im)
+  const normalized = normalizeVCardText(text)
+  const fnMatch = normalized.match(/^FN(?:;[^:\r\n]*)?:(.+)$/im)
   if (fnMatch) {
     const fn = fnMatch[1].trim().replace(/\\,/g, ',').replace(/\\n/g, ' ').replace(/\\/g, '')
-    if (fn && !fn.includes('BEGIN:VCARD')) return fn
+    if (fn && !fn.includes('BEGIN:VCARD') && !/^VCARD$/i.test(fn)) return fn
   }
-  const nMatch = text.match(/^N:([^\r\n]+)$/im)
+  const nMatch = normalized.match(/^N(?:;[^:\r\n]*)?:([^\r\n]+)$/im)
   if (nMatch) {
     const parts = nMatch[1].split(';').map((s) => s.trim())
     const family = parts[0] || ''
@@ -254,6 +273,14 @@ function normalizeDigitsPhone(p) {
   return d || null
 }
 
+/** `contact_meta.nome` às vezes chega com o vCard cru; não confiar nesses casos. */
+function looksLikeVCardJunkName(name) {
+  if (!name) return true
+  const s = String(name).trim()
+  if (!s) return true
+  return /BEGIN:VCARD|VERSION:\d|(?:^|\s)(?:FN|N|TEL)(?:;[^:\s]*)?:/i.test(s)
+}
+
 /**
  * Resolve nome/telefone/foto para cartão de contato ou preview.
  * Cobre `tipo: contact` com `contact_meta` e mensagens só com corpo vCard.
@@ -270,8 +297,9 @@ export function resolveContactMetaFromMessage(msg) {
 
   if (tipo === 'contact') {
     if (!rawMeta && !vc && !isVCardBody) return null
-    const nomeMeta = rawMeta?.nome != null ? String(rawMeta.nome).trim() : ''
-    const nome = nomeMeta || vc?.nome || 'Contato'
+    const nomeMetaRaw = rawMeta?.nome != null ? String(rawMeta.nome).trim() : ''
+    const nomeMeta = looksLikeVCardJunkName(nomeMetaRaw) ? '' : nomeMetaRaw
+    const nome = nomeMeta || vc?.nome || parseVCardDisplayName(text) || 'Contato'
     let telefone =
       normalizeDigitsPhone(rawMeta?.telefone) || normalizeDigitsPhone(rawMeta?.phone) || vc?.telefone || null
     const foto = rawMeta?.foto_perfil

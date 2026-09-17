@@ -1,6 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { getMessageListReactKey } from "./conversaStore";
+// Profiler de scroll — só é referenciado dentro de blocos `import.meta.env.DEV`,
+// portanto o Vite remove o import e o módulo do bundle de produção.
+import { scrollProfiler } from "./dev/scrollProfiler";
 
 /*
  * Chamado pelo `estimateSize` \u2014 ou seja, por item, a cada passagem de medi\u00e7\u00e3o do
@@ -84,6 +87,30 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
     getItemKey: (index) => getVirtualRowKey(items[index], index, conversaId),
   });
 
+  // DEV: ref estável que mede a linha e registra o delta estimativa×altura real.
+  // Em produção, `import.meta.env.DEV` é false e o Vite mantém apenas
+  // `virtualizer.measureElement`, sem custo extra.
+  const measureCtxRef = useRef({ items, mobileThread });
+  measureCtxRef.current = { items, mobileThread };
+  const measureElement = useMemo(() => {
+    if (!import.meta.env.DEV) return virtualizer.measureElement;
+    return (el) => {
+      virtualizer.measureElement(el);
+      if (el) {
+        const { items: it, mobileThread: mt } = measureCtxRef.current;
+        scrollProfiler.recordRow(el, it, mt, estimateThreadRowSize);
+      }
+    };
+  }, [virtualizer]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    const scrollEl = scrollRef?.current;
+    if (!scrollEl) return undefined;
+    scrollProfiler.attach(scrollEl);
+    return () => scrollProfiler.detach();
+  }, [scrollRef]);
+
   useLayoutEffect(() => {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
       const scrollEl = scrollRef?.current;
@@ -101,7 +128,12 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
          * acumulada deslocar o conteúdo para uma posição aparentemente aleatória.
          */
         const itemBottom = item.end + margin;
-        return itemBottom <= scrollTop;
+        const willAdjust = itemBottom <= scrollTop;
+        if (import.meta.env.DEV && willAdjust) {
+          const estimated = estimateThreadRowSize(items[item.index], mobileThread);
+          scrollProfiler.correction((item.size ?? estimated) - estimated, "size-change");
+        }
+        return willAdjust;
       }
       /*
        * Perto do fim, o ConversaView é o único responsável por manter a âncora inferior.
@@ -133,6 +165,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
           const distanceToBottom =
             scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
           if (distanceToBottom > 120) {
+            if (import.meta.env.DEV) scrollProfiler.correction(delta, "margin");
             try {
               scrollEl.scrollTop = Math.max(0, scrollEl.scrollTop + delta);
             } catch {
@@ -356,7 +389,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
         <div
           key={vRow.key}
           data-index={vRow.index}
-          ref={virtualizer.measureElement}
+          ref={measureElement}
           style={{
             position: "absolute",
             top: 0,
@@ -386,6 +419,15 @@ export const ConversaMessageStaticList = forwardRef(function ConversaMessageStat
 ) {
   const rootRef = useRef(null);
   const count = Array.isArray(items) ? items.length : 0;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    const scrollEl = scrollRef?.current;
+    if (!scrollEl) return undefined;
+    scrollProfiler.attach(scrollEl);
+    return () => scrollProfiler.detach();
+  }, [scrollRef]);
+
   const offset = count > MOBILE_STATIC_MAX ? count - MOBILE_STATIC_MAX : 0;
   const visibleItems = useMemo(
     () => (offset > 0 ? items.slice(offset) : items),
