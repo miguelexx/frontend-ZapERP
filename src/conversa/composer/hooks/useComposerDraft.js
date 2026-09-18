@@ -21,7 +21,8 @@ export function useComposerDraft(conversaId) {
       previousId !== "" &&
       String(previousId) !== String(conversaId ?? "")
     ) {
-      saveComposerDraft(previousId, textoRef.current);
+      // Troca de conversa é um momento de "saída": grava já, sem depender do debounce.
+      saveComposerDraft(previousId, textoRef.current, { immediate: true });
     }
     lastConversaIdRef.current = conversaId;
     const restored = loadComposerDraft(conversaId);
@@ -38,7 +39,7 @@ export function useComposerDraft(conversaId) {
     const flush = () => {
       const id = lastConversaIdRef.current;
       if (id != null && id !== "") {
-        saveComposerDraft(id, textoRef.current);
+        saveComposerDraft(id, textoRef.current, { immediate: true });
       }
     };
     window.addEventListener("pagehide", flush);

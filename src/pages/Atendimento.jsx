@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
+import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
 import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
 import "../components/feedback/skeleton.css";

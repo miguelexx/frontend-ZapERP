@@ -1,4 +1,5 @@
-﻿import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+﻿import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
 import { shallow } from "zustand/shallow";
 import { useMatchMedia } from "../hooks/useMatchMedia";
 import {

@@ -150,4 +150,57 @@ listeners.get("unhandledrejection")({
 assert.equal(dynamicImportPrevented, 1);
 assert.equal(installedRuntime.location.href.includes("__zaperp_chunk_reload="), false);
 
+// --- retryDynamicImport: retenta soluços de rede antes de propagar o erro ---
+const { retryDynamicImport } = await import("../src/runtime/lazyWithRetry.js");
+
+// 1) Sucesso após uma falha transitória de chunk (ex.: ERR_QUIC → "Failed to fetch")
+let flakyAttempts = 0;
+const flakyModule = { default: "ConversaView" };
+const flakyResult = await retryDynamicImport(
+  () => {
+    flakyAttempts += 1;
+    if (flakyAttempts < 2) {
+      return Promise.reject(
+        new TypeError(
+          "Failed to fetch dynamically imported module: /assets/ConversaView-abc.js"
+        )
+      );
+    }
+    return Promise.resolve(flakyModule);
+  },
+  { backoffMs: 0 }
+);
+assert.equal(flakyAttempts, 2);
+assert.equal(flakyResult, flakyModule);
+
+// 2) Erro de execução do módulo NÃO é retentado (sobe na primeira tentativa)
+let runtimeAttempts = 0;
+await assert.rejects(
+  () =>
+    retryDynamicImport(
+      () => {
+        runtimeAttempts += 1;
+        return Promise.reject(new ReferenceError("x is not defined"));
+      },
+      { backoffMs: 0 }
+    ),
+  /x is not defined/
+);
+assert.equal(runtimeAttempts, 1);
+
+// 3) Falha persistente de chunk esgota as tentativas e propaga o erro
+let persistentAttempts = 0;
+await assert.rejects(
+  () =>
+    retryDynamicImport(
+      () => {
+        persistentAttempts += 1;
+        return Promise.reject(new TypeError("error loading dynamically imported module"));
+      },
+      { retries: 2, backoffMs: 0 }
+    ),
+  /error loading dynamically imported module/
+);
+assert.equal(persistentAttempts, 3); // 1 inicial + 2 retentativas
+
 console.log("deploy recovery and finalization config: ok");

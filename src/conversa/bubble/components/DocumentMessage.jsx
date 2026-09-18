@@ -16,7 +16,7 @@ import { getEditableComposerText } from "../utils/bubbleClassify";
  * Card de arquivo estilo WhatsApp: ícone com extensão, nome, tipo/tamanho,
  * timestamp, ticks e links "Abrir" / "Salvar como..."
  */
-export default function DocumentMessage({ msg, mediaUrl, selectMode, onOpenMedia, isGroup, out }) {
+export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, out }) {
   const nome = resolveDownloadFilename(
     msg?.nome_arquivo ?? msg?.n ?? (looksLikeDocumentFilenameOnly(msg?.texto) ? msg?.texto : null),
     mediaUrl
@@ -52,34 +52,26 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, onOpenMedia
       </div>
       <MessageCaption texto={caption} show={Boolean(caption)} />
       <div className="wa-bubble-fileActions">
-        {ext === "PDF" ? (
-          <a
-            href={selectMode ? undefined : openHref}
-            target="_blank"
-            rel="noreferrer"
-            className="wa-bubble-fileAction"
-            aria-disabled={selectMode || !openHref}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (selectMode || !openHref) e.preventDefault();
-            }}
-          >
-            Abrir
-          </a>
-        ) : (
-          <button
-            type="button"
-            className="wa-bubble-fileAction"
-            disabled={!!selectMode}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!selectMode && openHref) onOpenMedia?.(openHref, "arquivo", nome);
-            }}
-          >
-            Abrir
-          </button>
-        )}
+        {/*
+         * "Abrir" abre o arquivo INLINE em nova aba (disposition=inline), para
+         * qualquer tipo. O navegador renderiza o que sabe (PDF, XML, imagens,
+         * texto) e baixa os que não sabe (zip, exe, Office) — este download é
+         * imposto pelo navegador e nenhum site consegue evitar. Antes, os tipos
+         * não-PDF abriam um overlay intermediário (clipe) que só baixava.
+         */}
+        <a
+          href={selectMode ? undefined : openHref}
+          target="_blank"
+          rel="noreferrer"
+          className="wa-bubble-fileAction"
+          aria-disabled={selectMode || !openHref}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (selectMode || !openHref) e.preventDefault();
+          }}
+        >
+          Abrir
+        </a>
         {mediaUrl ? (
           <>
             <span className="wa-bubble-fileActionSep" aria-hidden="true">·</span>

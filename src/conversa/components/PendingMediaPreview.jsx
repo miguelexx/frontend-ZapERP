@@ -1,4 +1,5 @@
-import { lazy, memo, Suspense, useEffect, useLayoutEffect } from "react";
+import { memo, Suspense, useEffect, useLayoutEffect } from "react";
+import { lazyWithRetry as lazy } from "../../runtime/lazyWithRetry";
 import {
   isImageFile,
   isVideoFile,

@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyWithRetry as lazy } from "../../runtime/lazyWithRetry";
 import AtendentesModal from "../../atendimento/AtendentesModal";
 import ConversaSetorPanel from "./ConversaSetorPanel";
 import ConversaTagsPanel from "./ConversaTagsPanel";

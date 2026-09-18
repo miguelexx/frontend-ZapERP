@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { createPortal } from "react-dom";
 import useMotionPresence from "../../../components/ui/useMotionPresence";
 import {
@@ -18,7 +19,7 @@ import {
   IconSavedReplies,
 } from "../../conversaComposerIcons";
 
-export default function AttachmentMenu({
+function AttachmentMenu({
   open,
   portal,
   wrapRef,
@@ -295,3 +296,10 @@ export default function AttachmentMenu({
     </div>
   );
 }
+
+/*
+ * Memoizado: os itens do menu não dependem do texto digitado. Com os callbacks
+ * do ComposerFooter agora estáveis, digitar não re-renderiza nem reconstrói a
+ * árvore de ~12 itens do menu (que fica montada para a animação de abrir/fechar).
+ */
+export default memo(AttachmentMenu);

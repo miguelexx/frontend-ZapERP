@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { usePermissoesStore } from "../auth/permissoesStore";

@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { IconChevronUp } from "@tabler/icons-react";
 import { IconNote as TablerNote } from "@tabler/icons-react";
 import {
@@ -66,6 +67,23 @@ export default function ComposerFooter({
 }) {
   const canType = Boolean(conversaId) && (editMode || notaInternaAtiva || podeEnviar);
   const canConfirmEdit = Boolean(conversaId) && (editAllowEmpty || hasDraft);
+
+  // Callbacks estáveis para o AttachmentMenu (memoizado): os setters de useState
+  // são referências estáveis, então estes useCallback não mudam a cada tecla e o
+  // menu deixa de reconstruir seus ~12 itens durante a digitação.
+  const { setMenuOpen: setAttachMenuOpen } = attachments;
+  const { setOpen: setEmojiOpen } = emojiPicker;
+  const { setOpen: setStickerOpen } = stickerPicker;
+  const handleAttachBeforeOpen = useCallback(() => {
+    onCloseSavedReplies();
+    setEmojiOpen(false);
+    setStickerOpen(false);
+  }, [onCloseSavedReplies, setEmojiOpen, setStickerOpen]);
+  const handleAttachToggle = useCallback(
+    () => setAttachMenuOpen((value) => !value),
+    [setAttachMenuOpen]
+  );
+  const handleAttachClose = useCallback(() => setAttachMenuOpen(false), [setAttachMenuOpen]);
   const inputMaxLength = editMode
     ? editMaxLength
     : notaInternaAtiva
@@ -105,13 +123,9 @@ export default function ComposerFooter({
           autocorrectToggleInMenu={autocorrectToggleInMenu}
           autoCorrectEnabled={autoCorrectEnabled}
           documentInputRef={attachments.documentInputRef}
-          onBeforeOpen={() => {
-            onCloseSavedReplies();
-            emojiPicker.setOpen(false);
-            stickerPicker.setOpen(false);
-          }}
-          onToggle={() => attachments.setMenuOpen((value) => !value)}
-          onClose={() => attachments.setMenuOpen(false)}
+          onBeforeOpen={handleAttachBeforeOpen}
+          onToggle={handleAttachToggle}
+          onClose={handleAttachClose}
           onOpenSavedReplies={onOpenSavedReplies}
           onOpenGallery={attachments.openGallery}
           onOpenCamera={attachments.openCamera}

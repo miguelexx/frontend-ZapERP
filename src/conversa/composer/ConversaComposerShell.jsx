@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  lazy,
   memo,
   Suspense,
   useCallback,
@@ -11,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { lazyWithRetry as lazy } from "../../runtime/lazyWithRetry";
 import { clearComposerDraft } from "../composerDraftStore";
 import {
   WA_INPUT_FALLBACK_MAX_HEIGHT_PX,

@@ -1,4 +1,6 @@
-export default function AttachmentInputs({
+import { memo } from "react";
+
+function AttachmentInputs({
   fileInputRef,
   fototecaInputRef,
   cameraInputRef,
@@ -61,3 +63,7 @@ export default function AttachmentInputs({
     </>
   );
 }
+
+// Inputs de arquivo ocultos com props estáveis (refs + handlers useCallback):
+// memoizar evita reconciliá-los a cada tecla.
+export default memo(AttachmentInputs);
