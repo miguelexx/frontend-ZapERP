@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from "react";
-import { Archive } from "lucide-react";
+import { Archive, Undo2 } from "lucide-react";
 import { getMessageListReactKey } from "./conversaStore";
 import { getStatusAtendimentoEffective, isClosedAttendanceStatus } from "../utils/conversaUtils";
 import { ConversaMessageStaticList, ConversaMessageVirtualList } from "./ConversaMessageVirtualList";
@@ -61,6 +61,9 @@ function ConversaThread({
   showReopenClosedCta,
   reopenClosedBusy,
   onReopenClosed,
+  showPuxarNovamenteCta = false,
+  puxarNovamenteBusy = false,
+  onPuxarNovamente,
   showContactOldSyncCta,
   showLidPhoneMissingHint = false,
   contactOldSyncBusy,
@@ -311,8 +314,22 @@ function ConversaThread({
           </span>
           <strong>{`Este atendimento foi assumido por ${atendenteNome}.`}</strong>
           <p className="wa-messages-emptyHint" role="status">
-            O histórico fica oculto enquanto outro atendente conduz a conversa. Administradores e supervisores podem visualizar o conteúdo.
+            {showPuxarNovamenteCta
+              ? `Você transferiu esta conversa. Puxe novamente para voltar a atender junto com ${atendenteNome}.`
+              : "O histórico fica oculto enquanto outro atendente conduz a conversa. Administradores e supervisores podem visualizar o conteúdo."}
           </p>
+          {showPuxarNovamenteCta ? (
+            <button
+              type="button"
+              className="wa-messages-puxarBtn"
+              onClick={onPuxarNovamente}
+              disabled={puxarNovamenteBusy}
+              aria-label="Puxar conversa novamente para voltar a atender"
+            >
+              <Undo2 size={17} strokeWidth={2.4} aria-hidden="true" />
+              <span>{puxarNovamenteBusy ? "Puxando…" : "Puxar conversa novamente"}</span>
+            </button>
+          ) : null}
         </div>
       </div>
     );

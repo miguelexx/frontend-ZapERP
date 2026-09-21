@@ -35,9 +35,8 @@ import {
 } from "../bubble/utils/bubbleClassify";
 
 const CameraCapture = lazy(() => import("./components/CameraCapture"));
-const EmojiPicker = lazy(() => import("./components/EmojiPicker"));
 const SavedRepliesPanel = lazy(() => import("./components/SavedRepliesPanel"));
-const StickerPicker = lazy(() => import("./components/StickerPicker"));
+const StickerEmojiPicker = lazy(() => import("./components/StickerEmojiPicker"));
 
 /**
  * Área de digitação (composer) — estado de texto isolado para não re-renderizar o thread a cada tecla.
@@ -99,6 +98,8 @@ const ConversaComposer = forwardRef(function ConversaComposer(
 ) {
   const { texto, setTexto, textoRef } = useComposerDraft(conversaId);
   const [notaInternaAtiva, setNotaInternaAtiva] = useState(false);
+  // Aba ativa do painel unificado de emojis + figurinhas (persiste entre aberturas).
+  const [mediaTab, setMediaTab] = useState("emoji");
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const modePickerRef = useRef(null);
   const draftDoOutroModoRef = useRef("");
@@ -425,7 +426,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   }, [appendTextQueue, onAppendConsumed, onAppendTextApplied, focusInput]);
 
   const handleSendFromComposer = useCallback(
-    (textToSend) => {
+    async (textToSend) => {
       if (!conversaId) return;
 
       if (editMode) {
@@ -448,7 +449,14 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         sendLockedRef.current = t;
         setTexto("");
         draftDoOutroModoRef.current = "";
-        onSendInternalNote(t);
+        const saved = await onSendInternalNote(t);
+        if (saved === false) {
+          // Não perder o conteúdo quando a API falha. Se o usuário já começou
+          // outra nota durante a requisição, preserva o novo texto e acrescenta
+          // a nota que falhou em uma linha separada.
+          setTexto((current) => current ? `${t}\n${current}` : t);
+          sendLockedRef.current = null;
+        }
         return;
       }
 
@@ -659,23 +667,6 @@ const ConversaComposer = forwardRef(function ConversaComposer(
           />
         </Suspense>
       ) : null}
-      {emojiOpen && !isRecording ? (
-        <Suspense fallback={null}>
-          <EmojiPicker
-            open={emojiOpen}
-            isRecording={isRecording}
-            panelRef={emojiPanelRef}
-            searchRef={emojiSearchRef}
-            query={emojiQuery}
-            onQueryChange={setEmojiQuery}
-            onClose={() => {
-              setEmojiOpen(false);
-              setEmojiQuery("");
-            }}
-            onInsert={insertEmoji}
-          />
-        </Suspense>
-      ) : null}
       <ReplyBar
         preview={replyBarPreview}
         variant={editMode ? "edit" : "reply"}
@@ -755,15 +746,22 @@ const ConversaComposer = forwardRef(function ConversaComposer(
 
       {stickerOpen && !isRecording ? (
         <Suspense fallback={null}>
-          <StickerPicker
+          <StickerEmojiPicker
             open={stickerOpen}
             isRecording={isRecording}
             panelRef={stickerPanelRef}
-            searchRef={stickerSearchRef}
-            inputRef={stickerInputRef}
-            query={stickerQuery}
+            activeTab={mediaTab}
+            onTabChange={setMediaTab}
+            canSendSticker={Boolean(conversaId) && podeEnviar && !editMode && !notaInternaAtiva}
+            emojiSearchRef={emojiSearchRef}
+            emojiQuery={emojiQuery}
+            onEmojiQueryChange={setEmojiQuery}
+            onInsertEmoji={insertEmoji}
+            stickerSearchRef={stickerSearchRef}
+            stickerInputRef={stickerInputRef}
+            stickerQuery={stickerQuery}
             stickers={filteredRecentStickers}
-            onQueryChange={setStickerQuery}
+            onStickerQueryChange={setStickerQuery}
             onSendStickerFile={onSendStickerFile}
             showToast={showToast}
           />

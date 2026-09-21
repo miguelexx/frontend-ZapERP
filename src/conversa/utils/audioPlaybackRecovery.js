@@ -69,6 +69,24 @@ export function planReloadOnStall({ sourceIdx, sourceCount }) {
 }
 
 /**
+ * Watchdog do "pedi para tocar e ainda não começou" — a única lacuna sem guarda de tempo do player.
+ * Roda quando o usuário clicou em tocar mas o áudio não engatou, cobrindo dois casos silenciosos que
+ * antes só um F5 resolvia: (a) `await el.play()` que trava sem disparar `play` nem `error`, e (b) a
+ * recarga cujo `canplay` nunca chega (fetch do proxy engasgado). Difere de `classifyStallRecovery`
+ * (que roda JÁ tocando): aqui o elemento pode legitimamente estar pausado — no caminho de reload ele
+ * fica pausado aguardando `canplay` —, então só o PROGRESSO confirma o início. O cancelamento por
+ * pausa do usuário é feito por token no efeito, fora daqui.
+ * - Já tocando ou o tempo andou → 'noop' (começou de fato).
+ * - Já tentamos recarregar uma vez e continua parado → 'giveup' (marca indisponível → botão de retry).
+ * - Primeira vez → 'recover' (recarrega/avança fonte e segue vigiando).
+ */
+export function classifyStuckStart({ playing, progressed, alreadyRecovered }) {
+  if (playing || progressed) return "noop";
+  if (alreadyRecovered) return "giveup";
+  return "recover";
+}
+
+/**
  * Decide se, ao despausar (`toggle` com `el.paused`), é preciso um `load()` antes do `play()`.
  * O mobile libera o buffer decodificado de um `<audio>` pausado/em segundo plano: o elemento
  * mantém `readyState >= 1` (metadados) mas não tem dado tocável na posição atual, e o `play()`

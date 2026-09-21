@@ -15,6 +15,7 @@ import {
   classifyStallRecovery,
   planReloadOnStall,
   needsReloadBeforeResume,
+  classifyStuckStart,
 } from "../src/conversa/utils/audioPlaybackRecovery.js";
 import { refreshProxyMediaToken, getMediaPlaybackUrl } from "../src/conversa/utils/conversaViewHelpers.js";
 
@@ -96,6 +97,23 @@ checar("resume: primeiro play (posição 0) não recarrega",
 checar("resume: readyState 2 com posição coberta não recarrega",
   needsReloadBeforeResume({ hasError: false, readyState: 2, positionCovered: true, currentTime: 5 }) === false);
 
+// ── classifyStuckStart (watchdog do "cliquei em tocar e não começou") ────────
+// Já tocando → noop, mesmo sem progresso medido ainda.
+checar("início: já tocando → noop",
+  classifyStuckStart({ playing: true, progressed: false, alreadyRecovered: false }) === "noop");
+// O tempo andou → começou de fato → noop.
+checar("início: tempo andou → noop",
+  classifyStuckStart({ playing: false, progressed: true, alreadyRecovered: false }) === "noop");
+// Primeira vez travado (nem tocando nem progrediu) → recover (recarrega/avança fonte).
+checar("início: 1ª vez travado → recover",
+  classifyStuckStart({ playing: false, progressed: false, alreadyRecovered: false }) === "recover");
+// Já recarregamos uma vez e continua travado → giveup (marca indisponível).
+checar("início: travado após recarregar → giveup",
+  classifyStuckStart({ playing: false, progressed: false, alreadyRecovered: true }) === "giveup");
+// Progresso vence o teto de tentativas: se andou, é noop mesmo já tendo recarregado.
+checar("início: progresso após recarregar ainda é noop",
+  classifyStuckStart({ playing: false, progressed: true, alreadyRecovered: true }) === "noop");
+
 // ── refreshProxyMediaToken ────────────────────────────────────────────────────
 // URL do proxy montada com o token atual; simula rotação do JWT e confere que o (re)load usa o novo.
 {
@@ -127,4 +145,4 @@ if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam.`);
   process.exit(1);
 }
-console.log("OK — regressão de recuperação/token do player passou (34 asserts).");
+console.log("OK — regressão de recuperação/token do player passou (39 asserts).");

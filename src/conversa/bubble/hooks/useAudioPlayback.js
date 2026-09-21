@@ -7,6 +7,7 @@ import {
   classifyStallRecovery,
   planReloadOnStall,
   needsReloadBeforeResume,
+  classifyStuckStart,
 } from "../../utils/audioPlaybackRecovery";
 import { normalizeAudioDuration, rememberAudioDuration, readAudioDuration } from "../utils/audioDuration";
 import { pauseOtherAudios, clearCurrentAudioIf } from "../utils/audioSession";
@@ -56,6 +57,20 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
   );
 
   const autoPlayRef = useRef({ ate: 0, tentativas: 0 });
+  // Vigília de início: cobre o intervalo entre "cliquei em tocar" e "o áudio começou de fato".
+  // `pendingPlayRef` guarda o token do pedido em aberto (0 = nenhum); `resumeWatchRecoveredRef`
+  // marca que já gastamos a única recarga automática (2ª falha → indisponível). `pendingPlaySeq`
+  // apenas re-arma o efeito do watchdog. Tudo isolado: não afeta os caminhos que já funcionam.
+  const pendingPlayRef = useRef(0);
+  const pendingTokenSeqRef = useRef(0);
+  const resumeWatchRecoveredRef = useRef(false);
+  const [pendingPlaySeq, setPendingPlaySeq] = useState(0);
+  const solicitarInicioPlayback = useCallback((resetBudget = true) => {
+    pendingTokenSeqRef.current += 1;
+    pendingPlayRef.current = pendingTokenSeqRef.current;
+    if (resetBudget) resumeWatchRecoveredRef.current = false;
+    setPendingPlaySeq((n) => n + 1);
+  }, []);
   const durationProbeRef = useRef(false);
   const waveMeasureRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -84,6 +99,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
     setIndisponivel(false);
     durationProbeRef.current = false;
     autoPlayRef.current = { ate: 0, tentativas: 0 };
+    pendingPlayRef.current = 0;
+    resumeWatchRecoveredRef.current = false;
   }, [sourceList.join("\u0001"), msgKey, initialDuration]);
 
   useLayoutEffect(() => {
@@ -177,11 +194,15 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
     const onEnded = () => {
       setPlaying(false);
       setCur(0);
+      pendingPlayRef.current = 0;
     };
     const onPlay = () => {
       setPlaying(true);
       setIndisponivel(false);
       autoPlayRef.current.ate = 0;
+      // Início confirmado: encerra a vigília e devolve o orçamento de recarga.
+      pendingPlayRef.current = 0;
+      resumeWatchRecoveredRef.current = false;
       try {
         el.playbackRate = playbackRate;
       } catch {
@@ -337,6 +358,47 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
     };
   }, [playing, sourceIdx, sourceList.length]);
 
+  // Vigília de INÍCIO — a lacuna que forçava F5: o usuário clica em tocar mas o áudio nunca engata
+  // e nenhum evento vem. Cobre `await el.play()` que trava mudo (não dispara `play`/`error`, então o
+  // vigia de stall acima — que exige `playing` — nunca arma) e a recarga cujo `canplay` não chega
+  // (fetch do proxy engasgado). Só roda para play PEDIDO PELO usuário (token em `pendingPlayRef`);
+  // desarma no instante em que o tempo anda; se disparar, escalona pelo MESMO motor já testado.
+  useEffect(() => {
+    if (playing) return; // já tocando: nada a vigiar
+    const token = pendingPlayRef.current;
+    if (!token) return; // nenhum pedido de início em aberto (ou já confirmado/cancelado)
+    const el = audioRef.current;
+    if (!el) return;
+    const baseline = Number(el.currentTime || 0);
+    const timer = setTimeout(() => {
+      if (pendingPlayRef.current !== token) return; // substituído por novo pedido ou cancelado
+      const a = audioRef.current;
+      if (!a) return;
+      const progressed = Number(a.currentTime || 0) > baseline + 0.2;
+      const decisao = classifyStuckStart({
+        playing,
+        progressed,
+        alreadyRecovered: resumeWatchRecoveredRef.current,
+      });
+      if (decisao === "noop") {
+        pendingPlayRef.current = 0;
+        return;
+      }
+      if (decisao === "giveup") {
+        pendingPlayRef.current = 0;
+        setIndisponivel(true);
+        return;
+      }
+      resumeWatchRecoveredRef.current = true;
+      autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: autoPlayRef.current.tentativas || 0 };
+      const plano = planReloadOnStall({ sourceIdx, sourceCount: sourceList.length });
+      if (plano.type === "advance") setSourceIdx(plano.sourceIdx);
+      else setReloadNonce((n) => n + 1);
+      solicitarInicioPlayback(false); // segue vigiando a nova tentativa, sem devolver o orçamento
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [pendingPlaySeq, playing, sourceIdx, sourceList.length, solicitarInicioPlayback]);
+
   const toggle = useCallback(async () => {
     const el = audioRef.current;
     if (!el) return;
@@ -348,6 +410,9 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
         /* ignore */
       }
       if (el.paused) {
+        // Arma a vigília de início ANTES de qualquer tentativa: se nada engatar, ela recupera
+        // sozinha em vez de deixar o botão morto até um F5.
+        solicitarInicioPlayback();
         if (
           needsReloadBeforeResume({
             hasError: !!el.error,
@@ -368,11 +433,14 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
         }
         await el.play();
       } else {
+        // Pausa do usuário cancela a vigília de início em aberto.
+        pendingPlayRef.current = 0;
         el.pause();
       }
     } catch (err) {
       logAudioPlayFailure(el, err);
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
+      solicitarInicioPlayback(false); // continua vigiando a recarga disparada pela falha
       const plano = planReloadOnPlayFailure({ sourceIdx, sourceCount: sourceList.length });
       if (plano.type === "nonce") {
         setReloadNonce((n) => n + 1);
@@ -380,14 +448,15 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
         setSourceIdx(plano.sourceIdx);
       }
     }
-  }, [playbackRate, sourceIdx, sourceList.length]);
+  }, [playbackRate, sourceIdx, sourceList.length, solicitarInicioPlayback]);
 
   const tentarNovamente = useCallback(() => {
     setIndisponivel(false);
     autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
+    solicitarInicioPlayback(); // pedido explícito do usuário: reinicia o orçamento e revigia
     if (sourceIdx !== 0) setSourceIdx(0);
     else setReloadNonce((n) => n + 1);
-  }, [sourceIdx]);
+  }, [sourceIdx, solicitarInicioPlayback]);
 
   const keepMobileKeyboardOpen = useCallback((e) => {
     if (e.pointerType !== "touch" && e.pointerType !== "pen") return false;

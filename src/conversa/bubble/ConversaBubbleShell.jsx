@@ -414,7 +414,6 @@ const Bubble = memo(function Bubble({
           msg?.enviado_por_usuario &&
           !isApagadaParaTodos &&
           safeString(msg?.usuario_nome) &&
-          mostrarNomeAoCliente &&
           !(
             !msg?.id &&
             !msg?.whatsapp_id &&
@@ -424,9 +423,22 @@ const Bubble = memo(function Bubble({
             <div
               className="wa-bubble-atendente"
               aria-label={`Enviado por ${msg.usuario_nome}`}
-              title={`Atendente: ${msg.usuario_nome}`}
+              title={`Enviado por ${msg.usuario_nome}`}
             >
-              {msg.usuario_nome}
+              <svg
+                className="wa-bubble-atendente-ic"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="8" r="3.4" />
+                <path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" />
+              </svg>
+              <span className="wa-bubble-atendente-nome">{msg.usuario_nome}</span>
             </div>
           ) : null}
           {remetente ? (

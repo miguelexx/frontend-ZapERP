@@ -2531,8 +2531,11 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
     showReopenClosedCta,
     showContactOldSyncCta,
     showLidPhoneMissingHint,
+    showPuxarNovamenteCta,
+    puxarNovamenteBusy,
     handleAssumeEmpty,
     handleReopenClosed,
+    handlePuxarNovamente,
     handleCarregarMensagensAntigasContato,
   } = useConversationThreadActions({
     conversa,
@@ -2572,9 +2575,14 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
 
   const handleAdicionarNotaInterna = useCallback(
     async (texto) => {
-      if (!conversaId) return;
+      if (!conversaId) return false;
       try {
-        await criarNotaInterna(conversaId, texto);
+        const response = await criarNotaInterna(conversaId, texto);
+        // A resposta HTTP é a confirmação durável. Anexá-la também elimina a
+        // dependência do socket para o próprio autor; o store faz UPSERT por id
+        // caso o evento realtime tenha chegado primeiro.
+        if (response?.nota) anexarMensagemImediata(response.nota);
+        return true;
       } catch (e) {
         const dbg = e?.response?.data;
         console.error("[notaInterna] 500 debug:", dbg);
@@ -2583,9 +2591,10 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
           title: "Erro ao salvar nota",
           message: dbg?._debug || dbg?.error || "Tente novamente.",
         });
+        return false;
       }
     },
-    [conversaId, showToast]
+    [anexarMensagemImediata, conversaId, showToast]
   );
 
   /**
@@ -3033,6 +3042,9 @@ Somente esta mensagem (id ${pk}) será substituída por um aviso.`
             showReopenClosedCta={showReopenClosedCta}
             reopenClosedBusy={reopenClosedBusy}
             onReopenClosed={handleReopenClosed}
+            showPuxarNovamenteCta={showPuxarNovamenteCta}
+            puxarNovamenteBusy={puxarNovamenteBusy}
+            onPuxarNovamente={handlePuxarNovamente}
             showContactOldSyncCta={showContactOldSyncCta}
             showLidPhoneMissingHint={showLidPhoneMissingHint}
             contactOldSyncBusy={oldContactSyncBusy || loadingMore}

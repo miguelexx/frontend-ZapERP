@@ -7,7 +7,6 @@ import {
   IconEmoji,
   IconMic,
   IconSend,
-  IconSticker,
 } from "../../conversaComposerIcons";
 import { INTERNAL_NOTE_MAX_LEN } from "../../internalNote";
 import AttachmentInputs from "./AttachmentInputs";
@@ -138,12 +137,11 @@ export default function ComposerFooter({
           onUpdateAutoCorrectPreference={onUpdateAutoCorrectPreference}
         />
         ) : null}
-        {!editMode ? (
         <div className="wa-stickerWrap">
           <button
             ref={stickerPicker.buttonRef}
             type="button"
-            className={`wa-iconBtn wa-stickerBtn ${stickerPicker.open ? "isActive" : ""}`}
+            className={`wa-iconBtn wa-mediaBtn ${stickerPicker.open ? "isActive" : ""}`}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
               onCloseSavedReplies();
@@ -151,15 +149,15 @@ export default function ComposerFooter({
               attachments.setMenuOpen(false);
               emojiPicker.setOpen(false);
             }}
-            title="Figurinhas"
-            aria-label="Figurinhas"
+            title="Emojis e figurinhas"
+            aria-label="Emojis e figurinhas"
             aria-expanded={stickerPicker.open}
-            disabled={sending || !conversaId || !podeEnviar}
+            aria-haspopup="dialog"
+            disabled={sending || !canType}
           >
-            <IconSticker />
+            <IconEmoji />
           </button>
         </div>
-        ) : null}
         {!editMode && !autocorrectToggleInMenu ? (
           <label
             className={`wa-autocorrectToggle ${autoCorrectEnabled ? "isEnabled" : ""}`}
@@ -221,27 +219,6 @@ export default function ComposerFooter({
           spellCheck={false}
           maxLength={inputMaxLength}
         />
-
-        {!headerCompact ? (
-          <button
-            ref={emojiPicker.buttonRef}
-            type="button"
-            className={`wa-iconBtn ${emojiPicker.open ? "isActive" : ""}`}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              onCloseSavedReplies();
-              emojiPicker.setOpen((value) => !value);
-              attachments.setMenuOpen(false);
-              stickerPicker.setOpen(false);
-            }}
-            title="Emojis"
-            aria-label="Emojis"
-            aria-expanded={emojiPicker.open}
-            disabled={sending || !canType}
-          >
-            <IconEmoji />
-          </button>
-        ) : null}
 
         {headerCompact && !hasDraft && !editMode ? (
           <button

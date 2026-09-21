@@ -5,6 +5,7 @@ import {
   isModoSimplesAguardandoAtendente,
 } from "../../utils/conversaUtils";
 import { canAssumir, canReabrir } from "../../auth/permissions";
+import { viewerPodePuxarConversaNovamente } from "../utils/conversaAccessHelpers";
 import { marcarLidaModoSimplesChat } from "../conversaService";
 import { carregarMensagensAntigasContato } from "../../chats/chatService";
 import { useConversaStore } from "../conversaStore";
@@ -97,6 +98,37 @@ export function useConversationThreadActions({
   const [assumeEmptyBusy, setAssumeEmptyBusy] = useState(false);
   const [reopenClosedBusy, setReopenClosedBusy] = useState(false);
   const [oldContactSyncBusy, setOldContactSyncBusy] = useState(false);
+  const [puxarNovamenteBusy, setPuxarNovamenteBusy] = useState(false);
+
+  /**
+   * Mostra o botão "Puxar conversa novamente" no card de bloqueio (o atendente que
+   * transferiu vê a conversa bloqueada) — e também para supervisor/admin.
+   */
+  const showPuxarNovamenteCta = useMemo(
+    () => viewerPodePuxarConversaNovamente(conversa, user),
+    [conversa, user]
+  );
+
+  const handlePuxarNovamente = useCallback(async () => {
+    if (!conversaId || puxarNovamenteBusy) return;
+    setPuxarNovamenteBusy(true);
+    try {
+      await useConversaStore.getState().puxarConversaNovamente(conversaId);
+      showToast({
+        type: "success",
+        title: "Você voltou a atender",
+        message: "Agora você atende esta conversa junto com o atendente atual.",
+      });
+    } catch (e) {
+      showToast({
+        type: "error",
+        title: "Não foi possível puxar a conversa",
+        message: e?.response?.data?.error || e?.message || "Tente novamente.",
+      });
+    } finally {
+      setPuxarNovamenteBusy(false);
+    }
+  }, [conversaId, puxarNovamenteBusy, showToast]);
 
   const showReopenClosedCta = useMemo(() => {
     if (modoSimplesAtivo) return false;
@@ -217,8 +249,11 @@ export function useConversationThreadActions({
     showReopenClosedCta,
     showContactOldSyncCta,
     showLidPhoneMissingHint,
+    showPuxarNovamenteCta,
+    puxarNovamenteBusy,
     handleAssumeEmpty,
     handleReopenClosed,
+    handlePuxarNovamente,
     handleCarregarMensagensAntigasContato,
   };
 }

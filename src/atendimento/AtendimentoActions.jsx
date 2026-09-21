@@ -18,6 +18,7 @@ import {
   isConversaModoSimplesAtiva,
 } from "../utils/conversaUtils";
 import { isAtendenteSetorFinanceiro } from "../utils/financeiroSector";
+import { viewerPodePuxarConversaNovamente } from "../conversa/utils/conversaAccessHelpers";
 import {
   buildChatListFiltersScopeKey,
   getChatListFiltersDataCache,
@@ -192,6 +193,7 @@ export default function AtendimentoActions({
   const marcarAguardandoClienteConversa = useConversaStore((s) => s?.marcarAguardandoClienteConversa);
   const marcarAguardandoPagamentoConversa = useConversaStore((s) => s?.marcarAguardandoPagamentoConversa);
   const retomarAtendimentoConversa = useConversaStore((s) => s?.retomarAtendimentoConversa);
+  const puxarConversaNovamente = useConversaStore((s) => s?.puxarConversaNovamente);
   const showToast = useNotificationStore((s) => s?.showToast);
 
   const [departamentosLista, setDepartamentosLista] = useState(() => {
@@ -448,6 +450,33 @@ export default function AtendimentoActions({
   const podeReabrir =
     typeof canReabrir === "function" && canReabrir(user) && isFechada;
 
+  // "Puxar conversa novamente": voltar a atender junto (co-atendente) uma conversa
+  // que você transferiu, ou — para supervisor/admin — uma assumida por outro.
+  const podePuxarNovamente =
+    typeof puxarConversaNovamente === "function" &&
+    !modoSimplesAtivo &&
+    viewerPodePuxarConversaNovamente(conversa, user);
+
+  async function handlePuxarNovamente() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (typeof puxarConversaNovamente === "function") {
+        await puxarConversaNovamente(conversa.id);
+        if (showToast)
+          showToast({
+            title: "Você voltou a atender",
+            message: "Agora você atende esta conversa junto com o atendente atual.",
+          });
+      }
+    } catch (e) {
+      console.error("Erro ao puxar conversa novamente:", e);
+      if (showToast) showToast({ title: "Não foi possível puxar a conversa", message: getApiErrorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAssumir() {
     if (busy) return;
     logActionScroll("assumir", "antes");
@@ -643,6 +672,17 @@ export default function AtendimentoActions({
       onClick: handleAssumir,
       title: !hasAtendente ? "Clique para assumir e enviar mensagens" : "Assumir atendimento",
       ariaLabel: "Assumir atendimento",
+    });
+  }
+  if (podePuxarNovamente) {
+    actions.push({
+      id: "puxar_novamente",
+      className: "wa-btn-primary wa-btn-assumir-destaque",
+      labelLong: "Puxar conversa",
+      labelShort: "Puxar",
+      onClick: handlePuxarNovamente,
+      title: "Voltar a atender esta conversa junto com o atendente atual",
+      ariaLabel: "Puxar conversa novamente",
     });
   }
   if (podeConfirmarPagamento) {

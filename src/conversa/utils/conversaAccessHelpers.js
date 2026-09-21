@@ -74,6 +74,40 @@ export function viewerCanSeeConversationRow(row, user) {
 }
 
 /**
+ * "Puxar conversa novamente" — o atendente que transferiu (ou um supervisor/admin)
+ * volta a atender JUNTO com quem recebeu (co-atendente), sem roubar o atendimento.
+ *
+ * Regras:
+ * - Grupo ou conversa encerrada → não se aplica.
+ * - Se a conversa já é sua (você é o principal) → não faz sentido puxar.
+ * - Precisa haver um atendente principal (é dele que você volta a atender junto).
+ * - Transferidor: o backend só devolve a conversa a quem transferiu com
+ *   `mensagens_bloqueadas === true` (qualquer outro atendente leva 403), então o
+ *   bloqueio é a prova de que este viewer transferiu — pode puxar.
+ * - Supervisor/admin: podem puxar mesmo sem bloqueio (eles enxergam o histórico).
+ */
+export function viewerPodePuxarConversaNovamente(conversa, user) {
+  if (!conversa || !user) return false;
+  if (isGroupConversation(conversa)) return false;
+  if (isClosedAttendance(conversa)) return false;
+
+  const meuId = user?.id;
+  const atendenteId = conversa?.atendente_id ?? conversa?.responsavel_id ?? null;
+  const semAtendente = atendenteId == null || atendenteId === "";
+  if (semAtendente) return false;
+
+  const isMinha = meuId != null && String(atendenteId) === String(meuId);
+  if (isMinha) return false;
+
+  // Transferidor (bloqueado) sempre pode.
+  if (conversa?.mensagens_bloqueadas === true) return true;
+
+  // Supervisor/admin também podem, mesmo sem bloqueio.
+  const role = String(user?.role || user?.perfil || "").toLowerCase();
+  return role === "admin" || role === "administrador" || role === "supervisor";
+}
+
+/**
  * Aplica setor/atendente de um payload socket na row da lista.
  * Se o evento traz `departamento_id` mas omite `atendente_id` (URA/chatbot),
  * não herda o atendente stale — senão a exceção "assumida por mim" impede o drop.

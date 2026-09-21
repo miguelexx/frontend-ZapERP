@@ -9,6 +9,7 @@ import {
   marcarAguardandoClienteChat,
   marcarAguardandoPagamentoChat,
   retomarAtendimentoChat,
+  adicionarAtendenteConversa,
 } from "./conversaService"
 import { getSocket, leaveConversa, joinConversaIfNeeded } from "../socket/socket"
 import { pickHigherStatus } from "../socket/statusMensagemBatch"
@@ -1722,6 +1723,33 @@ export const useConversaStore = create((set, get) => {
         useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
       }),
+
+    /**
+     * "Puxar conversa novamente": volta a atender uma conversa que você transferiu
+     * (ou, para supervisor/admin, uma assumida por outro) entrando como CO-ATENDENTE,
+     * sem tirar do atendente atual — os dois passam a conversar com o cliente.
+     *
+     * Usa o endpoint de co-atendentes já existente (POST /chats/:id/atendentes).
+     * Ao virar participante ativo o backend deixa de bloquear as mensagens, então
+     * um refresh completo traz o histórico (que não vinha enquanto bloqueada) e
+     * `podeEnviar` passa a liberar o envio.
+     */
+    puxarConversaNovamente: async (conversaId) => {
+      const meuId = getCurrentUserFromStorage()?.id
+      if (meuId == null) throw new Error("Usuário não identificado")
+      try {
+        await adicionarAtendenteConversa(conversaId, meuId)
+      } catch (err) {
+        // 409 = já participa / já é o principal → estado final é o mesmo, segue para recarregar.
+        if (err?.response?.status !== 409) throw err
+      }
+      // Otimista: derruba o bloqueio para o thread reagir antes do refresh terminar.
+      get().patchConversa({ id: conversaId, mensagens_bloqueadas: false })
+      // Recarrega o histórico completo (quando bloqueada, as mensagens não foram buscadas).
+      await get().refresh()
+      useChatStore.getState().requestChatListResync({ force: true })
+      set({ atendimentosLoadedFor: null })
+    },
 
     encerrarConversa: async (conversaId) =>
       withMessagesScrollPreserved(async () => {
