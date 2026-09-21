@@ -297,15 +297,20 @@ export function conversaPertenceAMinhaFila(row, userId) {
   const status = getStatusAtendimentoEffective(row);
   const atendenteId = row.atendente_id;
   if (status === "fechada" || status === "encerrada" || status === "mensagem_disparada") return false;
+  // Co-atendente ativo (ex.: quem "puxou a conversa novamente") pertence à Minha fila
+  // mesmo sem ser o responsável principal — espelha o backend (minha_fila inclui participante_ativo).
+  const souCoAtendenteAtivo = row.participante_ativo === true;
   if (
     status === "em_atendimento" ||
     status === "aguardando_cliente" ||
     status === "pagamento_pendente" ||
     status === "em_atraso"
   ) {
+    if (souCoAtendenteAtivo) return true;
     return userId != null && atendenteId != null && String(atendenteId) === String(userId);
   }
   if (status === "aberta") {
+    if (souCoAtendenteAtivo) return true;
     if (atendenteId != null && userId != null && String(atendenteId) !== String(userId)) return false;
     return row.exibir_badge_aberta !== false;
   }

@@ -31,6 +31,15 @@ function getApiErrorMessage(e) {
   return e?.response?.data?.error || e?.message || "Erro na operação.";
 }
 
+/** Usuário desativado não pode receber transferência (backend também rejeita). */
+function isUsuarioAtivoParaTransferencia(u) {
+  if (!u || typeof u !== "object") return false;
+  const v = u.ativo;
+  if (v === false || v === 0 || v === "0") return false;
+  if (typeof v === "string" && v.trim().toLowerCase() === "false") return false;
+  return true;
+}
+
 function getAguardandoClienteErrorMessage(e) {
   const st = e?.response?.status;
   const body = e?.response?.data;
@@ -316,9 +325,10 @@ export default function AtendimentoActions({
 
     async function load() {
       try {
-        const { data } = await api.get("/usuarios");
+        const { data } = await api.get("/usuarios", { params: { ativo: true } });
         if (!alive) return;
-        setAtendentes(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setAtendentes(list.filter(isUsuarioAtivoParaTransferencia));
       } catch (e) {
         if (!alive) return;
         setAtendentes([]);
@@ -335,9 +345,10 @@ export default function AtendimentoActions({
 
   const filtrados = useMemo(() => {
     const term = String(search || "").toLowerCase();
-    return (atendentes || []).filter((a) =>
-      String(a?.nome || "").toLowerCase().includes(term)
-    );
+    return (atendentes || []).filter((a) => {
+      if (!isUsuarioAtivoParaTransferencia(a)) return false;
+      return String(a?.nome || "").toLowerCase().includes(term);
+    });
   }, [atendentes, search]);
 
   if (!conversa || !user) return null;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthStore } from "../../auth/authStore";
+import { useChatStore } from "../chatsStore";
 import { isSupervisorOrAdmin } from "../../auth/permissions";
 import { buildChatListFilterRequestKey, getDefaultChatListTab } from "../chatListFilters";
 import { isBackendChatSearchTerm } from "../chatListSearchTerm";
@@ -64,6 +65,15 @@ export function useChatListFilterState({
   const [tab, setTab] = useState(() => getDefaultChatListTab(useAuthStore.getState().user));
   const tabRef = useRef(tab);
   tabRef.current = tab;
+
+  // Pedido programático de troca de aba (ex.: "puxar conversa novamente" → minha_fila).
+  const chatListTabRequestNonce = useChatStore((s) => s.chatListTabRequestNonce);
+  useEffect(() => {
+    if (!chatListTabRequestNonce) return;
+    const requested = useChatStore.getState().chatListTabRequest;
+    useChatStore.setState({ chatListTabRequest: null });
+    if (requested && requested !== tabRef.current) setTab(requested);
+  }, [chatListTabRequestNonce]);
 
   useEffect(() => {
     if (tab === "nao_lidas") setTab("todas");

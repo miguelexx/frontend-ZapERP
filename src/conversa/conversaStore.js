@@ -1735,7 +1735,8 @@ export const useConversaStore = create((set, get) => {
      * `podeEnviar` passa a liberar o envio.
      */
     puxarConversaNovamente: async (conversaId) => {
-      const meuId = getCurrentUserFromStorage()?.id
+      const me = getCurrentUserFromStorage()
+      const meuId = me?.id
       if (meuId == null) throw new Error("Usuário não identificado")
       try {
         await adicionarAtendenteConversa(conversaId, meuId)
@@ -1743,8 +1744,30 @@ export const useConversaStore = create((set, get) => {
         // 409 = já participa / já é o principal → estado final é o mesmo, segue para recarregar.
         if (err?.response?.status !== 409) throw err
       }
-      // Otimista: derruba o bloqueio para o thread reagir antes do refresh terminar.
-      get().patchConversa({ id: conversaId, mensagens_bloqueadas: false })
+      // Otimista: entra como co-atendente (participante_ativo) → cai na Minha fila do atendente
+      // e derruba o bloqueio antes mesmo do refresh terminar. O resync confirma pelo backend
+      // (a query de minha_fila já inclui participante_ativo).
+      const chatStore = useChatStore.getState()
+      const row = getChatByIdFromStore(conversaId, chatStore.chats)
+      const openConv = get().conversa
+      const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
+      const optimistic = { id: conversaId, mensagens_bloqueadas: false, participante_ativo: true }
+      get().patchConversa(optimistic)
+      chatStore.updateChat(optimistic)
+      chatStore.emitChatListOptimisticMutation?.({
+        type: "puxar_conversa_novamente",
+        id: conversaId,
+        patch: optimistic,
+        previousRow: src || null,
+        restoreMinhaFila: true,
+        row: src ? { ...src, ...optimistic } : optimistic,
+      })
+      // Muda a visão da lista para a Minha fila do atendente (onde a conversa passou a estar).
+      // No modo simples "minha_fila" é substituída por "aguardando_atendente" (que não conteria
+      // esta conversa), então nesse modo não força a troca.
+      if (me?.atendimento_modo_simples !== true) {
+        chatStore.requestChatListTab?.("minha_fila")
+      }
       // Recarrega o histórico completo (quando bloqueada, as mensagens não foram buscadas).
       await get().refresh()
       useChatStore.getState().requestChatListResync({ force: true })

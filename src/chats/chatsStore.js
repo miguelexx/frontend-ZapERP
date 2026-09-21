@@ -179,6 +179,9 @@ export const useChatStore = create((set, get) => ({
   chatListResyncChatIds: [],
   chatListOptimisticMutation: null,
   chatListOptimisticMutationNonce: 0,
+  /** Pedido programático de troca de aba (ex.: "puxar conversa novamente" → minha_fila). */
+  chatListTabRequest: null,
+  chatListTabRequestNonce: 0,
   /** id → { expiresAt } — encerrar otimista; o socket consulta antes de addChat. */
   chatListHiddenClosed: {},
   /** Aba/chip visível — o array `chats` é o recorte dessa aba, não a inbox global. */
@@ -307,6 +310,19 @@ export const useChatStore = create((set, get) => ({
         chatListHiddenClosed: hidden,
       }
     })
+  },
+
+  /**
+   * Pede à lista de conversas para trocar a aba ativa (a aba é estado local do
+   * `useChatListFilterState`, que observa este nonce e aplica `setTab`).
+   */
+  requestChatListTab: (tab) => {
+    const next = tab != null ? String(tab) : null
+    if (!next) return
+    set((s) => ({
+      chatListTabRequest: next,
+      chatListTabRequestNonce: (s.chatListTabRequestNonce || 0) + 1,
+    }))
   },
 
   /* =========================================
@@ -827,6 +843,8 @@ export const useChatStore = create((set, get) => ({
       chatListResyncChatIds: [],
       chatListOptimisticMutation: null,
       chatListOptimisticMutationNonce: 0,
+      chatListTabRequest: null,
+      chatListTabRequestNonce: 0,
       chatListHiddenClosed: {},
     })
   },

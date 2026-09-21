@@ -43,7 +43,7 @@ Tablet: composer/header compactos ~741–1024px. Não use `100vh` cego; o shell 
 
 | Arquivo | Papel |
 |---------|--------|
-| `AtendimentoActions.jsx` | Assumir, transferir, aguardar cliente, aguardar pagamento, pagamento ok, encerrar, reabrir. Toolbar pinada no mobile. |
+| `AtendimentoActions.jsx` | Assumir, transferir, aguardar cliente, aguardar pagamento, pagamento ok, encerrar, reabrir. Toolbar pinada no mobile. Transferir lista só usuários ativos (`GET /usuarios?ativo=true` + filtro `ativo !== false`). |
 | `AguardarPagamentoModal.jsx` | Prazos → `marcarAguardandoPagamentoConversa` |
 | `AtendimentoEmptyState.jsx` | Desktop vazio; evento de foco na busca |
 | `AtendentesModal.jsx` + `useConversaParticipantes.js` | participantes + sockets |
