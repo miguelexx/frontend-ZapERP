@@ -974,6 +974,7 @@ export function initSocket(token) {
   off(SOCKET_EVENTS.NOVA_MENSAGEM)
   off("mensagem_excluida")
   off("mensagem_editada")
+  off("mensagem_apagada_cliente")
   off("mensagem_oculta")
   off("status_mensagem")
   off("mensagens_lidas")
@@ -1312,6 +1313,22 @@ export function initSocket(token) {
     }
     if (Object.keys(partial).length === 0) return
     convStore.patchMensagem(mensagemId, partial, { conversa_id, preserveOrder: true })
+  })
+
+  /* ===========================
+     🚫 CLIENTE APAGOU "para todos" (realtime)
+     Mantém a mensagem original visível; liga apenas o aviso discreto.
+  =========================== */
+  socket.on("mensagem_apagada_cliente", (payload = {}) => {
+    const { conversa_id, mensagem_id } = payload
+    if (!conversa_id || !mensagem_id) return
+    if (shouldIgnoreByCompany(payload)) return
+    const convStore = useConversaStore.getState()
+    if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
+      convStore.marcarMensagemApagadaPeloCliente(mensagem_id, {
+        apagada_pelo_cliente_em: payload.apagada_pelo_cliente_em ?? null,
+      })
+    }
   })
 
   /* Mensagem ocultada "pra mim" (somente usuário) */

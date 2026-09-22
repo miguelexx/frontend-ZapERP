@@ -241,14 +241,7 @@ export default function AppRoutes() {
               }
             />
             <Route path="labels" element={<WhatsAppLabelsPage />} />
-            <Route
-              path="catalogo"
-              element={
-                <ProtectedRoute canAccess={canAccessSupervisao} redirectTo="/whatsapp-business/labels">
-                  <CatalogPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="catalogo" element={<CatalogPage />} />
             <Route
               path="triagem-interativa"
               element={

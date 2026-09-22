@@ -1502,6 +1502,28 @@ export const useConversaStore = create((set, get) => {
       })
     },
 
+    // Cliente apagou "para todos" no WhatsApp: mantém a mensagem original visível e só
+    // liga o aviso discreto. NÃO mexe em texto/conteúdo/reply (diferente de apagada_para_todos).
+    marcarMensagemApagadaPeloCliente: (mensagemId, opts = {}) => {
+      const targetId = mensagemId != null ? String(mensagemId).trim() : ""
+      if (!targetId) return
+      set((state) => {
+        const list = state.mensagens || []
+        const idx = list.findIndex((m) => m?.id != null && String(m.id) === targetId)
+        if (idx < 0) return state
+        const prev = list[idx]
+        // Já revogada por nós (oculta o texto) ou já marcada: nada a fazer.
+        if (prev.apagada_para_todos || prev.apagada_pelo_cliente) return state
+        const next = [...list]
+        next[idx] = {
+          ...prev,
+          apagada_pelo_cliente: true,
+          apagada_pelo_cliente_em: opts.apagada_pelo_cliente_em ?? prev.apagada_pelo_cliente_em ?? null,
+        }
+        return { mensagens: next }
+      })
+    },
+
     removerMensagem: (mensagemId) => {
       if (mensagemId == null) return
       set((state) => {

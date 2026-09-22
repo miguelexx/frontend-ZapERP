@@ -108,6 +108,7 @@ const Bubble = memo(function Bubble({
     isLocation,
     isCall,
     isApagadaParaTodos,
+    isApagadaPeloCliente,
     hasInlineMetaClass,
     showFloatingMetaTime,
     isEncaminhado,
@@ -357,6 +358,7 @@ const Bubble = memo(function Bubble({
           menuOpen ? "wa-bubble--menuOpen" : "",
           mobileMessageChrome ? "wa-bubble--mobileUx" : "",
           msg?.apagada_para_todos ? "wa-bubble--revokedEveryone" : "",
+          isApagadaPeloCliente ? "wa-bubble--clientDeleted" : "",
         ].filter(Boolean).join(" ")}
         onPointerDown={mobileMessageChrome && !selectMode ? onBubblePointerDown : undefined}
         onContextMenu={mobileMessageChrome ? (ev) => ev.preventDefault() : undefined}
@@ -451,6 +453,15 @@ const Bubble = memo(function Bubble({
           ) : (
             <BubbleTypedContent includeAudioAndCall requireVideoUrl {...typedProps} />
           )}
+          {isApagadaPeloCliente ? (
+            <div className="wa-bubble-clientDeletedNote" role="note" title="O contato apagou esta mensagem para todos no WhatsApp">
+              <svg className="wa-bubble-clientDeletedNote-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M5.6 5.6l12.8 12.8" />
+              </svg>
+              <span>O contato apagou esta mensagem</span>
+            </div>
+          ) : null}
           {shouldShowLocalMediaNotice(msg) ? (
             <p className="wa-local-media-notice" role="note">{LOCAL_MEDIA_LOSS_NOTICE}</p>
           ) : null}

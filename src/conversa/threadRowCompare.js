@@ -41,6 +41,7 @@ export function messageRowVisualSignature(item) {
     safeStr(item.tamanho ?? item.tamanho_bytes),
     safeStr(item.file_last_modified),
     item.apagada_para_todos ? "1" : "0",
+    item.apagada_pelo_cliente ? "1" : "0",
     item.encaminhado ? "1" : "0",
     item.__showRemetente ? "1" : "0",
     safeStr(item.__reaction),

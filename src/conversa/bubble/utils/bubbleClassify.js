@@ -176,6 +176,9 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   const out = isOutgoingMessage(msg);
   const tipoMsg = safeString(msg?.tipo).toLowerCase();
   const isApagadaParaTodos = !!msg?.apagada_para_todos;
+  // Cliente apagou "para todos" no WhatsApp: NÃO esconde o conteúdo (diferente de
+  // apagadaParaTodos) — só sinaliza para o atendente com um aviso discreto.
+  const isApagadaPeloCliente = !isApagadaParaTodos && !!msg?.apagada_pelo_cliente;
   const isImg =
     (tipoMsg === "imagem" || tipoMsg === "image") && !!mediaUrl && (!isApagadaParaTodos || !!mediaUrl);
   const isSticker =
@@ -248,6 +251,7 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     out,
     tipoMsg,
     isApagadaParaTodos,
+    isApagadaPeloCliente,
     isImg,
     isSticker,
     isFile,

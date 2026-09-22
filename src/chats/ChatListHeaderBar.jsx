@@ -2,7 +2,7 @@ import { memo } from "react";
 import { createPortal } from "react-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { Icon } from "./chatListUiPrimitives";
-import { IconPackage, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
+import { IconPackage, IconRefresh, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
 import useMotionPresence from "../components/ui/useMotionPresence";
 
 function HeaderButton({ title, onClick, children, innerRef, disabled }) {
@@ -87,6 +87,13 @@ function ChatListHeaderBar({
             <IconPackage size={17} stroke={1.7} aria-hidden="true" />
           </HeaderButton>
         ) : null}
+
+        <HeaderButton
+          title="Recarregar página"
+          onClick={() => window.location.reload()}
+        >
+          <IconRefresh size={17} stroke={1.7} aria-hidden="true" />
+        </HeaderButton>
       </div>
 
       {motion.present &&

@@ -3172,6 +3172,32 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   color: rgba(233, 237, 239, 0.68);
 }
 
+/* Aviso discreto: o CONTATO apagou a mensagem para todos (conteúdo permanece visível). */
+.wa-bubble-clientDeletedNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  font-style: italic;
+  color: var(--wa-text-muted, rgba(17, 27, 33, 0.55));
+  background: rgba(17, 27, 33, 0.05);
+  user-select: none;
+}
+.wa-bubble-clientDeletedNote-ic {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+[data-theme="dark"] .wa-bubble-clientDeletedNote {
+  color: rgba(233, 237, 239, 0.6);
+  background: rgba(233, 237, 239, 0.08);
+}
+
 /* =========================================================
    CAUDA DA BOLHA
 ========================================================= */

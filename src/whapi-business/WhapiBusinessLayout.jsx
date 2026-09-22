@@ -165,12 +165,10 @@ export default function WhapiBusinessLayout() {
           <IconTags size={18} stroke={1.8} />
           <span>Labels</span>
         </NavLink>
-        {canManageProfile ? (
-          <NavLink to="/whatsapp-business/catalogo" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
-            <IconShoppingBag size={18} stroke={1.8} />
-            <span>Catálogo</span>
-          </NavLink>
-        ) : null}
+        <NavLink to="/whatsapp-business/catalogo" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
+          <IconShoppingBag size={18} stroke={1.8} />
+          <span>Catálogo</span>
+        </NavLink>
         {canManageProfile ? (
           <NavLink to="/whatsapp-business/triagem-interativa" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
             <IconRobot size={18} stroke={1.8} />

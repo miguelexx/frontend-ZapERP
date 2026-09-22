@@ -5,8 +5,6 @@ import * as cfg from "../../api/configService";
 import SectionState from "../components/SectionState";
 import { useSectionResource } from "../hooks/useSectionResource";
 
-const LIMITE_RESPOSTAS_ATENDENTE = 5;
-
 export function SecaoRespostas({ respostas, departamentos, onRefresh, user }) {
   const [titulo, setTitulo] = useState("");
   const [texto, setTexto] = useState("");
@@ -24,20 +22,9 @@ export function SecaoRespostas({ respostas, departamentos, onRefresh, user }) {
   const isAtendente = perfil !== "admin" && perfil !== "administrador" && perfil !== "supervisor";
   const userId = user?.id != null ? Number(user.id) : null;
 
-  // Conta apenas as respostas que pertencem ao próprio usuário
-  const minhasRespostas = useMemo(() => {
-    const list = Array.isArray(respostas) ? respostas : [];
-    if (userId == null) return list;
-    return list.filter((r) => Number(r.usuario_id) === userId);
-  }, [respostas, userId]);
-
-  const totalProprias = minhasRespostas.length;
-  const limitAtingido = isAtendente && totalProprias >= LIMITE_RESPOSTAS_ATENDENTE;
-
   const handleCriar = async (e) => {
     e.preventDefault();
     if (!titulo.trim() || !texto.trim()) return;
-    if (limitAtingido) return;
     setSaving(true);
     setErrorMsg(null);
     setOkMsg(null);
@@ -128,14 +115,6 @@ export function SecaoRespostas({ respostas, departamentos, onRefresh, user }) {
     <div className="ia-section">
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
         <h4 style={{ margin: 0 }}>Respostas salvas</h4>
-        {isAtendente && (
-          <span
-            className={`config-respostas-counter${limitAtingido ? " config-respostas-counter--cheio" : totalProprias >= LIMITE_RESPOSTAS_ATENDENTE - 1 ? " config-respostas-counter--alerta" : ""}`}
-            title={limitAtingido ? "Limite atingido. Exclua uma resposta para criar outra." : `Você usou ${totalProprias} de ${LIMITE_RESPOSTAS_ATENDENTE} respostas salvas`}
-          >
-            {totalProprias}/{LIMITE_RESPOSTAS_ATENDENTE} respostas salvas
-          </span>
-        )}
       </div>
       <div className="ia-callout ia-callout--info ia-respostas-salvas-callout" role="note">
         <div className="ia-callout-icon ia-callout-icon--info" aria-hidden="true">/</div>
@@ -144,7 +123,7 @@ export function SecaoRespostas({ respostas, departamentos, onRefresh, user }) {
           <p className="ia-callout-text">
             Cadastre modelos para inserir na conversa com o atalho <kbd>/</kbd> (o cliente não recebe automaticamente).
             {isAtendente
-              ? <> Você pode salvar até <strong>{LIMITE_RESPOSTAS_ATENDENTE} respostas</strong> pessoais.</>
+              ? <> Você pode salvar <strong>quantas respostas</strong> pessoais quiser.</>
               : <> Com setor <strong>Todos</strong>, a resposta fica disponível para todos os atendentes da empresa.</>
             }
             {" "}Não confundir com <Link to="/ia?tab=respostas" className="ia-callout-link">IA → Respostas automáticas</Link> do bot.
@@ -161,38 +140,28 @@ export function SecaoRespostas({ respostas, departamentos, onRefresh, user }) {
         </div>
       )}
 
-      {limitAtingido ? (
-        <div className="ia-callout ia-callout--warn" role="alert" style={{ marginBottom: 16 }}>
-          <div className="ia-callout-icon" aria-hidden="true">⚠️</div>
-          <div className="ia-callout-body">
-            <p className="ia-callout-title">Limite atingido ({LIMITE_RESPOSTAS_ATENDENTE}/{LIMITE_RESPOSTAS_ATENDENTE})</p>
-            <p className="ia-callout-text">Você atingiu o limite de {LIMITE_RESPOSTAS_ATENDENTE} respostas salvas. Exclua uma existente para poder criar uma nova.</p>
-          </div>
+      <form onSubmit={handleCriar}>
+        <div className="ia-field">
+          <label>Título</label>
+          <input className="ia-input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Saudação inicial, Prazo de entrega…" />
         </div>
-      ) : (
-        <form onSubmit={handleCriar}>
+        <div className="ia-field">
+          <label>Texto</label>
+          <textarea className="ia-textarea" value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} placeholder="Texto que será inserido na conversa ao usar o atalho /" />
+        </div>
+        {!isAtendente && (
           <div className="ia-field">
-            <label>Título</label>
-            <input className="ia-input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Saudação inicial, Prazo de entrega…" />
+            <label>Setor (opcional)</label>
+            <select className="ia-select" value={depId} onChange={(e) => setDepId(e.target.value)}>
+              <option value="">Todos</option>
+              {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+            </select>
           </div>
-          <div className="ia-field">
-            <label>Texto</label>
-            <textarea className="ia-textarea" value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} placeholder="Texto que será inserido na conversa ao usar o atalho /" />
-          </div>
-          {!isAtendente && (
-            <div className="ia-field">
-              <label>Setor (opcional)</label>
-              <select className="ia-select" value={depId} onChange={(e) => setDepId(e.target.value)}>
-                <option value="">Todos</option>
-                {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
-              </select>
-            </div>
-          )}
-          <button type="submit" className="ia-btn ia-btn--primary" disabled={saving || !titulo.trim() || !texto.trim()}>
-            {saving ? "Salvando..." : "Salvar resposta"}
-          </button>
-        </form>
-      )}
+        )}
+        <button type="submit" className="ia-btn ia-btn--primary" disabled={saving || !titulo.trim() || !texto.trim()}>
+          {saving ? "Salvando..." : "Salvar resposta"}
+        </button>
+      </form>
 
       <div className="config-toolbar" style={{ marginTop: 18 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -219,7 +188,7 @@ export function SecaoRespostas({ respostas, departamentos, onRefresh, user }) {
       <ul className="ia-list" style={{ marginTop: 12 }}>
         {filtered.length === 0 ? (
           <li className="config-emptyRow">
-            {isAtendente && totalProprias === 0
+            {isAtendente && respostas.length === 0
               ? "Você ainda não tem respostas salvas. Crie sua primeira resposta acima."
               : "Nenhuma resposta salva encontrada para este filtro."}
           </li>
