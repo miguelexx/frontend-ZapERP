@@ -980,6 +980,7 @@ export function initSocket(token) {
   off("mensagens_lidas")
   off("alerta_sem_resposta")
   off("alerta_sem_resposta_evento")
+  off("aguardando_cliente_prazo_vencido")
   off("zapi_sync_contatos")
   off("whatsapp_sync_mensagens_antigas")
   off("conversa_atualizada")
@@ -1414,6 +1415,28 @@ export function initSocket(token) {
 
   socket.on("alerta_sem_resposta", (payload = {}) => handleAlertaSemResposta(payload, "direto"))
   socket.on("alerta_sem_resposta_evento", (payload = {}) => handleAlertaSemResposta(payload, "evento"))
+
+  // Alarme "Aguardar cliente" venceu: card + som para o atendente responsável.
+  socket.on("aguardando_cliente_prazo_vencido", (payload = {}) => {
+    if (shouldIgnoreByCompany(payload)) return
+    if (!payload?.conversa_id) return
+    const critico = payload.nivel === "sem_resposta"
+    const contato = String(payload.contato || "").trim()
+    playNotificationSound()
+    useNotificationStore.getState().showToast({
+      type: critico ? "warning" : "info",
+      title: critico ? "Cliente sem resposta" : "Prazo de espera vencido",
+      message: contato
+        ? `${contato} não respondeu no prazo definido.`
+        : "O cliente não respondeu no prazo definido.",
+      actionLabel: "Abrir",
+      onAction: () => {
+        if (typeof window !== "undefined") {
+          window.location.href = `/atendimento?conversa=${encodeURIComponent(payload.conversa_id)}`
+        }
+      },
+    })
+  })
 
   /* ===========================
      Z-API: SYNC DE CONTATOS FINALIZADO (auto)

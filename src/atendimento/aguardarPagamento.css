@@ -552,3 +552,101 @@
     width: 100%;
   }
 }
+
+/* =====================================================
+   Aguardar cliente — variação azul do mesmo modal premium
+   + chip de contagem regressiva do alarme
+   ===================================================== */
+
+.zap-ac-modal {
+  border: 1px solid color-mix(in srgb, #2563eb 18%, var(--ds-border, #e2e8f0));
+}
+
+.zap-ac-modal .zap-pg-modal__glow {
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.22) 0%, transparent 70%);
+}
+
+.zap-ac-modal .zap-pg-header__icon {
+  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1d4ed8;
+}
+
+.zap-ac-modal .zap-pg-card.is-selected {
+  border-color: color-mix(in srgb, #2563eb 55%, transparent);
+  background: color-mix(in srgb, #2563eb 8%, transparent);
+}
+
+.zap-ac-modal .zap-pg-card.is-selected .zap-pg-card__radio {
+  border-color: #2563eb;
+}
+
+.zap-ac-modal .zap-pg-card.is-selected .zap-pg-card__radio-dot {
+  background: #2563eb;
+}
+
+.zap-ac-modal .zap-pg-card__icon {
+  color: #2563eb;
+}
+
+.zap-ac-modal .zap-pg-btn--primary {
+  background: linear-gradient(145deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 8px 20px -8px rgba(37, 99, 235, 0.6);
+}
+
+.zap-ac-modal .zap-pg-btn--primary:not(:disabled):hover {
+  background: linear-gradient(145deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+/* Chip de contagem regressiva (barra de ações da conversa aberta) */
+.zap-ac-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: #1d4ed8;
+  background: color-mix(in srgb, #2563eb 12%, transparent);
+  border: 1px solid color-mix(in srgb, #2563eb 26%, transparent);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.zap-ac-countdown__icon {
+  display: inline-flex;
+  animation: zap-ac-tick 2s ease-in-out infinite;
+}
+
+@keyframes zap-ac-tick {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(8deg); }
+}
+
+.zap-ac-countdown--overdue {
+  color: #b91c1c;
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+  border-color: color-mix(in srgb, #dc2626 34%, transparent);
+  animation: zap-ac-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes zap-ac-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14); }
+}
+
+:root[data-theme="dark"] .zap-ac-countdown {
+  color: #93c5fd;
+}
+
+:root[data-theme="dark"] .zap-ac-countdown--overdue {
+  color: #fca5a5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zap-ac-countdown__icon,
+  .zap-ac-countdown--overdue {
+    animation: none;
+  }
+}

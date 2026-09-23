@@ -15,6 +15,7 @@ import { getSocket, leaveConversa, joinConversaIfNeeded } from "../socket/socket
 import { pickHigherStatus } from "../socket/statusMensagemBatch"
 import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore"
 import { buildPatchAguardandoPagamentoOptimista } from "../utils/pagamentoPrazoFormat"
+import { calcularAguardarClientePrazoAteLocal } from "../atendimento/aguardarClientePrazo"
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
 import { normalizeMensagemStatusKey } from "../chats/chatListStoreCompare"
 import { attachReplyMeta } from "./replyMeta"
@@ -1931,17 +1932,25 @@ export const useConversaStore = create((set, get) => {
       }
       }),
 
-    marcarAguardandoClienteConversa: async (conversaId) =>
+    marcarAguardandoClienteConversa: async (conversaId, prazoOpts = null) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
       const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
+      const nowIso = new Date().toISOString()
+      const prazoAteOtimista = prazoOpts?.prazo
+        ? calcularAguardarClientePrazoAteLocal(prazoOpts.prazo, prazoOpts.data)
+        : null
       const optimistic = {
         id: conversaId,
         status_atendimento: "aguardando_cliente",
         status_atendimento_real: "aguardando_cliente",
-        aguardando_cliente_desde: new Date().toISOString(),
+        aguardando_cliente_desde: nowIso,
+        aguardando_cliente_prazo_desde: prazoOpts?.prazo ? nowIso : null,
+        aguardando_cliente_prazo_ate: prazoAteOtimista,
+        aguardando_cliente_prazo_origem: prazoOpts?.prazo || null,
+        aguardando_cliente_nivel: null,
         exibir_badge_aberta: false,
         ui_status_optimistic_at: Date.now(),
       }
@@ -1949,6 +1958,10 @@ export const useConversaStore = create((set, get) => {
         status_atendimento: src?.status_atendimento,
         status_atendimento_real: src?.status_atendimento_real,
         aguardando_cliente_desde: src?.aguardando_cliente_desde,
+        aguardando_cliente_prazo_desde: src?.aguardando_cliente_prazo_desde ?? null,
+        aguardando_cliente_prazo_ate: src?.aguardando_cliente_prazo_ate ?? null,
+        aguardando_cliente_prazo_origem: src?.aguardando_cliente_prazo_origem ?? null,
+        aguardando_cliente_nivel: src?.aguardando_cliente_nivel ?? null,
         exibir_badge_aberta: src?.exibir_badge_aberta,
         ui_status_optimistic_at: src?.ui_status_optimistic_at ?? null,
       }
@@ -1957,7 +1970,7 @@ export const useConversaStore = create((set, get) => {
       chatStore.updateChat(optimistic)
 
       try {
-        const data = await marcarAguardandoClienteChat(conversaId)
+        const data = await marcarAguardandoClienteChat(conversaId, prazoOpts)
         const payload = data?.conversa ?? data ?? {}
         const patch = { ...optimistic, ...payload, id: conversaId }
         get().patchConversa(patch)

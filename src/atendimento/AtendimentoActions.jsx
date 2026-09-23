@@ -25,6 +25,8 @@ import {
   loadChatListFiltersDataOnce,
 } from "../chats/chatListFiltersData";
 import AguardarPagamentoModal from "./AguardarPagamentoModal";
+import AguardarClienteModal from "./AguardarClienteModal";
+import AguardandoClienteCountdown from "./AguardandoClienteCountdown";
 import "./aguardarPagamento.css";
 
 function getApiErrorMessage(e) {
@@ -210,6 +212,7 @@ export default function AtendimentoActions({
     return Array.isArray(cached?.departamentos) ? cached.departamentos : [];
   });
   const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
+  const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [atendentes, setAtendentes] = useState([]);
   const [search, setSearch] = useState("");
@@ -568,16 +571,17 @@ export default function AtendimentoActions({
     }
   }
 
-  async function handleMarcarAguardandoCliente() {
+  async function handleConfirmarAguardarCliente({ prazo, data }) {
     if (busy) return;
     setBusy(true);
     try {
       if (typeof marcarAguardandoClienteConversa === "function") {
-        await marcarAguardandoClienteConversa(conversa.id);
+        await marcarAguardandoClienteConversa(conversa.id, { prazo, data });
+        setClienteModalOpen(false);
         if (showToast)
           showToast({
             title: "Aguardando cliente",
-            message: "A conversa foi marcada como aguardando resposta do cliente.",
+            message: "Alarme iniciado. Avisamos e sinalizamos a conversa quando o prazo vencer.",
           });
       }
     } catch (e) {
@@ -746,8 +750,8 @@ export default function AtendimentoActions({
       className: "wa-btn-aguardar-cliente",
       labelLong: "Aguardar cliente",
       labelShort: "Aguard.",
-      onClick: handleMarcarAguardandoCliente,
-      title: "Marcar como aguardando resposta do cliente",
+      onClick: () => setClienteModalOpen(true),
+      title: "Definir alarme de espera pela resposta do cliente",
       ariaLabel: "Marcar como aguardando cliente",
     });
   }
@@ -908,18 +912,29 @@ export default function AtendimentoActions({
   }
 
   const pagamentoModal = (
-    <AguardarPagamentoModal
-      open={pagamentoModalOpen}
-      busy={busy}
-      onClose={() => setPagamentoModalOpen(false)}
-      onConfirm={handleConfirmarAguardarPagamento}
-    />
+    <>
+      <AguardarPagamentoModal
+        open={pagamentoModalOpen}
+        busy={busy}
+        onClose={() => setPagamentoModalOpen(false)}
+        onConfirm={handleConfirmarAguardarPagamento}
+      />
+      <AguardarClienteModal
+        open={clienteModalOpen}
+        busy={busy}
+        onClose={() => setClienteModalOpen(false)}
+        onConfirm={handleConfirmarAguardarCliente}
+      />
+    </>
   );
 
   if (!compactToolbar) {
     return (
       <>
-        <div className="wa-actions">{actions.map((a) => renderToolbarButton(a))}</div>
+        <div className="wa-actions">
+          <AguardandoClienteCountdown conversa={conversa} />
+          {actions.map((a) => renderToolbarButton(a))}
+        </div>
         {transferModal}
         {pagamentoModal}
       </>
@@ -1001,6 +1016,7 @@ export default function AtendimentoActions({
     <div
       className={`wa-atendToolbar-primaryRow${splitCompactHeader ? " wa-atendToolbar-primaryRow--headerRow2" : ""}`}
     >
+      <AguardandoClienteCountdown conversa={conversa} />
       {compactInlineActions.map((a) => renderToolbarButton(a))}
     </div>
   );

@@ -357,9 +357,17 @@ export async function marcarLidaModoSimplesChat(conversaId) {
   return data;
 }
 
-/** Marca o atendimento humano como aguardando resposta do cliente. */
-export async function marcarAguardandoClienteChat(conversaId) {
-  const { data } = await api.post(`/chats/${conversaId}/aguardando-cliente`);
+/**
+ * Marca o atendimento humano como aguardando resposta do cliente.
+ * Opcionalmente define um alarme com prazo ({ prazo, data }): o backend monitora
+ * o tempo e aplica etiquetas automáticas conforme o prazo.
+ */
+export async function marcarAguardandoClienteChat(conversaId, prazoOpts = null) {
+  const body =
+    prazoOpts && prazoOpts.prazo
+      ? { prazo: prazoOpts.prazo, ...(prazoOpts.data ? { data: prazoOpts.data } : {}) }
+      : undefined;
+  const { data } = await api.post(`/chats/${conversaId}/aguardando-cliente`, body);
   return data;
 }
 
