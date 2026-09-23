@@ -58,6 +58,8 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   const [observacoes, setObservacoes] = useState("");
   const [successFlash, setSuccessFlash] = useState(false);
   const [etapas, setEtapas] = useState([]);
+  const [funis, setFunis] = useState([]);
+  const [selectedFunilId, setSelectedFunilId] = useState(null);
   const [etapasLoading, setEtapasLoading] = useState(false);
   const successTimerRef = useRef(null);
 
@@ -71,18 +73,27 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     setModalOpen(true);
   }, []);
 
-  // Ao abrir o modal, busca as etapas do funil do CRM Avançado. Se o CRM ainda
-  // não expõe as etapas, cai no envio simples (sem botões de etapa) — sem erro.
+  // Ao abrir o modal, busca os funis e etapas do CRM Avançado. Pré-seleciona o
+  // funil marcado como padrão (ou o primeiro). Se o CRM ainda não expõe funis,
+  // cai no formato de funil único (`etapas`) ou no envio simples — sem erro.
   useEffect(() => {
     if (!modalOpen) return;
     let cancelled = false;
     setEtapasLoading(true);
     getCrmEtapas()
       .then((res) => {
-        if (!cancelled) setEtapas(Array.isArray(res?.etapas) ? res.etapas : []);
+        if (cancelled) return;
+        const nextFunis = Array.isArray(res?.funis) ? res.funis : [];
+        setFunis(nextFunis);
+        setEtapas(Array.isArray(res?.etapas) ? res.etapas : []);
+        const padrao = nextFunis.find((f) => f.padrao) || nextFunis[0] || null;
+        setSelectedFunilId(padrao ? padrao.id : null);
       })
       .catch(() => {
-        if (!cancelled) setEtapas([]);
+        if (cancelled) return;
+        setFunis([]);
+        setEtapas([]);
+        setSelectedFunilId(null);
       })
       .finally(() => {
         if (!cancelled) setEtapasLoading(false);
@@ -91,6 +102,11 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
       cancelled = true;
     };
   }, [modalOpen]);
+
+  // Funil atualmente selecionado e suas etapas. Sem funis (formato antigo/legado),
+  // cai na lista plana `etapas` — comportamento de funil único.
+  const funilAtual = funis.find((f) => f.id === selectedFunilId) || funis[0] || null;
+  const etapasDoFunil = funilAtual ? funilAtual.etapas : etapas;
 
   useImperativeHandle(
     ref,
@@ -151,6 +167,11 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
       if (etapa) {
         if (etapa.id != null) body.etapa_id = etapa.id;
         if (etapa.nome) body.etapa_nome = etapa.nome;
+        // Manda também o funil escolhido, para o CRM criar o lead no funil certo.
+        if (funilAtual) {
+          if (funilAtual.id != null) body.funil_id = funilAtual.id;
+          if (funilAtual.nome) body.funil_nome = funilAtual.nome;
+        }
       }
       const { status, data } = await postLeadFromConversa(Number(conversaId), body);
       const dup = data?.from_conversa?.duplicate === true;
@@ -268,11 +289,33 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
                 <IconSpinnerMini />
                 <span>Carregando etapas…</span>
               </div>
-            ) : etapas.length > 0 ? (
+            ) : etapasDoFunil.length > 0 ? (
               <div className="wa-crmSend-fieldGroup">
+                {funis.length > 1 ? (
+                  <div className="wa-crmSend-funilGroup">
+                    <label className="wa-crmSend-etapasLabel" htmlFor="wa-crmSend-funil">
+                      Enviar para qual funil?
+                    </label>
+                    <div className="wa-crmSend-funilSelectWrap">
+                      <select
+                        id="wa-crmSend-funil"
+                        className="wa-crmSend-funilSelect"
+                        value={selectedFunilId ?? ""}
+                        onChange={(e) => setSelectedFunilId(e.target.value || null)}
+                        disabled={loading}
+                      >
+                        {funis.map((f) => (
+                          <option key={String(f.id ?? f.nome)} value={f.id ?? ""}>
+                            {f.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="wa-crmSend-etapasLabel">Enviar para qual etapa?</div>
                 <div className="wa-crmSend-etapas">
-                  {etapas.map((etapa) => {
+                  {etapasDoFunil.map((etapa) => {
                     const key = String(etapa.id ?? etapa.nome);
                     const isSending = loading && sendingKey === key;
                     return (

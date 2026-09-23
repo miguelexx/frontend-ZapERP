@@ -5,6 +5,7 @@ import {
   listarLabelsWhatsapp, listarAssociacoesLabelWhatsapp,
   associarLabelWhatsapp, desassociarLabelWhatsapp, WHAPI_LABEL_COLORS,
 } from "../../api/whapiBusinessService";
+import { useWhatsappLabelsStore } from "../../chats/whatsappLabelsStore";
 import "./conversationWhatsappLabels.css";
 
 // Keep phone and LID namespaces separate: the same digits may identify different people.
@@ -25,7 +26,8 @@ function colorFor(label) {
   return WHAPI_LABEL_COLORS.includes(label.color) ? label.color : "lightskyblue";
 }
 
-export default function ConversationWhatsappLabels({ instanceId, chat, open, onClose, onOpen }) {
+export default function ConversationWhatsappLabels({ conversaId, instanceId, chat, open, onClose, onOpen }) {
+  const setConversationLabels = useWhatsappLabelsStore((s) => s.setConversationLabels);
   const [labels, setLabels] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -116,6 +118,14 @@ export default function ConversationWhatsappLabels({ instanceId, chat, open, onC
       if (previous?.isConnected) previous.focus();
     };
   }, [open, onClose]);
+
+  // Espelha as etiquetas aplicadas para o card da lista. Só escreve com dados autoritativos
+  // (carregado, sem erro) — não apaga o card durante o carregamento ou numa falha de rede.
+  useEffect(() => {
+    if (loading || error || !conversaId) return;
+    const applied = labels.filter((label) => selected.includes(String(label.id)));
+    setConversationLabels(conversaId, applied);
+  }, [labels, selected, loading, error, conversaId, setConversationLabels]);
 
   async function toggle(label) {
     if (mutationRef.current || loading || error || !instanceId || !chatId) return;

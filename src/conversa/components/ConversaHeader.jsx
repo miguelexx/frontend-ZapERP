@@ -488,6 +488,7 @@ function ConversaHeader({
       {!isGroup && podeGerenciarTags && conversaId ? (
         <ConversationWhatsappLabels
           key={`${conversaId}:${whatsappLabelsContext?.instanceId || ""}:${whatsappLabelsContext?.chat || ""}`}
+          conversaId={conversaId}
           instanceId={whatsappLabelsContext?.instanceId}
           chat={whatsappLabelsContext?.chat}
           open={labelsOpen}

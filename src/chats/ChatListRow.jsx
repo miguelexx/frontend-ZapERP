@@ -34,12 +34,16 @@ import {
   getAtendimentoAssigneeNames,
 } from "./chatListRowAtendimento";
 import { chatRowPropsAreEqual } from "./chatListRowCompare";
+import { useWhatsappLabelsStore, selectConversationLabels } from "./whatsappLabelsStore";
 import {
   formatEsperaDuracaoFromMinutes,
   formatEsperaDuracaoTooltip,
 } from "../utils/formatEsperaDuracao";
 
 export const CHAT_ROW_TOUCH_MOVE_PX = 12;
+
+/** Referência estável para "sem etiquetas do WhatsApp" (evita re-render/alloc por card). */
+const EMPTY_WA_LABELS = [];
 
 const audioDurationCache = new Map(); // url -> seconds
 const audioDurationPromiseCache = new Map(); // url -> Promise<number|null>
@@ -668,6 +672,28 @@ function TagMini({ tag }) {
       style={cor ? { background: cor, color: "#fff" } : undefined}
     >
       {tag?.nome}
+    </span>
+  );
+}
+
+/** Cor da etiqueta do WhatsApp (nome CSS válido vindo do Whapi); fallback neutro. */
+function waLabelColor(color) {
+  const c = String(color || "").trim();
+  return c || "lightskyblue";
+}
+
+/** Chip premium de etiqueta do WhatsApp Business no card — cor viva + brilho sutil. */
+function WhatsappLabelMini({ label }) {
+  if (!label) return null;
+  const cor = waLabelColor(label.color);
+  return (
+    <span
+      className="chat-list-wa-label"
+      title={label.name}
+      style={{ "--wa-label-color": cor }}
+    >
+      <span className="chat-list-wa-label-dot" aria-hidden="true" />
+      <span className="chat-list-wa-label-text">{label.name}</span>
     </span>
   );
 }
@@ -1316,6 +1342,8 @@ function ChatRow({
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
   const tagsUnicas = useMemo(() => dedupeTags(chat?.tags), [chat?.tags]);
+  const waLabelsRaw = useWhatsappLabelsStore(useMemo(() => selectConversationLabels(id), [id]));
+  const waLabels = !isGroup && Array.isArray(waLabelsRaw) ? waLabelsRaw : EMPTY_WA_LABELS;
   const rp = rowPrefs(chat);
   const showMutedIndicator = !isGroup && rp.silenciado;
   const showPinnedIndicator = !isGroup && rp.fixada;
@@ -1543,6 +1571,18 @@ function ChatRow({
             )}
           </div>
         </div>
+        {waLabels.length > 0 ? (
+          <div className="chat-list-row-wa-labels" aria-label="Etiquetas do WhatsApp">
+            {waLabels.slice(0, 3).map((label) => (
+              <WhatsappLabelMini key={label.id} label={label} />
+            ))}
+            {waLabels.length > 3 ? (
+              <span className="chat-list-tag-more" title={waLabels.slice(3).map((l) => l.name).join(", ")}>
+                +{waLabels.length - 3}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {!isGroup && tagsUnicas.length > 0 ? (
           <div className="chat-list-row-tags">
             {tagsUnicas.slice(0, 3).map((t) => (

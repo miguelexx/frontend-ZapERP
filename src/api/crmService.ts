@@ -207,10 +207,34 @@ export interface CrmEtapaBotao {
   cor: string | null;
 }
 
+/** Um funil do CRM Avançado, com suas etapas, para o seletor de "Enviar ao CRM". */
+export interface CrmFunilBotao {
+  id: string | null;
+  nome: string;
+  padrao: boolean;
+  etapas: CrmEtapaBotao[];
+}
+
 export interface CrmEtapasResponse {
   etapas: CrmEtapaBotao[];
+  funis: CrmFunilBotao[];
   disponivel: boolean;
   pipeline_nome: string | null;
+}
+
+function normalizeEtapaBotao(e: unknown, i: number): CrmEtapaBotao | null {
+  if (!e || typeof e !== "object") return null;
+  const o = e as Record<string, unknown>;
+  const nome = String(o.nome ?? "").trim();
+  if (!nome) return null;
+  const ordem = Number(o.ordem);
+  return {
+    id: o.id != null ? String(o.id) : null,
+    nome,
+    ordem: Number.isFinite(ordem) ? ordem : i,
+    tipo: o.tipo != null ? String(o.tipo) : null,
+    cor: o.cor != null ? String(o.cor) : null,
+  };
 }
 
 /**
@@ -224,10 +248,28 @@ export async function getCrmEtapas(): Promise<CrmEtapasResponse> {
     skipGlobal403Toast: true,
   } as Parameters<typeof api.get>[1] & { skipGlobal403Toast?: boolean });
   if (res.status === 403 || !res.data) {
-    return { etapas: [], disponivel: false, pipeline_nome: null };
+    return { etapas: [], funis: [], disponivel: false, pipeline_nome: null };
   }
+  const funisRaw: unknown[] = Array.isArray(res.data.funis) ? res.data.funis : [];
+  const funis: CrmFunilBotao[] = funisRaw
+    .map((f): CrmFunilBotao | null => {
+      if (!f || typeof f !== "object") return null;
+      const o = f as Record<string, unknown>;
+      const etapas = (Array.isArray(o.etapas) ? o.etapas : [])
+        .map((e, i) => normalizeEtapaBotao(e, i))
+        .filter((e): e is CrmEtapaBotao => e != null);
+      if (etapas.length === 0) return null;
+      return {
+        id: o.id != null ? String(o.id) : null,
+        nome: String(o.nome ?? "").trim() || "Funil",
+        padrao: o.padrao === true,
+        etapas,
+      };
+    })
+    .filter((f): f is CrmFunilBotao => f != null);
   return {
     etapas: Array.isArray(res.data.etapas) ? res.data.etapas : [],
+    funis,
     disponivel: res.data.disponivel === true,
     pipeline_nome: res.data.pipeline_nome ?? null,
   };

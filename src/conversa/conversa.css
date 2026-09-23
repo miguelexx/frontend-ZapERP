@@ -15530,6 +15530,56 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
 }
 
+/* ── Funil (pipeline selector) ──────────────────────────────────── */
+.wa-crmSend-funilGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.wa-crmSend-funilSelectWrap {
+  position: relative;
+}
+
+.wa-crmSend-funilSelect {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 10px 34px 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--wa-border, rgba(255,255,255,0.12));
+  background: var(--wa-input-bg, rgba(255,255,255,0.05));
+  color: var(--wa-text-primary, #fff);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.wa-crmSend-funilSelect:focus {
+  outline: none;
+  border-color: var(--wa-accent, #2E86FF);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-accent, #2E86FF) 22%, transparent);
+}
+.wa-crmSend-funilSelect:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Seta do select desenhada em CSS (caret) para não depender de asset. */
+.wa-crmSend-funilSelectWrap::after {
+  content: "";
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--wa-text-secondary, rgba(255,255,255,0.6));
+  border-bottom: 2px solid var(--wa-text-secondary, rgba(255,255,255,0.6));
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
 /* ── Etapas (pipeline stage chips) ──────────────────────────────── */
 .wa-crmSend-etapasLoading {
   display: flex;

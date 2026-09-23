@@ -2703,6 +2703,83 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   flex-shrink: 0;
 }
 
+/* ===========================================================
+   Etiquetas do WhatsApp Business (Whapi) no card — visual premium.
+   Cor viva vinda do Whapi via --wa-label-color; pílula clara com
+   contorno tonal, dot cheio e brilho sutil. Aditivo: não mexe nas
+   tags do cliente (.chat-list-row-tags / .chat-list-tag-mini).
+=========================================================== */
+.chat-list-row-wa-labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 1px 0 3px;
+  overflow: hidden;
+}
+
+.chat-list-wa-label {
+  --wa-label-color: lightskyblue;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 19px;
+  padding: 0 8px 0 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1px;
+  color: color-mix(in srgb, var(--wa-label-color) 82%, #1c2733);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--wa-label-color) 20%, #fff) 0%,
+      color-mix(in srgb, var(--wa-label-color) 12%, #fff) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--wa-label-color) 42%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--wa-label-color) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.chat-list-wa-label-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 50%;
+  background: var(--wa-label-color);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--wa-label-color) 55%, #fff),
+    0 0 5px color-mix(in srgb, var(--wa-label-color) 60%, transparent);
+}
+
+.chat-list-wa-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Tema escuro: fundo translúcido escuro, texto claro puxando a cor da etiqueta. */
+[data-theme="dark"] .chat-list-wa-label {
+  color: color-mix(in srgb, var(--wa-label-color) 60%, #f4f7fb);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--wa-label-color) 26%, rgba(20, 27, 34, 0.92)) 0%,
+      color-mix(in srgb, var(--wa-label-color) 16%, rgba(20, 27, 34, 0.92)) 100%
+    );
+  border-color: color-mix(in srgb, var(--wa-label-color) 48%, transparent);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 color-mix(in srgb, var(--wa-label-color) 18%, transparent);
+}
+
 .chat-list-badge-sem-conversa {
   display: inline-flex;
   align-items: center;
