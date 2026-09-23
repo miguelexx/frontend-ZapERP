@@ -9,6 +9,7 @@ import {
 } from "../utils/conversaUtils";
 import { parseToDate } from "../conversa/utils/conversaViewHelpers";
 import { getContactDisplay } from "./chatListDisplay";
+import { useWhatsappLabelsStore } from "./whatsappLabelsStore";
 
 /** Timestamp em ms alinhado ao horário exibido no card (ISO sem TZ = UTC, como no Supabase). */
 function toChatListTimestampMs(raw) {
@@ -490,6 +491,7 @@ const VIRTUAL_ROW_METRICS = {
     mainGap: 2,
     badgeGridExtra: 0,
     statusSubLine: 18,
+    waLabels: 26,
     minRow: 76,
     titleWrapWidth: 210,
   },
@@ -504,6 +506,7 @@ const VIRTUAL_ROW_METRICS = {
     mainGap: 3,
     badgeGridExtra: 23,
     statusSubLine: 17,
+    waLabels: 24,
     minRow: 68,
     titleWrapWidth: 168,
   },
@@ -590,6 +593,14 @@ export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = n
   }
 
   let mainBlock = topBlock + m.mainGap + m.preview;
+
+  // Etiquetas do WhatsApp (Whapi) ocupam uma linha própria abaixo do título (não-grupo).
+  // A lista é virtualizada por estimativa (sem measureElement), então precisamos reservar
+  // a altura aqui — senão a linha recortaria/sobreporia o card seguinte.
+  if (!isGroup && chat?.id != null) {
+    const waLabels = useWhatsappLabelsStore.getState().byConversa?.[String(chat.id)];
+    if (Array.isArray(waLabels) && waLabels.length > 0) mainBlock += m.waLabels;
+  }
 
   const status = getStatusAtendimentoEffective(chat);
   if (

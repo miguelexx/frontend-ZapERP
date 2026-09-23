@@ -61,9 +61,62 @@ function isTimeoutError(err) {
   )
 }
 
+// Retry leve para soluços de rede/conexão (ex.: HTTP/3 ERR_QUIC_PROTOCOL_ERROR /
+// QUIC_TOO_MANY_RTOS, ERR_NETWORK, ERR_CONNECTION_CLOSED). Espelha o motivo do
+// lazyWithRetry (chunks): uma queda transitória da conexão derruba tudo em voo de
+// uma vez; retentar o request deixa o poll/GET se recuperar sozinho em vez de
+// falhar seco. Só métodos seguros (idempotentes) são retentados — nunca POST/PUT/etc.
+const NETWORK_RETRY_MAX = 2
+const NETWORK_RETRY_BASE_MS = 400
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isSafeMethod(config) {
+  const m = String(config?.method || "get").toLowerCase()
+  return m === "get" || m === "head" || m === "options"
+}
+
+function isRetriableNetworkError(err) {
+  // Só falhas SEM resposta HTTP = nível de conexão/rede. Com resposta (4xx/5xx) o
+  // servidor respondeu — não é queda transitória e não deve ser retentado aqui.
+  if (err?.response) return false
+  return (
+    err?.code === "ERR_NETWORK" ||
+    err?.message === "Network Error" ||
+    err?.code === "ERR_CONNECTION_CLOSED" ||
+    isTimeoutError(err)
+  )
+}
+
+function shouldRetryNetwork(err) {
+  const config = err?.config
+  if (!config) return false
+  if (config.noNetworkRetry === true) return false
+  if (!isSafeMethod(config)) return false
+  if (!isRetriableNetworkError(err)) return false
+  // Offline de verdade não se resolve retentando — deixa o fluxo normal avisar.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false
+  const attempted = config.__networkRetryCount || 0
+  return attempted < NETWORK_RETRY_MAX
+}
+
+function retryNetworkRequest(err) {
+  const config = err.config
+  config.__networkRetryCount = (config.__networkRetryCount || 0) + 1
+  const delay = NETWORK_RETRY_BASE_MS * Math.pow(2, config.__networkRetryCount - 1)
+  return wait(delay).then(() => api(config))
+}
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // Antes de qualquer aviso: retenta soluços de conexão em GET/HEAD/OPTIONS.
+    // Só cai no tratamento abaixo depois de esgotar as tentativas.
+    if (shouldRetryNetwork(err)) {
+      return retryNetworkRequest(err)
+    }
     const status = err?.response?.status
     if (status === 401) {
       const url = String(err?.config?.url || "")

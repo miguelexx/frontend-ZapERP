@@ -17,6 +17,11 @@ import {
   formatPrazoPagamentoCompacto,
   formatPrazoPagamentoTooltip,
 } from "../utils/pagamentoPrazoFormat";
+import {
+  formatarPrazoCompacto,
+  isAutoTagAguardandoCliente,
+  nivelFromAutoTags,
+} from "../atendimento/aguardarClientePrazo";
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import { getContactDisplay, lockCardAvatarUrl } from "./chatListDisplay";
 import {
@@ -770,19 +775,62 @@ function Chip({ active, onClick, children, variant = "default", className = "" }
   );
 }
 
-function AwaitClienteBadge({ title, auto = false }) {
+function AwaitClienteBadge({ title, auto = false, prazoAte = null, nivel = null, minuteTick }) {
+  const nowMs =
+    typeof minuteTick === "number" && Number.isFinite(minuteTick) ? minuteTick : Date.now();
+  const prazo = prazoAte ? formatarPrazoCompacto(prazoAte, nowMs) : null;
+  const nivelNorm = String(nivel || "").trim().toLowerCase();
+  // Há alarme quando temos prazo (coluna/socket) OU um nível vindo da etiqueta
+  // automática que já chega na lista (fallback robusto no F5).
+  const hasAlarm =
+    !!prazo || nivelNorm === "aguardando" || nivelNorm === "atrasado" || nivelNorm === "sem_resposta";
+  const overdue = prazo ? prazo.overdue : nivelNorm === "atrasado" || nivelNorm === "sem_resposta";
+  const semResposta = nivelNorm === "sem_resposta";
+
+  // Rótulo por estado do alarme; sem alarme mantém o texto clássico.
+  const label = !hasAlarm
+    ? "Aguardando cliente"
+    : semResposta
+      ? "Sem resposta"
+      : overdue
+        ? "Cliente atrasado"
+        : "Aguardando cliente";
+
+  const modClass = hasAlarm
+    ? semResposta
+      ? " chat-list-status-tech--await-alarm chat-list-status-tech--await-alarm-overdue chat-list-status-tech--await-alarm-critical"
+      : overdue
+        ? " chat-list-status-tech--await-alarm chat-list-status-tech--await-alarm-overdue"
+        : " chat-list-status-tech--await-alarm"
+    : "";
+
+  const hint = prazo
+    ? overdue
+      ? `${label} — prazo vencido há ${prazo.compact}`
+      : `Aguardando cliente — faltam ${prazo.compact}`
+    : hasAlarm
+      ? label
+      : title;
+
   return (
     <span
       className={
         "chat-list-status-tech chat-list-status-tech--await-client zap-badge-aguardando-cliente" +
-        (auto ? " chat-list-status-tech--await-client-auto" : "")
+        (auto ? " chat-list-status-tech--await-client-auto" : "") +
+        modClass
       }
-      title={title}
+      title={hint}
     >
       <span className="chat-list-status-tech-await-client-badge-icon zap-dot" aria-hidden="true">
-        ◈
+        {overdue ? "▲" : "◈"}
       </span>
-      <span className="chat-list-status-tech-await-client-label">Aguardando cliente</span>
+      <span className="chat-list-status-tech-await-client-label">{label}</span>
+      {prazo ? (
+        <>
+          <span className="chat-list-status-tech-await-sep" aria-hidden="true" />
+          <span className="chat-list-status-tech-await-time">{prazo.compact}</span>
+        </>
+      ) : null}
     </span>
   );
 }
@@ -1080,7 +1128,13 @@ function StatusPill({
     ) : null;
     const primaryAguardando = (
       <>
-        <AwaitClienteBadge title="Aguardando cliente (marcado manualmente)" auto={false} />
+        <AwaitClienteBadge
+          title="Aguardando cliente (marcado manualmente)"
+          auto={false}
+          prazoAte={chat?.aguardando_cliente_prazo_ate}
+          nivel={chat?.aguardando_cliente_nivel || nivelFromAutoTags(chat?.tags)}
+          minuteTick={minuteTick}
+        />
         {reabertoHint ? (
           <span className="chat-list-status-note" title="Cliente voltou a enviar mensagem após encerramento por ausência">
             Reaberto pelo cliente
@@ -1341,7 +1395,12 @@ function ChatRow({
   const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
   const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
-  const tagsUnicas = useMemo(() => dedupeTags(chat?.tags), [chat?.tags]);
+  // Etiquetas automáticas de "Aguardar cliente" não entram no card: o selo premium
+  // «Aguardando cliente / Cliente atrasado» já comunica o estado (sem duplicar).
+  const tagsUnicas = useMemo(
+    () => dedupeTags(chat?.tags).filter((t) => !isAutoTagAguardandoCliente(t)),
+    [chat?.tags]
+  );
   const waLabelsRaw = useWhatsappLabelsStore(useMemo(() => selectConversationLabels(id), [id]));
   const waLabels = !isGroup && Array.isArray(waLabelsRaw) ? waLabelsRaw : EMPTY_WA_LABELS;
   const rp = rowPrefs(chat);

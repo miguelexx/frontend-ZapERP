@@ -6,6 +6,7 @@ import {
   resolveBubbleMediaCandidates,
   resolveAudioPlaybackCandidates,
 } from "../utils/conversaViewHelpers";
+import BubbleDeletedNotice from "./components/BubbleDeletedNotice";
 import { SwipeReplyTrack } from "../SwipeReplyTrack";
 import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
 import { classifyBubbleMessage, canDeleteMessageForEveryone, canEditMessage } from "./utils/bubbleClassify";
@@ -109,6 +110,7 @@ const Bubble = memo(function Bubble({
     isCall,
     isApagadaParaTodos,
     isApagadaPeloCliente,
+    deletionInfo,
     hasInlineMetaClass,
     showFloatingMetaTime,
     isEncaminhado,
@@ -395,6 +397,9 @@ const Bubble = memo(function Bubble({
           </button>
         ) : null}
         <div className="wa-bubble-body">
+          {deletionInfo ? (
+            <BubbleDeletedNotice info={deletionInfo} currentUserId={currentUserId} />
+          ) : null}
           {isEncaminhado && !isFile && !isContact && !isLocation ? (
             <div className="wa-bubble-fwd-badge">
               <svg className="wa-bubble-fwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -453,15 +458,6 @@ const Bubble = memo(function Bubble({
           ) : (
             <BubbleTypedContent includeAudioAndCall requireVideoUrl {...typedProps} />
           )}
-          {isApagadaPeloCliente ? (
-            <div className="wa-bubble-clientDeletedNote" role="note" title="O contato apagou esta mensagem para todos no WhatsApp">
-              <svg className="wa-bubble-clientDeletedNote-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M5.6 5.6l12.8 12.8" />
-              </svg>
-              <span>O contato apagou esta mensagem</span>
-            </div>
-          ) : null}
           {shouldShowLocalMediaNotice(msg) ? (
             <p className="wa-local-media-notice" role="note">{LOCAL_MEDIA_LOSS_NOTICE}</p>
           ) : null}

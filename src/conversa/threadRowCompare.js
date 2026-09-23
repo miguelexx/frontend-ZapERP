@@ -42,6 +42,11 @@ export function messageRowVisualSignature(item) {
     safeStr(item.file_last_modified),
     item.apagada_para_todos ? "1" : "0",
     item.apagada_pelo_cliente ? "1" : "0",
+    // Aviso de auditoria: quem/quando podem chegar depois do flag (socket/refresh).
+    safeStr(item.apagada_em),
+    safeStr(item.apagada_pelo_cliente_em),
+    safeStr(item.apagada_por_usuario_id),
+    safeStr(item.apagada_por_nome),
     item.encaminhado ? "1" : "0",
     item.__showRemetente ? "1" : "0",
     safeStr(item.__reaction),

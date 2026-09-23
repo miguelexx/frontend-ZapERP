@@ -175,65 +175,70 @@ export function canEditMessage(msg, { out, currentUserId, provider, nowMs = Date
 export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   const out = isOutgoingMessage(msg);
   const tipoMsg = safeString(msg?.tipo).toLowerCase();
+  // Exclusão AUDITÁVEL: apagar "para todos" (nosso atendente) e "o contato apagou" (cliente)
+  // NÃO escondem mais o conteúdo — o balão original permanece e só ganha um aviso acima.
   const isApagadaParaTodos = !!msg?.apagada_para_todos;
-  // Cliente apagou "para todos" no WhatsApp: NÃO esconde o conteúdo (diferente de
-  // apagadaParaTodos) — só sinaliza para o atendente com um aviso discreto.
   const isApagadaPeloCliente = !isApagadaParaTodos && !!msg?.apagada_pelo_cliente;
-  const isImg =
-    (tipoMsg === "imagem" || tipoMsg === "image") && !!mediaUrl && (!isApagadaParaTodos || !!mediaUrl);
-  const isSticker =
-    tipoMsg === "sticker" && !!mediaUrl && (!isApagadaParaTodos || !!mediaUrl);
+  // Metadados do aviso "apagada": quem (atendente/cliente) e quando. O nome/"Você" é
+  // resolvido no shell (precisa do currentUserId). Mantém o balão no lugar.
+  const deletionInfo = isApagadaParaTodos
+    ? {
+        kind: "atendente",
+        at: msg?.apagada_em ?? null,
+        porUsuarioId: msg?.apagada_por_usuario_id ?? null,
+        porNome: msg?.apagada_por_nome ?? null,
+      }
+    : isApagadaPeloCliente
+    ? { kind: "cliente", at: msg?.apagada_pelo_cliente_em ?? null, porUsuarioId: null, porNome: null }
+    : null;
+  const isImg = (tipoMsg === "imagem" || tipoMsg === "image") && !!mediaUrl;
+  const isSticker = tipoMsg === "sticker" && !!mediaUrl;
   const isFile =
-    (["arquivo", "documento", "document", "file"].includes(tipoMsg) ||
-      looksLikeDocumentFilenameOnly(msg?.texto, msg?.nome_arquivo)) &&
-    (!isApagadaParaTodos || !!mediaUrl);
-  const isAudio = tipoMsg === "audio" && (!isApagadaParaTodos || !!mediaUrl);
-  const isVoice = (tipoMsg === "voice" || tipoMsg === "ptt") && (!isApagadaParaTodos || !!mediaUrl);
+    ["arquivo", "documento", "document", "file"].includes(tipoMsg) ||
+    looksLikeDocumentFilenameOnly(msg?.texto, msg?.nome_arquivo);
+  const isAudio = tipoMsg === "audio";
+  const isVoice = tipoMsg === "voice" || tipoMsg === "ptt";
   const isAudioOrVoice = isAudio || isVoice;
-  const isVideo = (tipoMsg === "video" || tipoMsg === "vídeo") && (!isApagadaParaTodos || !!mediaUrl);
+  const isVideo = tipoMsg === "video" || tipoMsg === "vídeo";
   const contactBubbleMeta = contactMeta !== undefined ? contactMeta : resolveContactMetaFromMessage(msg);
   const isContact = !!contactBubbleMeta;
   const isLocation = tipoMsg === "location";
   const isPoll = tipoMsg === "poll" || tipoMsg === "enquete" || !!(msg?.reply_meta?.poll);
-  const triageMeta = (!isApagadaParaTodos && msg?.reply_meta?.whapi_triage && typeof msg.reply_meta.whapi_triage === "object")
+  const triageMeta = (msg?.reply_meta?.whapi_triage && typeof msg.reply_meta.whapi_triage === "object")
     ? msg.reply_meta.whapi_triage
     : null;
   const isInteractive = !!triageMeta && !isPoll;
-  const productMeta = (!isApagadaParaTodos && msg?.reply_meta?.product && typeof msg.reply_meta.product === "object")
+  const productMeta = (msg?.reply_meta?.product && typeof msg.reply_meta.product === "object")
     ? msg.reply_meta.product
     : null;
-  const catalogMeta = (!isApagadaParaTodos && msg?.reply_meta?.catalog && typeof msg.reply_meta.catalog === "object")
+  const catalogMeta = (msg?.reply_meta?.catalog && typeof msg.reply_meta.catalog === "object")
     ? msg.reply_meta.catalog
     : null;
-  const isProduct = !isApagadaParaTodos && (tipoMsg === "product" || !!productMeta);
-  const isCatalog = !isApagadaParaTodos && !isProduct && (tipoMsg === "catalog" || !!catalogMeta);
-  const isCall = !isApagadaParaTodos && tipoMsg === "call";
+  const isProduct = tipoMsg === "product" || !!productMeta;
+  const isCatalog = !isProduct && (tipoMsg === "catalog" || !!catalogMeta);
+  const isCall = tipoMsg === "call";
   const textoRaw = safeString(msg?.texto);
   const textoRawNorm = String(textoRaw || "").trim().toLowerCase();
   const isGenericMessagePlaceholder = textoRawNorm === "(mensagem)" || textoRawNorm === "(mensagem vazia)";
   const isMediaPlaceholderOnly = MEDIA_PLACEHOLDER_TEXTS.has(textoRawNorm);
   const shouldBlankPlaceholder =
     isGenericMessagePlaceholder || (isMediaPlaceholderOnly && !mediaUrl);
-  const texto =
-    isApagadaParaTodos && !textoRaw
-      ? "Esta mensagem foi apagada para todos."
-      : (shouldBlankPlaceholder ? "" : textoRaw);
+  const texto = shouldBlankPlaceholder ? "" : textoRaw;
   const hasText = !!texto;
   const fallbackContentLabel = getFallbackContentLabel(tipoMsg, textoRawNorm);
   const isPlaceholderCaption = isPlaceholderCaptionText(texto, msg?.nome_arquivo, isGenericMessagePlaceholder);
   const showCaption = (isImg || isVideo || isSticker) && hasText && !isPlaceholderCaption;
   const showAudioText = isAudioOrVoice && hasText && !isPlaceholderCaption;
   const isEncaminhado =
-    !isApagadaParaTodos &&
-    (!!msg?.encaminhado ||
-      (typeof msg?.texto === "string" && msg.texto.trimStart().startsWith("[Encaminhado]")));
+    !!msg?.encaminhado ||
+    (typeof msg?.texto === "string" && msg.texto.trimStart().startsWith("[Encaminhado]"));
   const inlineMeta = !showCaption || (!isImg && !isVideo && !isSticker);
   const hasInlineMetaClass = inlineMeta && !isImg && !isVideo && !isSticker && !isAudioOrVoice;
   const showFloatingMetaTime =
     (!inlineMeta || ((isImg || isSticker || isVideo) && !showCaption)) ||
     (isAudioOrVoice && !!mediaUrl);
-  const replyMeta = !isApagadaParaTodos ? msg?.reply_meta || null : null;
-  const pollMeta = (!isApagadaParaTodos && replyMeta?.poll && typeof replyMeta.poll === "object")
+  const replyMeta = msg?.reply_meta || null;
+  const pollMeta = (replyMeta?.poll && typeof replyMeta.poll === "object")
     ? replyMeta.poll
     : null;
   const hasReply = !!(
@@ -252,6 +257,7 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     tipoMsg,
     isApagadaParaTodos,
     isApagadaPeloCliente,
+    deletionInfo,
     isImg,
     isSticker,
     isFile,

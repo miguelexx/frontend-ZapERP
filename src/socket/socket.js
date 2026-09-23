@@ -674,7 +674,7 @@ async function addChatIfAuthorized(chatStore, conversaId) {
   }
 }
 
-function emitMinhaFilaOptimisticMutation(rawPayload) {
+function emitMinhaFilaOptimisticMutation(rawPayload, opts = {}) {
   const payload = unwrapSocketChatPayload(rawPayload)
   const id = payload?.id ?? payload?.conversa_id
   if (id == null || id === "") return
@@ -705,6 +705,18 @@ function emitMinhaFilaOptimisticMutation(rawPayload) {
   const closed = isClosedAttendance(decisionRow)
   const wasClosed = existingRow ? isClosedAttendance(existingRow) : false
   const statusKnown = Boolean(getStatusAtendimentoEffective(decisionRow))
+  // Guarda anti-"reabre sozinho": um evento GENÉRICO de sincronização (conversa_atualizada /
+  // atualizar_conversa) que chega com status aberto logo após um encerramento local NÃO pode
+  // reabrir a conversa na Minha fila. Só eventos AUTORITATIVOS (conversa_reaberta / transferência /
+  // atribuição — via patchEverywhere, que passa authoritativeReopen:true) ou o botão Reabrir podem
+  // desfazer o encerramento. Enquanto o tombstone de encerramento (chatListHiddenClosed) estiver
+  // ativo, ignoramos a reabertura para não anular o tombstone nem carimbar ui_status_optimistic_at.
+  const wouldReopen = !closed && wasClosed && inMinhaFila
+  if (wouldReopen && opts.authoritativeReopen !== true) {
+    const tomb = chatStore.chatListHiddenClosed?.[String(id)]
+    const closeTombstoneActive = !!tomb && Number(tomb.expiresAt || 0) > Date.now()
+    if (closeTombstoneActive) return
+  }
   useChatStore.getState().emitChatListOptimisticMutation({
     id,
     patch,
@@ -1276,7 +1288,11 @@ export function initSocket(token) {
 
     const convStore = useConversaStore.getState()
     if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {
-      convStore.marcarMensagemApagadaParaTodos(mensagem_id)
+      convStore.marcarMensagemApagadaParaTodos(mensagem_id, {
+        apagada_em: payload.apagada_em ?? null,
+        apagada_por_usuario_id: payload.apagada_por_usuario_id ?? null,
+        apagada_por_nome: payload.apagada_por_nome ?? null,
+      })
     }
   })
 
@@ -1645,7 +1661,10 @@ export function initSocket(token) {
       if (!("status_atendimento_real" in p)) p.status_atendimento_real = "fechada"
     }
     logSocketConversaDebug("patch_everywhere", p)
-    emitMinhaFilaOptimisticMutation(p)
+    // patchEverywhere trata os eventos AUTORITATIVOS de movimentação de atendimento
+    // (conversa_reaberta / conversa_transferida / conversa_atribuida / conversa_encerrada):
+    // aqui a reabertura/transferência é intencional e pode desfazer um encerramento recente.
+    emitMinhaFilaOptimisticMutation(p, { authoritativeReopen: true })
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
     const idx = chats.findIndex((c) => String(c.id) === String(p.id))

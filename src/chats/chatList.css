@@ -5578,3 +5578,133 @@ html:not([data-theme="dark"]) .chat-list-status-tech-staff-main.zap-badge-aguard
     margin-bottom: 0;
   }
 }
+
+/* =====================================================
+   Alarme "Aguardar cliente" — selo premium por nível de tempo
+   (aditivo: mantém .chat-list-status-tech--await-client p/ o layout
+   da linha via :has(); só recolore + acrescenta o chip de tempo)
+   ===================================================== */
+
+/* Chip de tempo + separador (dentro do selo) */
+.chat-list-status-tech-await-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+  opacity: 0.45;
+  position: relative;
+  z-index: 1;
+}
+.chat-list-status-tech-await-time {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- DENTRO DO PRAZO: índigo premium (mais visível que o âmbar base) ---- */
+html:not([data-theme="dark"]) .chat-list-status-tech--await-client.chat-list-status-tech--await-alarm,
+[data-theme="light"] .chat-list-status-tech--await-client.chat-list-status-tech--await-alarm {
+  color: #3730a3 !important;
+  background: linear-gradient(180deg, #f5f3ff 0%, #eef2ff 100%) !important;
+  background-image: linear-gradient(180deg, #f5f3ff 0%, #eef2ff 100%) !important;
+  border: 1px solid #a5b4fc !important;
+  box-shadow:
+    0 1px 3px rgba(79, 70, 229, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-label,
+[data-theme="light"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-label,
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm .chat-list-status-tech-await-time,
+[data-theme="light"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-time {
+  color: #3730a3 !important;
+  -webkit-text-fill-color: #3730a3;
+}
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-badge-icon,
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-badge-icon.zap-dot,
+[data-theme="light"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-badge-icon,
+[data-theme="light"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-badge-icon.zap-dot {
+  color: #4f46e5 !important;
+  -webkit-text-fill-color: #4f46e5;
+  text-shadow: 0 0 5px rgba(79, 70, 229, 0.28) !important;
+}
+
+[data-theme="dark"] .chat-list-status-tech--await-client.chat-list-status-tech--await-alarm {
+  color: #c7d2fe;
+  background: color-mix(in srgb, #6366f1 16%, transparent);
+  border: 1px solid #6366f1;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18);
+}
+[data-theme="dark"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-label,
+[data-theme="dark"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-time {
+  color: #c7d2fe;
+  -webkit-text-fill-color: #c7d2fe;
+}
+[data-theme="dark"] .chat-list-status-tech--await-alarm .chat-list-status-tech-await-client-badge-icon {
+  color: #a5b4fc;
+  text-shadow: none;
+}
+
+/* ---- PRAZO VENCIDO: vermelho de alto contraste ---- */
+html:not([data-theme="dark"]) .chat-list-status-tech--await-client.chat-list-status-tech--await-alarm-overdue,
+[data-theme="light"] .chat-list-status-tech--await-client.chat-list-status-tech--await-alarm-overdue {
+  color: #b91c1c !important;
+  background: linear-gradient(180deg, #fff1f1 0%, #fee2e2 100%) !important;
+  background-image: linear-gradient(180deg, #fff1f1 0%, #fee2e2 100%) !important;
+  border: 1px solid #f87171 !important;
+  box-shadow:
+    0 1px 3px rgba(220, 38, 38, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-label,
+[data-theme="light"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-label,
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-time,
+[data-theme="light"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-time {
+  color: #b91c1c !important;
+  -webkit-text-fill-color: #b91c1c;
+}
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-badge-icon,
+html:not([data-theme="dark"]) .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-badge-icon.zap-dot,
+[data-theme="light"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-badge-icon,
+[data-theme="light"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-badge-icon.zap-dot {
+  color: #dc2626 !important;
+  -webkit-text-fill-color: #dc2626;
+  text-shadow: 0 0 5px rgba(220, 38, 38, 0.30) !important;
+}
+
+[data-theme="dark"] .chat-list-status-tech--await-client.chat-list-status-tech--await-alarm-overdue {
+  color: #fecaca;
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  border: 1px solid #ef4444;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.20);
+}
+[data-theme="dark"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-label,
+[data-theme="dark"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-time {
+  color: #fecaca;
+  -webkit-text-fill-color: #fecaca;
+}
+[data-theme="dark"] .chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-badge-icon {
+  color: #f87171;
+  text-shadow: none;
+}
+
+/* ícone de vencido: triângulo um pouco maior que o dot */
+.chat-list-status-tech--await-alarm-overdue .chat-list-status-tech-await-client-badge-icon {
+  font-size: 8px;
+}
+
+/* ---- SEM RESPOSTA (+24h): vermelho profundo com brilho discreto ---- */
+.chat-list-status-tech--await-alarm-critical {
+  animation: zapAwaitCriticalGlow 2.4s ease-in-out infinite;
+}
+@keyframes zapAwaitCriticalGlow {
+  0%, 100% { box-shadow: 0 1px 3px rgba(220, 38, 38, 0.20), inset 0 1px 0 rgba(255,255,255,0.9); }
+  50% { box-shadow: 0 1px 3px rgba(220, 38, 38, 0.20), 0 0 0 3px rgba(220, 38, 38, 0.12), inset 0 1px 0 rgba(255,255,255,0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-list-status-tech--await-alarm-critical { animation: none; }
+}

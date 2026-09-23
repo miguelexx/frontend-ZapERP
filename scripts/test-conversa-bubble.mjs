@@ -275,13 +275,38 @@ const withReply = classify({
 assert.equal(withReply.hasReply, true);
 assert.equal(withReply.replyMeta.replyToId, "wamid.1");
 
+// Exclusão AUDITÁVEL: apagar "para todos" NÃO esconde mais o conteúdo/reply — o balão
+// original permanece e a classificação expõe deletionInfo (quem/quando) para o aviso acima.
 const revokedReply = classify({
   tipo: "texto",
-  texto: "",
+  texto: "mensagem original",
   apagada_para_todos: true,
-  reply_meta: { name: "Cliente", snippet: "x" },
+  apagada_em: "2026-09-23T10:00:00.000Z",
+  apagada_por_usuario_id: 7,
+  apagada_por_nome: "Maria",
+  reply_meta: { name: "Cliente", snippet: "x", replyToId: "wamid.9" },
 });
-assert.equal(revokedReply.hasReply, false);
+assert.equal(revokedReply.hasReply, true);
+assert.equal(revokedReply.replyMeta.replyToId, "wamid.9");
+assert.equal(revokedReply.texto, "mensagem original");
+assert.equal(revokedReply.isApagadaParaTodos, true);
+assert.ok(revokedReply.deletionInfo);
+assert.equal(revokedReply.deletionInfo.kind, "atendente");
+assert.equal(revokedReply.deletionInfo.porUsuarioId, 7);
+assert.equal(revokedReply.deletionInfo.porNome, "Maria");
+
+// Cliente apagou "para todos": também mantém o conteúdo e sinaliza o contato.
+const clientDeleted = classify({
+  tipo: "texto",
+  texto: "oi tudo bem",
+  apagada_pelo_cliente: true,
+  apagada_pelo_cliente_em: "2026-09-23T11:30:00.000Z",
+});
+assert.equal(clientDeleted.texto, "oi tudo bem");
+assert.equal(clientDeleted.isApagadaPeloCliente, true);
+assert.ok(clientDeleted.deletionInfo);
+assert.equal(clientDeleted.deletionInfo.kind, "cliente");
+assert.equal(clientDeleted.deletionInfo.at, "2026-09-23T11:30:00.000Z");
 
 assert.deepEqual(getReactionEmojiOptions(false), WA_REACTION_EMOJIS);
 assert.equal(getReactionEmojiOptions(true).length, WA_REACTION_EMOJIS.length + 6);

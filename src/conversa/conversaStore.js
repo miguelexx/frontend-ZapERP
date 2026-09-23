@@ -1479,25 +1479,44 @@ export const useConversaStore = create((set, get) => {
     marcarMensagemApagadaParaTodos: (mensagemId, opts = {}) => {
       const targetId = mensagemId != null ? String(mensagemId).trim() : ""
       if (!targetId) return
-      const me = getCurrentUserFromStorage()?.id
+      const me = getCurrentUserFromStorage()
       set((state) => {
         const list = state.mensagens || []
         const idx = list.findIndex((m) => m?.id != null && String(m.id) === targetId)
         if (idx < 0) return state
         const prev = list[idx]
-        if (prev.apagada_para_todos) return state
+        // Exclusão AUDITÁVEL: mantém o balão original (texto/mídia/reply) no lugar; só marca
+        // que foi apagada, por quem e quando, para o aviso acima da mensagem.
         const euQueApaguei = opts.euQueApaguei === true
-        const souAutor = prev?.autor_usuario_id != null && me != null && String(prev.autor_usuario_id) === String(me)
-        const texto = euQueApaguei || souAutor ? "Você apagou esta mensagem para todos." : "Esta mensagem foi apagada para todos."
+        const porUsuarioId =
+          opts.apagada_por_usuario_id != null
+            ? opts.apagada_por_usuario_id
+            : euQueApaguei && me?.id != null
+            ? me.id
+            : prev.apagada_por_usuario_id ?? null
+        const porNome =
+          opts.apagada_por_nome != null
+            ? opts.apagada_por_nome
+            : euQueApaguei && me?.nome
+            ? me.nome
+            : prev.apagada_por_nome ?? null
+        const apagadaEm = opts.apagada_em ?? prev.apagada_em ?? new Date().toISOString()
+        // Idempotência: se já marcada e nada de novo a acrescentar (quem/quando), não re-set.
+        if (
+          prev.apagada_para_todos &&
+          (porUsuarioId == null || prev.apagada_por_usuario_id != null) &&
+          (porNome == null || prev.apagada_por_nome != null) &&
+          prev.apagada_em != null
+        ) {
+          return state
+        }
         const next = [...list]
         next[idx] = stripTempIdWhenPersisted({
           ...prev,
-          texto,
-          conteudo: texto,
           apagada_para_todos: true,
-          reply_meta: null,
-          mensagem_respondida_id: null,
-          encaminhado: false,
+          apagada_em: apagadaEm,
+          apagada_por_usuario_id: porUsuarioId,
+          apagada_por_nome: porNome,
         })
         return { mensagens: next }
       })

@@ -5,6 +5,7 @@ import { useEmpresaStore } from "../auth/empresaStore";
 import { CHAT_LIST_ROW_GAP, estimateChatListRowSize } from "./chatListRowAtendimento";
 import MemoChatRow from "./ChatListRow";
 import { useWhatsappInstancesStore } from "./whatsappInstancesStore";
+import { useWhatsappLabelsStore } from "./whatsappLabelsStore";
 import { chatRowStableKey } from "./chatRowStableKey";
 
 /** A partir deste tamanho, lista virtualizada (crítico na aba Todas no mobile). */
@@ -110,10 +111,14 @@ const ChatListRows = memo(function ChatListRows({
 
   const prevMobileSelectedRef = useRef(mobileSelectedId);
 
+  // Reservar altura da linha de etiquetas do WhatsApp exige re-medir quando elas mudam:
+  // a lista estima o tamanho (sem measureElement), então mudamos a identidade de estimateSize
+  // ao mudar o mapa de etiquetas para o virtualizador recalcular as posições.
+  const waLabelsByConversa = useWhatsappLabelsStore((s) => s.byConversa);
   const estimateRowSize = useCallback(
     (index) =>
       estimateChatListRowSize(chatsFiltrados[index], isMobileLayout, pendentesFuncionarioSet, showAssigneeNames),
-    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames]
+    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, waLabelsByConversa]
   );
 
   const virtualizer = useVirtualizer({

@@ -2217,11 +2217,11 @@ function ConversaViewBody() {
           ? `Apagar para todos esta mídia?
 
 ` +
-              `• Só é permitido para mensagens que você enviou.
+              `• Só é permitido para mídias que você enviou.
 ` +
-              `• A conversa passará a mostrar um aviso no lugar da mídia.
+              `• Some do WhatsApp do contato.
 ` +
-              `• A remoção no WhatsApp depende do provedor (UltraMsg).
+              `• Aqui no painel ela continua visível, com um aviso de que você a apagou.
 
 ` +
               `Prévia: "${preview || "(mídia)"}"
@@ -2230,23 +2230,22 @@ function ConversaViewBody() {
 
 "${preview || "(sem texto)"}"
 
-Somente esta mensagem (id ${pk}) será substituída por um aviso.`
+Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), com um aviso de que você a apagou.`
       );
       if (!ok) return;
       try {
         const res = await excluirMensagem(conversaId, mid);
-        marcarMensagemApagadaParaTodos(mid, { euQueApaguei: true });
-        if (res?.texto) {
-          useConversaStore.getState().patchMensagem(mid, {
-            texto: res.texto,
-            apagada_para_todos: true,
-            reply_meta: null,
-          });
-        }
+        const apagada = res?.mensagem || {};
+        marcarMensagemApagadaParaTodos(mid, {
+          euQueApaguei: true,
+          apagada_em: apagada.apagada_em ?? null,
+          apagada_por_usuario_id: apagada.apagada_por_usuario_id ?? myUserId ?? null,
+          apagada_por_nome: apagada.apagada_por_nome ?? null,
+        });
         showToast({
           type: "success",
           title: "Apagada para todos",
-          message: "A mensagem foi substituída por um aviso nesta conversa.",
+          message: "Removida no WhatsApp do contato. Aqui o histórico mostra que você a apagou.",
         });
       } catch (e) {
         console.error("Erro ao excluir mensagem:", e);

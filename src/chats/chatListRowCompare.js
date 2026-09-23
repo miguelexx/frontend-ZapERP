@@ -12,6 +12,15 @@ import {
   getAtendimentoAssigneeNames,
 } from "./chatListRowAtendimento";
 import { ultimaMensagemOutboundStatusKey } from "./chatListStoreCompare";
+import { nivelFromAutoTags } from "../atendimento/aguardarClientePrazo";
+
+/** Alarme "Aguardar cliente" ativo nesta conversa (prazo ou etiqueta automática). */
+function temAlarmeAguardandoCliente(c) {
+  if (!c) return false;
+  const status = String(getStatusAtendimentoEffective(c));
+  if (status !== "aguardando_cliente") return false;
+  return Boolean(c.aguardando_cliente_prazo_ate) || nivelFromAutoTags(c.tags) != null;
+}
 
 function normalizeDirection(v) {
   const d = String(v || "").toLowerCase().trim();
@@ -51,6 +60,7 @@ function chatRowNeedsMinuteTick(c, pendentesFuncionarioSet) {
   if (!c) return false;
   const status = String(getStatusAtendimentoEffective(c));
   if (status === "pagamento_pendente") return true;
+  if (temAlarmeAguardandoCliente(c)) return true;
   if (typeof c?.ui_hint_reaberto_ausencia_cliente === "number") return true;
   return Boolean(esperaMinutosAnchorKey(c, pendentesFuncionarioSet));
 }
@@ -87,6 +97,8 @@ export function chatRowPropsAreEqual(prev, next) {
     String(a.finalizacao_motivo ?? "") === String(b.finalizacao_motivo ?? "") &&
     Boolean(a.finalizada_automaticamente) === Boolean(b.finalizada_automaticamente) &&
     String(a.aguardando_cliente_desde ?? "") === String(b.aguardando_cliente_desde ?? "") &&
+    String(a.aguardando_cliente_prazo_ate ?? "") === String(b.aguardando_cliente_prazo_ate ?? "") &&
+    String(a.aguardando_cliente_nivel ?? "") === String(b.aguardando_cliente_nivel ?? "") &&
     String(a.ui_hint_reaberto_ausencia_cliente ?? "") === String(b.ui_hint_reaberto_ausencia_cliente ?? "") &&
     Boolean(a.reaberta_por_falta_interacao) === Boolean(b.reaberta_por_falta_interacao) &&
     String(a.reaberta_falta_interacao_em ?? "") === String(b.reaberta_falta_interacao_em ?? "") &&
