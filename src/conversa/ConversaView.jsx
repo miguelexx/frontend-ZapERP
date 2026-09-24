@@ -1939,6 +1939,7 @@ function ConversaViewBody() {
     setForwardQuery,
     forwardSending,
     forwardCandidates,
+    forwardGrupos,
     forwardClientes,
     forwardClientesLoading,
     forwardColaboradoresFiltered,
@@ -2889,6 +2890,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           forwardColaboradoresLoading={forwardColaboradoresLoading}
           forwardColaboradoresFiltered={forwardColaboradoresFiltered}
           forwardCandidates={forwardCandidates}
+          forwardGrupos={forwardGrupos}
           forwardClientesLoading={forwardClientesLoading}
           forwardClientes={forwardClientes}
           closeForward={closeForward}

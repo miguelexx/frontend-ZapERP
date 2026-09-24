@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { getPixConfig, putPixConfig } from "../conversaService";
+import { getPixConfig, putPixConfig, enviarMensagemPix } from "../conversaService";
 import { safeString } from "../utils/conversaViewHelpers";
 
 /**
@@ -61,31 +61,6 @@ export function usePixConfig({
       setPixConfigLoading(false);
     }
   }, [pixConfigLoading, applyPixConfigToForm, showToast]);
-
-  const buildPixMessagePreview = useCallback((cfgData) => {
-    const tipoRaw = safeString(cfgData?.tipo_chave).toLowerCase();
-    const tipoLabel =
-      tipoRaw === "cpf"
-        ? "CPF"
-        : tipoRaw === "cnpj"
-          ? "CNPJ"
-          : tipoRaw === "email"
-            ? "E-mail"
-            : tipoRaw === "telefone"
-              ? "Telefone"
-              : "Chave aleatória";
-    const extra = safeString(cfgData?.mensagem_padrao);
-    const lines = [
-      "Segue a chave Pix para pagamento:",
-      "",
-      `Nome: ${safeString(cfgData?.nome_recebedor)}`,
-      `Tipo da chave: ${tipoLabel}`,
-      `Chave Pix: ${safeString(cfgData?.chave_pix)}`,
-    ];
-    if (extra) lines.push("", extra);
-    lines.push("", "Após o pagamento, por favor envie o comprovante por aqui.");
-    return lines.join("\n").trim();
-  }, []);
 
   const handleSalvarPixConfig = useCallback(
     async (opts = {}) => {
@@ -160,8 +135,23 @@ export function usePixConfig({
         setPixModalOpen(true);
         return;
       }
-      const msg = buildPixMessagePreview(cfgToUse);
-      await handleEnviar(msg);
+      // Backend monta e envia: cartão nativo com "Copiar chave Pix" (Whapi) ou texto (UltraMSG).
+      // A bolha chega pela conversa via socket, como enquete/produto.
+      const data = await enviarMensagemPix(conversaId);
+      if (data?.ok === false) {
+        throw Object.assign(new Error(data?.error || "Falha ao enviar Pix"), {
+          response: { status: 422, data },
+        });
+      }
+    } catch (err) {
+      showToast({
+        type: "error",
+        title: "Pix",
+        message:
+          err?.response?.data?.error ||
+          err?.message ||
+          "Não foi possível enviar a chave Pix.",
+      });
     } finally {
       setPixActionBusy(false);
     }
@@ -178,8 +168,7 @@ export function usePixConfig({
     isPixConfigured,
     pixConfigLoaded,
     fetchPixConfigIfNeeded,
-    buildPixMessagePreview,
-    handleEnviar,
+    showToast,
   ]);
 
   return {

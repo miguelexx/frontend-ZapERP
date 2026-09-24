@@ -319,3 +319,54 @@ export function resolveContactMetaFromMessage(msg) {
 
   return null
 }
+
+/** Normaliza uma entrada crua de contact_meta.contatos → { nome, telefone, foto_perfil }. */
+function normalizeContatoEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null
+  const nomeRaw = entry.nome != null ? String(entry.nome).trim() : ''
+  const nome = looksLikeVCardJunkName(nomeRaw) ? '' : nomeRaw
+  const telefone = entry.telefone != null ? String(entry.telefone).replace(/\D/g, '') : ''
+  if (!nome && !telefone) return null
+  const foto = entry.foto_perfil && String(entry.foto_perfil).trim().startsWith('http')
+    ? String(entry.foto_perfil).trim()
+    : null
+  return { nome: nome || 'Contato', telefone: telefone || null, foto_perfil: foto }
+}
+
+/**
+ * Resolve a LISTA de contatos de uma mensagem (1 ou vários compartilhados de uma vez).
+ * Cobre: contact_meta.contatos[] (backend), corpo com vários blocos vCard e o contato único.
+ * @param {object} msg
+ * @returns {Array<{ nome: string, telefone: string|null, foto_perfil: string|null }>|null}
+ */
+export function resolveContactListFromMessage(msg) {
+  if (!msg) return null
+  const rawMeta = msg.contact_meta && typeof msg.contact_meta === 'object' ? msg.contact_meta : null
+
+  // 1) Backend já entregou a lista completa.
+  if (rawMeta && Array.isArray(rawMeta.contatos) && rawMeta.contatos.length) {
+    const list = rawMeta.contatos.map(normalizeContatoEntry).filter(Boolean)
+    if (list.length) return list
+  }
+
+  // 2) Corpo com múltiplos vCards (fallback quando só chegou o texto cru concatenado).
+  const text = String(msg.texto ?? msg.conteudo ?? msg.body ?? '')
+  if (text.includes('BEGIN:VCARD')) {
+    const blocks = text.match(/BEGIN:VCARD[\s\S]*?END:VCARD/gi) || []
+    if (blocks.length > 1) {
+      const list = blocks
+        .map((b) => {
+          const nome = parseVCardDisplayName(b) || 'Contato'
+          const telefone = parseVCardTelefone(b)
+          if (!nome && !telefone) return null
+          return { nome: nome || 'Contato', telefone: telefone || null, foto_perfil: null }
+        })
+        .filter(Boolean)
+      if (list.length) return list
+    }
+  }
+
+  // 3) Contato único → resolvedor padrão.
+  const single = resolveContactMetaFromMessage(msg)
+  return single ? [single] : null
+}

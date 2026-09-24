@@ -109,6 +109,7 @@ export default function ForwardModal({
   forwardColaboradoresLoading,
   forwardColaboradoresFiltered,
   forwardCandidates,
+  forwardGrupos,
   forwardClientesLoading,
   forwardClientes,
   onClose,
@@ -124,6 +125,16 @@ export default function ForwardModal({
   const selClienteSet = useMemo(
     () => new Set((forwardSelectedClienteIds || []).map(String)),
     [forwardSelectedClienteIds]
+  );
+
+  // "Conversas recentes" mostra só conversas individuais; grupos vão para a seção "Grupos".
+  const conversasNaoGrupo = useMemo(
+    () => (Array.isArray(forwardCandidates) ? forwardCandidates : []).filter((c) => !isGroupConversation(c)),
+    [forwardCandidates]
+  );
+  const grupos = useMemo(
+    () => (Array.isArray(forwardGrupos) ? forwardGrupos : []),
+    [forwardGrupos]
   );
 
   // Contatos que já aparecem como conversa recente (dedup por cliente_id).
@@ -204,41 +215,64 @@ export default function ForwardModal({
             </p>
           ) : null}
 
-          {/* Conversas recentes */}
-          {forwardCandidates.length > 0 ? (
+          {/* Grupos */}
+          {grupos.length > 0 ? (
+            <div className="wa-forwardSection">
+              <div className="wa-forwardSectionTitle">
+                <IconUsers size={12} strokeWidth={2} aria-hidden="true" /> Grupos
+              </div>
+              <div className="wa-forwardList">
+                {grupos.map((c) => {
+                  const n =
+                    safeString(
+                      c?.nome_grupo || c?.contato_nome || c?.nome_contato_cache || c?.nome || c?.telefone
+                    ) || "Grupo";
+                  const foto = c?.foto_grupo ?? null;
+                  const idStr = String(c.id);
+                  return (
+                    <DestRow
+                      key={`grp-${c.id}`}
+                      name={n}
+                      badge={{ kind: "group", label: "Grupo" }}
+                      foto={foto}
+                      checked={selConversaSet.has(idStr)}
+                      disabled={forwardSending}
+                      onToggle={() => onToggleForwardConversaSelect?.(c.id)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Conversas recentes (individuais) */}
+          {conversasNaoGrupo.length > 0 ? (
             <div className="wa-forwardSection">
               <div className="wa-forwardSectionTitle">Conversas recentes</div>
               <div className="wa-forwardList">
-                {forwardCandidates.map((c) => {
-                  const isGroup = isGroupConversation(c);
+                {conversasNaoGrupo.map((c) => {
                   const n =
                     safeString(
-                      isGroup
-                        ? c?.nome_grupo || c?.contato_nome || c?.nome_contato_cache || c?.nome || c?.telefone
-                        : c?.contato_nome ||
-                            c?.nome_contato_cache ||
-                            c?.cliente_nome ||
-                            c?.nome ||
-                            c?.cliente?.nome ||
-                            c?.telefone
+                      c?.contato_nome ||
+                        c?.nome_contato_cache ||
+                        c?.cliente_nome ||
+                        c?.nome ||
+                        c?.cliente?.nome ||
+                        c?.telefone
                     ) || "Conversa";
-                  const foto = isGroup
-                    ? c?.foto_grupo ?? null
-                    : c?.foto_perfil ??
-                      c?.foto_perfil_contato_cache ??
-                      c?.cliente?.foto_perfil ??
-                      c?.clientes?.foto_perfil ??
-                      null;
-                  const telLinha = isGroup
-                    ? null
-                    : safeString(c?.telefone_exibivel ?? c?.telefoneExibivel ?? c?.telefone);
+                  const foto =
+                    c?.foto_perfil ??
+                    c?.foto_perfil_contato_cache ??
+                    c?.cliente?.foto_perfil ??
+                    c?.clientes?.foto_perfil ??
+                    null;
+                  const telLinha = safeString(c?.telefone_exibivel ?? c?.telefoneExibivel ?? c?.telefone);
                   const idStr = String(c.id);
                   return (
                     <DestRow
                       key={`conv-${c.id}`}
                       name={n}
                       sub={telLinha}
-                      badge={isGroup ? { kind: "group", label: "Grupo" } : null}
                       foto={foto}
                       checked={selConversaSet.has(idStr)}
                       disabled={forwardSending}

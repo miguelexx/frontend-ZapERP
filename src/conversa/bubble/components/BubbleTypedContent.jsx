@@ -7,6 +7,7 @@ import LocationMessage from "./LocationMessage";
 import ContactMessage from "./ContactMessage";
 import PollMessage from "./PollMessage";
 import ProductMessage from "./ProductMessage";
+import PixMessage from "./PixMessage";
 import WhapiTriageMessage from "./WhapiTriageMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
 
@@ -42,6 +43,8 @@ export default function BubbleTypedContent({
     pollMeta,
     isInteractive,
     triageMeta,
+    isPixCard,
+    pixMeta,
     isProduct,
     productMeta,
     isCatalog,
@@ -131,6 +134,9 @@ export default function BubbleTypedContent({
     return (
       <LocationMessage msg={msg} selectMode={selectMode} isGroup={isGroup} out={out} />
     );
+  }
+  if (isPixCard) {
+    return <PixMessage pixMeta={pixMeta} texto={texto} out={out} />;
   }
   if (isPoll) {
     return <PollMessage msg={msg} pollMeta={pollMeta} texto={texto} />;

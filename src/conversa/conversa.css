@@ -4994,6 +4994,130 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ---- Cartão de VÁRIOS contatos (compartilhados de uma vez) ---- */
+.wa-bubble-contactMultiHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.wa-bubble-contactStack {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.wa-bubble-contactStackItem {
+  margin-left: -14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--wa-bubble-bg, #fff);
+}
+
+.wa-bubble-contactStackItem:first-child {
+  margin-left: 0;
+}
+
+.wa-bubble-contactStack .wa-bubble-contactAvatarWrap {
+  width: 38px;
+  height: 38px;
+}
+
+.wa-bubble-contactStack .wa-bubble-contactInitials {
+  font-size: 13px;
+}
+
+.wa-bubble-contactChevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--wa-text-muted);
+  transition: transform 0.18s ease;
+  transform: translateY(-2px);
+}
+
+.wa-bubble-contactChevron.isOpen {
+  transform: translateY(-2px) rotate(180deg);
+}
+
+.wa-bubble-contactList {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.wa-bubble-contactCard--out .wa-bubble-contactList {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.wa-bubble-contactListRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  min-width: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.wa-bubble-contactListRow:last-child {
+  border-bottom: none;
+}
+
+.wa-bubble-contactListRow .wa-bubble-contactAvatarWrap {
+  width: 40px;
+  height: 40px;
+}
+
+.wa-bubble-contactListInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.wa-bubble-contactMiniAction {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-green);
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.wa-bubble-contactMiniAction:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-green) 12%, transparent);
+}
+
+.wa-bubble-contactMiniAction:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+[data-theme="dark"] .wa-bubble-contactList,
+[data-theme="dark"] .wa-bubble-contactCard--out .wa-bubble-contactList {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .wa-bubble-contactListRow {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
 /* ===========================================
    LOCALIZAÇÃO (tipo location) — card profissional estilo WhatsApp
    =========================================== */
@@ -5137,13 +5261,13 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 /* Enquete (poll) — bolha clean / premium */
-.wa-triage { min-width: 230px; max-width: 340px; padding: 10px 12px; }
-.wa-triage__title { font-weight: 600; white-space: pre-wrap; }
-.wa-triage__footer, .wa-triage__hint { margin-top: 7px; font-size: 11px; opacity: .72; }
+.wa-triage { min-width: 230px; max-width: 340px; padding: 10px 12px; color: #000; }
+.wa-triage__title { font-weight: 600; white-space: pre-wrap; color: #000; }
+.wa-triage__footer, .wa-triage__hint { margin-top: 7px; font-size: 11px; color: #000; opacity: .72; }
 .wa-triage__options { display: grid; gap: 6px; margin-top: 10px; }
-.wa-triage__option { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid currentColor; border-radius: 8px; opacity: .9; }
-.wa-triage__index { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.08); font-size: 11px; }
-.wa-triage__button { margin-top: 9px; padding: 7px 8px; text-align: center; border-radius: 7px; background: rgba(0,0,0,.08); font-weight: 600; }
+.wa-triage__option { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid rgba(0,0,0,.35); border-radius: 8px; color: #000; opacity: 1; }
+.wa-triage__index { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.08); font-size: 11px; color: #000; }
+.wa-triage__button { margin-top: 9px; padding: 7px 8px; text-align: center; border-radius: 7px; background: rgba(0,0,0,.08); font-weight: 600; color: #000; }
 
 /* Enquete (poll) — bolha clean / premium */
 .wa-poll {
@@ -5893,6 +6017,78 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 /* ===================== Bolha de produto/catálogo enviado ===================== */
+/* ===== Cartão Pix (bolha) — espelha o cartão nativo com "Copiar chave Pix" ===== */
+.wa-pixMsg {
+  width: 268px;
+  max-width: 76vw;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(11, 20, 26, 0.06);
+}
+[data-theme="dark"] .wa-pixMsg {
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.wa-pixMsg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #00a884, #008f72);
+}
+.wa-pixMsg-icon { display: inline-flex; }
+.wa-pixMsg-title { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+
+.wa-pixMsg-body { padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 7px; }
+.wa-pixMsg-row { display: flex; flex-direction: column; gap: 1px; }
+.wa-pixMsg-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(11, 20, 26, 0.45);
+}
+[data-theme="dark"] .wa-pixMsg-label { color: rgba(255, 255, 255, 0.45); }
+.wa-pixMsg-value { font-size: 13.5px; color: inherit; }
+.wa-pixMsg-key {
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+
+.wa-pixMsg-note {
+  margin: 2px 12px 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: rgba(11, 20, 26, 0.62);
+}
+[data-theme="dark"] .wa-pixMsg-note { color: rgba(255, 255, 255, 0.6); }
+
+.wa-pixMsg-copyBtn {
+  margin: 10px;
+  width: calc(100% - 20px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: #00a884;
+  transition: background 0.15s ease, transform 0.06s ease;
+}
+.wa-pixMsg-copyBtn:hover { background: #019476; }
+.wa-pixMsg-copyBtn:active { transform: scale(0.98); }
+.wa-pixMsg-copyBtn.is-copied { background: #0b7a63; }
+.wa-pixMsg-fallback { white-space: pre-wrap; }
+
 .wa-productMsg {
   width: 232px;
   max-width: 74vw;
@@ -15411,10 +15607,42 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 .wa-crmSendModal {
   max-width: 440px;
   width: calc(100vw - 32px);
+  /* Nunca ultrapassa a viewport: com muitas etapas o corpo rola por dentro
+     (dvh cobre a barra de endereço no mobile). */
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   border-radius: 20px;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cabeçalho (ícone + título) fixo no topo; só o formulário rola. */
+.wa-crmSendModal .wa-crmSend-heroIcon,
+.wa-crmSendModal .wa-crmSend-headerText {
+  flex-shrink: 0;
+}
+
+/* Telas baixas: compacta o cabeçalho para sobrar espaço às etapas. */
+@media (max-height: 720px) {
+  .wa-crmSendModal .wa-crmSend-heroIcon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    margin-top: 20px;
+  }
+  .wa-crmSendModal .wa-crmSend-headerText {
+    padding-top: 10px;
+  }
+  .wa-crmSendModal .wa-crmSend-subtitle {
+    margin-top: 4px;
+  }
+  .wa-crmSendModal .wa-crmSend-form {
+    padding-top: 14px;
+    gap: 13px;
+  }
 }
 
 .wa-crmSendModal .wa-modal-head,
@@ -15479,6 +15707,26 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   padding: 20px 24px 24px;
   display: grid;
   gap: 16px;
+  /* Área rolável quando as etapas não cabem — cabeçalho permanece visível. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
+}
+.wa-crmSend-form::-webkit-scrollbar {
+  width: 8px;
+}
+.wa-crmSend-form::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.16);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.wa-crmSend-form::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.28);
+  background-clip: padding-box;
 }
 
 .wa-crmSend-fieldGroup {
@@ -15647,6 +15895,19 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   justify-content: flex-end;
   gap: 10px;
   padding-top: 4px;
+}
+/* No layout de etapas (Cancelar sozinho), fixa a ação no rodapé da área
+   rolável para ficar sempre alcançável, com um leve degradê acima. */
+.wa-crmSend-fieldGroup > .wa-crmSend-actions {
+  position: sticky;
+  bottom: -24px;
+  margin: 4px -24px -24px;
+  padding: 12px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(
+    to top,
+    var(--ds-bg-raised, #1f2733) 60%,
+    color-mix(in srgb, var(--ds-bg-raised, #1f2733) 0%, transparent)
+  );
 }
 .wa-crmSend-actions--duo {
   display: grid;

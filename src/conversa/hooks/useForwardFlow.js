@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChatStore } from "../../chats/chatsStore";
 import { scheduleAfterInitialPaint } from "../../chats/scheduleAfterInitialPaint";
-import { abrirConversaCliente } from "../../chats/chatService";
+import { abrirConversaCliente, fetchChats } from "../../chats/chatService";
+import { isGroupConversation } from "../../utils/conversaUtils";
 import {
   getForwardColaboradoresCache,
   loadForwardColaboradoresOnce,
@@ -107,6 +108,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
   const [forwardColaboradoresLoading, setForwardColaboradoresLoading] = useState(false);
   const [forwardSelectedConversaIds, setForwardSelectedConversaIds] = useState([]);
   const [forwardSelectedClienteIds, setForwardSelectedClienteIds] = useState([]);
+  /** Grupos encontrados via GET /chats na busca (para achar grupo fora da lista carregada). */
+  const [forwardGruposFetched, setForwardGruposFetched] = useState([]);
   const [forwardMax10Msg, setForwardMax10Msg] = useState("");
   const [forwardMultiProgress, setForwardMultiProgress] = useState(null);
   const forwardMax10TimerRef = useRef(null);
@@ -114,6 +117,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
   const forwardAllContatosRef = useRef(null);
   /** Mapa id->cliente dos contatos marcados, para resolver no envio. */
   const forwardClientesByIdRef = useRef(new Map());
+  /** Mapa id->conversa de grupos vindos da busca (não estão no store) para resolver meta no envio. */
+  const forwardGruposByIdRef = useRef(new Map());
   /** Evita duplo clique; não bloqueia o modal (envio segue em background). */
   const forwardJobLockRef = useRef(false);
 
@@ -152,6 +157,30 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
       .filter(byName)
       .slice(0, 80);
   }, [forwardQuery, conversaId]);
+
+  // Grupos já carregados no store (aparecem mesmo sem busca).
+  const forwardGruposStore = useMemo(() => {
+    const list = Array.isArray(useChatStore.getState().chats) ? useChatStore.getState().chats : [];
+    const q = safeString(forwardQuery).toLowerCase();
+    return list
+      .filter((c) => c?.id != null && String(c.id) !== String(conversaId))
+      .filter((c) => isGroupConversation(c))
+      .filter((c) => {
+        if (!q) return true;
+        const n = safeString(c?.nome_grupo || c?.contato_nome || c?.nome_contato_cache || c?.nome || c?.telefone).toLowerCase();
+        return n.includes(q);
+      });
+  }, [forwardQuery, conversaId]);
+
+  // Lista final de grupos: os do store + os encontrados na busca (dedup por id).
+  const forwardGrupos = useMemo(() => {
+    const map = new Map();
+    for (const g of forwardGruposStore) map.set(String(g.id), g);
+    for (const g of Array.isArray(forwardGruposFetched) ? forwardGruposFetched : []) {
+      if (g?.id != null && !map.has(String(g.id))) map.set(String(g.id), g);
+    }
+    return Array.from(map.values()).slice(0, 80);
+  }, [forwardGruposStore, forwardGruposFetched]);
 
   const forwardColaboradoresFiltered = useMemo(() => {
     const list = Array.isArray(forwardColaboradores) ? forwardColaboradores : [];
@@ -282,6 +311,35 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     };
   }, [forwardOpen, forwardQuery, conversa?.cliente_id]);
 
+  // Busca de GRUPOS via GET /chats (acha grupo que não está na lista carregada no store).
+  useEffect(() => {
+    if (!forwardOpen) {
+      setForwardGruposFetched([]);
+      return;
+    }
+    const q = safeString(forwardQuery).trim();
+    if (q.length < 2) return; // sem busca: usa só os grupos já presentes no store
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
+      try {
+        const list = await fetchChats({ palavra: q, limit: 60 }, { silent: true });
+        if (cancelled) return;
+        const arr = (Array.isArray(list) ? list : []).filter(
+          (c) => c?.id != null && isGroupConversation(c) && String(c.id) !== String(conversaId)
+        );
+        arr.forEach((g) => forwardGruposByIdRef.current.set(String(g.id), g));
+        setForwardGruposFetched(arr);
+      } catch (_) {
+        if (!cancelled) setForwardGruposFetched([]);
+      }
+    }, 260);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [forwardOpen, forwardQuery, conversaId]);
+
   useEffect(
     () => () => {
       if (forwardMax10TimerRef.current) {
@@ -304,6 +362,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     setForwardSelectedConversaIds([]);
     setForwardSelectedClienteIds([]);
     forwardClientesByIdRef.current = new Map();
+    forwardGruposByIdRef.current = new Map();
+    setForwardGruposFetched([]);
     forwardAllContatosRef.current = null;
     setForwardMax10Msg("");
     setForwardMultiProgress(null);
@@ -391,7 +451,10 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     (destConversaId) => {
       const chats = useChatStore.getState().chats;
       const list = Array.isArray(chats) ? chats : [];
-      return list.find((c) => String(c?.id) === String(destConversaId)) || null;
+      const found = list.find((c) => String(c?.id) === String(destConversaId));
+      if (found) return found;
+      // Grupo vindo da busca (ainda não está no store): usa a meta guardada no ref.
+      return forwardGruposByIdRef.current.get(String(destConversaId)) || null;
     },
     []
   );
@@ -914,6 +977,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     setForwardQuery,
     forwardSending,
     forwardCandidates,
+    forwardGrupos,
     forwardClientes,
     forwardClientesLoading,
     forwardColaboradoresFiltered,

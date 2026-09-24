@@ -207,7 +207,11 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   const triageMeta = (msg?.reply_meta?.whapi_triage && typeof msg.reply_meta.whapi_triage === "object")
     ? msg.reply_meta.whapi_triage
     : null;
-  const isInteractive = !!triageMeta && !isPoll;
+  const pixMeta = (msg?.reply_meta?.pix && typeof msg.reply_meta.pix === "object" && msg.reply_meta.pix.chave_pix)
+    ? msg.reply_meta.pix
+    : null;
+  const isPixCard = !!pixMeta;
+  const isInteractive = !!triageMeta && !isPoll && !isPixCard;
   const productMeta = (msg?.reply_meta?.product && typeof msg.reply_meta.product === "object")
     ? msg.reply_meta.product
     : null;
@@ -271,6 +275,8 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     pollMeta,
     isInteractive,
     triageMeta,
+    isPixCard,
+    pixMeta,
     isProduct,
     productMeta,
     isCatalog,
