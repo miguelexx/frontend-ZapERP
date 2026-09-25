@@ -2385,6 +2385,21 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-danger {
   will-change: auto;
 }
 
+/*
+ * Durante o arrasto (classe is-scrolling já aplicada pelo virtualizer), suprime as sombras
+ * borradas das bolhas e o micro-transform de hover. box-shadow borrado é dos itens mais caros
+ * de PINTAR por frame; ao revelar bolhas novas no overscan esse custo repetia a cada frame —
+ * origem do "engasga/treme ao arrastar" nas três plataformas. É pintura pura: NÃO altera
+ * layout nem posição, logo não pode causar "pulo". transition:none faz cair/voltar instantâneo
+ * (em movimento é imperceptível e o ganho vale já no 1.º frame do gesto).
+ */
+.wa-messages.is-scrolling .wa-bubble,
+.wa-messages.is-scrolling .wa-bubble:hover {
+  box-shadow: none;
+  transform: none;
+  transition: none;
+}
+
 @media (min-width: 641px) {
   .wa-messages {
     scrollbar-gutter: stable;
@@ -15793,18 +15808,26 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   -webkit-appearance: none;
   padding: 10px 34px 10px 12px;
   border-radius: 10px;
-  border: 1px solid var(--wa-border, rgba(255,255,255,0.12));
-  background: var(--wa-input-bg, rgba(255,255,255,0.05));
-  color: var(--wa-text-primary, #fff);
+  /* Mesmos tokens do textarea acima → legível em tema claro E escuro
+     (antes usava color:#fff fixo, sumindo no modo claro). */
+  border: 1px solid var(--ds-border, rgba(255,255,255,0.1));
+  background: var(--ds-input-bg, rgba(0,0,0,0.2));
+  color: inherit;
   font-size: 14px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+/* Lista suspensa nativa: garante contraste do texto das opções nos dois temas. */
+.wa-crmSend-funilSelect option {
+  color: var(--wa-text, #111);
+  background: var(--ds-bg-raised, #fff);
+}
 .wa-crmSend-funilSelect:focus {
   outline: none;
-  border-color: var(--wa-accent, #2E86FF);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-accent, #2E86FF) 22%, transparent);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
 }
 .wa-crmSend-funilSelect:disabled {
   opacity: 0.5;

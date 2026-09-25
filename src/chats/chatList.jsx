@@ -815,12 +815,21 @@ export default function ChatList() {
             })
           : await fetchChats(params, { signal: abortController.signal });
       if (requestId !== loadRequestIdRef.current) return;
-      let list = Array.isArray(data) ? data : [];
+      // Resposta CRUA do backend (antes de qualquer filtro de tombstone) — necessária para
+      // decidir com segurança quando liberar o tombstone de encerramento (ver abaixo).
+      const rawApiList = Array.isArray(data) ? data : [];
+      let list = rawApiList;
       if (minhaFilaTab) {
         list = filterOptimisticRemovedMinhaFila(list);
         const removed = optimisticRemovedMinhaFilaRef.current;
         if (removed?.size) {
-          const fromApi = new Set(list.map((c) => String(c?.id)).filter(Boolean));
+          // fromApi TEM que vir da lista CRUA (rawApiList), não da `list` já filtrada pelo
+          // tombstone — senão nenhum id de encerramento jamais aparece em fromApi e todo
+          // tombstone é apagado já no 1º resync. Isso reabria a proteção pós-resync e uma
+          // conversa finalizada podia voltar à Minha fila via evento de socket atrasado
+          // (conversa_atualizada com status ainda aberto). Só soltamos o tombstone quando o
+          // backend PAROU de devolver a conversa (ele já a exclui da Minha fila ao fechar).
+          const fromApi = new Set(rawApiList.map((c) => String(c?.id)).filter(Boolean));
           for (const [hid, entry] of [...removed.entries()]) {
             if (entry?.reason === "encerrar_conversa" && !fromApi.has(hid)) {
               removed.delete(hid);
