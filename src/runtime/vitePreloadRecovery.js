@@ -41,6 +41,45 @@ export function recoverFromVitePreloadError(event, runtime = window, _now = Date
   return false;
 }
 
+/**
+ * Recarrega a aba UMA vez quando um chunk lazy falha de forma permanente
+ * (tipicamente 404 após deploy: a aba ainda tem o `index.html` antigo apontando
+ * para hashes de chunk que não existem mais no servidor). Retentar o mesmo
+ * `import()` não resolve — só um reload busca o `index.html` novo com os hashes
+ * corretos.
+ *
+ * Diferente do handler global (`recoverFromVitePreloadError`), que NUNCA
+ * recarrega para não apagar o texto que o atendente digita: aqui o reload só é
+ * disparado quando uma TELA lazy não consegue montar (navegação), depois de
+ * esgotadas as retentativas de rede — não durante digitação.
+ *
+ * Guarda anti-loop: grava o instante no `sessionStorage` e só recarrega de novo
+ * após `RELOAD_GUARD_MS`. Se o chunk continuar faltando após o reload (deploy
+ * realmente inconsistente) ou o storage estiver bloqueado, retorna `false` e o
+ * ErrorBoundary assume ("Recarregar").
+ *
+ * @returns {boolean} true se iniciou o reload; false se a guarda bloqueou.
+ */
+export function triggerStaleChunkReload(runtime = window, now = Date.now()) {
+  let store;
+  try {
+    store = runtime?.sessionStorage;
+    const last = Number(store?.getItem(RELOAD_MARKER_KEY)) || 0;
+    if (last && now - last < RELOAD_GUARD_MS) return false;
+    store?.setItem(RELOAD_MARKER_KEY, String(now));
+  } catch (_) {
+    // Sem sessionStorage confiável não há como impedir loop → não arrisca.
+    return false;
+  }
+  flushComposerDraft(runtime);
+  try {
+    runtime?.location?.reload?.();
+  } catch (_) {
+    return false;
+  }
+  return true;
+}
+
 export function installVitePreloadRecovery(runtime = window) {
   runtime.addEventListener("vite:preloadError", (event) => {
     recoverFromVitePreloadError(event, runtime);

@@ -6,6 +6,7 @@ import {
   installVitePreloadRecovery,
   isDynamicImportFetchError,
   recoverFromVitePreloadError,
+  triggerStaleChunkReload,
   vitePreloadRecoveryConstants,
 } from "../src/runtime/vitePreloadRecovery.js";
 
@@ -202,5 +203,47 @@ await assert.rejects(
   /error loading dynamically imported module/
 );
 assert.equal(persistentAttempts, 3); // 1 inicial + 2 retentativas
+
+// --- triggerStaleChunkReload: recarrega UMA vez em 404 de chunk, com guarda anti-loop ---
+{
+  const store = new Map();
+  let reloads = 0;
+  const dispatchedReload = [];
+  const reloadRuntime = {
+    location: { reload() { reloads += 1; } },
+    sessionStorage: {
+      getItem(k) { return store.get(k) ?? null; },
+      setItem(k, v) { store.set(k, String(v)); },
+    },
+    dispatchEvent(event) { dispatchedReload.push(event?.type); return true; },
+  };
+
+  // 1) Primeira falha permanente de chunk: recarrega e flusha o rascunho antes.
+  assert.equal(triggerStaleChunkReload(reloadRuntime, 1_000), true);
+  assert.equal(reloads, 1);
+  assert.deepEqual(dispatchedReload, [FLUSH_COMPOSER_DRAFT_EVENT]);
+
+  // 2) Dentro da janela de guarda: NÃO recarrega de novo (evita loop).
+  assert.equal(
+    triggerStaleChunkReload(reloadRuntime, 1_000 + vitePreloadRecoveryConstants.RELOAD_GUARD_MS - 1),
+    false
+  );
+  assert.equal(reloads, 1);
+
+  // 3) Passada a janela: pode recarregar de novo.
+  assert.equal(
+    triggerStaleChunkReload(reloadRuntime, 1_000 + vitePreloadRecoveryConstants.RELOAD_GUARD_MS + 1),
+    true
+  );
+  assert.equal(reloads, 2);
+
+  // 4) sessionStorage bloqueado: sem guarda confiável, não arrisca loop.
+  const blockedRuntime = {
+    location: { reload() { throw new Error("não deveria recarregar sem guarda"); } },
+    sessionStorage: { getItem() { throw new Error("storage bloqueado"); } },
+    dispatchEvent() { return true; },
+  };
+  assert.equal(triggerStaleChunkReload(blockedRuntime, 5_000), false);
+}
 
 console.log("deploy recovery and finalization config: ok");

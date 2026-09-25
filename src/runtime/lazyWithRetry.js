@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { isDynamicImportFetchError } from "./vitePreloadRecovery.js";
+import { isDynamicImportFetchError, triggerStaleChunkReload } from "./vitePreloadRecovery.js";
 
 const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF_MS = 300;
@@ -56,7 +56,21 @@ export function retryDynamicImport(factory, options = {}) {
  * @param {{ retries?: number, backoffMs?: number }} [options]
  */
 export function lazyWithRetry(factory, options) {
-  return lazy(() => retryDynamicImport(factory, options));
+  return lazy(() =>
+    retryDynamicImport(factory, options).catch((error) => {
+      // Chunk faltando de forma permanente (404 após deploy: a aba tem um
+      // index.html antigo com hashes que não existem mais). Retentar não
+      // adianta — recarrega a aba UMA vez para pegar o index.html novo.
+      if (isDynamicImportFetchError(error) && triggerStaleChunkReload()) {
+        // Reload em andamento: segura o Suspense até a navegação acontecer,
+        // em vez de deixar o React.lazy estourar "reading 'default'".
+        return new Promise(() => {});
+      }
+      // Já recarregou nesta janela (deploy realmente inconsistente) ou storage
+      // bloqueado → propaga para o ErrorBoundary oferecer "Recarregar".
+      throw error;
+    })
+  );
 }
 
 export const lazyWithRetryConstants = {
