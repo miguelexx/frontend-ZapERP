@@ -73,9 +73,27 @@ export function triggerStaleChunkReload(runtime = window, now = Date.now()) {
   }
   flushComposerDraft(runtime);
   try {
+    // Preferir navegação com query cache-busting: um `reload()` simples pode ser
+    // servido pelo cache HTTP com o MESMO `index.html` velho (mesmos hashes de
+    // chunk que já dão 404) e cair em loop até o ErrorBoundary. Trocar o param
+    // força o browser a buscar um documento novo com os hashes corretos.
+    // `installVitePreloadRecovery` limpa esse param da barra depois do load.
+    const loc = runtime?.location;
+    if (loc?.href && typeof (loc.replace || loc.assign) === "function") {
+      const target = new URL(loc.href);
+      target.searchParams.set(RELOAD_QUERY_PARAM, String(now));
+      (loc.replace || loc.assign).call(loc, target.toString());
+      return true;
+    }
+    // Ambientes sem navegação por href (ou testes): cai no reload simples.
     runtime?.location?.reload?.();
   } catch (_) {
-    return false;
+    // Se a navegação com href falhar, tenta o reload puro antes de desistir.
+    try {
+      runtime?.location?.reload?.();
+    } catch (__) {
+      return false;
+    }
   }
   return true;
 }

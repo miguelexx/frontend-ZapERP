@@ -244,6 +244,29 @@ assert.equal(persistentAttempts, 3); // 1 inicial + 2 retentativas
     dispatchEvent() { return true; },
   };
   assert.equal(triggerStaleChunkReload(blockedRuntime, 5_000), false);
+
+  // 5) Navegador real (com href + replace): navega com query cache-busting em
+  // vez de reload() puro, para furar o cache HTTP do index.html velho.
+  const navStore = new Map();
+  let replacedTo = null;
+  const hrefRuntime = {
+    location: {
+      href: "https://zaperp.wmsistemas.inf.br/atendimento",
+      replace(url) { replacedTo = url; },
+      reload() { throw new Error("deveria usar replace(), não reload()"); },
+    },
+    sessionStorage: {
+      getItem(k) { return navStore.get(k) ?? null; },
+      setItem(k, v) { navStore.set(k, String(v)); },
+    },
+    dispatchEvent() { return true; },
+  };
+  assert.equal(triggerStaleChunkReload(hrefRuntime, 7_777), true);
+  assert.ok(
+    replacedTo &&
+      replacedTo.includes(`${vitePreloadRecoveryConstants.RELOAD_QUERY_PARAM}=7777`),
+    "esperava navegação cache-busting com o param de recuperação"
+  );
 }
 
 console.log("deploy recovery and finalization config: ok");

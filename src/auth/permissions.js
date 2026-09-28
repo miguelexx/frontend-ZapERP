@@ -27,6 +27,9 @@ const CODIGO_TO_ROLE_CHECK = {
  */
 export function can(codigo, user) {
   if (!codigo) return false;
+  // Admin sempre tem tudo (espelha o backend: usuarioTemPermissao retorna true p/ admin).
+  // Garante que um mapa de permissões inconsistente nunca bloqueie um admin.
+  if (role(user) === "admin" || role(user) === "administrador") return true;
   const permissoes = usePermissoesStore.getState().permissoes;
   if (permissoes != null && Object.prototype.hasOwnProperty.call(permissoes, codigo)) {
     return !!permissoes[codigo];

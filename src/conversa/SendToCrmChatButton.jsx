@@ -39,9 +39,18 @@ function getApiError(e) {
   const status = e?.response?.status;
   const data = e?.response?.data;
   const code = data?.code;
-  const msg = data?.error || e?.message;
-  if (status === 403 && (code === "CRM_DISABLED" || String(msg || "").includes("CRM"))) {
+  // O backend repassa a mensagem REAL do CRM em `data.message` (o texto exato
+  // que o CRM devolveu — 401 segredo/usuário, 404 etapa, 409 conflito, etc.).
+  // `data.error` é o resumo amigável. Nunca mais mascaramos com "verifique o
+  // funil/etapa": mostramos o motivo verdadeiro.
+  const msg = data?.message || data?.error || e?.message;
+  // Só o gate do PRÓPRIO backend (integração desligada) vira essa mensagem;
+  // um 403 de permissão vindo do CRM chega como 422 e cai no texto real acima.
+  if (status === 403 && code === "CRM_DISABLED") {
     return "O CRM Avançado não está configurado neste ambiente. Fale com o administrador.";
+  }
+  if (e?.code === "ECONNABORTED" || /timeout/i.test(String(e?.message || ""))) {
+    return "O CRM demorou a responder (timeout). Tente novamente.";
   }
   return msg || "Não foi possível enviar ao CRM.";
 }
@@ -125,6 +134,20 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   // via ?redirect=/leads/<id>; sem ele, cai na home do CRM.
   const abrirCrmAvancado = useCallback(
     async (crmLeadId) => {
+      // Abrimos a aba já AGORA, dentro do gesto do clique, para não ser barrado
+      // pelo bloqueador de pop-up (o window.open só é liberado durante o gesto;
+      // depois do await ele seria bloqueado). A aba entra em branco e recebe a
+      // URL do SSO assim que o token chega — o token é gerado neste clique
+      // (curto, ~2min), então não expira. Anular `opener` dá a mesma proteção
+      // do rel="noopener": o CRM não acessa a janela do ZapERP.
+      const novaAba = window.open("about:blank", "_blank");
+      if (novaAba) {
+        try {
+          novaAba.opener = null;
+        } catch {
+          /* alguns navegadores não deixam reatribuir; segue o baile */
+        }
+      }
       try {
         const params =
           crmLeadId != null && String(crmLeadId).trim()
@@ -132,11 +155,20 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
             : undefined;
         const { data } = await api.get("/api/crm/abrir-avancado", { params });
         if (data && data.url) {
-          window.location.href = data.url;
+          if (novaAba) {
+            novaAba.location = data.url;
+          } else {
+            // Pop-up bloqueado: tenta nova aba de novo e, em último caso,
+            // navega na própria aba para não deixar o usuário sem o CRM.
+            const reserva = window.open(data.url, "_blank", "noopener");
+            if (!reserva) window.location.href = data.url;
+          }
         } else {
+          if (novaAba) novaAba.close();
           showToast({ type: "error", title: "CRM indisponível", message: "Não foi possível abrir o CRM Avançado." });
         }
       } catch (err) {
+        if (novaAba) novaAba.close();
         showToast({ type: "error", title: "CRM indisponível", message: getApiError(err) });
       }
     },
@@ -204,7 +236,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
         showToast({
           type: "warning",
           title: "Lead já vinculado",
-          message: data?.error || "Já existe um lead para esta conversa.",
+          message: data?.message || data?.error || "Já existe um lead para esta conversa.",
           actionLabel: "Abrir no CRM",
           onAction: () => abrirCrmAvancado(crmLeadId),
         });

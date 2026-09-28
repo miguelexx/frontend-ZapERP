@@ -14,13 +14,31 @@ export const usePermissoesStore = create((set) => ({
     set({ loading: true });
     try {
       const data = await getMinhasPermissoes();
-      const list = data?.permissoes ?? (Array.isArray(data) ? data : []);
       const map = {};
-      for (const p of list) {
-        const cod = p?.codigo ?? p?.cod;
-        if (cod) {
-          const v = p?.valor ?? p?.valor_efetivo ?? p?.granted;
-          map[cod] = v === true || v === "grant" || v === "granted";
+      const truthy = (v) => v === true || v === "grant" || v === "granted";
+
+      // Formato canônico do backend: { permissoes: { [codigo]: boolean }, detalhado: [...] }
+      const raw = data?.permissoes;
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        // Objeto-mapa codigo -> boolean
+        for (const [cod, v] of Object.entries(raw)) {
+          if (cod) map[cod] = v === true || truthy(v);
+        }
+      } else {
+        // Fallback: lista de permissões (raw array, data array ou data.detalhado)
+        const list = Array.isArray(raw)
+          ? raw
+          : Array.isArray(data?.detalhado)
+          ? data.detalhado
+          : Array.isArray(data)
+          ? data
+          : [];
+        for (const p of list) {
+          const cod = p?.codigo ?? p?.cod;
+          if (cod) {
+            const v = p?.concedido ?? p?.valor ?? p?.valor_efetivo ?? p?.granted;
+            map[cod] = v === true || truthy(v);
+          }
         }
       }
       set({ permissoes: map, loading: false });

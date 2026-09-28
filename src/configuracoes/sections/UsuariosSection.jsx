@@ -138,7 +138,7 @@ function ModalUsuario({ usuario, departamentos, onClose, onSaved }) {
           </div>
           <div className="ia-field">
             <label>Email</label>
-            <input type="email" className="ia-input" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={!isNew} />
+            <input type="email" className="ia-input" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="ia-field">
             <label>{isNew ? "Senha" : "Nova senha (deixe em branco para manter)"}</label>
