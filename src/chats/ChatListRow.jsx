@@ -102,19 +102,36 @@ function parseToDate(ts) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function formatHora(ts) {
-  const d = parseToDate(ts);
-  if (!d) return "";
+// Formatador único no módulo: toLocaleTimeString com options construía um Intl.DateTimeFormat
+// novo a cada linha renderizada — custo alto multiplicado pelas rows visíveis.
+let horaFormatter = null;
+function getHoraFormatter() {
+  if (horaFormatter !== null) return horaFormatter;
   try {
-    return d.toLocaleTimeString("pt-BR", {
+    horaFormatter = new Intl.DateTimeFormat("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
       timeZone: "America/Sao_Paulo",
     });
   } catch {
     // fallback sem timezone option (ambientes antigos)
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    horaFormatter = false;
   }
+  return horaFormatter;
+}
+
+function formatHora(ts) {
+  const d = parseToDate(ts);
+  if (!d) return "";
+  const fmt = getHoraFormatter();
+  if (fmt) {
+    try {
+      return fmt.format(d);
+    } catch {
+      /* cai no fallback abaixo */
+    }
+  }
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function initials(nome = "") {

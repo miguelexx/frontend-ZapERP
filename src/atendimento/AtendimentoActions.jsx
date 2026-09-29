@@ -192,9 +192,7 @@ export default function AtendimentoActions({
   prepend,
   splitCompactHeader = false,
 }) {
-  const userFromSelector = useAuthStore((s) => s?.user);
-  const stateAuth = useAuthStore((s) => s);
-  const user = userFromSelector ?? stateAuth?.user ?? null;
+  const user = useAuthStore((s) => s?.user) ?? null;
 
   const conversa = useConversaStore((s) => s?.conversa);
   const assumirConversa = useConversaStore((s) => s?.assumirConversa);

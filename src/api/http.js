@@ -82,11 +82,12 @@ function isRetriableNetworkError(err) {
   // Só falhas SEM resposta HTTP = nível de conexão/rede. Com resposta (4xx/5xx) o
   // servidor respondeu — não é queda transitória e não deve ser retentado aqui.
   if (err?.response) return false
+  // Timeout NÃO é retentado: um GET pesado que estourou 55s indica servidor sobrecarregado —
+  // repetir até 2× só triplicava a carga (o servidor processa a request abortada mesmo assim).
   return (
     err?.code === "ERR_NETWORK" ||
     err?.message === "Network Error" ||
-    err?.code === "ERR_CONNECTION_CLOSED" ||
-    isTimeoutError(err)
+    err?.code === "ERR_CONNECTION_CLOSED"
   )
 }
 

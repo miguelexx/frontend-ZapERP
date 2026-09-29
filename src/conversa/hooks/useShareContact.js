@@ -23,19 +23,27 @@ export function useShareContact({ conversaId, showToast }) {
     }
     const q = safeString(shareContactQuery).trim().toLowerCase();
     setShareContactLoading(true);
+    // Guard de corrida: uma busca antiga que resolve depois não pode sobrescrever a lista
+    // da busca mais recente (o clearTimeout só cancela o timer, não o GET já disparado).
+    let cancelled = false;
     const t = setTimeout(async () => {
       try {
         const list = await cfg.getClientes({ palavra: q || undefined, limit: 60 });
+        if (cancelled) return;
         const arr = Array.isArray(list) ? list : [];
         setShareContactList(arr);
       } catch (e) {
+        if (cancelled) return;
         console.error("Erro ao buscar contatos:", e);
         setShareContactList([]);
       } finally {
-        setShareContactLoading(false);
+        if (!cancelled) setShareContactLoading(false);
       }
     }, 260);
-    return () => clearTimeout(t);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [shareContactOpen, shareContactQuery]);
 
   const openShareContact = useCallback(() => {

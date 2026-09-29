@@ -64,7 +64,11 @@ export function useWhapiChannelStatus() {
     };
 
     const first = setTimeout(checar, WHAPI_STATUS_FIRST_DELAY_MS);
-    const intervalo = setInterval(checar, WHAPI_STATUS_REFRESH_MS);
+    // Aba oculta não pinta overlay: pausa o poll e deixa o handler de foco revalidar na volta.
+    const intervalo = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      checar();
+    }, WHAPI_STATUS_REFRESH_MS);
 
     const aoFocar = () => {
       if (document.visibilityState !== "visible") return;

@@ -175,6 +175,16 @@ Abertura da conversa (CONFIRMADO 2026-08-24): máscara `.wa-messages--opening` f
 
 Painel **Dados do contato** (`SidebarCliente`, 2026-09-07): clicar no bloco identidade do cabeçalho (avatar + nome) abre o perfil, como no WhatsApp Web — não amplia a foto. A foto grande do painel é que abre o lightbox (`openMediaViewer` + `pickLoadedMediaSrcFromEvent`). Salvar nome faz `PUT /chats/:id/nome-contato` (grava `conversas.nome_contato_cache` + `clientes.nome`) e aplica na hora via `renameChatContact` (lista) + `patchConversa` (header). Clique fora fecha: backdrop `.wa-floatingSheet-backdrop--cliente` no desktop + listener no `document` (ignora cabeçalho e lightbox); no mobile o overlay já existia. Esc também fecha (`ConversaView`).
 
+## Otimizações da thread 2026-09-29 (ver 12-PERFORMANCE.md)
+
+- `ConversaMessageVirtualList`: `getItemKey`/`estimateSize` estáveis via `useCallback` (inline invalidava o memo de medidas do virtualizador a cada render); listener de scroll sem `onVirtualContentResize` nas deps e cleanup flusha margem/resize pendente.
+- `jumpToReply`/`handleForwardAdvance` leem `mensagens` via `useConversaStore.getState()` — correção de bug: `threadRowPropsAreEqual` não compara callbacks, então bolhas antigas guardavam a lista desatualizada e o salto para a mensagem respondida falhava após `loadMore`.
+- Typing/presença no coordenador viraram seletores primitivos (`typingKey` string; `contactPresenceFmt` com igualdade por valor) — `typing_start`/`presenca_contato` não re-renderizam mais o `ConversaViewBody`.
+- `composerPropsAreEqual` agora compara `showScrollToRecent` (o botão "ir para recentes" não atualizava sozinho).
+- `useAttachmentPicker` lê `onBeforeOpenCamera` por ref (a arrow inline do Shell quebrava o memo do `AttachmentMenu` a cada tecla).
+- `statusBadge` devolve constantes cacheadas por variante; `whatsappLabelsContext` memoizado; `ConversaViewOverlays` é `memo`; `CatalogPickerModal` lazy.
+- Blobs de mídia otimista: revoke no evict/TTL do cache de 48 conversas e no `clearConversaSessionCaches` — nunca da conversa aberta (`revokeBlobsFromEvictedCacheEntry`). O reconcile NÃO revoga (anti-flicker da imagem depende do blob).
+
 ## Envio otimista (CONFIRMADO)
 
 1. `buildOptimisticOutgoingMessage` (`conversaOptimisticMessage.js`) → `tempId` / `client_temp_id`, `direcao: "out"`, blob URL se mídia.

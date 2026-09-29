@@ -398,13 +398,14 @@ function getChatSortTs(c) {
 }
 
 export function sortChatRowsByOrder(list, order) {
-  return [...(Array.isArray(list) ? list : [])].sort((a, b) => {
-    const ta = getChatSortTs(a);
-    const tb = getChatSortTs(b);
-    const d = order === "antigas" ? ta - tb : tb - ta;
+  // Timestamp calculado 1× por linha (parses de data fora do comparador).
+  const decorated = (Array.isArray(list) ? list : []).map((c) => ({ c, ts: getChatSortTs(c) }));
+  decorated.sort((a, b) => {
+    const d = order === "antigas" ? a.ts - b.ts : b.ts - a.ts;
     // Empate de atividade → desempate estável por id (evita "troca" a cada reconciliação).
-    return d !== 0 ? d : compareChatRowIdDesc(a, b);
+    return d !== 0 ? d : compareChatRowIdDesc(a.c, b.c);
   });
+  return decorated.map((d) => d.c);
 }
 
 export function dedupeChatRowsByStableKey(list) {

@@ -5,14 +5,17 @@ import { useAudioPlayback } from "../hooks/useAudioPlayback";
 import { AudioCaption } from "./MessageCaption";
 import MessageRetry from "./MessageRetry";
 import { buildAudioRetryPayload } from "../utils/bubbleRetry";
+import { canReprocessInboundMedia, requestInboundMediaReprocess } from "../utils/inboundMediaReprocess";
 
-function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, initialDuration, sentAtLabel }) {
+function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, initialDuration, sentAtLabel, reprocessMedia }) {
   const {
     audioRef,
     waveMeasureRef,
     activeSrc,
     playing,
     indisponivel,
+    expirado,
+    reprocessando,
     dur,
     cur,
     playbackRate,
@@ -29,7 +32,7 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
     handleSeekClick,
     applyPlaybackRate,
     tentarNovamente,
-  } = useAudioPlayback({ src, candidates, msgKey, initialDuration });
+  } = useAudioPlayback({ src, candidates, msgKey, initialDuration, reprocessMedia });
 
   return (
     <div className={`wa-audioPlayer ${playing ? "isPlaying" : ""}`}>
@@ -115,21 +118,41 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
           <span className="wa-audioTime wa-audioTime--cur" title={formatMmSs(cur)}>
             {formatMmSs(cur)}
           </span>
-          {indisponivel ? (
+          {expirado ? (
+            <span
+              className="wa-audioUnavailable wa-audioUnavailable--expired"
+              data-testid="audio-expirado"
+              title="Este áudio não está mais disponível no WhatsApp e não pode ser recuperado."
+              aria-label="Áudio expirou no WhatsApp e não está mais disponível."
+            >
+              Áudio expirou no WhatsApp
+            </span>
+          ) : indisponivel ? (
             <button
               type="button"
               className="wa-audioUnavailable"
               data-testid="audio-indisponivel"
+              disabled={reprocessando}
+              aria-busy={reprocessando ? "true" : undefined}
               onPointerDown={keepMobileKeyboardOpen}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                tentarNovamente();
+                if (reprocessando) return;
+                void tentarNovamente();
               }}
-              title="Não foi possível carregar este áudio. Clique para tentar de novo."
-              aria-label="Áudio indisponível. Tentar carregar de novo."
+              title={
+                reprocessando
+                  ? "Recarregando o áudio…"
+                  : "Não foi possível carregar este áudio. Clique para tentar de novo."
+              }
+              aria-label={
+                reprocessando
+                  ? "Recarregando o áudio."
+                  : "Áudio indisponível. Tentar carregar de novo."
+              }
             >
-              Áudio indisponível — tentar de novo
+              {reprocessando ? "Recarregando…" : "Áudio indisponível — tentar de novo"}
             </button>
           ) : null}
           {sentAtLabel ? (
@@ -169,6 +192,11 @@ export default function AudioMessage({
   onRetry,
   retry,
 }) {
+  // Só mídia recebida e persistida pode pedir recópia ao backend; nos demais casos o callback é
+  // ausente e o botão "tentar de novo" mantém o comportamento local de sempre.
+  const reprocessMedia = canReprocessInboundMedia(msg, out)
+    ? () => requestInboundMediaReprocess(msg)
+    : undefined;
   return (
     <div className="wa-bubble-audioStack">
       <div className="wa-bubble-audioWrap">
@@ -178,6 +206,7 @@ export default function AudioMessage({
           avatarUrl={!out ? peerAvatarUrl : null}
           avatarLabel={!out ? peerName : null}
           sentAtLabel={formatHora(msg?.criado_em)}
+          reprocessMedia={reprocessMedia}
           initialDuration={
             msg?.audio_duracao_sec ?? msg?.duration ?? msg?.media_duration ?? 0
           }

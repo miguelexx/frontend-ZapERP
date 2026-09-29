@@ -121,6 +121,18 @@ const ChatListRows = memo(function ChatListRows({
     [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, waLabelsByConversa]
   );
 
+  // Identidade estável: getItemKey entra nas deps do memo de medidas do virtualizador
+  // (@tanstack/virtual-core). Uma arrow inline nova a cada render invalidava o memo e
+  // re-estimava TODAS as linhas em cada render (scroll, minuteTick, socket).
+  const getItemKey = useCallback(
+    (index) => {
+      const c = chatsFiltrados[index];
+      if (!c) return `row-${index}`;
+      return chatRowStableKey(c);
+    },
+    [chatsFiltrados]
+  );
+
   const virtualizer = useVirtualizer({
     count: chatsFiltrados.length,
     getScrollElement: () => scrollRef.current,
@@ -131,11 +143,7 @@ const ChatListRows = memo(function ChatListRows({
     scrollPaddingEnd: 8,
     /* Mobile: adia remeasure após o dedo soltar — reduz thrash sem desativar medição real. */
     isScrollingResetDelay: isMobileLayout ? 220 : 150,
-    getItemKey: (index) => {
-      const c = chatsFiltrados[index];
-      if (!c) return `row-${index}`;
-      return chatRowStableKey(c);
-    },
+    getItemKey,
   });
 
   /*

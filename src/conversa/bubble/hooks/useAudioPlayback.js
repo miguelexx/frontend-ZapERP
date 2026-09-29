@@ -26,7 +26,7 @@ const isPositionBuffered = (el) => {
   return false;
 };
 
-export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
+export function useAudioPlayback({ src, candidates, msgKey, initialDuration, reprocessMedia }) {
   const sourceList = useMemo(() => {
     const list = Array.isArray(candidates) && candidates.length ? candidates : src ? [src] : [];
     const seen = new Set();
@@ -75,6 +75,10 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
   const waveMeasureRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [indisponivel, setIndisponivel] = useState(false);
+  // `expirado`: o backend confirmou que a mídia sumiu do provedor de vez — não adianta mais tentar,
+  // então o player troca o botão por um aviso. `reprocessando`: recópia no backend em andamento.
+  const [expirado, setExpirado] = useState(false);
+  const [reprocessando, setReprocessando] = useState(false);
   const seedDuration =
     normalizeAudioDuration(initialDuration) ||
     readAudioDuration(msgKey);
@@ -97,6 +101,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
         readAudioDuration(msgKey)
     );
     setIndisponivel(false);
+    setExpirado(false);
+    setReprocessando(false);
     durationProbeRef.current = false;
     autoPlayRef.current = { ate: 0, tentativas: 0 };
     pendingPlayRef.current = 0;
@@ -450,13 +456,36 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
     }
   }, [playbackRate, sourceIdx, sourceList.length, solicitarInicioPlayback]);
 
-  const tentarNovamente = useCallback(() => {
+  const tentarNovamente = useCallback(async () => {
     setIndisponivel(false);
-    autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
-    solicitarInicioPlayback(); // pedido explícito do usuário: reinicia o orçamento e revigia
-    if (sourceIdx !== 0) setSourceIdx(0);
-    else setReloadNonce((n) => n + 1);
-  }, [sourceIdx, solicitarInicioPlayback]);
+    // Recarga LOCAL (comportamento histórico): reabre a janela de autoplay e recarrega as fontes.
+    const recargaLocal = () => {
+      autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
+      solicitarInicioPlayback(); // pedido explícito do usuário: reinicia o orçamento e revigia
+      if (sourceIdx !== 0) setSourceIdx(0);
+      else setReloadNonce((n) => n + 1);
+    };
+
+    // Mídia recebida sem /uploads: primeiro pede ao backend uma nova cópia. Se recuperar, a bolha
+    // se atualiza pelo socket (nova_mensagem) e a recarga local abaixo cobre a janela até lá; se o
+    // link expirou de vez, troca para o aviso "expirou" e para de oferecer o botão.
+    if (typeof reprocessMedia === "function") {
+      setReprocessando(true);
+      let resultado = null;
+      try {
+        resultado = await reprocessMedia();
+      } catch {
+        resultado = null;
+      }
+      setReprocessando(false);
+      if (resultado?.definitivo) {
+        setExpirado(true);
+        return;
+      }
+      // ok (recuperou) OU falha transitória: em ambos vale tocar de novo localmente.
+    }
+    recargaLocal();
+  }, [sourceIdx, solicitarInicioPlayback, reprocessMedia]);
 
   const keepMobileKeyboardOpen = useCallback((e) => {
     if (e.pointerType !== "touch" && e.pointerType !== "pen") return false;
@@ -547,6 +576,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration }) {
     activeSrc,
     playing,
     indisponivel,
+    expirado,
+    reprocessando,
     dur,
     cur,
     playbackRate,

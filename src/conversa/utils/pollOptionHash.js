@@ -145,11 +145,24 @@ function bytesToBase64(bytes) {
 }
 
 const hashCache = new Map()
+// Teto LRU simples: sem ele o cache crescia sem limite (uma entrada por texto de opção)
+// num plantão de 8h+ com muitas enquetes.
+const HASH_CACHE_MAX = 500
 
 export function pollOptionHashClient(optionText) {
   const key = String(optionText ?? "")
-  if (hashCache.has(key)) return hashCache.get(key)
+  if (hashCache.has(key)) {
+    const cached = hashCache.get(key)
+    // Reinsere para marcar como recente (Map preserva ordem de inserção).
+    hashCache.delete(key)
+    hashCache.set(key, cached)
+    return cached
+  }
   const hash = bytesToBase64(sha256Bytes(utf8Bytes(key)))
+  if (hashCache.size >= HASH_CACHE_MAX) {
+    const oldest = hashCache.keys().next().value
+    if (oldest !== undefined) hashCache.delete(oldest)
+  }
   hashCache.set(key, hash)
   return hash
 }

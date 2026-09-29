@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
@@ -73,7 +73,20 @@ function LazyPage({ children }) {
 }
 
 export default function AppRoutes() {
-  const { token, user } = useAuthStore();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+
+  // Quebra a cascata de lazy da rota inicial (index → MainLayout → Atendimento →
+  // chatList/ConversaView = 3+ viagens de rede em série): com sessão ativa, os chunks
+  // do atendimento baixam em PARALELO já no primeiro render. O import() é deduplicado
+  // pelo runtime do Vite com o das rotas lazy.
+  useEffect(() => {
+    if (!token) return;
+    void import("../layouts/MainLayout").catch(() => {});
+    void import("../pages/Atendimento").catch(() => {});
+    void import("../chats/chatList").catch(() => {});
+    void import("../conversa/ConversaView").catch(() => {});
+  }, [token]);
   // Subscrição reativa: can() lê o store via getState(); sem isto, as rotas protegidas
   // não reavaliam quando GET /usuarios/me/permissoes resolve após login/F5.
   usePermissoesStore((s) => s.permissoes);

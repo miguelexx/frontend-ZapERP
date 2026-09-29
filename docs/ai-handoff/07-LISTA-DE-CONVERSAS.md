@@ -75,6 +75,14 @@ Scope key: empresa + usuário. É stale-while-revalidate, não fonte de verdade.
 
 **Hint (2026-09-02):** mostra o total informado pela consulta sem aumentá-lo para igualar os cards. Se existem 6 cards e o total é 2, mostra `6 de 2`. Mantidos os estados de carga/busca e a apresentação por funcionário.
 
+## Otimizações 2026-09-29 (ver 12-PERFORMANCE.md, seção da auditoria)
+
+- `useChatListResync` guarda o último nonce processado (inicializado com o nonce do mount) — deps que mudam de identidade não disparam mais GET com o mesmo nonce; counts lidos por ref.
+- `refreshChatFilterCounts`: efeito de mount/aba usa `reuseIfFresh` e há dedupe de GET em voo por `paramsKey`.
+- `setPendentesFuncionarioIdsIfChanged` preserva a identidade do array do poll de supervisão (um array novo a cada 30s quebrava o memo de todas as rows).
+- Sorts com decorate-sort-undecorate; `updateChat`/`setUnread`/tags/`removeChat` com noop real (não recriam `chats`).
+- Guard de nonce também no efeito de mutação otimista do `chatList.jsx` (re-run por `user` novo não reaplica o delta dos chips).
+
 ## Performance da lista (obrigatório preservar)
 
 - `chatListRowCompare.js`: `chatRowPropsAreEqual`, preview key, contact surface key.

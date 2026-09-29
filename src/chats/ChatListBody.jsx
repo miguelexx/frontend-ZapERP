@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 import { useChatStore } from "./chatsStore";
 import { chatListsStoreEquivalent } from "./chatListStoreCompare";
@@ -106,10 +106,14 @@ function ChatListBody({
 
   const showToast = useNotificationStore((s) => s.showToast);
 
+  // useDeferredValue: mantém a digitação fluida — sob pressão, o refiltro da lista
+  // roda num render de prioridade baixa em vez de bloquear cada tecla.
+  const deferredSearchInput = useDeferredValue(searchInput);
+
   const { chatsFiltrados } = useChatListFilters({
     chats,
     minhaFilaList,
-    debouncedSearch: searchInput,
+    debouncedSearch: deferredSearchInput,
     statusFilter,
     tagFilter,
     departamentoFilter,

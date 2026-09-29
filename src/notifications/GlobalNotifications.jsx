@@ -12,7 +12,16 @@ import "../components/feedback/toast.css";
 export default function GlobalNotifications() {
   const toast = useNotificationStore((s) => s.toast);
   const clearToast = useNotificationStore((s) => s.clearToast);
-  const chats = useChatStore((s) => s.chats || []);
+  // Selector primitivo: assinar o array `chats` inteiro re-renderizava este componente
+  // global a cada patch de qualquer conversa. O número só muda quando a fila "Aberta" muda.
+  const openConversations = useChatStore((s) => {
+    const chats = s.chats || [];
+    let n = 0;
+    for (const c of chats) {
+      if (getStatusAtendimentoEffective(c) === "aberta") n += 1;
+    }
+    return n;
+  });
   const waUnread = useChatStore((s) => s.unreadTotal);
   const internalUnread = useInternalChatNotifyStore(selectInternalChatUnreadTotal);
   const helpDeskUnread = useHelpDeskNotifyStore(selectHelpDeskUnreadTotal);
@@ -23,9 +32,8 @@ export default function GlobalNotifications() {
 
   useEffect(() => {
     // Ícone da PWA: quantidade de conversas na fila "Aberta" (não soma de mensagens — evita ficar preso em 99).
-    const openConversations = chats.filter((c) => getStatusAtendimentoEffective(c) === "aberta").length;
     syncAppBadgeNumber(openConversations);
-  }, [chats]);
+  }, [openConversations]);
 
   useEffect(() => {
     if (!toast) return;

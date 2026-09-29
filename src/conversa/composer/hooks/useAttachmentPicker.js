@@ -41,6 +41,10 @@ export function useAttachmentPicker({
   const stickerInputRef = useRef(null);
   const cameraGenerationRef = useRef(0);
   const mountedRef = useRef(true);
+  // Ref: o Shell passa uma arrow inline nova a cada render; se ela ficasse nas deps de
+  // openCamera, onOpenCamera mudava a cada tecla e quebrava o memo do AttachmentMenu.
+  const onBeforeOpenCameraRef = useRef(onBeforeOpenCamera);
+  onBeforeOpenCameraRef.current = onBeforeOpenCamera;
 
   const stopCameraStream = useCallback(() => {
     const stream = cameraStreamRef.current;
@@ -78,7 +82,7 @@ export function useAttachmentPicker({
 
   const openCamera = useCallback(async () => {
     if (!conversaId || sending || !podeEnviar || isRecording) return;
-    onBeforeOpenCamera?.();
+    onBeforeOpenCameraRef.current?.();
 
     const mediaDevices =
       typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia
@@ -152,7 +156,6 @@ export function useAttachmentPicker({
   }, [
     conversaId,
     isRecording,
-    onBeforeOpenCamera,
     openNativeCameraFallback,
     podeEnviar,
     sending,

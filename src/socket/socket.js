@@ -1,5 +1,5 @@
 import { io } from "socket.io-client"
-import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore"
+import { useChatStore, getChatByIdFromStore, getChatsByIdIndex } from "../chats/chatsStore"
 import {
   normalizeMensagemStatusKey,
   ultimaMensagemRefsEqual,
@@ -85,7 +85,12 @@ const SUPPRESS_SOUND_TTL_MS = 20_000
 /** @param {string|number|null|undefined} conversaId */
 function markSuppressNovaMensagemSound(conversaId) {
   if (conversaId == null || conversaId === "") return
-  suppressDefaultMessageSoundUntil.set(String(conversaId), Date.now() + SUPPRESS_SOUND_TTL_MS)
+  const now = Date.now()
+  // Higiene: transferência sem mensagem seguinte deixava a entrada até o logout.
+  for (const [key, exp] of suppressDefaultMessageSoundUntil) {
+    if (exp <= now) suppressDefaultMessageSoundUntil.delete(key)
+  }
+  suppressDefaultMessageSoundUntil.set(String(conversaId), now + SUPPRESS_SOUND_TTL_MS)
 }
 
 /**
@@ -113,15 +118,23 @@ function applyDocumentTitle(unreadTotal) {
   document.title = total > 0 ? `(${total}) ${base}` : base
 }
 
-let documentTitleRaf = null
+let documentTitlePending = false
 function updateDocumentTitleFromChats() {
   if (typeof document === "undefined") return
-  if (documentTitleRaf != null) return
-  documentTitleRaf = requestAnimationFrame(() => {
-    documentTitleRaf = null
+  if (documentTitlePending) return
+  documentTitlePending = true
+  const flush = () => {
+    documentTitlePending = false
     const total = Number(useChatStore.getState().unreadTotal) || 0
     applyDocumentTitle(total)
-  })
+  }
+  // rAF não roda com a aba oculta — justamente quando o "(N)" no título mais importa.
+  // Em background usamos setTimeout (o navegador pode limitar a ~1/s, suficiente para o título).
+  if (document.visibilityState === "hidden") {
+    setTimeout(flush, 100)
+  } else {
+    requestAnimationFrame(flush)
+  }
 }
 
 /**
@@ -184,8 +197,7 @@ function applyRetomadaSeAguardandoPorMensagemRecebida(conversaId, msg) {
 
   const convStore = useConversaStore.getState()
   const chatStore = useChatStore.getState()
-  const chats = chatStore.chats || []
-  const row = chats.find((c) => String(c.id) === String(conversaId))
+  const row = getChatByIdFromStore(conversaId, chatStore.chats)
   const aberto = convStore.selectedId && String(convStore.selectedId) === String(conversaId)
   const openConv = aberto ? convStore.conversa : null
 
@@ -239,9 +251,16 @@ function playNotificationSoundById(soundId) {
   }
 }
 
+/** Um único AudioContext reutilizado: criar um novo a cada beep (centenas por plantão) vaza
+ * threads/buffers de áudio — contexto "running" não é coletado pelo GC. */
+let beepAudioCtx = null
 function playFallbackBeep() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    if (!beepAudioCtx || beepAudioCtx.state === "closed") {
+      beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    }
+    const ctx = beepAudioCtx
+    if (ctx.state === "suspended") ctx.resume().catch(() => {})
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
@@ -250,14 +269,19 @@ function playFallbackBeep() {
     osc.type = "sine"
     gain.gain.setValueAtTime(0.3, ctx.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15)
+    osc.onended = () => {
+      try {
+        osc.disconnect()
+        gain.disconnect()
+      } catch (_) {}
+    }
     osc.start(ctx.currentTime)
     osc.stop(ctx.currentTime + 0.15)
   } catch (_) {}
 }
 
 function getChatDisplayName(conversaId) {
-  const chats = useChatStore.getState().chats || []
-  const c = chats.find((x) => String(x.id) === String(conversaId))
+  const c = getChatByIdFromStore(conversaId)
   if (!c) return "Nova mensagem"
   // Grupos: nome_grupo tem prioridade
   const jid = c.remoteJid ?? c.telefone ?? c.phone ?? ""
@@ -282,28 +306,33 @@ function canNotifyByConversationOwnership(chat, currentUserId) {
   return false
 }
 
-/** Multi-tenant: company_id do usuário logado (evita circular com authStore) */
-function getCurrentCompanyId() {
+/**
+ * Cache do snapshot de auth: o JSON só é re-parseado quando a STRING do localStorage muda.
+ * Todo handler de socket (inclusive onAny) consulta company_id/user — sem cache, cada evento
+ * em rajada (status_mensagem/nova_mensagem) pagava um JSON.parse do objeto de auth inteiro.
+ */
+let authSnapshotCache = { raw: null, user: null }
+
+function getCurrentUserSnapshot() {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
-    if (!raw) return null
+    if (!raw) {
+      if (authSnapshotCache.raw !== null) authSnapshotCache = { raw: null, user: null }
+      return null
+    }
+    if (authSnapshotCache.raw === raw) return authSnapshotCache.user
     const parsed = JSON.parse(raw)
-    const u = parsed?.user
-    return u?.company_id ?? u?.empresa_id ?? null
+    authSnapshotCache = { raw, user: parsed?.user || null }
+    return authSnapshotCache.user
   } catch {
     return null
   }
 }
 
-function getCurrentUserSnapshot() {
-  try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return parsed?.user || null
-  } catch {
-    return null
-  }
+/** Multi-tenant: company_id do usuário logado (evita circular com authStore) */
+function getCurrentCompanyId() {
+  const u = getCurrentUserSnapshot()
+  return u?.company_id ?? u?.empresa_id ?? null
 }
 
 /** ID do usuário logado (string) para comparar com payloads do socket */
@@ -337,26 +366,12 @@ function dropChatFromViewerListIfNeeded(chatStore, row, id) {
 }
 
 function getCurrentUserRole() {
-  try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
-    if (!raw) return ""
-    const parsed = JSON.parse(raw)
-    const u = parsed?.user
-    return String(u?.role || u?.perfil || "").toLowerCase()
-  } catch {
-    return ""
-  }
+  const u = getCurrentUserSnapshot()
+  return String(u?.role || u?.perfil || "").toLowerCase()
 }
 
 function isEmpresaModoSimplesAtivoCliente() {
-  try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("zap_erp_auth") : null
-    if (!raw) return false
-    const parsed = JSON.parse(raw)
-    return parsed?.user?.atendimento_modo_simples === true
-  } catch {
-    return false
-  }
+  return getCurrentUserSnapshot()?.atendimento_modo_simples === true
 }
 
 /**
@@ -639,8 +654,7 @@ function buildModoSimplesListRowFromPayload(payload, id) {
 
 function upsertModoSimplesListRowFromPayload(chatStore, payload, id) {
   if (!isEmpresaModoSimplesAtivoCliente() || !payloadImpactaListaLateral(payload)) return false
-  const chats = chatStore.chats || []
-  if (chats.some((c) => String(c?.id) === String(id))) return false
+  if (getChatByIdFromStore(id, chatStore.chats)) return false
   // Não inventar row a partir do payload — só após GET autorizado (escopo setor/atendente).
   void addChatIfAuthorized(chatStore, id)
   return false
@@ -652,15 +666,13 @@ function upsertModoSimplesListRowFromPayload(chatStore, payload, id) {
  */
 async function addChatIfAuthorized(chatStore, conversaId) {
   if (conversaId == null || conversaId === "") return false
-  const chats = chatStore.chats || []
-  if (chats.some((c) => String(c?.id) === String(conversaId))) return false
+  if (getChatByIdFromStore(conversaId, chatStore.chats)) return false
   try {
     const data = await fetchChatById(conversaId)
     const chat = data?.conversa ?? data
     if (!chat?.id) return false
     const latestStore = useChatStore.getState()
-    const latest = latestStore.chats || []
-    if (latest.some((c) => String(c?.id) === String(chat.id))) {
+    if (getChatByIdFromStore(chat.id, latestStore.chats)) {
       latestStore.updateChat(chat)
       maybeRestoreMinhaFilaRow(chat)
       return true
@@ -699,7 +711,7 @@ function emitMinhaFilaOptimisticMutation(rawPayload, opts = {}) {
     patch.atendente_id = myId
   }
   const chatStore = useChatStore.getState()
-  const existingRow = (chatStore.chats || []).find((c) => String(c?.id) === String(id))
+  const existingRow = getChatByIdFromStore(id, chatStore.chats)
   const decisionRow = existingRow ? { ...existingRow, ...patch } : patch
   const inMinhaFila = shouldBeInMinhaFilaForCurrentUser(decisionRow)
   const closed = isClosedAttendance(decisionRow)
@@ -947,6 +959,9 @@ export function initSocket(token) {
     fetchSnapshot: fetchUnreadSnapshot,
     getStore: useChatStore.getState,
     onApplied: updateDocumentTitleFromChats,
+    // 1s (default 180ms): sob tráfego constante o GET /chats/counts?unread=1 saía quase
+    // contínuo. O snapshot é reconciliação absoluta — 1s de coalescência não perde nada.
+    delayMs: 1000,
   })
   unsubscribeUnreadChanges = useChatStore.subscribe((state, prev) => {
     if (state.unreadRevision !== prev.unreadRevision) unreadSnapshotSync?.request()
@@ -1005,6 +1020,7 @@ export function initSocket(token) {
   off("atualizar_conversa")
   off("contato_atualizado")
 
+  let hadFirstConnect = false
   socket.on("connect", () => {
     currentConversationId = null
     const companyId = getCurrentCompanyId()
@@ -1017,7 +1033,12 @@ export function initSocket(token) {
     if (convId) {
       joinConversaIfNeeded(convId)
     }
-    reconnectRecovery?.request()
+    // Recovery só a partir da 2ª conexão: na 1ª (login/F5) o boot HTTP já busca lista,
+    // counts e thread — o request aqui só duplicava esses GETs logo após o load inicial.
+    if (hadFirstConnect) {
+      reconnectRecovery?.request()
+    }
+    hadFirstConnect = true
     updateDocumentTitleFromChats()
   })
   socket.on("disconnect", () => reconnectRecovery?.suspend())
@@ -1152,8 +1173,7 @@ export function initSocket(token) {
 
     const chatStore = useChatStore.getState()
     const convStore = useConversaStore.getState()
-    const chats = chatStore.chats || []
-    const jaNaLista = chats.some(c => String(c.id) === String(conversaId))
+    const jaNaLista = !!getChatByIdFromStore(conversaId, chatStore.chats)
 
     /* Não fazer early-return por "jaExiste": anexarMensagem faz UPSERT — merge status/whatsapp_id se já existir */
 
@@ -1190,8 +1210,7 @@ export function initSocket(token) {
       // Grupos: preencher nome_grupo quando vier na mensagem e o chat ainda não tiver
       const isGroup = msg?.isGroup || msg?.is_group || String(msg?.chatId ?? msg?.remoteJid ?? "").endsWith("@g.us")
       if (isGroup && nomeContato && String(nomeContato).trim() && String(nomeContato).toLowerCase() !== "name") {
-        const chats = chatStore.chats || []
-        const c = chats.find((x) => String(x.id) === String(conversaId))
+        const c = getChatByIdFromStore(conversaId, chatStore.chats)
         const nomeGrupoAtual = c?.nome_grupo
         if (!nomeGrupoAtual || !String(nomeGrupoAtual).trim() || String(nomeGrupoAtual).toLowerCase().startsWith("lid:")) {
           chatStore.updateChat({ id: conversaId, nome_grupo: nomeContato.trim(), is_group: true })
@@ -1220,8 +1239,7 @@ export function initSocket(token) {
       selectedConversationId: convStore.selectedId,
       currentPathname: typeof window !== "undefined" ? window.location?.pathname : "",
     })
-    const chatsLatest = chatStore.chats || []
-    const chatAtual = chatsLatest.find((c) => String(c.id) === String(conversaId))
+    const chatAtual = getChatByIdFromStore(conversaId)
     const myUserId = getCurrentUserId()
     const canNotifyForThisConversation = canNotifyByConversationOwnership(chatAtual, myUserId)
     if (notificationDecision.notify && canNotifyForThisConversation) {
@@ -1525,7 +1543,7 @@ export function initSocket(token) {
     emitMinhaFilaOptimisticMutation(payload)
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
-    const idx = chats.findIndex((c) => String(c.id) === String(id))
+    const idx = getChatsByIdIndex(chats).indexById.get(String(id)) ?? -1
     let listRowChanged = false
     if (idx < 0 && !isClosedAttendance(payload)) {
       listRowChanged = upsertModoSimplesListRowFromPayload(chatStore, payload, id) || listRowChanged
@@ -1667,7 +1685,7 @@ export function initSocket(token) {
     emitMinhaFilaOptimisticMutation(p, { authoritativeReopen: true })
     const chatStore = useChatStore.getState()
     const chats = chatStore.chats || []
-    const idx = chats.findIndex((c) => String(c.id) === String(p.id))
+    const idx = getChatsByIdIndex(chats).indexById.get(String(p.id)) ?? -1
     const closed = isClosedAttendance(p)
     let listRowChanged = false
     if (idx >= 0) {
@@ -1834,7 +1852,7 @@ export function initSocket(token) {
         const latestStore = useChatStore.getState()
         const view = getActiveChatListView()
         const closed = isClosedAttendance(chat)
-        const wasInList = (latestStore.chats || []).some((c) => String(c.id) === String(id))
+        const wasInList = !!getChatByIdFromStore(id, latestStore.chats)
         const canInsert = (!closed || getAdminAtendenteFilterScope(view) != null) && shouldInsertChatRowInActiveList(chat, view)
         if (wasInList) {
           latestStore.updateChat(chat)
@@ -1868,7 +1886,7 @@ export function initSocket(token) {
         const status = Number(err?.response?.status)
         if (status === 403 || status === 404) {
           const latestStore = useChatStore.getState()
-          const existing = (latestStore.chats || []).find((c) => String(c.id) === String(id))
+          const existing = getChatByIdFromStore(id, latestStore.chats)
           latestStore.removeChat(id)
           latestStore.emitChatListOptimisticMutation({
             id,

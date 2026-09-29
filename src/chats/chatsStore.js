@@ -1,7 +1,6 @@
 import { create } from "zustand"
 import {
   chatListsStoreEquivalent,
-  chatListIdsInOrder,
   chatRowStoreMergeUnchanged,
   ultimaMensagemPreviewEqual,
 } from "./chatListStoreCompare"
@@ -81,12 +80,16 @@ function patchUnreadMap(prevMap, conversaId, count) {
 }
 
 function syncUnreadRows(chats, map) {
-  return chats.map((row) => {
+  let mudou = false
+  const next = chats.map((row) => {
     if (row?.id == null) return row
     const count = Math.max(0, Number(map[String(row.id)]) || 0)
     if (row.unread_count === count && (row.unread == null || row.unread === count)) return row
+    mudou = true
     return { ...row, unread_count: count, ...(row.unread != null ? { unread: count } : {}) }
   })
+  // Sem linha alterada, preserva a referência do array — evita re-render/invalidations em cascata.
+  return mudou ? next : chats
 }
 
 function withUnreadTotal(chats, state) {
@@ -561,15 +564,9 @@ export const useChatStore = create((set, get) => ({
 
     applyNewerOptimisticMembershipTo(merged, partial, cur)
 
-    if (chatRowStoreMergeUnchanged(cur, merged)) {
-      const sortedProbe = sortConversasByRecent(next)
-      if (
-        chatListIdsInOrder(chats) === chatListIdsInOrder(sortedProbe) &&
-        chatListsStoreEquivalent(chats, sortedProbe)
-      ) {
-        return false
-      }
-    }
+    // Merge sem mudança visível: nada a aplicar. (O probe antigo ordenava a lista inteira
+    // só para concluir o mesmo "return false" — content igual ⇒ nenhum caminho abaixo altera o estado.)
+    if (chatRowStoreMergeUnchanged(cur, merged)) return false
 
     next[idx] = merged
     const tsUnchanged = getChatListSortTimestampMs(cur) === getChatListSortTimestampMs(merged)
@@ -644,26 +641,27 @@ export const useChatStore = create((set, get) => ({
      TAGS
   ========================================= */
   adicionarTag: (conversa_id, tag) =>
-    set((state) => withUnreadTotal(state.chats.map(c =>
+    set((state) => {
+      const cur = getChatByIdFromStore(conversa_id, state.chats)
+      // Noop: conversa fora da lista ou tag já presente — não recriar o array/linha.
+      if (!cur || (cur.tags || []).some((t) => String(t.id) === String(tag?.id))) return state
+      return withUnreadTotal(state.chats.map(c =>
         String(c.id) === String(conversa_id)
-          ? {
-              ...c,
-              tags: (c.tags || []).some((t) => String(t.id) === String(tag?.id))
-                ? (c.tags || [])
-                : [...(c.tags || []), tag]
-            }
+          ? { ...c, tags: [...(c.tags || []), tag] }
           : c
-      ), state)),
+      ), state)
+    }),
 
   removerTag: (conversa_id, tag_id) =>
-    set((state) => withUnreadTotal(state.chats.map(c =>
+    set((state) => {
+      const cur = getChatByIdFromStore(conversa_id, state.chats)
+      if (!cur || !(cur.tags || []).some((t) => String(t.id) === String(tag_id))) return state
+      return withUnreadTotal(state.chats.map(c =>
         String(c.id) === String(conversa_id)
-          ? {
-              ...c,
-              tags: (c.tags || []).filter(t => String(t.id) !== String(tag_id))
-            }
+          ? { ...c, tags: (c.tags || []).filter(t => String(t.id) !== String(tag_id)) }
           : c
-      ), state)),
+      ), state)
+    }),
 
   /* =========================================
      🔥 MENSAGEM / PREVIEW
@@ -792,6 +790,16 @@ export const useChatStore = create((set, get) => ({
 
   setUnread: (conversa_id, count) =>
     set((state) => {
+      const key = String(conversa_id)
+      const n = Math.max(0, Number(count) || 0)
+      // Noop: contagem já conhecida com o mesmo valor e rows já sincronizadas.
+      // Evita subir unreadRevision (que dispara GET /chats/counts?unread=1) sem mudança real.
+      if (
+        state.unreadById?.[key] === n &&
+        syncUnreadRows(state.chats, state.unreadById) === state.chats
+      ) {
+        return state
+      }
       const unreadById = patchUnreadMap(state.unreadById, conversa_id, count)
       return {
         unreadById,
@@ -819,10 +827,12 @@ export const useChatStore = create((set, get) => ({
      🔥 REMOVER CHAT (opcional futuro)
   ========================================= */
   removeChat: (conversa_id) =>
-    set((state) => withUnreadTotal(
-      state.chats.filter(c => String(c.id) !== String(conversa_id)),
-      state
-    )),
+    set((state) => {
+      const next = state.chats.filter(c => String(c.id) !== String(conversa_id))
+      // Noop: id não estava na lista — evita recriar o array e re-renderizar assinantes.
+      if (next.length === state.chats.length) return state
+      return withUnreadTotal(next, state)
+    }),
 
   /* =========================================
      RESET

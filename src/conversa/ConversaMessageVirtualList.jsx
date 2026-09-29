@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { getMessageListReactKey } from "./conversaStore";
 // Profiler de scroll — só é referenciado dentro de blocos `import.meta.env.DEV`,
@@ -74,17 +74,29 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
   const flushContentResizeRef = useRef(null);
   const count = Array.isArray(items) ? items.length : 0;
 
+  // Identidade estável: getItemKey/estimateSize entram nas deps do memo de medidas do
+  // @tanstack/virtual-core. Arrows inline novas a cada render invalidavam o memo e
+  // recalculavam as posições de TODAS as linhas em cada render (inclusive durante o scroll).
+  const getItemKey = useCallback(
+    (index) => getVirtualRowKey(items[index], index, conversaId),
+    [items, conversaId]
+  );
+  const estimateSize = useCallback(
+    (index) => estimateThreadRowSize(items[index], mobileThread),
+    [items, mobileThread]
+  );
+
   const virtualizer = useVirtualizer({
     count,
     getScrollElement: () => scrollRef?.current ?? null,
-    estimateSize: (index) => estimateThreadRowSize(items[index], mobileThread),
+    estimateSize,
     overscan,
     scrollMargin,
     scrollPaddingStart: 12,
     scrollPaddingEnd: 16,
     isScrollingResetDelay: mobileThread ? 280 : 200,
     useAnimationFrameWithResizeObserver: mobileThread,
-    getItemKey: (index) => getVirtualRowKey(items[index], index, conversaId),
+    getItemKey,
   });
 
   // DEV: ref estável que mede a linha e registra o delta estimativa×altura real.
@@ -314,8 +326,16 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
       scrollEl.removeEventListener("scroll", onScroll);
       window.clearTimeout(scrollEndTimer);
       scrollEl.classList.remove("is-scrolling");
+      // Sem isto, um re-bind no meio do scroll deixava isScrollingRef=true sem timer:
+      // o flush de margem/resize pendente ficava preso até o próximo gesto de scroll.
+      if (isScrollingRef.current) {
+        isScrollingRef.current = false;
+        flushResizeAfterScroll();
+      }
     };
-  }, [scrollRef, onVirtualContentResize, mobileThread]);
+    // `onVirtualContentResize` não é usado aqui — mantê-lo nas deps re-registrava o
+    // listener exatamente ao terminar o carregamento de histórico (loadingMore muda).
+  }, [scrollRef, mobileThread]);
 
   const prevCountRef = useRef(0);
   useLayoutEffect(() => {

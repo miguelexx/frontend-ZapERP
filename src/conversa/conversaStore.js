@@ -218,17 +218,38 @@ const conversaMensagensCache = new Map()
 const CONVERSA_MENSAGENS_CACHE_MAX = 48
 const CONVERSA_MENSAGENS_CACHE_TTL_MS = 20 * 60 * 1000
 
+/**
+ * Ao despejar uma entrada do cache, libera os blob URLs de mídia otimista que ela ainda
+ * segura — sem isso, cada foto/áudio/vídeo enviado ficava com o Blob preso na RAM até
+ * fechar a aba. Não revoga os da conversa ABERTA (ainda podem estar pintados na thread).
+ */
+function revokeBlobsFromEvictedCacheEntry(key, entry) {
+  let openId = null
+  try {
+    openId = useConversaStore.getState().selectedId
+  } catch {
+    openId = null
+  }
+  if (openId != null && String(openId) === String(key)) return
+  const mensagens = entry?.mensagens
+  if (!Array.isArray(mensagens)) return
+  for (const m of mensagens) revokeOptimisticBlobFromMessage(m)
+}
+
 function trimConversaMensagensCache() {
   const now = Date.now()
   for (const [key, entry] of conversaMensagensCache) {
     if (now - (entry.savedAt || 0) > CONVERSA_MENSAGENS_CACHE_TTL_MS) {
       conversaMensagensCache.delete(key)
+      revokeBlobsFromEvictedCacheEntry(key, entry)
     }
   }
   while (conversaMensagensCache.size > CONVERSA_MENSAGENS_CACHE_MAX) {
     const oldest = conversaMensagensCache.keys().next().value
     if (oldest == null) break
+    const entry = conversaMensagensCache.get(oldest)
     conversaMensagensCache.delete(oldest)
+    revokeBlobsFromEvictedCacheEntry(oldest, entry)
   }
 }
 
@@ -239,6 +260,7 @@ function readConversaMensagensCache(conversaId) {
   if (!entry) return null
   if (Date.now() - (entry.savedAt || 0) > CONVERSA_MENSAGENS_CACHE_TTL_MS) {
     conversaMensagensCache.delete(key)
+    revokeBlobsFromEvictedCacheEntry(key, entry)
     return null
   }
   if (!entry.mensagens?.length) return null
@@ -247,6 +269,9 @@ function readConversaMensagensCache(conversaId) {
 }
 
 export function clearConversaSessionCaches() {
+  for (const [key, entry] of conversaMensagensCache) {
+    revokeBlobsFromEvictedCacheEntry(key, entry)
+  }
   conversaMensagensCache.clear()
   MEMORY_USER_CACHE = null
   MEMORY_USER_CACHE_TS = 0
@@ -2113,6 +2138,9 @@ export const useConversaStore = create((set, get) => {
       set({ atendimentosLoading: true })
       try {
         const data = await listarAtendimentos(id)
+        // Guard de obsolescência: se o atendente trocou de conversa durante o GET,
+        // o histórico antigo não pode sobrescrever o da conversa atual.
+        if (String(get().selectedId ?? "") !== String(id)) return
         set({
           atendimentos: data || [],
           atendimentosLoading: false,
@@ -2120,7 +2148,7 @@ export const useConversaStore = create((set, get) => {
         })
       } catch (err) {
         console.error("Erro ao carregar histórico de atendimentos:", err)
-        set({ atendimentosLoading: false })
+        if (String(get().selectedId ?? "") === String(id)) set({ atendimentosLoading: false })
       }
     },
 

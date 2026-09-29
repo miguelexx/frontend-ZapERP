@@ -42,7 +42,11 @@ export function useWhatsappInstanceStatus(isMobileLayout) {
     // O status era lido UMA vez, ao montar. Depois de reconectar o WhatsApp o banner
     // "mensagens não serão entregues" continuava na tela até o atendente dar F5 — e, ao
     // contrário, uma queda no meio do expediente nunca aparecia. Agora revalida sozinho.
-    const intervalo = setInterval(checar, ZAPI_STATUS_REFRESH_MS);
+    const intervalo = setInterval(() => {
+      // Aba oculta: pausa o poll — o handler de foco abaixo revalida assim que o atendente volta.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      checar();
+    }, ZAPI_STATUS_REFRESH_MS);
 
     // Voltar para a aba é o momento em que o atendente olha a tela: revalida na hora,
     // com trava para não disparar a cada alternância de janela.

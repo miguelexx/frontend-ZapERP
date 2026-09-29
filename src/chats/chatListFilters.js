@@ -6,8 +6,8 @@ import {
   isModoSimplesAguardandoAtendente,
   isModoSimplesAguardandoCliente,
 } from "../utils/conversaUtils";
-import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatListByRecent, sortChatRowsBySearchRelevance, compareChatRowIdDesc } from "./chatListRowAtendimento";
-import { chatListsStoreEquivalent, chatListIdsInOrder } from "./chatListStoreCompare";
+import { getLastMessage, isConversaAguardandoFuncionario, getChatListSortTimestampMs, sortChatRowsBySearchRelevance, compareChatRowIdDesc } from "./chatListRowAtendimento";
+import { chatListsStoreEquivalent } from "./chatListStoreCompare";
 import { chatRowIsStaleForTab, conversaPertenceAMinhaFila, getAdminAtendenteFilterScope, rowMatchesPublishedListFilters } from "./chatListQueryHelpers";
 import { viewerCanSeeConversationRow } from "../conversa/utils/conversaAccessHelpers";
 import { buildChatListFiltersScopeKey } from "./chatListFiltersData";
@@ -33,11 +33,26 @@ export function normalizeNameSearchKey(v) {
   return foldAccents(v).replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+/**
+ * Cache de 1 entrada para a chave do TERMO: numa passada de filtro o termo é o mesmo
+ * para todas as linhas × ~10 campos — sem isto o NFD + regex rodava dezenas de milhares
+ * de vezes por tecla digitada.
+ */
+let lastTermRaw = null;
+let lastTermKey = "";
+function termSearchKey(rawTerm) {
+  if (rawTerm === lastTermRaw) return lastTermKey;
+  lastTermRaw = rawTerm;
+  lastTermKey = normalizeNameSearchKey(rawTerm);
+  return lastTermKey;
+}
+
 /** Busca no começo do nome ou de uma palavra, nunca no meio dela. */
 export function nameMatchesWordPrefix(value, rawTerm) {
+  const termKey = termSearchKey(rawTerm);
+  if (!termKey) return false;
   const nameKey = normalizeNameSearchKey(value);
-  const termKey = normalizeNameSearchKey(rawTerm);
-  if (!nameKey || !termKey) return false;
+  if (!nameKey) return false;
   return nameKey.startsWith(termKey) || nameKey.includes(` ${termKey}`);
 }
 
@@ -550,7 +565,11 @@ export function computeChatsFiltrados({
   }
 
   // ordenação: apenas por data (mais recente no topo) — contador de não lidas no item não altera a ordem
-  list.sort((a, b) => {
+  // Decorate-sort-undecorate: o timestamp (vários parses de data) é calculado 1× por linha.
+  const decorated = list.map((c) => ({ c, ts: getChatListSortTimestampMs(c) }));
+  decorated.sort((x, y) => {
+    const a = x.c;
+    const b = y.c;
     const aPinned = a?.fixada === true ? 1 : 0;
     const bPinned = b?.fixada === true ? 1 : 0;
     if (aPinned !== bPinned) return bPinned - aPinned;
@@ -561,14 +580,12 @@ export function computeChatsFiltrados({
       const nb = (b.contato_nome || "").toString().toLowerCase();
       return na.localeCompare(nb);
     }
-    const aTs = getChatListSortTimestampMs(a);
-    const bTs = getChatListSortTimestampMs(b);
-    if (aTs !== bTs) return order === "antigas" ? aTs - bTs : bTs - aTs;
+    if (x.ts !== y.ts) return order === "antigas" ? x.ts - y.ts : y.ts - x.ts;
     // Empate de atividade → desempate estável por id (mesma ordem no ao vivo e no GET).
     return compareChatRowIdDesc(a, b);
   });
 
-  return list;
+  return decorated.map((d) => d.c);
 }
 
 function setsHaveSameIds(a, b) {
@@ -632,11 +649,6 @@ export function areChatListUiFilterDepsEqual(a, b) {
   );
 }
 
-function chatListSortOrderKey(chats) {
-  if (!Array.isArray(chats) || !chats.length) return "";
-  return chatListIdsInOrder(sortChatListByRecent(chats));
-}
-
 function canReuseFilteredChatList(cache, params) {
   if (!cache?.list) return false;
   if (!areChatListUiFilterDepsEqual(cache.ui, buildChatListUiFilterDeps(params))) return false;
@@ -677,9 +689,6 @@ export function computeChatsFiltradosCached(cacheRef, params) {
     list,
     ui: buildChatListUiFilterDeps(params),
     chats: params.chats,
-    // Memoizado junto: `chats` não muda dentro desta entrada, então o sort-order-key também não.
-    // Evita reordenar o array do cache em toda verificação de reuso (ver canReuseFilteredChatList).
-    sortOrderKey: chatListSortOrderKey(params.chats),
     minhaFilaList: params.minhaFilaList,
     pendentesFuncionarioSet: params.pendentesFuncionarioSet,
     conversaIdsPendenciaAtiva: params.conversaIdsPendenciaAtiva,

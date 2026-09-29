@@ -8,6 +8,10 @@
 - Reconnect “awake”: `focus`, `online`, `pageshow`, `visibilitychange` → `connect()`; `pagehide` → `disconnect`
 - **INFERÊNCIA:** `reconnection` default do client permanece `true`
 
+**Recovery só a partir da 2ª conexão (2026-09-29):** o `connect` inicial (login/F5) NÃO chama `reconnectRecovery.request()` — o boot HTTP já busca lista/counts/thread e o request duplicava esses GETs. Flag `hadFirstConnect` no closure de `initSocket`. Reconexões reais continuam recuperando normalmente.
+
+**Auth snapshot cacheado (2026-09-29):** `getCurrentUserSnapshot`/`getCurrentCompanyId`/`getCurrentUserRole`/`isEmpresaModoSimplesAtivoCliente` só re-parseiam o JSON quando a STRING do `localStorage` muda — todo handler (inclusive `onAny`) consulta isso por evento. `updateDocumentTitleFromChats` usa `setTimeout` quando a aba está oculta (rAF pausa em background e o `(N)` do título congelava justamente quando importa). `unreadSnapshotSync` roda com `delayMs: 1000` (definido no call site).
+
 **Recuperação HTTP (2026-09-02):** `reconnectRecovery.js` agrupa conexões numa janela fixa de 600 ms, com intervalo mínimo de 2,5 s entre inícios. Lista e snapshot de não lidas continuam sendo recuperados; refresh da thread é serializado e usa a seleção atual. Reconexão durante um refresh gera uma recuperação posterior, sem cancelar/reiniciar o mesmo GET a cada `connect`. `disconnect` suspende timers e logout/troca de token cancela pendências. Entrada nas rooms permanece imediata. O debounce de resync da store cancela ambos os timers ao descarregar, evitando um segundo nonce pelo max-wait.
 
 ## Rooms / emits

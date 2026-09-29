@@ -35,6 +35,13 @@ export function useChatListResync({
   const coalesceTimerRef = useRef(null);
   const pendingResyncCountRef = useRef(0);
   const firstPendingAtRef = useRef(0);
+  // Nonce já processado: o efeito re-executa quando QUALQUER dep muda (ex.: cada busca/filtro
+  // recria refreshChatFilterCounts) e, sem este guard, o MESMO nonce contava como evento novo —
+  // gerando GET /chats + /chats/counts "fantasmas". Inicializa com o nonce atual: eventos
+  // anteriores ao mount já são cobertos pelo load() inicial da lista.
+  const lastHandledNonceRef = useRef(useChatStore.getState().chatListResyncNonce || 0);
+  const refreshCountsRef = useRef(refreshChatFilterCounts);
+  refreshCountsRef.current = refreshChatFilterCounts;
 
   useEffect(() => {
     return () => {
@@ -54,6 +61,8 @@ export function useChatListResync({
   const chatListResyncNonce = useChatStore((s) => s.chatListResyncNonce);
   useEffect(() => {
     if (!chatListResyncNonce) return;
+    if (chatListResyncNonce === lastHandledNonceRef.current) return;
+    lastHandledNonceRef.current = chatListResyncNonce;
     const forceResync = useChatStore.getState().chatListResyncForce === true;
     if (forceResync) {
       useChatStore.setState({ chatListResyncForce: false });
@@ -81,7 +90,7 @@ export function useChatListResync({
     // Ações do próprio usuário (assumir/encerrar/transferir) → reconciliar já.
     if (forceResync) {
       runListLoad();
-      void refreshChatFilterCounts({ silent: true });
+      void refreshCountsRef.current({ silent: true });
       return;
     }
 
@@ -100,7 +109,7 @@ export function useChatListResync({
 
     if (reachedCount || waitedLong) {
       runListLoad();
-      void refreshChatFilterCounts({ silent: true });
+      void refreshCountsRef.current({ silent: true });
       return;
     }
 
@@ -111,18 +120,15 @@ export function useChatListResync({
       coalesceTimerRef.current = setTimeout(() => {
         coalesceTimerRef.current = null;
         runListLoad();
-        void refreshChatFilterCounts({ silent: true });
+        void refreshCountsRef.current({ silent: true });
       }, delay);
     }
   }, [
     chatListResyncNonce,
-    refreshChatFilterCounts,
     filterScopeKey,
-    atendimentoModoSimples,
     loadRef,
     loadInFlightRef,
     loadQueuedRef,
-    lastLoadFinishedAtRef,
     tabRef,
   ]);
 

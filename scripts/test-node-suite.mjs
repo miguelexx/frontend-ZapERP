@@ -24,6 +24,7 @@ const tests = [
   "test-chat-list-fetch-params.mjs",
   "test-chat-list-admin-scope.mjs",
   "test-unread-and-minha-fila.mjs",
+  "test-minha-fila-strict.mjs",
   "test-search-status-media.mjs",
   "test-cache-reconnect.mjs",
   "test-chat-media-display.mjs",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addGrupoParticipante,
   approveGrupoSolicitacao,
@@ -25,18 +25,23 @@ export function useGroupWhatsapp({ open, conversaId, showToast }) {
   const [invite, setInvite] = useState(null);
   const [apps, setApps] = useState([]);
 
+  const loadSeqRef = useRef(0);
   const load = useCallback(async (resync = false) => {
     if (!conversaId) return;
+    // Guard de corrida: resposta de um grupo anterior não pode sobrescrever o atual.
+    const reqId = ++loadSeqRef.current;
     setLoading(true);
     try {
       const data = await getGrupoWhatsapp(conversaId, { resync });
+      if (reqId !== loadSeqRef.current) return;
       setGrupo(data || null);
     } catch (e) {
+      if (reqId !== loadSeqRef.current) return;
       setGrupo(null);
       const msg = e?.response?.data?.error || e?.message;
       showToast?.({ type: "error", title: "Grupo", message: msg || "Não foi possível carregar os dados do grupo." });
     } finally {
-      setLoading(false);
+      if (reqId === loadSeqRef.current) setLoading(false);
     }
   }, [conversaId, showToast]);
 

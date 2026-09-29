@@ -112,7 +112,10 @@ import { useShareContact } from "./hooks/useShareContact";
 import { useShareLocation } from "./hooks/useShareLocation";
 import { useSendPoll } from "./hooks/useSendPoll";
 import { useSendCatalog } from "./hooks/useSendCatalog";
-import CatalogPickerModal from "./components/CatalogPickerModal";
+import { Suspense } from "react";
+import { lazyWithRetry } from "../runtime/lazyWithRetry";
+// Lazy como os demais modais (ConversaViewOverlays): fora do chunk crítico da thread.
+const CatalogPickerModal = lazyWithRetry(() => import("./components/CatalogPickerModal"));
 import useContactPresence from "./hooks/useContactPresence";
 import { formatContactPresenceLabel } from "./utils/contactPresenceFormat";
 import ConversaSelectionBar from "./components/ConversaSelectionBar";
@@ -172,18 +175,28 @@ function ConversaViewBody() {
   const selectedId = useConversaStore((s) => s.selectedId);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
 
-  /** Só a entrada da conversa atual — não re-renderiza quando outro chat recebe typing_start. */
-  const typingInfo = useConversaStore((s) => {
+  /** Só a entrada da conversa atual — e como CHAVE primitiva: setTyping cria um objeto novo
+   *  a cada typing_start, e devolver o objeto re-renderizava o coordenador inteiro por evento. */
+  const typingKey = useConversaStore((s) => {
     const id = s.conversa?.id ?? s.selectedId;
-    if (id == null || id === "") return null;
-    return s.typing[String(id)] ?? null;
+    if (id == null || id === "") return "";
+    const t = s.typing[String(id)];
+    if (!t) return "";
+    return `${t.usuario_id ?? ""}|${t.expiresAt == null || t.expiresAt > Date.now() ? 1 : 0}`;
   });
 
-  const contactPresence = useConversaStore((s) => {
-    const id = s.conversa?.id ?? s.selectedId;
-    if (id == null || id === "") return null;
-    return s.contactPresence?.[String(id)] ?? null;
-  });
+  /** Presença já formatada em primitivos + igualdade por valor — `updatedAt` novo no payload
+   *  não re-renderiza se o rótulo exibido não mudou. */
+  const contactPresenceFmt = useConversaStore(
+    (s) => {
+      const id = s.conversa?.id ?? s.selectedId;
+      const p = id == null || id === "" ? null : s.contactPresence?.[String(id)] ?? null;
+      return formatContactPresenceLabel(p);
+    },
+    (a, b) =>
+      a === b ||
+      (!!a && !!b && a.text === b.text && a.kind === b.kind && Boolean(a.animate) === Boolean(b.animate))
+  );
 
   const {
     refresh,
@@ -637,18 +650,16 @@ function ConversaViewBody() {
     recordingActiveRef,
   });
 
+  const typingKeySep = typingKey.lastIndexOf("|");
+  const typingUserId = typingKeySep >= 0 ? typingKey.slice(0, typingKeySep) : "";
+  const typingNotExpired = typingKeySep >= 0 && typingKey.slice(typingKeySep + 1) === "1";
   const isSomeoneTyping = Boolean(
-    typingInfo &&
-    (myUserId == null || String(typingInfo.usuario_id ?? "") !== String(myUserId)) &&
-    (typingInfo.expiresAt == null || typingInfo.expiresAt > Date.now())
+    typingKey &&
+    typingNotExpired &&
+    (myUserId == null || typingUserId !== String(myUserId))
   );
 
   const isGroup = useMemo(() => isGroupConversation(conversa), [conversa]);
-
-  const contactPresenceFmt = useMemo(
-    () => formatContactPresenceLabel(contactPresence),
-    [contactPresence]
-  );
 
   const podeAdicionarAtendente =
     ["admin", "supervisor", "atendente"].includes(userRole) &&
@@ -688,6 +699,17 @@ function ConversaViewBody() {
 
   const whatsappInstanceProvider =
     conversa?.whatsapp_instance_provider ?? fromChat?.whatsapp_instance_provider ?? null;
+
+  // Identidade estável: objeto inline aqui quebrava o memo do ConversaHeader em TODO render
+  // do coordenador (typing, toast, envio...).
+  const labelsInstanceId = conversa?.whatsapp_instance_id ?? fromChat?.whatsapp_instance_id;
+  const labelsChat = conversa?.telefone ?? fromChat?.telefone;
+  const whatsappLabelsContext = useMemo(
+    () => ({ instanceId: labelsInstanceId, chat: labelsChat }),
+    [labelsInstanceId, labelsChat]
+  );
+
+  const closeToast = useCallback(() => setToast(null), [setToast]);
 
   useContactPresence({
     conversaId,
@@ -2138,8 +2160,10 @@ function ConversaViewBody() {
   }, [showToast, startSelect, setForwardSelectIntent]);
 
   const handleForwardAdvance = useCallback(() => {
-    openForwardFromSelection(orderedSelectedIds, mensagens);
-  }, [openForwardFromSelection, orderedSelectedIds, mensagens]);
+    // Lê a lista na hora do clique: `mensagens` nas deps recriava o callback a cada
+    // mensagem nova e re-renderizava a barra de seleção (memo) sem necessidade.
+    openForwardFromSelection(orderedSelectedIds, useConversaStore.getState().mensagens);
+  }, [openForwardFromSelection, orderedSelectedIds]);
 
   const handleDeleteForMe = useCallback(
     async (msg) => {
@@ -2325,7 +2349,10 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     const rid = safeString(replyToId);
     if (!rid) return;
 
-    const list = Array.isArray(mensagens) ? mensagens : [];
+    // Lê a lista atual da store no momento do clique. Com `mensagens` nas deps, as bolhas
+    // guardavam um jumpToReply com lista DESATUALIZADA (threadRowPropsAreEqual não compara
+    // callbacks) — o salto falhava para mensagens carregadas depois via loadMore.
+    const list = useConversaStore.getState().mensagens || [];
     const byWaId = list.find((m) => safeString(m?.whatsapp_id) && String(m.whatsapp_id) === rid);
     if (byWaId?.id) return scrollToMsg(byWaId.id);
 
@@ -2337,7 +2364,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
       title: "Mensagem não encontrada",
       message: "A mensagem respondida não está carregada neste histórico.",
     });
-  }, [mensagens, scrollToMsg, showToast]);
+  }, [scrollToMsg, showToast]);
 
   /** Fecha modal de encaminhar (se aberto) e sai do modo seleção — botão X estilo WhatsApp. */
   const dismissSelectionOverlay = useCallback(() => {
@@ -2432,7 +2459,8 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   ]);
 
   useGlobalHotkeys({
-    onToggleTimeline: () => setShowTimeline((v) => !v),
+    // Callback estável: a arrow inline re-registrava o listener global de keydown a cada render.
+    onToggleTimeline: toggleTimeline,
     onFocusInput: focusMessageInput,
     onEscape,
     disabled: loading,
@@ -2493,11 +2521,6 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     () => buildMensagensComSeparadores(mensagens, isGroup),
     [mensagens, isGroup]
   );
-  const hasThreadMessageRows = useMemo(
-    () => mensagensComSeparadores.some((item) => item?.__type === "msg"),
-    [mensagensComSeparadores]
-  );
-
   useLayoutEffect(() => {
     mensagensComSeparadoresRef.current = mensagensComSeparadores;
   }, [mensagensComSeparadores]);
@@ -2835,16 +2858,13 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           onOpenClienteSide={handleOpenClienteSide}
           onOpenMessageSearch={openMessageSearch}
           whatsappInstanceLabel={whatsappInstanceLabel}
-          whatsappLabelsContext={{
-            instanceId: conversa?.whatsapp_instance_id ?? fromChat?.whatsapp_instance_id,
-            chat: conversa?.telefone ?? fromChat?.telefone,
-          }}
+          whatsappLabelsContext={whatsappLabelsContext}
           clienteSideOpen={showClienteSide}
         />
 
         <ConversaViewOverlays
           toast={toast}
-          onToastClose={() => setToast(null)}
+          onToastClose={closeToast}
           messageSearchOpen={messageSearchOpen}
           conversaId={conversaId}
           closeMessageSearch={closeMessageSearch}
@@ -3179,18 +3199,22 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           onSendInternalNote={handleAdicionarNotaInterna}
         />
 
-        <CatalogPickerModal
-          open={catalogOpen}
-          products={catalogProducts}
-          loading={catalogLoading}
-          error={catalogError}
-          sendingId={catalogSendingId}
-          sendingCatalog={sendingCatalog}
-          onClose={closeCatalog}
-          onReload={reloadCatalog}
-          onSendProduct={sendCatalogProduct}
-          onSendCatalogLink={sendCatalogLink}
-        />
+        {catalogOpen && (
+          <Suspense fallback={null}>
+            <CatalogPickerModal
+              open={catalogOpen}
+              products={catalogProducts}
+              loading={catalogLoading}
+              error={catalogError}
+              sendingId={catalogSendingId}
+              sendingCatalog={sendingCatalog}
+              onClose={closeCatalog}
+              onReload={reloadCatalog}
+              onSendProduct={sendCatalogProduct}
+              onSendCatalogLink={sendCatalogLink}
+            />
+          </Suspense>
+        )}
 
     </div>
   );
@@ -3198,11 +3222,13 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
 
 /** Gate leve: não monta o painel pesado durante loading (crítico no mobile + aba Todas). */
 export default function ConversaView() {
-  const { loading, selectedId, conversa, loadError, carregarConversa } = useConversaStore(
+  // `hasConversa` booleano em vez do objeto: o gate só precisa saber se existe —
+  // assinar o objeto re-renderizava o wrapper a cada patchConversa.
+  const { loading, selectedId, hasConversa, loadError, carregarConversa } = useConversaStore(
     (s) => ({
       loading: s.loading,
       selectedId: s.selectedId,
-      conversa: s.conversa,
+      hasConversa: !!s.conversa,
       loadError: s.loadError,
       carregarConversa: s.carregarConversa,
     }),
@@ -3236,7 +3262,7 @@ export default function ConversaView() {
   }
 
   /* conversa já vem da lista no carregarConversa — monta o painel e mostra "Carregando mensagens…" no thread. */
-  if (headerCompact && loading && !conversa) {
+  if (headerCompact && loading && !hasConversa) {
     return <ConversaLoadingScreen />;
   }
 

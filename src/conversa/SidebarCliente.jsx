@@ -333,8 +333,13 @@ export default function SidebarCliente({
     setNomeContatoBase(nome);
   }, [conversa?.id]);
 
+  const loadClienteSeqRef = useRef(0);
   const loadCliente = useCallback(async () => {
     if (!open || isGroup) return;
+    // Guard de corrida: trocar de conversa com o painel aberto podia deixar a resposta
+    // ANTIGA chegar depois da nova e preencher o formulário com o cliente errado
+    // (risco de salvar observações/nome no cadastro errado, não só de render).
+    const reqId = ++loadClienteSeqRef.current;
     if (!clienteId) {
       setCliente(null);
       return;
@@ -358,14 +363,16 @@ export default function SidebarCliente({
         c = arr.find((x) => String(x?.id) === String(clienteId)) || null;
       }
 
+      if (reqId !== loadClienteSeqRef.current) return;
       setCliente(c);
       hydrateFromCliente(c || {});
     } catch (e) {
+      if (reqId !== loadClienteSeqRef.current) return;
       console.error("Erro ao carregar cliente:", e);
       setCliente(null);
       // mantém valores atuais (não quebra a UI)
     } finally {
-      setClienteLoading(false);
+      if (reqId === loadClienteSeqRef.current) setClienteLoading(false);
     }
   }, [open, isGroup, clienteId, conversa?.id, conversa?.cliente_telefone, conversa?.telefone, conversa?.cliente?.telefone, hydrateFromCliente]);
 

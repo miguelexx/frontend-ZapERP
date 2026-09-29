@@ -334,9 +334,22 @@ export function normalizeTelefone(v) {
 }
 
 /** Badge do header: em_atendimento, fechada ou Aberta (só se exibir_badge_aberta). */
+// Identidade estável por variante: o resultado é 100% derivado de (status, aberta, ausência).
+// Sem cache, cada recomputo devolvia literais novos e quebrava o memo do ConversaHeader
+// a cada mensagem/tick de status.
+const statusBadgeCache = new Map();
+
 export function statusBadge(status, exibirBadgeAberta, finalizacaoMotivo) {
-  const s = safeString(status).toLowerCase();
-  const ausencia = safeString(finalizacaoMotivo).toLowerCase() === "ausencia_cliente";
+  const sKey = safeString(status).toLowerCase();
+  const ausenciaKey = safeString(finalizacaoMotivo).toLowerCase() === "ausencia_cliente";
+  const cacheKey = `${sKey}|${ausenciaKey ? 1 : 0}|${exibirBadgeAberta === true ? 1 : 0}`;
+  if (statusBadgeCache.has(cacheKey)) return statusBadgeCache.get(cacheKey);
+  const badge = computeStatusBadge(sKey, exibirBadgeAberta, ausenciaKey);
+  statusBadgeCache.set(cacheKey, badge);
+  return badge;
+}
+
+function computeStatusBadge(s, exibirBadgeAberta, ausencia) {
   if (s === "aguardando_atendente") {
     return {
       text: "Aguardando atendente",

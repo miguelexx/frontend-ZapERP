@@ -63,7 +63,10 @@ function getUserInitial(user) {
 
 export default function MainLayout() {
   const navigate = useNavigate();
-  const { logout, user } = useAuthStore();
+  // Selectors atômicos: desestruturar o hook inteiro re-renderizava o layout raiz
+  // a cada mudança de `loading` do auth.
+  const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
   const isMobileBottomNav = useMatchMedia("(max-width: 768px)");
   // `unreadTotal` já é a contagem canônica reconciliada pelo snapshot do
   // servidor. Evita percorrer todas as linhas a cada evento/atualização do

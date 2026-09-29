@@ -66,6 +66,24 @@ function chatRowNeedsMinuteTick(c, pendentesFuncionarioSet) {
 }
 
 export function chatRowPropsAreEqual(prev, next) {
+  // Fast-path: todas as props idênticas por referência ⇒ iguais por definição.
+  // Evita reconstruir as chaves pesadas (getContactDisplay, preview, datas) para as
+  // ~N linhas visíveis a cada render do container quando nada mudou.
+  if (
+    prev.chat === next.chat &&
+    prev.pendentesFuncionarioSet === next.pendentesFuncionarioSet &&
+    prev.minuteTick === next.minuteTick &&
+    prev.active === next.active &&
+    prev.isMenuOpen === next.isMenuOpen &&
+    prev.onSelect === next.onSelect &&
+    prev.onOpenClienteSemConversa === next.onOpenClienteSemConversa &&
+    prev.onToggleMenu === next.onToggleMenu &&
+    prev.currentUserId === next.currentUserId &&
+    prev.currentUserName === next.currentUserName &&
+    prev.showWhatsappInstanceUi === next.showWhatsappInstanceUi
+  ) {
+    return true;
+  }
   if (prev.showWhatsappInstanceUi !== next.showWhatsappInstanceUi) return false;
   const a = prev.chat || {};
   const b = next.chat || {};

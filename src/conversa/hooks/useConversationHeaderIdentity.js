@@ -25,7 +25,9 @@ export function useConversationHeaderIdentity({
 }) {
   const fromChat = useChatStore(
     (s) => getChatByIdFromStore(conversaId, s.chats),
-    (a, b) => chatRowListStoreKey(a) === chatRowListStoreKey(b)
+    // Atalho por identidade: sem ele, cada `set` do chatStore (evento de QUALQUER conversa)
+    // montava duas chaves de ~38 campos só para concluir que a row não mudou.
+    (a, b) => a === b || chatRowListStoreKey(a) === chatRowListStoreKey(b)
   );
 
   const showWhatsappInstanceUi = useWhatsappInstancesStore((s) => s.hasMultiple);

@@ -90,6 +90,7 @@ import {
   shouldRemoveChatFromViewerList,
   shouldInsertChatRowInActiveList,
   isClosedAttendancePatch,
+  conversaPertenceAMinhaFila,
   getOptimisticRemovedRow,
   pruneExpiredOptimisticRemoved,
   sortChatRowsByOrder,
@@ -554,6 +555,7 @@ export default function ChatList() {
 
   const lastCountsFetchedAtRef = useRef(0);
   const lastCountsParamsKeyRef = useRef("");
+  const countsInFlightKeyRef = useRef(null);
   const refreshChatFilterCounts = useCallback(async (opts = {}) => {
     const params = buildCountsQueryParams({
       tagFilter,
@@ -574,6 +576,12 @@ export default function ChatList() {
     ) {
       return;
     }
+    // Mesmo GET já em voo: reaproveita em vez de abortar e recomeçar (o servidor processa
+    // requests abortadas mesmo assim — abortar aqui só duplicava a carga).
+    if (opts.reuseIfFresh === true && countsInFlightKeyRef.current === paramsKey) {
+      return;
+    }
+    countsInFlightKeyRef.current = paramsKey;
     const requestId = ++countsRequestIdRef.current;
     countsAbortRef.current?.abort();
     const controller = new AbortController();
@@ -583,6 +591,7 @@ export default function ChatList() {
         signal: controller.signal,
         silent: opts.silent === true,
       });
+      if (requestId === countsRequestIdRef.current) countsInFlightKeyRef.current = null;
       if (requestId !== countsRequestIdRef.current) return;
       lastCountsFetchedAtRef.current = Date.now();
       lastCountsParamsKeyRef.current = paramsKey;
@@ -594,6 +603,7 @@ export default function ChatList() {
         });
       }
     } catch (e) {
+      if (requestId === countsRequestIdRef.current) countsInFlightKeyRef.current = null;
       if (isAbortError(e)) return;
       if (import.meta.env?.DEV && opts.silent !== true) {
         console.warn("Contadores de conversas indisponiveis; mantendo valores atuais.", e);
@@ -609,10 +619,20 @@ export default function ChatList() {
     whatsappInstanceFilter,
   ]);
 
+  // Preserva a identidade do array quando os ids não mudaram: um array novo a cada poll de 30s
+  // recriava o Set derivado, quebrava o memo de TODAS as rows e re-estimava o virtualizador.
+  const setPendentesFuncionarioIdsIfChanged = useCallback((ids) => {
+    setPendentesFuncionarioIds((prev) => {
+      const prevArr = Array.isArray(prev) ? prev : [];
+      if (prevArr.length === ids.length && prevArr.every((v, i) => v === ids[i])) return prev;
+      return ids;
+    });
+  }, []);
+
   const refreshSupervisaoData = useCallback(async () => {
     if (!isSupervisorOrAdmin(user)) {
       setSupervisaoResumo(null);
-      setPendentesFuncionarioIds([]);
+      setPendentesFuncionarioIdsIfChanged([]);
       return;
     }
     try {
@@ -623,12 +643,13 @@ export default function ChatList() {
       setSupervisaoResumo(resumoData || {});
       const ids = (Array.isArray(pendentesData) ? pendentesData : [])
         .map((item) => String(item?.conversa_id ?? item?.conversaId ?? ""))
-        .filter(Boolean);
-      setPendentesFuncionarioIds(ids);
+        .filter(Boolean)
+        .sort();
+      setPendentesFuncionarioIdsIfChanged(ids);
     } catch {
-      setPendentesFuncionarioIds([]);
+      setPendentesFuncionarioIdsIfChanged([]);
     }
-  }, [user]);
+  }, [user, setPendentesFuncionarioIdsIfChanged]);
 
   /** Primeira carga de supervisão vem após GET principal (runSecondaryRefreshes); aqui só o polling periódico. */
   useEffect(() => {
@@ -637,6 +658,8 @@ export default function ChatList() {
     const delay = isMobileLayout ? MOBILE_SUPERVISAO_POLL_DELAY_MS : 800;
     const cancelSchedule = scheduleAfterInitialPaint(() => {
       intervalId = window.setInterval(() => {
+        // Aba oculta: pausa o poll de supervisão (30s) — dados voltam a atualizar no foco.
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
         void runAuxBadgeFetch(filterScopeKey, "supervisao", () => refreshSupervisaoData());
       }, 30000);
     }, delay);
@@ -1143,8 +1166,13 @@ export default function ChatList() {
   }, [pendentesFuncionarioIds, user]);
 
   const chatListOptimisticMutationNonce = useChatStore((s) => s.chatListOptimisticMutationNonce);
+  const lastOptimisticMutationNonceRef = useRef(0);
   useEffect(() => {
     if (!chatListOptimisticMutationNonce) return;
+    // Guard: deps como `user` mudam de identidade (refresh do auth) e re-executavam o efeito
+    // com o MESMO nonce — a última mutação era reaplicada (delta dos chips somado 2×).
+    if (chatListOptimisticMutationNonce === lastOptimisticMutationNonceRef.current) return;
+    lastOptimisticMutationNonceRef.current = chatListOptimisticMutationNonce;
     const mutation = useChatStore.getState().chatListOptimisticMutation;
     if (!mutation?.id) return;
     const id = String(mutation.id);
@@ -1316,6 +1344,15 @@ export default function ChatList() {
       const current = Array.isArray(minhaFilaListRef.current) ? minhaFilaListRef.current : [];
       if (!current.some((c) => String(c?.id) === id)) {
         const restored = mutation.row || getOptimisticRemovedRow(removedEntry);
+        // Defesa em profundidade (correção na origem): só entra na Minha fila quem PERTENCE de
+        // fato ao usuário logado — status + atendente_id, espelhando a regra estrita do backend
+        // (rowVisibleInPostFilteredList / conversaPertenceAMinhaFila). Este é o único ponto por
+        // onde um evento realtime insere uma linha NOVA na minhaFilaList; qualquer emissor que
+        // peça `restoreMinhaFila: true` sem revalidar (assumir/auto-assumir revert, etc.) é
+        // barrado aqui, garantindo que uma conversa de OUTRO atendente nunca apareça na Minha fila.
+        if (restored && !conversaPertenceAMinhaFila(restored, user?.id)) {
+          return;
+        }
         if (restored) {
           const activeView = buildActiveChatListViewFromStore(useChatStore.getState(), user);
           if (activeView.tab === "minha_fila" && shouldInsertChatRowInActiveList(restored, activeView)) {
@@ -1385,7 +1422,9 @@ export default function ChatList() {
     let cancelled = false;
     const delay = isMobileLayout ? MOBILE_COUNTS_DELAY_MS : 0;
     const run = () => {
-      if (!cancelled) void refreshChatFilterCounts();
+      // reuseIfFresh: a lista esvaziar/encher (hasListRows) re-dispara este efeito com os mesmos
+      // parâmetros — sem isso saíam 2-3 GET /chats/counts por troca de aba.
+      if (!cancelled) void refreshChatFilterCounts({ reuseIfFresh: true });
     };
     if (delay > 0) {
       const cancel = scheduleAfterInitialPaint(run, delay);

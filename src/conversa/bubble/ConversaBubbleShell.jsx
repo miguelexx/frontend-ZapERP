@@ -14,6 +14,7 @@ import { buildRetryPayload } from "./utils/bubbleRetry";
 import { useMessageMenu } from "./hooks/useMessageMenu";
 import { useMessageGestures } from "./hooks/useMessageGestures";
 import { useMediaRetry } from "./hooks/useMediaRetry";
+import { useInboundMediaAutoHeal } from "./hooks/useInboundMediaAutoHeal";
 import MessageStatus from "./components/MessageStatus";
 import EditedLabel from "./components/EditedLabel";
 import QuotedReply from "./components/QuotedReply";
@@ -140,6 +141,8 @@ const Bubble = memo(function Bubble({
   );
   const remetente = showRemetente && !out && (msg?.remetente_nome || msg?.remetente_telefone);
   const retry = useMediaRetry(msg, classified, { onReenviarFalha, onReenviarAudio });
+  // Mídia recebida cuja cópia p/ /uploads não chegou pelo socket se cura sozinha (sem F5).
+  useInboundMediaAutoHeal(msg, out, isImg || isSticker || isVideo || isAudioOrVoice || isFile);
   const showMenuButton = !selectMode;
   const bubbleRef = useRef(null);
   const [reactionOpen, setReactionOpen] = useState(false);

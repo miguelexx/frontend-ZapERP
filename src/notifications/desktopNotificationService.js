@@ -128,14 +128,25 @@ function scheduleAutoClose(callback, delayMs) {
     const src = "self.onmessage=function(e){setTimeout(function(){self.postMessage(1);self.close()},e.data)}"
     const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }))
     const worker = new Worker(url)
-    worker.onmessage = () => {
+    let settled = false
+    const settle = () => {
+      if (settled) return false
+      settled = true
       try {
         worker.terminate()
       } catch (_) {}
       try {
         URL.revokeObjectURL(url)
       } catch (_) {}
-      callback()
+      return true
+    }
+    worker.onmessage = () => {
+      if (settle()) callback()
+    }
+    // Falha assíncrona (CSP/blob bloqueado): sem isto o Worker + blob + notificação
+    // ficavam presos, um conjunto por mensagem recebida.
+    worker.onerror = () => {
+      if (settle()) setTimeout(callback, delayMs)
     }
     worker.postMessage(delayMs)
   } catch (_) {

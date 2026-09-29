@@ -317,8 +317,10 @@ export async function listarAtendentesDisponiveisConversa(conversaId) {
   return Array.isArray(data) ? data : [];
 }
 
-export async function listarAtendentesConversa(conversaId) {
-  const { data } = await api.get(`/chats/${conversaId}/atendentes`);
+export async function listarAtendentesConversa(conversaId, opts = {}) {
+  const { data } = await api.get(`/chats/${conversaId}/atendentes`, {
+    ...(opts.signal ? { signal: opts.signal } : {}),
+  });
   return Array.isArray(data) ? data : [];
 }
 

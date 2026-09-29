@@ -293,16 +293,18 @@ export function compareChatRowIdDesc(a, b) {
 /** Ordena conversas por atividade mais recente (DESC), com desempate estável por id. */
 export function sortChatListByRecent(arr) {
   if (!Array.isArray(arr) || arr.length <= 1) return arr;
-  return [...arr].sort((a, b) => {
-    const aTs = getChatListSortTimestampMs(a);
-    const bTs = getChatListSortTimestampMs(b);
-    const d = bTs - aTs;
+  // Decorate-sort-undecorate: getChatListSortTimestampMs faz vários parses de data;
+  // dentro do comparador ele rodaria O(n·log n) vezes — aqui roda 1× por linha.
+  const decorated = arr.map((c) => ({ c, ts: getChatListSortTimestampMs(c) }));
+  decorated.sort((a, b) => {
+    const d = b.ts - a.ts;
     if (d !== 0) return d;
     // Sem atividade confiável, preserve a ordem da API/estado. Usar o ID
     // como desempate fazia rajadas de resync inverterem visualmente a lista.
-    if (aTs === 0 && bTs === 0) return 0;
-    return compareChatRowIdDesc(a, b);
+    if (a.ts === 0 && b.ts === 0) return 0;
+    return compareChatRowIdDesc(a.c, b.c);
   });
+  return decorated.map((d) => d.c);
 }
 
 /**

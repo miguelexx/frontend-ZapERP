@@ -25,7 +25,8 @@ export function useConversaParticipantes(conversaId, atendenteId = null) {
 
     setLoading(true);
     try {
-      const rows = await listarAtendentesConversa(conversaId);
+      // signal: sem ele o abort só descartava a resposta — a request seguia na rede.
+      const rows = await listarAtendentesConversa(conversaId, { signal: ctrl.signal });
       if (!ctrl.signal.aborted) {
         setParticipantes(Array.isArray(rows) ? rows : []);
         setCarregado(true);

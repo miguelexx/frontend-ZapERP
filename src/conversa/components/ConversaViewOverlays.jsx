@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, memo } from "react";
 import { lazyWithRetry as lazy } from "../../runtime/lazyWithRetry";
 import AtendentesModal from "../../atendimento/AtendentesModal";
 import ConversaSetorPanel from "./ConversaSetorPanel";
@@ -21,8 +21,10 @@ const MediaViewerOverlay = lazy(() => import("./MediaViewerOverlay"));
 /**
  * Painéis e modais da conversa (exceto header, thread e composer).
  * Extraído do JSX de ConversaView sem alterar markup/classes.
+ * `memo` (compare raso padrão): com o SidebarCliente aberto, cada render do coordenador
+ * (mensagem nova, envio) re-renderizava este subtree pesado mesmo sem prop alterada.
  */
-export default function ConversaViewOverlays({
+function ConversaViewOverlays({
   toast,
   onToastClose,
   messageSearchOpen,
@@ -383,3 +385,5 @@ export default function ConversaViewOverlays({
     </>
   );
 }
+
+export default memo(ConversaViewOverlays);
