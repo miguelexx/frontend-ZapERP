@@ -50,6 +50,39 @@ export async function salvarPerfilBusiness(instanceId, profile) {
   return data;
 }
 
+// ===== Status / Stories do WhatsApp (Whapi) =====
+export async function listarStatusWhatsapp(instanceId, options = {}) {
+  const { data } = await api.get(`${WHATSAPP_BASE}/instances/${instanceId}/stories`, {
+    params: options.count ? { count: options.count } : undefined,
+    signal: options.signal,
+    silent: options.silent === true,
+  });
+  return Array.isArray(data?.stories) ? data.stories : [];
+}
+
+export async function publicarStatusWhatsapp(instanceId, payload) {
+  const { data } = await api.post(`${WHATSAPP_BASE}/instances/${instanceId}/stories`, payload);
+  return data;
+}
+
+/** Sobe uma imagem/vídeo do computador e devolve { media, mime_type } para publicar no status. */
+export async function enviarMidiaStatusWhatsapp(instanceId, file, options = {}) {
+  const fd = new FormData();
+  fd.append("arquivo", file);
+  // Axios injeta o Content-Type multipart/form-data com boundary ao receber FormData.
+  const { data } = await api.post(`${WHATSAPP_BASE}/instances/${instanceId}/stories/media`, fd, {
+    signal: options.signal,
+  });
+  return data;
+}
+
+export async function excluirStatusWhatsapp(instanceId, storyId) {
+  const { data } = await api.delete(
+    `${WHATSAPP_BASE}/instances/${instanceId}/stories/${encodeURIComponent(storyId)}`
+  );
+  return data;
+}
+
 export async function listarLabelsWhatsapp(instanceId, options = {}) {
   const { data } = await api.get(LABELS_BASE, {
     params: instanceParams(instanceId),

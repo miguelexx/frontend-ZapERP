@@ -470,7 +470,7 @@ export default function SidebarCliente({
     const nome =
       String(cliNome || clienteNome || telefone || "este contato").trim() || "este contato";
     const ok = window.confirm(
-      `Excluir permanentemente ${nome}?\n\nIsso apaga a conversa, todas as mensagens e o cadastro do cliente. Não dá para desfazer.`
+      `Excluir permanentemente ${nome}?\n\nIsso apaga a conversa, todas as mensagens e o cadastro do cliente. A conversa também será apagada no seu WhatsApp (não apaga no aparelho do cliente). Não dá para desfazer.`
     );
     if (!ok) return;
 

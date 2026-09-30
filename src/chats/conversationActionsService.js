@@ -39,3 +39,9 @@ export async function deleteConversation(conversaId) {
   const { data } = await api.delete(`/chats/${conversaId}`)
   return data || {}
 }
+
+/** Bloqueia/desbloqueia o contato no WhatsApp (opt-out real). Só Whapi suporta. */
+export async function toggleBlockContact(conversaId, bloquear) {
+  const { data } = await api.post(`/chats/${conversaId}/bloquear`, { bloquear: !!bloquear })
+  return data || {}
+}

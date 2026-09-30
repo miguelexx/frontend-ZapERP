@@ -2055,6 +2055,7 @@ export default function ChatList() {
       >
         <p style={{ margin: 0 }}>
           Todas as mensagens serão removidas. A conversa permanece na lista.
+          As mensagens também serão limpas no seu WhatsApp (o número conectado); não afeta o aparelho do cliente.
         </p>
       </ConfirmDialog>
 
@@ -2071,6 +2072,7 @@ export default function ChatList() {
       >
         <p style={{ margin: 0 }}>
           Esta ação não pode ser desfeita. O histórico e dados vinculados podem ser removidos conforme as regras do sistema.
+          A conversa também será apagada no seu WhatsApp (o número conectado). Isso não apaga a conversa no aparelho do cliente.
         </p>
       </ConfirmDialog>
 

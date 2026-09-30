@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   IconBrandWhatsapp,
   IconBuildingStore,
+  IconCircleDot,
   IconRefresh,
   IconRobot,
   IconShoppingBag,
@@ -169,6 +170,12 @@ export default function WhapiBusinessLayout() {
           <IconShoppingBag size={18} stroke={1.8} />
           <span>Catálogo</span>
         </NavLink>
+        {canManageProfile ? (
+          <NavLink to="/whatsapp-business/status" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
+            <IconCircleDot size={18} stroke={1.8} />
+            <span>Status</span>
+          </NavLink>
+        ) : null}
         {canManageProfile ? (
           <NavLink to="/whatsapp-business/triagem-interativa" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
             <IconRobot size={18} stroke={1.8} />

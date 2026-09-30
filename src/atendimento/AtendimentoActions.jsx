@@ -393,13 +393,20 @@ export default function AtendimentoActions({
 
   const modoSimplesAtivo = isConversaModoSimplesAtiva(conversa, user);
 
+  // Assumível = qualquer conversa ativa (não fechada) SEM atendente atribuído — não só a
+  // fila. Espelha `conversaElegivelAutoAssumir` (auto-assumir ao enviar) e o backend
+  // `executarAssumirConversa`, que aceitam assumir sem dono em qualquer estado ativo
+  // (em_atendimento / aguardando_cliente / cobrança). Sem isto, uma conversa sem dono em
+  // "aguardando cliente" ficava num beco sem saída: sem Assumir (não é fila), e sem
+  // Encerrar/Transferir (não é sua). Ao assumir ela vira em_atendimento sua e os botões aparecem.
   const podeAssumir =
     !modoSimplesAtivo &&
     typeof canAssumir === "function" &&
     canAssumir(user) &&
     !isFechada &&
-    isFila &&
     !hasAtendente &&
+    !conversa?.mensagens_bloqueadas &&
+    (isFila || isEmAtendimentoOuAguardandoManual) &&
     mesmaSetorOuSemRestricao;
 
   const podeTransferir =

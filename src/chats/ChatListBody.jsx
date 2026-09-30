@@ -11,6 +11,7 @@ import { useChatListCounts, getActiveFilterTotalCount } from "./hooks/useChatLis
 import { rowPrefs } from "./chatListRowAtendimento";
 import {
   mergePrefsFromPatchResponse,
+  toggleBlockContact,
   toggleFavoriteConversation,
   toggleMuteConversation,
   togglePinConversation,
@@ -204,6 +205,8 @@ function ChatListBody({
     if (!chat) return [];
     const isGroup = isGroupConversation(chat);
     const p = rowPrefs(chat);
+    // Bloqueio de contato só existe no Whapi (blacklist). No UltraMSG o item fica oculto.
+    const isWhapi = String(chat?.whatsapp_instance_provider || "").toLowerCase() === "whapi";
     return [
       {
         id: "mute",
@@ -225,6 +228,20 @@ function ChatListBody({
         icon: "★",
         visible: true,
         disabled: false,
+      },
+      {
+        id: "block",
+        label: "Bloquear contato",
+        icon: "🚫",
+        visible: !isGroup && isWhapi,
+        disabled: isGroup,
+      },
+      {
+        id: "unblock",
+        label: "Desbloquear contato",
+        icon: "✅",
+        visible: !isGroup && isWhapi,
+        disabled: isGroup,
       },
       {
         id: "clear",
@@ -302,6 +319,35 @@ function ChatListBody({
       if (action.id === "delete") {
         onRequestConfirmDelete({ chatId, isOpenConversation });
         closeMenu();
+        return;
+      }
+      if (action.id === "block" || action.id === "unblock") {
+        const bloquear = action.id === "block";
+        const nome = String(openMenuChat?.contato_nome || openMenuChat?.nome || "este contato").trim() || "este contato";
+        const ok = window.confirm(
+          bloquear
+            ? `Bloquear ${nome} no WhatsApp?\n\nEnquanto bloqueado, ele NÃO consegue enviar nem receber suas mensagens. Você pode desbloquear depois.`
+            : `Desbloquear ${nome} no WhatsApp?\n\nVoltará a poder trocar mensagens normalmente.`
+        );
+        closeMenu();
+        if (!ok) return;
+        try {
+          await toggleBlockContact(chatId, bloquear);
+          showToast({
+            type: "success",
+            title: bloquear ? "Contato bloqueado" : "Contato desbloqueado",
+            message: bloquear
+              ? "O contato foi bloqueado no seu WhatsApp."
+              : "O contato foi desbloqueado no seu WhatsApp.",
+          });
+        } catch (e) {
+          const msg =
+            e?.response?.data?.error ||
+            e?.response?.data?.message ||
+            e?.message ||
+            "Não foi possível concluir esta ação.";
+          showToast({ type: "error", title: "Falha ao atualizar bloqueio", message: msg });
+        }
         return;
       }
 
