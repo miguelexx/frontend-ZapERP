@@ -118,12 +118,15 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
   const handleOpen = useCallback(async () => {
     if (selectMode || busy) return;
     // Abre a aba SÍNCRONO (no gesto do usuário) para não ser bloqueada como pop-up.
-    const win = typeof window !== "undefined" ? window.open("", "_blank", "noopener") : null;
+    // IMPORTANTE: sem "noopener" — com essa flag o window.open devolve null e perdíamos o
+    // controle da aba (ela ficava presa em about:blank, exatamente o bug do comprovante branco).
+    const win = typeof window !== "undefined" ? window.open("", "_blank") : null;
     if (win) {
       try {
         win.document.write(
-          "<p style='font-family:system-ui,sans-serif;padding:24px;color:#334155'>Abrindo arquivo…</p>"
+          "<!doctype html><title>Abrindo…</title><p style='font-family:system-ui,sans-serif;padding:24px;color:#334155'>Abrindo arquivo…</p>"
         );
+        win.document.close();
       } catch {
         /* ignore */
       }
@@ -145,8 +148,12 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
         blob = await fetchMediaBinaryAuthenticated(fresh.openHref);
       }
       const url = URL.createObjectURL(blob);
-      if (win) win.location.replace(url);
-      else window.open(url, "_blank", "noopener");
+      if (win) {
+        win.location.replace(url);
+      } else {
+        // Pop-up bloqueado de vez: baixa o arquivo para o usuário não ficar sem nada.
+        triggerBlobDownload(blob, nome);
+      }
       setTimeout(() => {
         try {
           URL.revokeObjectURL(url);
@@ -166,7 +173,7 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
     } finally {
       setBusy(false);
     }
-  }, [selectMode, busy, openHref, recuperarHrefs]);
+  }, [selectMode, busy, openHref, recuperarHrefs, nome]);
 
   const handleDownload = useCallback(async () => {
     if (selectMode || busy) return;
