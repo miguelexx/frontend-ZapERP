@@ -1641,7 +1641,28 @@ export function initSocket(token) {
     }
     const convStore = useConversaStore.getState()
     if (String(convStore.selectedId) === String(id)) {
-      convStore.patchConversa({ ...payload, id })
+      // Guarda anti-"reabre sozinho" na THREAD aberta: evento GENÉRICO atrasado com status
+      // aberto não pode desfazer um encerramento recente (a lista já tem essa proteção via
+      // tombstone/ui_status_optimistic_at; este é o equivalente para patchConversa). Reabertura
+      // real chega por conversa_reaberta/transferência → patchEverywhere (authoritativeReopen).
+      const patchThread = { ...payload, id }
+      const curConv = convStore.conversa
+      const tombThread = chatStore.chatListHiddenClosed?.[String(id)]
+      const closeTombstoneActive = !!tombThread && Number(tombThread.expiresAt || 0) > Date.now()
+      if (
+        closeTombstoneActive &&
+        curConv &&
+        String(curConv.id) === String(id) &&
+        isClosedAttendance(curConv) &&
+        !isClosedAttendance({ ...curConv, ...patchThread })
+      ) {
+        delete patchThread.status_atendimento
+        delete patchThread.status_atendimento_real
+        delete patchThread.atendente_id
+        delete patchThread.atendente_atribuido_em
+        delete patchThread.exibir_badge_aberta
+      }
+      convStore.patchConversa(patchThread)
     }
     if (payloadImpactaListaLateral(payload)) {
       const cur = chats[idx]

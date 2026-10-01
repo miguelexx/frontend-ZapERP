@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  getStatusAtendimentoEffective,
   isClosedAttendance,
   isModoSimplesAguardandoAtendente,
 } from "../../utils/conversaUtils";
@@ -30,8 +29,9 @@ export function useConversationThreadActions({
     if (!conversa?.id || conversa?.mensagens_bloqueadas) return false;
     if (conversa?.exibir_cta_assumir_sem_mensagens !== true) return false;
     if (!canAssumir(user)) return false;
-    const status = getStatusAtendimentoEffective(conversa);
-    if (status === "fechada" || status === "encerrada") return false;
+    // Qualquer status encerrado (fechada/encerrada/finalizada/finalizado) esconde a CTA —
+    // conversa finalizada só volta por "Reabrir" ou nova mensagem do cliente.
+    if (isClosedAttendance(conversa)) return false;
     const atendenteId = conversa?.atendente_id ?? null;
     const hasAtendente = atendenteId !== null && atendenteId !== "";
     if (hasAtendente) return false;

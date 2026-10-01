@@ -2192,7 +2192,14 @@ export const useConversaStore = create((set, get) => {
         if ("pagamento_prazo_ate" in partial) merged.pagamento_prazo_ate = partial.pagamento_prazo_ate
         if ("pagamento_prazo_origem" in partial) merged.pagamento_prazo_origem = partial.pagamento_prazo_origem
         if ("pagamento_concluido_em" in partial) merged.pagamento_concluido_em = partial.pagamento_concluido_em
-        if ("status_atendimento_real" in partial) merged.status_atendimento_real = partial.status_atendimento_real
+        if ("status_atendimento_real" in partial) {
+          // "" / null não sobrescrevem um real conhecido (mesmo contrato do loop fixedFields
+          // acima — sem isto, payload degradado escondia "fechada" e reexibia Assumir/Encerrar).
+          const realNovo = partial.status_atendimento_real
+          const realNovoVazio = realNovo == null || String(realNovo).trim() === ""
+          const realAtualVazio = cur.status_atendimento_real == null || String(cur.status_atendimento_real).trim() === ""
+          if (!realNovoVazio || realAtualVazio) merged.status_atendimento_real = realNovo
+        }
         if ("departamento" in partial) merged.departamento = partial.departamento
         if ("departamento_id" in partial && partial.departamento_id == null) {
           merged.setor = null

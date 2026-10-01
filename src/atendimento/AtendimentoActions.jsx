@@ -14,6 +14,7 @@ import { listarTags } from "../api/tagService";
 import {
   getStatusAtendimentoEffective,
   isAguardandoClienteManual,
+  isClosedAttendanceStatus,
   isCobrancaFinanceiraStatus,
   isConversaModoSimplesAtiva,
 } from "../utils/conversaUtils";
@@ -366,7 +367,9 @@ export default function AtendimentoActions({
   const hasAtendente = atendenteId !== null;
   const isMinha = hasAtendente && String(atendenteId) === String(meuId);
 
-  const isFechada = status === "fechada" || status === "encerrada";
+  // Inclui finalizada/finalizado: conversa encerrada em qualquer grafia não pode exibir
+  // Assumir/Encerrar/Transferir — só "Reabrir" ou nova mensagem do cliente a reativam.
+  const isFechada = isClosedAttendanceStatus(status);
   const isFila =
     status === "fila" ||
     status === "aberta" ||
