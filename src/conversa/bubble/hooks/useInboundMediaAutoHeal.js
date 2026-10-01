@@ -3,30 +3,8 @@ import {
   canReprocessInboundMedia,
   requestInboundMediaReprocess,
 } from "../utils/inboundMediaReprocess";
-import { useConversaStore } from "../../conversaStore";
-
-/**
- * Aplica a URL /uploads recuperada direto na store — cobre o caso em que a cópia já existe no
- * banco mas o `nova_mensagem` de atualização se perdeu (reconexão/corrida): o endpoint responde
- * `{ ok, url }` sem re-emitir socket, então quem atualiza a bolha somos nós. Espelha o patch que
- * o socket faria; `preserveLocalMediaFields` garante que /uploda tem prioridade sobre a URL antiga.
- */
-function aplicarUrlNaStore(msg, url) {
-  const u = String(url || "").trim();
-  if (!u.startsWith("/uploads/")) return;
-  const conversaId = Number(msg?.conversa_id ?? msg?.conversaId);
-  const mensagemId = Number(msg?.id ?? msg?.mensagem_id);
-  if (!Number.isSafeInteger(conversaId) || !Number.isSafeInteger(mensagemId)) return;
-  try {
-    useConversaStore.getState().patchMensagem(
-      mensagemId,
-      { url: u },
-      { conversa_id: conversaId, preserveOrder: true }
-    );
-  } catch {
-    /* best-effort; o socket ainda pode curar */
-  }
-}
+// A URL recuperada chega à store por `requestInboundMediaReprocess` (patch centralizado lá,
+// cobrindo também o botão manual do áudio/documento quando o socket de atualização se perde).
 
 /**
  * Auto-cura de mídia RECEBIDA que ainda não foi copiada para /uploads.
@@ -89,9 +67,8 @@ export function useInboundMediaAutoHeal(msg, out, isMediaBubble) {
         emAndamento.delete(id);
       }
       if (cancelled) return;
-      // ok → curou; se veio a URL, aplica na store (caso o socket de atualização se perca).
+      // ok → curou (a URL chega pela store via requestInboundMediaReprocess e/ou pelo socket).
       if (r?.ok) {
-        if (r.url) aplicarUrlNaStore(msgRef.current, r.url);
         curadas.add(id);
         return;
       }
