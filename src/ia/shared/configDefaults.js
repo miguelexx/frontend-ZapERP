@@ -33,6 +33,8 @@ export const DEFAULT_CONFIG = {
     almocoInicio: "12:00",
     almocoFim: "14:00",
     mensagemAlmoco: "",
+    estado: "",
+    timezone: "America/Sao_Paulo",
     intervaloEnvioSegundos: 3,
     sendOnlyFirstTime: true,
     fallbackToAI: false,

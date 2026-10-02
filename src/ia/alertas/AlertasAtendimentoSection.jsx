@@ -53,7 +53,8 @@ function normalizeAlertaSemRespostaFromApi(raw) {
     responsaveis_notificacao_ids: responsaveis,
     telefone_gestor: String(s.telefone_gestor || "").trim(),
     horario_comercial_ativo: bool(s.alerta_sem_resposta_ativo, bool(s.ativo, false)) ? true : bool(s.horario_comercial_ativo, true),
-    timezone: String(s.timezone || horarioApi?.timezone || DEFAULT_ALERTA_SEM_RESPOSTA.timezone).trim(),
+    // '' = herda o fuso da empresa (UF em Triagem). horarioApi.timezone é o efetivo, só p/ exibição.
+    timezone: String(s.timezone || "").trim(),
     horarioInicio: formatTimeForInput(s.horarioInicio || janelaApi?.inicio || "09:00"),
     horarioFim: formatTimeForInput(s.horarioFim || janelaApi?.fim || "18:00"),
     diasSemanaDesativados: Array.isArray(s.diasSemanaDesativados)

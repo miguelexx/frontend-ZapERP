@@ -1,4 +1,5 @@
 import { normalizeFinalizationMessage } from "../../pages/iaConfigPayload.js";
+import { normalizeUf, defaultTimezoneForUf, timezoneBelongsToUf } from "../shared/brazilTimezones.js";
 
 function formatTime(t) {
   if (!t || typeof t !== "string") return "09:00";
@@ -33,6 +34,14 @@ export function buildTriagemPayload(vals) {
     almocoInicio: formatTime(vals.almocoInicio) || "12:00",
     almocoFim: formatTime(vals.almocoFim) || "14:00",
     mensagemAlmoco: (vals.mensagemAlmoco || "").trim().slice(0, 1024),
+    // UF + fuso: a UF define o fuso (respeitando escolha multi-fuso); o backend revalida.
+    estado: normalizeUf(vals.estado),
+    timezone: (() => {
+      const uf = normalizeUf(vals.estado);
+      const tz = String(vals.timezone || "").trim();
+      if (uf) return timezoneBelongsToUf(uf, tz) ? tz : defaultTimezoneForUf(uf);
+      return tz || "America/Sao_Paulo";
+    })(),
     intervaloEnvioSegundos: Number.isFinite(Number(vals.intervaloEnvioSegundos ?? 3))
       ? Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos ?? 3))) : 3,
     sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,

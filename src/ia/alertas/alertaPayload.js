@@ -22,7 +22,8 @@ export function buildAlertaSemRespostaPayload(v) {
     responsaveis_notificacao_ids: Number.isFinite(gestorId) && gestorId > 0 ? [gestorId] : [],
     telefone_gestor: String(v.telefone_gestor || "").trim(),
     horario_comercial_ativo: alertaAtivo ? true : v.horario_comercial_ativo !== false,
-    timezone: String(v.timezone || "America/Sao_Paulo").trim(),
+    // '' = herdar o fuso da empresa (definido pela UF em Triagem). Não força SP.
+    timezone: String(v.timezone || "").trim(),
     horarioInicio: formatTimeForInput(v.horarioInicio),
     horarioFim: formatTimeForInput(v.horarioFim),
     diasSemanaDesativados: Array.isArray(v.diasSemanaDesativados)

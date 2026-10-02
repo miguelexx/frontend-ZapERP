@@ -4,6 +4,15 @@ import Switch from "../../components/ui/Switch";
 import TriagemPreview from "../preview/TriagemPreview";
 import AdminAtendimentoAlertCard from "../gestores/AdminAtendimentoAlertCard";
 import { buildTriagemPayload } from "./triagemPayload";
+import {
+  UF_OPTIONS,
+  zonesForUf,
+  defaultTimezoneForUf,
+  timezoneBelongsToUf,
+  timezoneLabel,
+  ufNome,
+  ufForUniqueTimezone,
+} from "../shared/brazilTimezones";
 
 const DIAS_SEMANA = [
   { num: 0, label: "Dom" },
@@ -120,6 +129,22 @@ export default function TriagemView({
     }
     onSave(buildTriagemPayload(v));
   };
+
+  // Estado (UF) + fuso horário da empresa. O fuso governa TODOS os horários de atendimento.
+  const ufAtual = v.estado || ufForUniqueTimezone(v.timezone) || "";
+  const zonasUf = zonesForUf(ufAtual);
+  const tzEfetivo =
+    (ufAtual && timezoneBelongsToUf(ufAtual, v.timezone) ? v.timezone : defaultTimezoneForUf(ufAtual)) ||
+    v.timezone ||
+    "America/Sao_Paulo";
+  const handleUfChange = (uf) => {
+    if (!uf) {
+      setV((c) => ({ ...c, estado: "", timezone: "America/Sao_Paulo" }));
+      return;
+    }
+    setV((c) => ({ ...c, estado: uf, timezone: defaultTimezoneForUf(uf) || "America/Sao_Paulo" }));
+  };
+  const handleZoneChange = (tz) => setV((c) => ({ ...c, timezone: tz }));
 
   const opts = v.options || [];
   return (
@@ -326,6 +351,51 @@ export default function TriagemView({
           {/* SEÇÃO 4 — Mensagem fora do horário comercial */}
           <div className="chatbot-card">
             <h3 className="chatbot-card-title">4. Mensagem fora do horário comercial</h3>
+
+            {/* Estado da empresa + fuso horário — governa TODOS os horários/automações de atendimento */}
+            <div className="chatbot-subsection" style={{ marginBottom: 20 }}>
+              <h4 className="chatbot-subsection-title">Estado da empresa e fuso horário</h4>
+              <div className="chatbot-time-row">
+                <div className="ia-field">
+                  <label title="Define automaticamente o fuso horário (IANA) usado em todos os horários de atendimento.">
+                    Estado da empresa
+                  </label>
+                  <select
+                    className="ia-select"
+                    value={ufAtual}
+                    onChange={(e) => handleUfChange(e.target.value)}
+                  >
+                    <option value="">— Selecione a UF —</option>
+                    {UF_OPTIONS.map((o) => (
+                      <option key={o.uf} value={o.uf}>{o.nome} ({o.uf})</option>
+                    ))}
+                  </select>
+                </div>
+                {zonasUf.length > 1 && (
+                  <div className="ia-field">
+                    <label title="Este estado possui mais de um fuso horário. Selecione a região correta.">
+                      Fuso do estado
+                    </label>
+                    <select
+                      className="ia-select"
+                      value={tzEfetivo}
+                      onChange={(e) => handleZoneChange(e.target.value)}
+                    >
+                      {zonasUf.map((z) => (
+                        <option key={z.tz} value={z.tz}>{z.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <p className="chatbot-hint" style={{ marginTop: 8 }}>
+                Fuso horário: <strong>{timezoneLabel(tzEfetivo)}</strong>
+                {ufAtual
+                  ? ` — Todos os horários e automações desta empresa seguirão o horário local de ${ufNome(ufAtual)}.`
+                  : " — Sem estado definido, será usado o Horário de Brasília (America/Sao_Paulo)."}
+              </p>
+            </div>
+
             <div className="ds-switch-row" style={{ marginBottom: 16 }}>
               <Switch checked={v.foraHorarioEnabled === true} onChange={(x) => setV((c) => ({ ...c, foraHorarioEnabled: x }))} />
               <span>Enviar mensagem automática quando o cliente escrever fora do horário</span>
