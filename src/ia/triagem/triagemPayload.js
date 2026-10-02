@@ -29,6 +29,10 @@ export function buildTriagemPayload(vals) {
     diasSemanaDesativados: Array.isArray(vals.diasSemanaDesativados) ? dias : [0, 6],
     datasEspecificasFechadas: datas,
     mensagemForaHorario: (vals.mensagemForaHorario || "").trim().slice(0, 1024),
+    almocoAtivo: !!vals.almocoAtivo,
+    almocoInicio: formatTime(vals.almocoInicio) || "12:00",
+    almocoFim: formatTime(vals.almocoFim) || "14:00",
+    mensagemAlmoco: (vals.mensagemAlmoco || "").trim().slice(0, 1024),
     intervaloEnvioSegundos: Number.isFinite(Number(vals.intervaloEnvioSegundos ?? 3))
       ? Math.max(0, Math.min(60, Number(vals.intervaloEnvioSegundos ?? 3))) : 3,
     sendOnlyFirstTime: vals.sendOnlyFirstTime !== false,

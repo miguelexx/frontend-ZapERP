@@ -84,6 +84,13 @@ export default function TriagemView({
     if (vals.foraHorarioEnabled) {
       const msgFora = (vals.mensagemForaHorario || "").trim();
       if (!msgFora) return "Mensagem fora do horário é obrigatória quando está ativo o envio fora do horário comercial.";
+      if (vals.almocoAtivo) {
+        const ini = (vals.almocoInicio || "").trim();
+        const fim = (vals.almocoFim || "").trim();
+        const reHora = /^\d{1,2}:\d{2}$/;
+        if (!reHora.test(ini) || !reHora.test(fim)) return "Informe horários de início e fim do almoço válidos (HH:mm).";
+        if (ini === fim) return "O início e o fim do almoço não podem ser iguais.";
+      }
     }
     const keys = opts.map((o) => String(o.key || "").trim()).filter(Boolean);
     const uniqueKeys = [...new Set(keys)];
@@ -350,6 +357,60 @@ export default function TriagemView({
                     <p className="chatbot-hint">
                       Horários que atravessam meia-noite são suportados (ex: 22:00–06:00).
                     </p>
+                  </div>
+
+                  <div className="chatbot-subsection">
+                    <div className="ds-switch-row" style={{ marginBottom: 12 }}>
+                      <Switch
+                        checked={v.almocoAtivo === true}
+                        onChange={(x) => setV((c) => ({ ...c, almocoAtivo: x }))}
+                      />
+                      <div>
+                        <h4 className="chatbot-subsection-title" style={{ margin: 0 }}>Pausa de almoço</h4>
+                        <p className="chatbot-card-subtitle" style={{ margin: 0 }}>
+                          Durante este intervalo, o cliente recebe a mensagem de ausência (como se estivesse fora do horário).
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className="chatbot-almoco-fields"
+                      style={{ opacity: v.almocoAtivo ? 1 : 0.6, pointerEvents: v.almocoAtivo ? "auto" : "none" }}
+                    >
+                      <div className="chatbot-time-row">
+                        <div className="ia-field">
+                          <label>Início do almoço</label>
+                          <input
+                            type="time"
+                            className="ia-input"
+                            value={formatTimeForInput(v.almocoInicio) || "12:00"}
+                            onChange={(e) => setV((c) => ({ ...c, almocoInicio: e.target.value }))}
+                          />
+                        </div>
+                        <div className="ia-field">
+                          <label>Fim do almoço</label>
+                          <input
+                            type="time"
+                            className="ia-input"
+                            value={formatTimeForInput(v.almocoFim) || "14:00"}
+                            onChange={(e) => setV((c) => ({ ...c, almocoFim: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="ia-field">
+                        <label>Mensagem durante o almoço (opcional)</label>
+                        <textarea
+                          className="ia-textarea"
+                          rows={3}
+                          maxLength={1024}
+                          value={v.mensagemAlmoco || ""}
+                          onChange={(e) => setV((c) => ({ ...c, mensagemAlmoco: e.target.value }))}
+                          placeholder="Ex: Estamos em horário de almoço (12h às 14h). Já já retornamos o seu atendimento!"
+                        />
+                        <p className="chatbot-hint">
+                          Se deixar em branco, será enviada a mensagem padrão de fora do horário. Fim exclusivo: às {formatTimeForInput(v.almocoFim) || "14:00"} o atendimento já voltou.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="chatbot-subsection">

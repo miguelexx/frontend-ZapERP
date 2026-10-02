@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   IconBuildingStore,
+  IconCamera,
   IconCheck,
   IconClock,
   IconDeviceFloppy,
@@ -12,7 +13,13 @@ import {
   IconRefresh,
   IconShieldCheck,
 } from "@tabler/icons-react";
-import { apiErrorMessage, obterPerfilBusiness, salvarPerfilBusiness } from "../api/whapiBusinessService";
+import {
+  apiErrorMessage,
+  atualizarFotoPerfilWhapi,
+  obterPerfilBusiness,
+  obterPerfilUsuarioWhapi,
+  salvarPerfilBusiness,
+} from "../api/whapiBusinessService";
 import { useNotificationStore } from "../notifications/notificationStore";
 import { whapiInstanceName } from "./WhapiBusinessLayout";
 
@@ -161,6 +168,9 @@ export default function BusinessProfilePage() {
   // continua restrito a supervisor/admin.
   const readOnly = !canManageProfile;
   const formLocked = loading || saving || readOnly;
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
 
   useEffect(() => {
     if (!selectedId || selectedInstance?.is_business === false) {
@@ -189,6 +199,18 @@ export default function BusinessProfilePage() {
     return () => controller.abort();
   }, [selectedId, selectedInstance?.is_business]);
 
+  // Foto de perfil do número conectado (GET /user-profile). Falha aqui não bloqueia a
+  // página: o avatar simplesmente volta para a inicial do nome.
+  useEffect(() => {
+    setPhotoUrl("");
+    if (!selectedId) return undefined;
+    const controller = new AbortController();
+    obterPerfilUsuarioWhapi(selectedId, { signal: controller.signal, silent: true })
+      .then((profile) => setPhotoUrl(String(profile.icon_full || profile.icon || "")))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [selectedId]);
+
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(baseline), [form, baseline]);
   const profileName = whapiInstanceName(selectedInstance);
   const firstOpenDays = form.schedule.filter((day) => day.enabled).slice(0, 3);
@@ -209,6 +231,45 @@ export default function BusinessProfilePage() {
       ...current,
       schedule: current.schedule.map((day) => day.key === dayKey ? { ...day, ...changes } : day),
     }));
+  }
+
+  async function handlePhotoSelected(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !selectedId || uploadingPhoto || readOnly) return;
+    if (!file.type.startsWith("image/")) {
+      showToast({ type: "error", title: "Arquivo inválido", message: "Escolha uma imagem (JPG ou PNG)." });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast({ type: "error", title: "Imagem muito grande", message: "A foto de perfil pode ter no máximo 5MB." });
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      await atualizarFotoPerfilWhapi(selectedId, file);
+      // Feedback imediato com o arquivo local; a URL oficial do WhatsApp chega no refetch.
+      setPhotoUrl(URL.createObjectURL(file));
+      showToast({
+        type: "success",
+        title: "Foto de perfil atualizada",
+        message: "A nova foto foi enviada ao WhatsApp.",
+      });
+      obterPerfilUsuarioWhapi(selectedId, { silent: true })
+        .then((profile) => {
+          const next = String(profile.icon_full || profile.icon || "");
+          if (next) setPhotoUrl(next);
+        })
+        .catch(() => {});
+    } catch (requestError) {
+      showToast({
+        type: "error",
+        title: "Não foi possível trocar a foto",
+        message: apiErrorMessage(requestError, "O WhatsApp recusou a nova foto de perfil."),
+      });
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   async function reloadProfile() {
@@ -372,8 +433,35 @@ export default function BusinessProfilePage() {
             <i>Atualização ao vivo</i>
           </div>
           <article className="wb-phone-card">
-            <div className="wb-phone-card__cover" aria-hidden="true">
-              <span className="wb-phone-card__avatar">{String(profileName || "W").charAt(0).toUpperCase()}</span>
+            <div className="wb-phone-card__cover">
+              <span className="wb-phone-card__avatar">
+                {photoUrl ? (
+                  <img src={photoUrl} alt={`Foto de perfil de ${profileName}`} onError={() => setPhotoUrl("")} />
+                ) : (
+                  String(profileName || "W").charAt(0).toUpperCase()
+                )}
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    className="wb-avatar-edit"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={uploadingPhoto || !selectedId}
+                    title="Alterar foto de perfil"
+                    aria-label="Alterar foto de perfil"
+                  >
+                    {uploadingPhoto ? <span className="wb-button-spinner" /> : <IconCamera size={15} stroke={1.9} />}
+                  </button>
+                ) : null}
+              </span>
+              {!readOnly ? (
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  hidden
+                  onChange={handlePhotoSelected}
+                />
+              ) : null}
             </div>
             <div className="wb-phone-card__body">
               <div className="wb-phone-card__title">

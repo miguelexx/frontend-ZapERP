@@ -49,6 +49,14 @@ export default function TriagemPreview({ config, departamentos }) {
             </div>
           </div>
         )}
+        {config.foraHorarioEnabled && config.almocoAtivo && (
+          <div className="chatbot-preview-final" style={{ marginTop: 16, padding: 12, background: "var(--ia-bg-secondary, #1e293b)", borderRadius: 8 }}>
+            <p className="chatbot-preview-hint" style={{ marginBottom: 8 }}>Mensagem durante o almoço ({config.almocoInicio || "12:00"}–{config.almocoFim || "14:00"}):</p>
+            <div className="chatbot-bubble chatbot-bubble--in">
+              <div className="chatbot-bubble-text" style={{ whiteSpace: "pre-wrap" }}>{(config.mensagemAlmoco || "").trim() || (config.mensagemForaHorario || "").trim()}</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

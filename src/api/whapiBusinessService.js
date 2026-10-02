@@ -50,6 +50,23 @@ export async function salvarPerfilBusiness(instanceId, profile) {
   return data;
 }
 
+/** Perfil do número conectado (nome, recado e foto icon/icon_full) — usado para o avatar. */
+export async function obterPerfilUsuarioWhapi(instanceId, options = {}) {
+  const { data } = await api.get(`${WHATSAPP_BASE}/instances/${instanceId}/user-profile`, {
+    signal: options.signal,
+    silent: options.silent === true,
+  });
+  return data?.profile && typeof data.profile === "object" ? data.profile : {};
+}
+
+/** Troca a foto de perfil do número conectado no WhatsApp (imagem até 5MB). */
+export async function atualizarFotoPerfilWhapi(instanceId, file) {
+  const fd = new FormData();
+  fd.append("arquivo", file);
+  const { data } = await api.post(`${WHATSAPP_BASE}/instances/${instanceId}/profile-picture`, fd);
+  return data;
+}
+
 // ===== Status / Stories do WhatsApp (Whapi) =====
 export async function listarStatusWhatsapp(instanceId, options = {}) {
   const { data } = await api.get(`${WHATSAPP_BASE}/instances/${instanceId}/stories`, {

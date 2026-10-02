@@ -312,6 +312,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     if (!el || !playing) return;
     let timer = 0;
     let recovered = false;
+    let seekGraceUsada = false;
     let baseline = Number(el.currentTime || 0);
     const progressed = () => Number(el.currentTime || 0) > baseline + 0.2;
     const clear = () => {
@@ -322,20 +323,36 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     };
     const recover = () => {
       clear();
+      // Seek para trecho ainda não bufferizado: `seeking` fica true sem progresso e o dado pode
+      // nunca chegar (antes isso virava "noop" e o timer nunca re-armava — congelado até F5).
+      // 1ª vez dá mais uma janela de 4s (seek legítimo em rede lenta); persistindo, trata como
+      // stall normal — o reload restaura a posição via `loadedmetadata` e retoma dali.
+      const seekTravado = el.seeking && !progressed();
+      if (seekTravado && !seekGraceUsada) {
+        seekGraceUsada = true;
+        timer = setTimeout(recover, 4000);
+        return;
+      }
       const decisao = classifyStallRecovery({
         paused: el.paused,
         ended: el.ended,
-        seeking: el.seeking,
+        seeking: seekTravado ? false : el.seeking,
         progressed: progressed(),
         alreadyRecovered: recovered,
       });
       if (decisao === "noop") return;
       if (decisao === "giveup") {
+        try { el.pause(); } catch { /* ignore */ }
         setIndisponivel(true);
         return;
       }
       recovered = true;
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: autoPlayRef.current.tentativas || 0 };
+      // A recarga abaixo só confirma vida no `canplay`; se o fetch travar, NENHUM evento chega e
+      // ninguém mais vigiava (o estado React `playing` segue true — `load()` pausa o elemento sem
+      // disparar `pause` — e congelava até F5). Arma a vigília de início, a mesma do clique do
+      // usuário, para escalonar/desistir sozinha se a recarga não engatar.
+      solicitarInicioPlayback(false);
       const plano = planReloadOnStall({ sourceIdx, sourceCount: sourceList.length });
       if (plano.type === "advance") setSourceIdx(plano.sourceIdx);
       else setReloadNonce((n) => n + 1);
@@ -349,12 +366,19 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       if (progressed()) {
         clear();
         baseline = Number(el.currentTime || 0);
+        seekGraceUsada = false;
       }
     };
     el.addEventListener("waiting", armFromStall);
     el.addEventListener("stalled", armFromStall);
     el.addEventListener("playing", cancelIfMoving);
     el.addEventListener("timeupdate", cancelIfMoving);
+    // `play` + `waiting` disparam na MESMA task quando o play() sai sem dado nenhum: o `waiting`
+    // chega ANTES deste effect anexar os listeners (ele só roda após o re-render com playing=true)
+    // e a vigia nunca armava — player "tocando" congelado no 0:00 até um F5. Se o elemento já está
+    // faminto ao anexar, arma imediatamente; falso alarme é inofensivo (progresso cancela no
+    // `timeupdate` e o `recover` re-checa tudo na hora de disparar).
+    if (!el.paused && !el.ended && Number(el.readyState) < 3) armFromStall();
     return () => {
       clear();
       el.removeEventListener("waiting", armFromStall);
@@ -362,15 +386,18 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       el.removeEventListener("playing", cancelIfMoving);
       el.removeEventListener("timeupdate", cancelIfMoving);
     };
-  }, [playing, sourceIdx, sourceList.length]);
+  }, [playing, sourceIdx, sourceList.length, solicitarInicioPlayback]);
 
-  // Vigília de INÍCIO — a lacuna que forçava F5: o usuário clica em tocar mas o áudio nunca engata
-  // e nenhum evento vem. Cobre `await el.play()` que trava mudo (não dispara `play`/`error`, então o
+  // Vigília de INÍCIO — a lacuna que forçava F5: o play foi pedido mas o áudio nunca engata e
+  // nenhum evento vem. Cobre `await el.play()` que trava mudo (não dispara `play`/`error`, então o
   // vigia de stall acima — que exige `playing` — nunca arma) e a recarga cujo `canplay` não chega
-  // (fetch do proxy engasgado). Só roda para play PEDIDO PELO usuário (token em `pendingPlayRef`);
-  // desarma no instante em que o tempo anda; se disparar, escalona pelo MESMO motor já testado.
+  // (fetch do proxy engasgado) — tanto a disparada pelo clique do usuário quanto a disparada pelo
+  // vigia de stall (token em `pendingPlayRef`). Desarma no instante em que o tempo anda ou o `play`
+  // confirma; se disparar, escalona pelo MESMO motor já testado.
   useEffect(() => {
-    if (playing) return; // já tocando: nada a vigiar
+    // NÃO curto-circuita pelo estado React `playing`: na recarga pós-stall ele segue true obsoleto
+    // (`load()` pausa o elemento sem disparar `pause`) e mascararia o travamento. O início real é
+    // detectado pelo token — o evento `play` zera `pendingPlayRef` e o disparo abaixo vira no-op.
     const token = pendingPlayRef.current;
     if (!token) return; // nenhum pedido de início em aberto (ou já confirmado/cancelado)
     const el = audioRef.current;
@@ -381,8 +408,9 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       const a = audioRef.current;
       if (!a) return;
       const progressed = Number(a.currentTime || 0) > baseline + 0.2;
+      // `playing` aqui vem do ELEMENTO no instante do disparo, nunca do estado React (obsoleto).
       const decisao = classifyStuckStart({
-        playing,
+        playing: !a.paused && !a.ended && progressed,
         progressed,
         alreadyRecovered: resumeWatchRecoveredRef.current,
       });
@@ -392,6 +420,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       }
       if (decisao === "giveup") {
         pendingPlayRef.current = 0;
+        try { a.pause(); } catch { /* ignore */ }
+        setPlaying(false);
         setIndisponivel(true);
         return;
       }
