@@ -150,13 +150,17 @@ function BusinessAccountRequiredState({ instance }) {
 }
 
 export default function BusinessProfilePage() {
-  const { selectedId, selectedInstance, loadingInstances } = useOutletContext();
+  const { selectedId, selectedInstance, loadingInstances, canManageProfile } = useOutletContext();
   const showToast = useNotificationStore((state) => state.showToast);
   const [form, setForm] = useState(() => profileToForm());
   const [baseline, setBaseline] = useState(() => profileToForm());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Atendentes enxergam o perfil em modo somente leitura; o POST do backend
+  // continua restrito a supervisor/admin.
+  const readOnly = !canManageProfile;
+  const formLocked = loading || saving || readOnly;
 
   useEffect(() => {
     if (!selectedId || selectedInstance?.is_business === false) {
@@ -225,7 +229,7 @@ export default function BusinessProfilePage() {
 
   async function handleSave(event) {
     event.preventDefault();
-    if (!selectedId || saving) return;
+    if (!selectedId || saving || readOnly) return;
     const validationError = validateForm(form);
     if (validationError) {
       setError(validationError);
@@ -266,7 +270,7 @@ export default function BusinessProfilePage() {
             <h2>Perfil da empresa</h2>
             <p>Estes dados aparecem para clientes que abrem seu perfil no WhatsApp.</p>
           </div>
-          <button type="button" className="wb-icon-button" onClick={reloadProfile} disabled={loading || saving} title="Recarregar perfil" aria-label="Recarregar perfil">
+          <button type="button" className="wb-icon-button" onClick={reloadProfile} disabled={saving || loading} title="Recarregar perfil" aria-label="Recarregar perfil">
             <IconRefresh className={loading ? "wb-spin" : ""} size={18} />
           </button>
         </div>
@@ -277,24 +281,24 @@ export default function BusinessProfilePage() {
         <div className="wb-form-section">
           <label className="wb-field wb-field--full">
             <span><IconMapPin size={16} /> Endereço</span>
-            <input value={form.address} onChange={(event) => updateField("address", event.target.value)} maxLength={256} placeholder="Rua, número, bairro, cidade e estado" disabled={loading || saving} />
+            <input value={form.address} onChange={(event) => updateField("address", event.target.value)} maxLength={256} placeholder="Rua, número, bairro, cidade e estado" disabled={formLocked} />
             <small>{form.address.length}/256</small>
           </label>
 
           <label className="wb-field wb-field--full">
             <span><IconBuildingStore size={16} /> Descrição</span>
-            <textarea value={form.description} onChange={(event) => updateField("description", event.target.value)} maxLength={256} rows={4} placeholder="Conte de forma clara o que sua empresa oferece." disabled={loading || saving} />
+            <textarea value={form.description} onChange={(event) => updateField("description", event.target.value)} maxLength={256} rows={4} placeholder="Conte de forma clara o que sua empresa oferece." disabled={formLocked} />
             <small>{form.description.length}/256</small>
           </label>
 
           <div className="wb-fields-row">
             <label className="wb-field">
               <span><IconMail size={16} /> E-mail comercial</span>
-              <input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} maxLength={128} placeholder="contato@suaempresa.com" disabled={loading || saving} />
+              <input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} maxLength={128} placeholder="contato@suaempresa.com" disabled={formLocked} />
             </label>
             <label className="wb-field">
               <span><IconClock size={16} /> Fuso horário</span>
-              <select value={form.timeZone} onChange={(event) => updateField("timeZone", event.target.value)} disabled={loading || saving}>
+              <select value={form.timeZone} onChange={(event) => updateField("timeZone", event.target.value)} disabled={formLocked}>
                 {TIMEZONES.includes(form.timeZone) ? null : <option value={form.timeZone}>{form.timeZone}</option>}
                 {TIMEZONES.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
               </select>
@@ -305,7 +309,7 @@ export default function BusinessProfilePage() {
             {form.websites.map((website, index) => (
               <label className="wb-field" key={index}>
                 <span><IconLink size={16} /> Website {index + 1}</span>
-                <input type="url" value={website} onChange={(event) => updateWebsite(index, event.target.value)} maxLength={256} placeholder={index === 0 ? "https://suaempresa.com" : "https://instagram.com/suaempresa"} disabled={loading || saving} />
+                <input type="url" value={website} onChange={(event) => updateWebsite(index, event.target.value)} maxLength={256} placeholder={index === 0 ? "https://suaempresa.com" : "https://instagram.com/suaempresa"} disabled={formLocked} />
               </label>
             ))}
           </div>
@@ -325,20 +329,20 @@ export default function BusinessProfilePage() {
           {form.schedule.map((day) => (
             <div className={`wb-schedule-row${day.enabled ? " is-enabled" : ""}`} key={day.key}>
               <label className="wb-switch">
-                <input type="checkbox" checked={day.enabled} onChange={(event) => updateDay(day.key, { enabled: event.target.checked })} disabled={loading || saving} />
+                <input type="checkbox" checked={day.enabled} onChange={(event) => updateDay(day.key, { enabled: event.target.checked })} disabled={formLocked} />
                 <span aria-hidden="true" />
                 <b>{day.label}</b>
               </label>
               <div className="wb-schedule-controls">
-                <select value={day.mode} onChange={(event) => updateDay(day.key, { mode: event.target.value })} disabled={!day.enabled || loading || saving} aria-label={`Tipo de horário de ${day.label}`}>
+                <select value={day.mode} onChange={(event) => updateDay(day.key, { mode: event.target.value })} disabled={!day.enabled || formLocked} aria-label={`Tipo de horário de ${day.label}`}>
                   <option value="specific_hours">Horário definido</option>
                   <option value="open_24h">Aberto 24 horas</option>
                 </select>
                 {day.mode === "specific_hours" ? (
                   <div className="wb-time-range">
-                    <input type="time" value={day.open} onChange={(event) => updateDay(day.key, { open: event.target.value })} disabled={!day.enabled || loading || saving} aria-label={`Abertura de ${day.label}`} />
+                    <input type="time" value={day.open} onChange={(event) => updateDay(day.key, { open: event.target.value })} disabled={!day.enabled || formLocked} aria-label={`Abertura de ${day.label}`} />
                     <span>até</span>
-                    <input type="time" value={day.close} onChange={(event) => updateDay(day.key, { close: event.target.value })} disabled={!day.enabled || loading || saving} aria-label={`Fechamento de ${day.label}`} />
+                    <input type="time" value={day.close} onChange={(event) => updateDay(day.key, { close: event.target.value })} disabled={!day.enabled || formLocked} aria-label={`Fechamento de ${day.label}`} />
                   </div>
                 ) : <span className="wb-24h-label"><IconCheck size={15} /> O dia todo</span>}
               </div>
@@ -347,11 +351,17 @@ export default function BusinessProfilePage() {
         </div>
 
         <div className="wb-form-actions">
-          <span>{dirty ? "Você tem alterações não salvas." : "Perfil sincronizado com o canal."}</span>
-          <button type="submit" className="wb-primary-button" disabled={!dirty || loading || saving}>
-            {saving ? <span className="wb-button-spinner" /> : <IconDeviceFloppy size={18} />}
-            {saving ? "Salvando…" : "Salvar no WhatsApp"}
-          </button>
+          {readOnly ? (
+            <span>Visualização — somente supervisores e administradores podem editar o perfil.</span>
+          ) : (
+            <>
+              <span>{dirty ? "Você tem alterações não salvas." : "Perfil sincronizado com o canal."}</span>
+              <button type="submit" className="wb-primary-button" disabled={!dirty || loading || saving}>
+                {saving ? <span className="wb-button-spinner" /> : <IconDeviceFloppy size={18} />}
+                {saving ? "Salvando…" : "Salvar no WhatsApp"}
+              </button>
+            </>
+          )}
         </div>
       </form>
 

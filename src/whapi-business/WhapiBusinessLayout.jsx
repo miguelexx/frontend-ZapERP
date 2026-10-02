@@ -156,12 +156,10 @@ export default function WhapiBusinessLayout() {
       </header>
 
       <nav className="wb-tabs" aria-label="WhatsApp Business">
-        {canManageProfile ? (
-          <NavLink to="/whatsapp-business/perfil" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
-            <IconBuildingStore size={18} stroke={1.8} />
-            <span>Perfil Business</span>
-          </NavLink>
-        ) : null}
+        <NavLink to="/whatsapp-business/perfil" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
+          <IconBuildingStore size={18} stroke={1.8} />
+          <span>Perfil Business</span>
+        </NavLink>
         <NavLink to="/whatsapp-business/labels" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
           <IconTags size={18} stroke={1.8} />
           <span>Labels</span>

@@ -245,15 +245,8 @@ export default function AppRoutes() {
               </LazyPage>
             }
           >
-            <Route index element={<Navigate to={canAccessSupervisao ? "perfil" : "labels"} replace />} />
-            <Route
-              path="perfil"
-              element={
-                <ProtectedRoute canAccess={canAccessSupervisao} redirectTo="/whatsapp-business/labels">
-                  <BusinessProfilePage />
-                </ProtectedRoute>
-              }
-            />
+            <Route index element={<Navigate to="perfil" replace />} />
+            <Route path="perfil" element={<BusinessProfilePage />} />
             <Route path="labels" element={<WhatsAppLabelsPage />} />
             <Route path="catalogo" element={<CatalogPage />} />
             <Route
