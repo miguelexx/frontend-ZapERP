@@ -17,6 +17,7 @@ import {
 } from "../conversaService";
 import { FORWARD_SELECT_MAX, FORWARD_DEST_MAX } from "../conversaConstants";
 import { safeString, formatForwardHttpError, getMediaUrl } from "../utils/conversaViewHelpers";
+import { classifyOutboundAxiosError } from "../outboundSendError";
 import { snippetFromMsg } from "../utils/conversaMessageDisplay";
 import * as cfg from "../../api/configService";
 import { useConversaStore } from "../conversaStore";
@@ -494,8 +495,14 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
             await encaminharArquivo(destConversaId, m, getMediaUrl);
             continue;
           }
+          // client_temp_id: dedupe no backend se este POST for repetido (double-submit/reconexão).
           // eslint-disable-next-line no-await-in-loop
-          await enviarMensagem(destConversaId, buildForwardText(m));
+          await enviarMensagem(
+            destConversaId,
+            buildForwardText(m),
+            undefined,
+            `fwd-${m.tempId ?? m.id ?? "s"}-${destConversaId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          );
         }
         return null;
       }
@@ -519,7 +526,19 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
           if (apiRes?.kind === "single") return apiRes;
           return { kind: "single", mensagem: apiRes?.mensagem ?? apiRes };
         } catch (e) {
-          console.warn("Encaminhar via API falhou, tentando fallback:", e?.response?.data?.error || e?.message);
+          // Resposta AMBÍGUA (timeout/rede/5xx): o backend PODE ter encaminhado — o fallback
+          // abaixo reenviava às cegas e o cliente recebia a mensagem DUPLICADA. Nesses casos,
+          // não reenviar: o erro sobe e o atendente confere a conversa antes de tentar de novo.
+          const classificado = classifyOutboundAxiosError(e, { media: isMediaForward });
+          if (classificado.uncertain) {
+            console.warn("Encaminhar via API sem resposta conclusiva — sem fallback para não duplicar:", e?.message);
+            throw Object.assign(
+              new Error("O servidor não confirmou o encaminhamento. Confira a conversa de destino antes de tentar novamente."),
+              { cause: e }
+            );
+          }
+          // Recusa DEFINITIVA (4xx/recusa no corpo): o backend não encaminhou — fallback é seguro.
+          console.warn("Encaminhar via API recusado, tentando fallback:", e?.response?.data?.error || e?.message);
           if (hasMediaUrl && isMediaForward) {
             try {
               await encaminharArquivo(destConversaId, forwardMsg, getMediaUrl);
@@ -530,7 +549,12 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
             }
           }
           if (isMediaForward) throw e;
-          await enviarMensagem(destConversaId, buildForwardText(forwardMsg));
+          await enviarMensagem(
+            destConversaId,
+            buildForwardText(forwardMsg),
+            undefined,
+            `fwd-${forwardMsg.id ?? "s"}-${destConversaId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          );
         }
         return null;
       }

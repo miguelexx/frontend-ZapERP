@@ -321,3 +321,23 @@ objeto válido; `ja_persistido` do reprocesso é seguro. Residuais mantidos: mí
 no cache do proxy (cada range refaz o download do provedor enquanto a URL for remota); entradas do
 cache expiram de forma lazy (memória limitada a 64 MB); o proxy não faz checagem de tenant por URL
 (pré-existente — URLs não adivinháveis + JWT).
+
+### Menu long-press mobile invisível + guarda anti-duplicação no encaminhar (2026-10-05)
+
+**Bug (print do Miguel):** no mobile, o menu da mensagem abria com os itens (Responder/Copiar/
+Encaminhar/Fixar/Favoritar/Selecionar) INVISÍVEIS — só a barra de reações e o "Apagar para mim".
+Causa: `styles/premium-interactions.css` força `background: var(--ds-surface-1) !important` em
+todos os `.wa-msgMenu`, incluindo a variante mobile `.wa-msgMenu--sheet`, que é DESENHADA ESCURA
+(gradiente navy) com itens em texto quase-branco → sheet branco + texto branco. O "Apagar"
+aparecia porque o `:is()` do danger herda especificidade (0,2,0) de
+`.conversation-action-menu-item.is-danger` e vence a regra do sheet; o bloco dos itens normais
+não. Fix: `:not(.wa-msgMenu--sheet)` / `:not(.wa-msgMenuBackdrop--sheet)` nos dois overrides
+(o sheet volta escuro com o escurecimento do backdrop) + danger do sheet em vermelho claro
+(`#ff8e85`). NÃO reaplique var(--ds-surface-1) no sheet sem trocar a cor dos itens junto.
+
+**Encaminhar (useForwardFlow):** o fallback do caminho único reenviava como texto QUALQUER falha
+do POST /encaminhar — inclusive timeout/5xx, quando o backend pode ter encaminhado → mensagem
+DUPLICADA no cliente. Agora `classifyOutboundAxiosError` decide: resposta ambígua (uncertain)
+sobe o erro ("confira a conversa de destino antes de tentar novamente") sem reenviar; só recusa
+DEFINITIVA (4xx/recusa no corpo) cai no fallback — que agora manda `client_temp_id`
+(`fwd-…`) para o dedupe do backend cobrir double-submit.

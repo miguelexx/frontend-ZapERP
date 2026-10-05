@@ -29,15 +29,22 @@ html body :is(.ds-btn, .wa-btn, .wa-header-btn, .wa-iconBtn, .wa-sendBtn,
   transform: none !important;
 }
 
-/* These backdrops still dismiss the menu; they no longer blur the application. */
-html body :is(.wa-msgMenuBackdrop, .wa-attachBackdrop, .wa-atendToolbar-backdrop) {
+/* These backdrops still dismiss the menu; they no longer blur the application.
+   EXCEÇÃO: o bottom-sheet mobile do long-press (--sheet) mantém o escurecimento
+   original estilo WhatsApp — faz parte da UX do gesto, não é "blur de desktop". */
+html body :is(.wa-msgMenuBackdrop:not(.wa-msgMenuBackdrop--sheet), .wa-attachBackdrop, .wa-atendToolbar-backdrop) {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   animation: none !important;
   transform: none !important;
 }
-html body :is(.wa-msgMenu, .wa-attachMenu, .conversation-action-menu,
+/* EXCEÇÃO --sheet: o bottom-sheet mobile é DESENHADO ESCURO (gradiente próprio) com itens
+   em texto quase-branco (.wa-msgMenu--sheet .wa-msgMenuItem). Forçar var(--ds-surface-1)
+   aqui pintava o sheet de branco no tema claro e os itens (Responder/Copiar/Encaminhar/…)
+   ficavam INVISÍVEIS — só o "Apagar" vermelho aparecia (o :is() do danger herda
+   especificidade (0,2,0) de .conversation-action-menu-item.is-danger e vence o sheet). */
+html body :is(.wa-msgMenu:not(.wa-msgMenu--sheet), .wa-attachMenu, .conversation-action-menu,
   .chat-list-novo-menu, .wa-atendToolbar-dropdown, .admin-atendente-filter__panel) {
   background: var(--ds-surface-1) !important;
   color: var(--ds-text-primary);
@@ -91,6 +98,13 @@ html body :is(.wa-msgMenuItem, .wa-attachItem, .conversation-action-menu-item,
 html body :is(.wa-msgMenuItemDanger, .conversation-action-menu-item.is-danger) { color: var(--ds-error); }
 html body :is(.wa-msgMenuItemDanger, .conversation-action-menu-item.is-danger):hover:not(:disabled) {
   background: color-mix(in srgb, var(--ds-error) 7%, transparent);
+}
+/* Danger dentro do bottom-sheet ESCURO: var(--ds-error) do tema claro é vermelho escuro
+   (contraste ruim no gradiente navy). Vermelho claro, como o WhatsApp dark. */
+html body .wa-msgMenu--sheet .wa-msgMenuItemDanger { color: #ff8e85; }
+html body .wa-msgMenu--sheet .wa-msgMenuItemDanger:hover:not(:disabled),
+html body .wa-msgMenu--sheet .wa-msgMenuItemDanger:active {
+  background: rgba(255, 128, 118, 0.12);
 }
 html body :is(.wa-msgMenuItem > svg, .conversation-action-menu-icon,
   .chat-list-novo-icon, .wa-atendToolbar-sheetIcon, .wa-attachItem-icon) {
