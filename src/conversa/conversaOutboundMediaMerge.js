@@ -1432,7 +1432,11 @@ function mediaUrlTail(m) {
 
 function isLocalUploadMediaMessage(m) {
   const raw = String(m?.url || m?.url_absoluta || "").trim()
-  return raw.startsWith("/uploads/")
+  // /media/r2/ é a entrega da mídia migrada ao Cloudflare R2 — URL do próprio CRM, tão
+  // durável quanto /uploads. Sem isto, o nova_mensagem do espelhamento R2 era REJEITADO
+  // pelo preserveLocalMediaFields e a store ficava presa num /uploads que o servidor
+  // purga ~5 min depois: áudio/imagem viravam 404 e só o F5 trazia a URL boa.
+  return raw.startsWith("/uploads/") || raw.startsWith("/media/r2/")
 }
 
 function resolveClientTempId(msg) {

@@ -9,7 +9,8 @@ import { useConversaStore } from "../../conversaStore";
  */
 function aplicarUrlRecuperadaNaStore(msg, url) {
   const u = String(url || "").trim();
-  if (!u.startsWith("/uploads/")) return;
+  // /media/r2/: mídia já migrada ao R2 — o backend responde ja_persistido com essa URL.
+  if (!u.startsWith("/uploads/") && !u.startsWith("/media/r2/")) return;
   if (u === String(msg?.url || "").trim()) return;
   const conversaId = Number(msg?.conversa_id ?? msg?.conversaId);
   const mensagemId = Number(msg?.id ?? msg?.mensagem_id);

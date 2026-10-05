@@ -10,8 +10,18 @@ import {
   classifyStuckStart,
 } from "../../utils/audioPlaybackRecovery";
 import { normalizeAudioDuration, rememberAudioDuration, readAudioDuration } from "../utils/audioDuration";
-import { pauseOtherAudios, clearCurrentAudioIf } from "../utils/audioSession";
+import { pauseOtherAudios, clearCurrentAudioIf, getCurrentAudio } from "../utils/audioSession";
 import { logAudioPlayFailure } from "../utils/audioPlayerLog";
+
+/**
+ * Posição sã do elemento. A sonda de duração Infinity usa currentTime ~1e101; qualquer
+ * leitura nesse estado não pode virar resumeAt/baseline (retomar "no fim infinito"
+ * deixava o player mudo e o vigia sem referência de progresso).
+ */
+const sanePosition = (v) => {
+  const t = Number(v) || 0;
+  return Number.isFinite(t) && t >= 0 && t <= 24 * 3600 ? t : 0;
+};
 
 const isPositionBuffered = (el) => {
   try {
@@ -39,8 +49,32 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
   }, [candidates, src]);
   const [sourceIdx, setSourceIdx] = useState(0);
   const [reloadNonce, setReloadNonce] = useState(0);
-  const activeSrc = sourceList[sourceIdx] || "";
+  // `playList` é a lista EM USO pelo elemento. Quando `sourceList` muda no meio da reprodução
+  // (backend migra a URL do provedor → /uploads ou /uploads → /media/r2 e re-emite nova_mensagem),
+  // trocar o src na hora resetava o <audio> e o áudio parava na metade. A lista nova fica em
+  // `pendingListRef` e é adotada na pausa/fim — ou imediatamente pelas recuperações de stall/erro,
+  // onde a URL nova é justamente o melhor candidato.
+  const [playList, setPlayList] = useState(sourceList);
+  const playListRef = useRef(sourceList);
+  playListRef.current = playList;
+  const pendingListRef = useRef(null);
+  const playingRef = useRef(false);
+  const durationFixCleanupRef = useRef(null);
+  // Incrementado quando o usuário CANCELA um início em andamento (clique de pausa durante
+  // recarga): invalida o autoplay pendente do `canplay` já agendado no efeito de reload.
+  const playCancelSeqRef = useRef(0);
+  const activeSrc = playList[sourceIdx] || "";
   const audioRef = useRef(null);
+  const adoptPendingSourceList = useCallback(() => {
+    const pend = pendingListRef.current;
+    if (!pend) return false;
+    pendingListRef.current = null;
+    // Conteúdo idêntico ao em uso: nada a adotar — o caller segue com o reload normal.
+    if (pend.join("\u0001") === playListRef.current.join("\u0001")) return false;
+    setPlayList(pend);
+    setSourceIdx(0);
+    return true;
+  }, []);
   const applyFreshSrc = useCallback(
     (el) => {
       if (!el || !activeSrc) return;
@@ -92,22 +126,52 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
   const pointerSpeedRef = useRef(false);
   const pointerSeekRef = useRef(false);
 
+  const prevMsgKeyRef = useRef(msgKey);
+  const initialDurationRef = useRef(initialDuration);
+  initialDurationRef.current = initialDuration;
   useEffect(() => {
+    const el = audioRef.current;
+    const mesmaMensagem = prevMsgKeyRef.current === msgKey;
+    prevMsgKeyRef.current = msgKey;
+    // Mesma mensagem, nova lista de fontes, áudio tocando: NÃO resetar — pararia a
+    // reprodução na metade (era o que acontecia quando a cópia p/ /uploads terminava
+    // segundos depois de o atendente dar play). Guarda para adotar depois.
+    if (mesmaMensagem && el && !el.paused && !el.ended) {
+      pendingListRef.current = sourceList;
+      return;
+    }
+    pendingListRef.current = null;
+    setPlayList(sourceList);
     setSourceIdx(0);
     setPlaying(false);
     setCur(0);
     setDur(
-      normalizeAudioDuration(initialDuration) ||
+      normalizeAudioDuration(initialDurationRef.current) ||
         readAudioDuration(msgKey)
     );
     setIndisponivel(false);
     setExpirado(false);
     setReprocessando(false);
     durationProbeRef.current = false;
-    autoPlayRef.current = { ate: 0, tentativas: 0 };
-    pendingPlayRef.current = 0;
-    resumeWatchRecoveredRef.current = false;
-  }, [sourceList.join("\u0001"), msgKey, initialDuration]);
+    // "Tentar de novo"/clique abriu a janela de autoplay e ENTÃO a lista mudou (patch da URL
+    // recuperada chega no mesmo ciclo): preservar o pedido em aberto — zerá-lo deixava o áudio
+    // carregado mas mudo, exigindo um segundo clique. Mensagem diferente reseta tudo.
+    const inicioEmAndamento =
+      mesmaMensagem && (pendingPlayRef.current !== 0 || autoPlayRef.current.ate > Date.now());
+    if (!inicioEmAndamento) {
+      autoPlayRef.current = { ate: 0, tentativas: 0 };
+      pendingPlayRef.current = 0;
+      resumeWatchRecoveredRef.current = false;
+    }
+    // initialDuration fora das deps de propósito: a chegada tardia da duração não pode
+    // resetar o player (o elemento seguia tocando com a UI em "pausado"). A semente
+    // tardia é aplicada pelo efeito abaixo sem tocar na reprodução.
+  }, [sourceList.join("\u0001"), msgKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const d = normalizeAudioDuration(initialDuration);
+    if (d) setDur((prev) => (prev > 0 ? prev : d));
+  }, [initialDuration]);
 
   useLayoutEffect(() => {
     const el = waveMeasureRef.current;
@@ -182,11 +246,21 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
           const fixed = Number(el.duration);
           if (Number.isFinite(fixed) && fixed > 0) {
             el.removeEventListener("durationchange", onDurationFix);
+            if (durationFixCleanupRef.current === cleanupFix) durationFixCleanupRef.current = null;
             setDur(fixed);
             rememberAudioDuration(msgKey, fixed);
-            try { el.currentTime = 0; } catch { /* ignore */ }
+            // Volta ao início APENAS quando a posição é a da sonda (fim "infinito") ou o
+            // player está parado. Um durationchange tardio no meio da reprodução não pode
+            // teleportar o áudio para 0 — era o "não chega ao fim / volta ao início".
+            const t = Number(el.currentTime || 0);
+            const posicaoDaSonda = !Number.isFinite(t) || t >= fixed - 0.5;
+            if (!playingRef.current || posicaoDaSonda) {
+              try { el.currentTime = 0; } catch { /* ignore */ }
+            }
           }
         };
+        const cleanupFix = () => el.removeEventListener("durationchange", onDurationFix);
+        durationFixCleanupRef.current = cleanupFix;
         el.addEventListener("durationchange", onDurationFix);
         try { el.currentTime = 1e101; } catch { /* ignore */ }
       }
@@ -196,13 +270,16 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
         /* ignore */
       }
     };
-    const onSeeked = () => setCur(Number(el.currentTime || 0));
+    const onSeeked = () => setCur(sanePosition(el.currentTime));
     const onEnded = () => {
+      playingRef.current = false;
       setPlaying(false);
       setCur(0);
       pendingPlayRef.current = 0;
+      adoptPendingSourceList();
     };
     const onPlay = () => {
+      playingRef.current = true;
       setPlaying(true);
       setIndisponivel(false);
       autoPlayRef.current.ate = 0;
@@ -215,21 +292,39 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
         /* ignore */
       }
     };
-    const onPause = () => setPlaying(false);
+    const onPause = () => {
+      playingRef.current = false;
+      setPlaying(false);
+      // Pausado: hora segura de adotar a lista de fontes que chegou durante a reprodução.
+      adoptPendingSourceList();
+    };
     const onError = () => {
+      const estavaTocando = playingRef.current;
+      playingRef.current = false;
       setPlaying(false);
       const auto = autoPlayRef.current;
+      // Erro NO MEIO da reprodução (ex.: range do proxy falhou, link expirou no provedor):
+      // antes trocava de fonte em silêncio, SEM autoplay e SEM retomar a posição — o áudio
+      // simplesmente parava na metade. Agora recupera pelo mesmo motor do stall: janela de
+      // autoplay + vigília de início; o reload restaura a posição via loadedmetadata.
+      if (estavaTocando && auto.ate <= Date.now()) {
+        auto.ate = Date.now() + 10_000;
+        auto.tentativas = auto.tentativas || 0;
+        solicitarInicioPlayback(false);
+      }
       if (auto.ate > Date.now()) {
         auto.tentativas += 1;
-        if (shouldGiveUpOnError({ tentativas: auto.tentativas, sourceCount: sourceList.length })) {
+        if (shouldGiveUpOnError({ tentativas: auto.tentativas, sourceCount: playList.length })) {
           auto.ate = 0;
           setIndisponivel(true);
         }
       }
+      // Lista nova pendente (ex.: /uploads chegou durante a reprodução) é o melhor candidato.
+      if (adoptPendingSourceList()) return;
       setSourceIdx((curIdx) =>
         nextSourceIndexOnError({
           sourceIdx: curIdx,
-          sourceCount: sourceList.length,
+          sourceCount: playList.length,
           autoWindowOpen: autoPlayRef.current.ate > Date.now(),
         })
       );
@@ -248,13 +343,21 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       el.removeEventListener("play", onPlay);
       el.removeEventListener("pause", onPause);
       el.removeEventListener("error", onError);
+      // A sonda de Infinity registra um durationchange próprio; sem removê-lo aqui o
+      // handler sobrevivia à troca de fonte e teleportava a reprodução para 0 depois.
+      if (durationFixCleanupRef.current) {
+        durationFixCleanupRef.current();
+        durationFixCleanupRef.current = null;
+      }
     };
-  }, [activeSrc, playbackRate, sourceList.length, msgKey]);
+  }, [activeSrc, playbackRate, playList.length, msgKey, adoptPendingSourceList, solicitarInicioPlayback]);
 
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !activeSrc) return;
-    const resumeAt = Number(el.currentTime) || 0;
+    // sanePosition: durante a sonda de Infinity o currentTime é ~1e101 — "retomar" dali
+    // deixava o player mudo (posição além do fim) e o vigia sem baseline de progresso.
+    const resumeAt = sanePosition(el.currentTime);
     applyFreshSrc(el);
     try {
       el.load();
@@ -262,6 +365,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       /* ignore */
     }
     if (autoPlayRef.current.ate <= Date.now()) return;
+    const cancelSeq = playCancelSeqRef.current;
     let restaurarPosicao = null;
     if (resumeAt > 0.25) {
       restaurarPosicao = () => {
@@ -273,6 +377,16 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     const tocarQuandoPronto = () => {
       el.removeEventListener("canplay", tocarQuandoPronto);
       autoPlayRef.current.ate = 0;
+      // Usuário cancelou este início (clique de pausa durante a recarga): não tocar.
+      if (playCancelSeqRef.current !== cancelSeq) return;
+      // Outro player tomou a sessão enquanto esta recarga carregava (usuário clicou em outro
+      // áudio): não atropela a reprodução dele — antes este play() tardio tocava POR CIMA.
+      const atual = getCurrentAudio();
+      if (atual && atual !== el) {
+        pendingPlayRef.current = 0;
+        return;
+      }
+      pauseOtherAudios(el); // reivindica a sessão (cobre recarga do vigia/tentar de novo)
       void Promise.resolve(el.play()).catch((err) => {
         if (import.meta.env.DEV && err?.name !== "NotAllowedError" && err?.name !== "AbortError") {
           console.warn("[AudioWavePlayer] play() rejeitado na retomada:", err?.name, err?.message);
@@ -295,7 +409,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       const last = rafLastRef.current || 0;
       if (!last || t - last >= 66) {
         rafLastRef.current = t;
-        setCur(Number(audioRef.current.currentTime || 0));
+        setCur(sanePosition(audioRef.current.currentTime));
       }
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -313,8 +427,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     let timer = 0;
     let recovered = false;
     let seekGraceUsada = false;
-    let baseline = Number(el.currentTime || 0);
-    const progressed = () => Number(el.currentTime || 0) > baseline + 0.2;
+    let baseline = sanePosition(el.currentTime);
+    const progressed = () => sanePosition(el.currentTime) > baseline + 0.2;
     const clear = () => {
       if (timer) {
         clearTimeout(timer);
@@ -353,19 +467,22 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       // disparar `pause` — e congelava até F5). Arma a vigília de início, a mesma do clique do
       // usuário, para escalonar/desistir sozinha se a recarga não engatar.
       solicitarInicioPlayback(false);
-      const plano = planReloadOnStall({ sourceIdx, sourceCount: sourceList.length });
+      // Lista nova pendente (URL migrada chegou durante a reprodução): é o melhor alvo
+      // de recuperação — adota em vez de insistir na fonte antiga.
+      if (adoptPendingSourceList()) return;
+      const plano = planReloadOnStall({ sourceIdx, sourceCount: playList.length });
       if (plano.type === "advance") setSourceIdx(plano.sourceIdx);
       else setReloadNonce((n) => n + 1);
     };
     const armFromStall = () => {
       if (timer) return;
-      baseline = Number(el.currentTime || 0);
+      baseline = sanePosition(el.currentTime);
       timer = setTimeout(recover, 4000);
     };
     const cancelIfMoving = () => {
       if (progressed()) {
         clear();
-        baseline = Number(el.currentTime || 0);
+        baseline = sanePosition(el.currentTime);
         seekGraceUsada = false;
       }
     };
@@ -386,7 +503,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       el.removeEventListener("playing", cancelIfMoving);
       el.removeEventListener("timeupdate", cancelIfMoving);
     };
-  }, [playing, sourceIdx, sourceList.length, solicitarInicioPlayback]);
+  }, [playing, sourceIdx, playList.length, solicitarInicioPlayback, adoptPendingSourceList]);
 
   // Vigília de INÍCIO — a lacuna que forçava F5: o play foi pedido mas o áudio nunca engata e
   // nenhum evento vem. Cobre `await el.play()` que trava mudo (não dispara `play`/`error`, então o
@@ -402,12 +519,12 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     if (!token) return; // nenhum pedido de início em aberto (ou já confirmado/cancelado)
     const el = audioRef.current;
     if (!el) return;
-    const baseline = Number(el.currentTime || 0);
+    const baseline = sanePosition(el.currentTime);
     const timer = setTimeout(() => {
       if (pendingPlayRef.current !== token) return; // substituído por novo pedido ou cancelado
       const a = audioRef.current;
       if (!a) return;
-      const progressed = Number(a.currentTime || 0) > baseline + 0.2;
+      const progressed = sanePosition(a.currentTime) > baseline + 0.2;
       // `playing` aqui vem do ELEMENTO no instante do disparo, nunca do estado React (obsoleto).
       const decisao = classifyStuckStart({
         playing: !a.paused && !a.ended && progressed,
@@ -427,13 +544,15 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       }
       resumeWatchRecoveredRef.current = true;
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: autoPlayRef.current.tentativas || 0 };
-      const plano = planReloadOnStall({ sourceIdx, sourceCount: sourceList.length });
-      if (plano.type === "advance") setSourceIdx(plano.sourceIdx);
-      else setReloadNonce((n) => n + 1);
+      if (!adoptPendingSourceList()) {
+        const plano = planReloadOnStall({ sourceIdx, sourceCount: playList.length });
+        if (plano.type === "advance") setSourceIdx(plano.sourceIdx);
+        else setReloadNonce((n) => n + 1);
+      }
       solicitarInicioPlayback(false); // segue vigiando a nova tentativa, sem devolver o orçamento
     }, 6000);
     return () => clearTimeout(timer);
-  }, [pendingPlaySeq, playing, sourceIdx, sourceList.length, solicitarInicioPlayback]);
+  }, [pendingPlaySeq, playing, sourceIdx, playList.length, solicitarInicioPlayback, adoptPendingSourceList]);
 
   const toggle = useCallback(async () => {
     const el = audioRef.current;
@@ -446,9 +565,26 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
         /* ignore */
       }
       if (el.paused) {
-        // Arma a vigília de início ANTES de qualquer tentativa: se nada engatar, ela recupera
-        // sozinha em vez de deixar o botão morto até um F5.
+        // Clique com RECARGA em andamento (o estado da UI ainda é "tocando" — `load()` pausa
+        // o elemento sem disparar `pause`): a intenção do usuário é PAUSAR. Antes este clique
+        // era lido como play (el.paused=true) e disparava outra recarga — o áudio voltava a
+        // tocar sozinho contra a vontade do usuário.
+        if (playingRef.current && (pendingPlayRef.current || autoPlayRef.current.ate > Date.now())) {
+          pendingPlayRef.current = 0;
+          autoPlayRef.current.ate = 0;
+          playCancelSeqRef.current += 1; // invalida o canplay→play pendente da recarga
+          playingRef.current = false;
+          setPlaying(false);
+          adoptPendingSourceList();
+          return;
+        }
+        // Lista de fontes nova chegou enquanto estava pausado no meio de uma recarga antiga:
+        // adota antes de tocar — o efeito de reload toca sozinho com a janela aberta.
         solicitarInicioPlayback();
+        if (pendingListRef.current && adoptPendingSourceList()) {
+          autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
+          return;
+        }
         if (
           needsReloadBeforeResume({
             hasError: !!el.error,
@@ -477,14 +613,15 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       logAudioPlayFailure(el, err);
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
       solicitarInicioPlayback(false); // continua vigiando a recarga disparada pela falha
-      const plano = planReloadOnPlayFailure({ sourceIdx, sourceCount: sourceList.length });
+      if (adoptPendingSourceList()) return;
+      const plano = planReloadOnPlayFailure({ sourceIdx, sourceCount: playList.length });
       if (plano.type === "nonce") {
         setReloadNonce((n) => n + 1);
       } else {
         setSourceIdx(plano.sourceIdx);
       }
     }
-  }, [playbackRate, sourceIdx, sourceList.length, solicitarInicioPlayback]);
+  }, [playbackRate, sourceIdx, playList.length, solicitarInicioPlayback, adoptPendingSourceList]);
 
   const tentarNovamente = useCallback(async () => {
     setIndisponivel(false);
@@ -492,6 +629,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     const recargaLocal = () => {
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
       solicitarInicioPlayback(); // pedido explícito do usuário: reinicia o orçamento e revigia
+      if (adoptPendingSourceList()) return; // URL nova (ex.: recém-copiada p/ /uploads) na frente
       if (sourceIdx !== 0) setSourceIdx(0);
       else setReloadNonce((n) => n + 1);
     };
@@ -515,7 +653,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       // ok (recuperou) OU falha transitória: em ambos vale tocar de novo localmente.
     }
     recargaLocal();
-  }, [sourceIdx, solicitarInicioPlayback, reprocessMedia]);
+  }, [sourceIdx, solicitarInicioPlayback, reprocessMedia, adoptPendingSourceList]);
 
   const keepMobileKeyboardOpen = useCallback((e) => {
     if (e.pointerType !== "touch" && e.pointerType !== "pen") return false;

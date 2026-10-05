@@ -14,7 +14,9 @@ export function getRetryUiState(msg, classified, { onReenviarFalha, onReenviarAu
   const retryStatus = String(msg?.status_mensagem ?? msg?.status ?? "").toLowerCase();
   const retryFailedConfirmed =
     msg?.envio_erro === true ||
-    ["erro", "error", "failed", "falhou"].includes(retryStatus);
+    // "blocked": a proteção de envio barrou (no banco a linha fica 'erro'); a bolha
+    // reconciliada pela resposta HTTP carrega 'blocked' e também precisa do Reenviar.
+    ["erro", "error", "failed", "falhou", "blocked"].includes(retryStatus);
   const retryBlockedStatus = [
     "pending",
     "sending",

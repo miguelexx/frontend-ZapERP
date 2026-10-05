@@ -36,7 +36,9 @@ export function resolveOutgoingTick(msg, isGroup) {
   const s = rawStatus;
   const hasReadKeyword = /lida|read|seen|visualiz|played/.test(s);
   const hasDeliveredKeyword = /entregue|deliver|receiv/.test(s);
-  const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou";
+  // "blocked" vem na resposta HTTP quando a proteção de envio barrou a mensagem (no banco a
+  // linha fica 'erro'). Sem ele aqui, a bolha caía no fallback "sent" e a falha ficava invisível.
+  const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou" || s === "blocked";
   const statusJaConfirmado = CONFIRMED_STATUS.includes(s);
   const isAguardandoConexao =
     !isErr &&

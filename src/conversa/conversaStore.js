@@ -193,12 +193,20 @@ function applyMensagemPatchToList(list, mensagemId, partial, opts, currentConver
     }
     let merged = preserveLocalMediaFields(cur, { ...cur, ...partial })
     if (partial.status != null || partial.status_mensagem != null) {
-      const higher = pickHigherStatus(
-        cur.status_mensagem ?? cur.status,
-        partial.status_mensagem ?? partial.status
-      )
-      if (higher != null) {
-        merged = { ...merged, status: higher, status_mensagem: higher }
+      // forceStatus: caminhos de ciclo de vida explícito (ex.: reenvio manual erro→sending→
+      // pending) aplicam o status informado sem o guard monotônico — senão a bolha ficava
+      // presa em "erro" mesmo com o backend tendo aceitado o reenvio.
+      if (opts?.forceStatus === true) {
+        const forced = partial.status_mensagem ?? partial.status
+        merged = { ...merged, status: partial.status ?? forced, status_mensagem: forced }
+      } else {
+        const higher = pickHigherStatus(
+          cur.status_mensagem ?? cur.status,
+          partial.status_mensagem ?? partial.status
+        )
+        if (higher != null) {
+          merged = { ...merged, status: higher, status_mensagem: higher }
+        }
       }
     }
     merged = clearStaleOutboundWaitFlags(merged)
@@ -1609,6 +1617,9 @@ export const useConversaStore = create((set, get) => {
           envio_erro: true,
           envio_demorado: false,
           envio_incerto: false,
+          // Falha definitiva encerra o ciclo de reenvio — sem isso a bolha ficava
+          // travada em "Reenviando…" quando o retry manual falhava.
+          em_retry: false,
           ...(opts?.mensagem_id != null && String(opts.mensagem_id).trim() !== ""
             ? { id: opts.mensagem_id }
             : {}),

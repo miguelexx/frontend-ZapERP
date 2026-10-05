@@ -1,7 +1,7 @@
 /** Janela de agrupamento para status_mensagem (ms). */
 export const STATUS_MENSAGEM_BATCH_MS = 75;
 
-const ERROR_STATUSES = new Set(["erro", "error", "failed", "falhou"]);
+const ERROR_STATUSES = new Set(["erro", "error", "failed", "falhou", "blocked"]);
 
 const STATUS_RANK = {
   pending: 0,
@@ -27,7 +27,11 @@ const STATUS_RANK = {
 function statusRank(s) {
   const raw = String(s ?? "").toLowerCase().trim();
   if (!raw) return -1;
-  if (ERROR_STATUSES.has(raw)) return 200;
+  // Erro vence pending/sending/status_indefinido (não some atrás de um eco atrasado), mas
+  // PERDE para sent/delivered/read/played: o backend só emite esses após confirmação real
+  // do provedor (retry automático/reconciliação). Com rank absoluto (200), um envio
+  // recuperado pelo backend ficava para sempre com ícone de erro e botão "Reenviar".
+  if (ERROR_STATUSES.has(raw)) return 0.5;
   return STATUS_RANK[raw] ?? 1;
 }
 

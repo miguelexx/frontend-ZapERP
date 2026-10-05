@@ -456,7 +456,10 @@ const Bubble = memo(function Bubble({
               <span className="wa-bubble-remetente-nome">
                 {remetente}:
               </span>
-              <BubbleTypedContent includeAudioAndCall={false} requireVideoUrl={false} {...typedProps} />
+              {/* includeAudioAndCall: a 1ª mensagem de cada bloco do remetente em GRUPO ficava
+                  sem player de áudio (caía no fallback de texto) — o CSS .wa-bubble-audio
+                  .wa-bubble-remetente sempre previu nome + player juntos. */}
+              <BubbleTypedContent includeAudioAndCall requireVideoUrl={false} {...typedProps} />
             </div>
           ) : (
             <BubbleTypedContent includeAudioAndCall requireVideoUrl {...typedProps} />

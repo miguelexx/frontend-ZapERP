@@ -1829,6 +1829,17 @@ function ConversaViewBody() {
         if (res?.ok === false && (resMsgId == null || resMsgId === "")) {
           marcarMensagemTempErro(tempId);
         }
+        // HTTP 200 com falha DEFINITIVA no corpo (status erro/blocked + motivo): sem este
+        // aviso a falha era silenciosa — a bolha mudava de ícone mas nada explicava o porquê.
+        // Falha transitória (status pending) segue sem toast: o retry automático resolve.
+        const resStatusFinal = String(res?.status ?? res?.mensagem?.status ?? "").toLowerCase();
+        if (resStatusFinal === "erro" || resStatusFinal === "failed" || resStatusFinal === "blocked") {
+          showToast({
+            type: "error",
+            title: resStatusFinal === "blocked" ? "Envio bloqueado" : "Falha ao enviar",
+            message: String(res?.motivo || "A mensagem não foi enviada ao WhatsApp. Use o Reenviar na bolha."),
+          });
+        }
         manualTextRetryRef.current = null;
       } catch (err) {
         envioFalhou = true;
@@ -2641,6 +2652,8 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
       audioRetryRequestInFlightRef.current.add(retryKey);
 
       const store = useConversaStore.getState();
+      // forceStatus: sem ele o guard monotônico (pickHigherStatus) mantinha "erro" e a
+      // bolha nem mostrava o relógio de reenvio.
       store.patchMensagem(
         mid,
         {
@@ -2651,7 +2664,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           envio_incerto: false,
           tempId: tempId || undefined,
         },
-        { conversa_id: conversaId }
+        { conversa_id: conversaId, forceStatus: true }
       );
 
       try {
@@ -2682,8 +2695,11 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
         }
 
         if (realMsg && tempId) {
+          // Linha vinda do servidor (GET) não tem tempId na bolha — a reconciliação por
+          // tempId falha em silêncio. O patch por id abaixo cobre esse caso sempre.
           reconciliarMensagem(String(tempId), { ...realMsg, id: realMsg.id ?? mid });
-        } else if (realMsg?.id != null || mid) {
+        }
+        if (realMsg?.id != null || mid) {
           store.patchMensagem(
             realMsg?.id ?? mid,
             {
@@ -2693,9 +2709,9 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
               em_retry: false,
               envio_erro: false,
             },
-            { conversa_id: conversaId }
+            { conversa_id: conversaId, forceStatus: true }
           );
-        } else {
+        } else if (!realMsg) {
           await refresh({ silent: true });
         }
         if (tempId) audioRetryFilesRef.current.delete(String(tempId));
@@ -2724,15 +2740,21 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           store.patchMensagem(
             bodyMsg.id,
             { ...bodyMsg, status: "erro", status_mensagem: "erro", em_retry: false, envio_erro: true, erro_mensagem: apiMsg },
-            { conversa_id: conversaId }
+            { conversa_id: conversaId, forceStatus: true }
           );
         } else if (tempId) {
           marcarMensagemTempErro(String(tempId), { mensagem_id: mid, erro_mensagem: apiMsg });
+          // Linha do servidor não tem tempId na bolha — garante o desbloqueio por id.
+          store.patchMensagem(
+            mid,
+            { status: "erro", status_mensagem: "erro", em_retry: false, envio_erro: true, erro_mensagem: apiMsg },
+            { conversa_id: conversaId, forceStatus: true }
+          );
         } else {
           store.patchMensagem(
             mid,
             { status: "erro", status_mensagem: "erro", em_retry: false, envio_erro: true, erro_mensagem: apiMsg },
-            { conversa_id: conversaId }
+            { conversa_id: conversaId, forceStatus: true }
           );
         }
         showToast({

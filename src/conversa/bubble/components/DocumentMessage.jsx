@@ -104,7 +104,13 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
    */
   const recuperarHrefs = useCallback(async () => {
     const r = await requestInboundMediaReprocess(msg);
-    if (r?.ok && typeof r.url === "string" && r.url.startsWith("/uploads/")) {
+    // /media/r2/: mídia migrada ao Cloudflare R2 — o backend responde ja_persistido com
+    // essa URL (tão válida quanto /uploads); antes ela era tratada como "expirou".
+    if (
+      r?.ok &&
+      typeof r.url === "string" &&
+      (r.url.startsWith("/uploads/") || r.url.startsWith("/media/r2/"))
+    ) {
       return {
         openHref: buildMediaOpenHref(r.url, null, nome),
         downloadHref: buildMediaDownloadHref(r.url, null, nome),

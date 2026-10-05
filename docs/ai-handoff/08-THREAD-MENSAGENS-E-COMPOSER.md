@@ -256,3 +256,47 @@ Hotkeys: `hooks/useGlobalHotkeys.js`. Encaminhar/contato/local/enquete: hooks `u
 messageRowVisualSignature agora inclui reply_meta.poll serializado quando houver enquete. O evento mensagem_editada pode atualizar results/last_vote com editada:false e sem alterar texto/status/editada_em; comparar apenas a citação fazia ThreadRow ignorar a atualização visual da enquete.
 
 useAutoScroll, visualViewport, envio otimista e barras sticky foram preservados. Permanecem pendentes a validação visual da transição da pinBar e a recuperação de nota interna em erro/socket indisponível. A análise não equivale a homologação em navegador ou celular; nenhum teste foi executado nesta auditoria. Evidências, limites e roteiros no [relatório de certificação](C:/Users/Miguel/Documents/whatsapp-plataforma/frontend/docs/audits/certificacao-atendimento-2026-09-09.md).
+
+## Auditoria de reprodução de áudio/mídia recebida (2026-10-05)
+
+Sintoma investigado: play sem som / áudio parando no meio / não chegando ao fim, resolvido só com F5.
+Causas-raiz encontradas e corrigidas (frontend + backend):
+
+1. **Troca de `src` no meio da reprodução.** O backend emite `nova_mensagem` DUAS vezes para mídia
+   recebida (URL do provedor → `/uploads` após a cópia; `/uploads` → `/media/r2` após o espelho R2).
+   O reset do `useAudioPlayback` trocava o src incondicionalmente e a reprodução parava. Agora existe
+   `playList` (lista EM USO) + `pendingListRef`: lista nova durante a reprodução fica pendente e é
+   adotada na pausa/fim — ou imediatamente pelas recuperações de stall/erro/tentar-de-novo, onde a
+   URL nova é o melhor candidato (`adoptPendingSourceList`).
+2. **Armadilha do R2 (empresa com R2 ligado).** `isLocalUploadMediaMessage` só aceitava `/uploads/` —
+   o `preserveLocalMediaFields` REJEITAVA a URL `/media/r2/` do espelhamento e a store ficava presa
+   num `/uploads` purgado ~5 min depois (404; "tentar de novo" respondia "expirou"). `/media/r2/`
+   agora conta como URL do CRM em: `isLocalUploadMediaMessage`, `inboundMediaReprocess` (patch),
+   `DocumentMessage` (hrefs), `useInboundMediaAutoHeal` (não dispara reprocesso p/ URL R2) e no
+   backend `inboundMediaReprocessController` (responde `ja_persistido`).
+3. **Sonda de duração Infinity** (`useAudioPlayback`): o listener `durationchange` da sonda não era
+   removido e um durationchange tardio teleportava a reprodução para 0 ("não termina"); `resumeAt`
+   capturado durante a sonda era ~1e101 e a retomada ficava muda. Fix: cleanup do listener
+   (`durationFixCleanupRef`), reset a 0 só fora de reprodução legítima, e `sanePosition()` em
+   resumeAt/baselines/setCur.
+4. **Erro no meio da reprodução** trocava de fonte em silêncio, sem autoplay e sem posição. Agora
+   recupera pelo mesmo motor do stall (janela de autoplay + vigília de início + retomada de posição).
+5. **Dois players**: o `canplay`→`play()` pendente de uma recarga tocava POR CIMA de outro áudio que
+   o usuário iniciou depois. Agora checa `getCurrentAudio()` e desiste se outro player tomou a
+   sessão. Clique de "pausar" durante recarga (elemento pausado + UI tocando) agora CANCELA o início
+   (`playCancelSeqRef`) em vez de disparar outra recarga.
+6. **Reset indevido**: `initialDuration` saiu das deps do reset (duração tardia não pausa a UI) e um
+   início em aberto (janela de autoplay/pedido pendente) sobrevive à troca de lista da mesma
+   mensagem — o "tentar de novo" não exige mais segundo clique.
+7. **Grupos**: a 1ª mensagem de cada bloco de remetente renderizava `includeAudioAndCall={false}` —
+   áudio SEM player (regressão de refactor; o CSS `.wa-bubble-audio .wa-bubble-remetente` sempre
+   previu nome + player). Corrigido no `ConversaBubbleShell`.
+8. **Backend `/media/proxy`**: cache LRU em memória (10 min / 64 MB / item ≤ 12 MB, env
+   `MEDIA_PROXY_CACHE_*`, desliga com `MEDIA_PROXY_CACHE_DISABLED=1`) + dedupe de downloads em voo —
+   o duplo load do mount, as sondas de Range e as recargas dos vigias de 4s/6s baixavam o arquivo
+   INTEIRO do provedor a cada pedido e o primeiro byte demorava mais que o vigia.
+
+Residuais documentados (não corrigidos): bolha de áudio desmonta ao sair da janela virtual (sem
+keep-alive/mini-player); no mobile, a 25ª mensagem troca lista estática→virtual e remonta tudo
+(áudio tocando para); hipótese iOS de `NotAllowedError` no play fora de gesto (vigias degradam para
+"indisponível" — investigar em aparelho real).

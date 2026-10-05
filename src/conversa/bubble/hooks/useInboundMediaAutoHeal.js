@@ -49,7 +49,9 @@ export function useInboundMediaAutoHeal(msg, out, isMediaBubble) {
   useEffect(() => {
     if (!elegivel) return undefined;
     if (!Number.isSafeInteger(id) || id <= 0) return undefined;
-    if (url.startsWith("/uploads/")) return undefined;
+    // /media/r2/ é URL final (mídia migrada ao Cloudflare R2) — tão curada quanto /uploads;
+    // sem esta guarda cada bolha R2 disparava um reprocesso inútil no mount.
+    if (url.startsWith("/uploads/") || url.startsWith("/media/r2/")) return undefined;
     if (curadas.has(id) || emAndamento.has(id)) return undefined;
 
     let cancelled = false;
