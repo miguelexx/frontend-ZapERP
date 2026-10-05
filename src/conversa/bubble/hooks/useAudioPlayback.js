@@ -627,6 +627,10 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     setIndisponivel(false);
     // Recarga LOCAL (comportamento histórico): reabre a janela de autoplay e recarrega as fontes.
     const recargaLocal = () => {
+      // Gesto explícito do usuário NESTE áudio: assume a sessão (pausa outro que esteja
+      // tocando), como o toggle faz. Sem isso, com outro áudio ativo, o canplay desta
+      // recarga desistia (guard de sessão) e a vigília acabava marcando "indisponível".
+      if (audioRef.current) pauseOtherAudios(audioRef.current);
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
       solicitarInicioPlayback(); // pedido explícito do usuário: reinicia o orçamento e revigia
       if (adoptPendingSourceList()) return; // URL nova (ex.: recém-copiada p/ /uploads) na frente

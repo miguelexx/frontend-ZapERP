@@ -300,3 +300,24 @@ Residuais documentados (não corrigidos): bolha de áudio desmonta ao sair da ja
 keep-alive/mini-player); no mobile, a 25ª mensagem troca lista estática→virtual e remonta tudo
 (áudio tocando para); hipótese iOS de `NotAllowedError` no play fora de gesto (vigias degradam para
 "indisponível" — investigar em aparelho real).
+
+### 2ª auditoria da reprodução (2026-10-05, mesma data) — validação + 1 correção
+
+Auditoria independente das mudanças acima (diff dos commits e5666d7/670eea8f + simulação de
+lifecycle/corrida + 12 testes novos de cache no backend). Confirmadas seguras: playList/pending
+(troca de URL durante reprodução), fixes da sonda Infinity, guarda de sessão no canplay, cancel
+de pausa durante recarga, aceitação de /media/r2 (merge/reprocess/doc/auto-heal), player em
+grupos, cache+dedupe do /media/proxy (TTL, eviction LRU, 416 do cache, corpos independentes,
+falha não cacheada, ranges concorrentes = 1 download).
+
+**Correção desta rodada:** `tentarNovamente`/`recargaLocal` não reivindicava a sessão de áudio —
+com OUTRO áudio tocando, o guard de sessão do `canplay` (introduzido na 1ª rodada) descartava o
+play da recarga e a vigília acabava marcando o áudio como "indisponível". Agora o clique no
+"tentar de novo" chama `pauseOtherAudios(el)` (gesto explícito = assume a sessão, como o toggle).
+
+Premissas do R2 verificadas no backend: o espelho só troca a url após upload VERIFICADO (guarda
+`.like('/uploads/%')` anti-corrida) e purga o staging ~5 min depois — `/media/r2` no banco implica
+objeto válido; `ja_persistido` do reprocesso é seguro. Residuais mantidos: mídia >12 MB não entra
+no cache do proxy (cada range refaz o download do provedor enquanto a URL for remota); entradas do
+cache expiram de forma lazy (memória limitada a 64 MB); o proxy não faz checagem de tenant por URL
+(pré-existente — URLs não adivinháveis + JWT).
