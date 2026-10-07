@@ -8,12 +8,14 @@ import {
 } from "../outboundSendError";
 import { useConversaStore } from "../conversaStore";
 import { scheduleAfterInitialPaint } from "../../chats/scheduleAfterInitialPaint";
-import { MAX_DOCUMENTOS_LOTE_ENVIO, STICKER_RECENTS_LIMIT } from "../conversaConstants";
+import { MAX_DOCUMENTOS_LOTE_ENVIO, MAX_FOTOS_LOTE_ENVIO, STICKER_RECENTS_LIMIT } from "../conversaConstants";
 import {
   isAudioFile,
   isVideoFile,
   isArquivoBloqueadoWhatsApp,
   mensagemArquivoBloqueadoWhatsApp,
+  arquivoExcedeLimiteUpload,
+  mensagemArquivoExcedeLimite,
   getAudioFilename,
   readRecentStickers,
   writeRecentStickers,
@@ -116,6 +118,16 @@ export function useConversationOutboundMedia({
           type: "error",
           title: "Arquivo não permitido",
           message: mensagemArquivoBloqueadoWhatsApp(file),
+        });
+        clearPending();
+        return;
+      }
+      // Feedback imediato: o middleware do backend rejeitaria com 400 depois do upload inteiro.
+      if (arquivoExcedeLimiteUpload(file)) {
+        showToast({
+          type: "error",
+          title: "Arquivo muito grande",
+          message: mensagemArquivoExcedeLimite(file),
         });
         clearPending();
         return;
@@ -372,9 +384,33 @@ export function useConversationOutboundMedia({
   
   const handleFototecaInputChange = useCallback(
     async (e) => {
-      const files = e.target.files ? Array.from(e.target.files) : [];
+      let files = e.target.files ? Array.from(e.target.files) : [];
       e.target.value = "";
       if (!files.length || !conversaId) return;
+      // Um arquivo acima do teto (32 MB foto / 128 MB vídeo) faz o middleware do backend
+      // rejeitar o LOTE INTEIRO com 400 — nenhuma das outras fotos sairia. Filtra e envia o resto.
+      const grandes = files.filter((f) => arquivoExcedeLimiteUpload(f));
+      if (grandes.length) {
+        showToast({
+          type: "warning",
+          title: "Arquivo muito grande",
+          message:
+            grandes.length === files.length
+              ? mensagemArquivoExcedeLimite(grandes[0])
+              : `${grandes.length} arquivo(s) acima do limite (32 MB foto / 128 MB vídeo) não serão enviados. Os demais seguem normalmente.`,
+        });
+        files = files.filter((f) => !arquivoExcedeLimiteUpload(f));
+        if (!files.length) return;
+      }
+      // Acima do máximo o backend rejeita o lote inteiro (400) — corta aqui e avisa.
+      if (files.length > MAX_FOTOS_LOTE_ENVIO) {
+        showToast({
+          type: "warning",
+          title: "Limite de fotos",
+          message: `Selecione no máximo ${MAX_FOTOS_LOTE_ENVIO} fotos por vez. Apenas as primeiras ${MAX_FOTOS_LOTE_ENVIO} serão enviadas.`,
+        });
+        files = files.slice(0, MAX_FOTOS_LOTE_ENVIO);
+      }
       if (!podeEnviar) {
         showToast({
           type: "warning",
@@ -560,6 +596,21 @@ export function useConversationOutboundMedia({
           message: mensagemArquivoBloqueadoWhatsApp(blocked[0]),
         });
         files = files.filter((f) => !isArquivoBloqueadoWhatsApp(f));
+        if (!files.length) return;
+      }
+
+      // Mesmo motivo da fototeca: um arquivo acima do teto derruba o lote inteiro no backend.
+      const grandes = files.filter((f) => arquivoExcedeLimiteUpload(f));
+      if (grandes.length) {
+        showToast({
+          type: "warning",
+          title: "Arquivo muito grande",
+          message:
+            grandes.length === files.length
+              ? mensagemArquivoExcedeLimite(grandes[0])
+              : `${grandes.length} arquivo(s) acima do limite de 32 MB não serão enviados. Os demais seguem normalmente.`,
+        });
+        files = files.filter((f) => !arquivoExcedeLimiteUpload(f));
         if (!files.length) return;
       }
   

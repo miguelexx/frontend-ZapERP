@@ -3,8 +3,13 @@ import { createPortal } from "react-dom";
 import {
   buildViewerImageCandidates,
   getMediaPlaybackUrl,
+  getMediaUrl,
   mediaViewerSupportsPrint,
 } from "../utils/conversaViewHelpers";
+import {
+  canReprocessInboundMedia,
+  requestInboundMediaReprocess,
+} from "../bubble/utils/inboundMediaReprocess";
 import { IconClose, IconForward, IconPrint } from "../conversaViewIcons";
 
 const ZOOM_MIN = 1;
@@ -16,14 +21,75 @@ function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
-function ViewerFallbackImg({ url, alt, imgRef, style, className, onDoubleClick }) {
-  const candidates = useMemo(() => buildViewerImageCandidates(url), [url]);
+function ViewerFallbackImg({ url, alt, imgRef, style, className, onDoubleClick, sourceMsg }) {
+  const [recoveredUrl, setRecoveredUrl] = useState(null);
+  const candidates = useMemo(
+    () => buildViewerImageCandidates(recoveredUrl || url),
+    [recoveredUrl, url]
+  );
   const [idx, setIdx] = useState(0);
+  const [exhausted, setExhausted] = useState(false);
+  const [reprocessando, setReprocessando] = useState(false);
+  const [definitivo, setDefinitivo] = useState(false);
+  const reprocessInFlightRef = useRef(false);
   useEffect(() => {
     setIdx(0);
+    setExhausted(false);
+    setRecoveredUrl(null);
+    setDefinitivo(false);
   }, [url]);
+
+  // O backend só reprocessa mídia RECEBIDA; espelha a regra aqui para não oferecer
+  // um botão que sempre falharia em imagem enviada por nós.
+  const sourceEhOut = String(sourceMsg?.direcao || "").toLowerCase() === "out";
+
+  const tentarRecuperar = () => {
+    if (reprocessInFlightRef.current) return;
+    if (!canReprocessInboundMedia(sourceMsg, sourceEhOut)) return;
+    reprocessInFlightRef.current = true;
+    setReprocessando(true);
+    requestInboundMediaReprocess(sourceMsg)
+      .then((r) => {
+        if (r?.ok) {
+          const abs = r?.url ? getMediaUrl(r.url, null) || r.url : null;
+          if (abs && abs !== (recoveredUrl || url)) setRecoveredUrl(abs);
+          setIdx(0);
+          setExhausted(false);
+        } else if (r?.definitivo) {
+          setDefinitivo(true);
+        }
+      })
+      .finally(() => {
+        reprocessInFlightRef.current = false;
+        setReprocessando(false);
+      });
+  };
+
   const src = candidates[idx] || "";
-  if (!src) return null;
+  if (!src || exhausted) {
+    const podeRecuperar = canReprocessInboundMedia(sourceMsg, sourceEhOut) && !definitivo;
+    return (
+      <div className="wa-mediaViewer-imgError" role="status">
+        <span className="wa-mediaViewer-fileIcon" aria-hidden="true">🖼️</span>
+        <span>
+          {definitivo
+            ? "Esta imagem não está mais disponível no WhatsApp."
+            : "Não foi possível carregar esta imagem."}
+        </span>
+        {podeRecuperar ? (
+          <button
+            type="button"
+            className="wa-btn wa-btn-primary"
+            disabled={reprocessando}
+            aria-busy={reprocessando ? "true" : undefined}
+            onClick={tentarRecuperar}
+          >
+            {reprocessando ? "Recuperando…" : "Tentar de novo"}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <img
       ref={imgRef}
@@ -38,7 +104,11 @@ function ViewerFallbackImg({ url, alt, imgRef, style, className, onDoubleClick }
       draggable={false}
       onDoubleClick={onDoubleClick}
       onError={() => {
-        setIdx((n) => (n + 1 < candidates.length ? n + 1 : n));
+        if (idx + 1 < candidates.length) {
+          setIdx(idx + 1);
+          return;
+        }
+        setExhausted(true);
       }}
     />
   );
@@ -47,7 +117,7 @@ function ViewerFallbackImg({ url, alt, imgRef, style, className, onDoubleClick }
 /**
  * Zoom + pan para imagens do lightbox (roda do mouse, arrastar, pinch, duplo clique).
  */
-function ZoomableImage({ url, alt, imgRef }) {
+function ZoomableImage({ url, alt, imgRef, sourceMsg }) {
   const stageRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -215,6 +285,7 @@ function ZoomableImage({ url, alt, imgRef }) {
         className="wa-mediaViewer-img wa-mediaViewer-img--zoomable"
         style={imgStyle}
         onDoubleClick={onDoubleClick}
+        sourceMsg={sourceMsg}
       />
       {zoomed ? (
         <div className="wa-mediaViewer-zoomBadge" aria-hidden="true">
@@ -339,6 +410,7 @@ export default function MediaViewerOverlay({
                 : mediaViewer.fileName || "Imagem"
             }
             imgRef={mediaViewerImgRef}
+            sourceMsg={mediaViewer.sourceMsg}
           />
         ) : mediaViewer.type === "arquivo" ? (
           (() => {
@@ -396,6 +468,7 @@ export default function MediaViewerOverlay({
             url={mediaViewer.url}
             alt={mediaViewer.type === "figurinha" ? "Figurinha" : "Imagem"}
             imgRef={mediaViewerImgRef}
+            sourceMsg={mediaViewer.sourceMsg}
           />
         )}
       </div>

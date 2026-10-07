@@ -8454,6 +8454,36 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   text-align: center;
 }
 
+/* Imagem que não carregou no visualizador: estado visível + recuperação (antes ficava preto). */
+.wa-mediaViewer-imgError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 24px;
+  color: #fff;
+  text-align: center;
+  font-size: 15px;
+  max-width: min(420px, 86vw);
+}
+
+/* Bolha de imagem indisponível: chip clicável de recuperação (não é <button>: vive dentro do
+   botão wa-bubble-imgLink e botão aninhado é HTML inválido). */
+.wa-bubble-imgRetry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wa-bubble-imgRetry[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.7;
+  text-decoration: none;
+}
+
 .wa-modal {
   width: min(520px, 100%);
   max-height: min(520px, 90vh);

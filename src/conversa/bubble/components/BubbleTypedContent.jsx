@@ -69,6 +69,7 @@ export default function BubbleTypedContent({
         mediaUrl={mediaUrl}
         texto={texto}
         showCaption={showCaption}
+        out={out}
         onPointerDown={handleMediaPointerDown}
         onPointerUp={handleMediaPointerUp}
         onClick={handleMediaClick}

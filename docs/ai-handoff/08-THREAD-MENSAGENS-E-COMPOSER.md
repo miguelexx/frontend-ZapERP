@@ -453,3 +453,52 @@ pinados até o unload — raro/limitado); mesmo áudio pode cachear 2x sob chave
 eco demorar (edge, conta 2x no LRU); side-effect de snapshot dentro do updater funcional de
 setChats (1 execução; fire-and-forget). Validação em NAVEGADOR REAL permanece PENDENTE (sem
 runner de testes frontend; app exige login — roteiro manual na seção anterior).
+
+---
+
+## 2026-10-07 — Imagem recebida que não abre: recuperação na bolha e no visualizador
+
+Sintoma: imagem recebida não abria (bolha virava "(imagem)" ou o visualizador ficava preto).
+Causa: quando todos os candidatos de URL falham (link do provedor expirado + cópia local
+ausente/404), a bolha esgotava o fallback em silêncio e o viewer não tinha estado de erro —
+documento e áudio já tinham recuperação via `POST reprocessar-midia`; imagem não.
+
+Mudanças (reusam `bubble/utils/inboundMediaReprocess.js`, que já aplica a URL recuperada na store):
+
+1. **`ImageMessage.jsx` (BubbleImage)** — ao esgotar os candidatos após a rodada local de retry,
+   dispara reprocesso automático UMA vez (só mídia recebida persistida; `canReprocessInboundMedia`).
+   A URL recuperada muda `msg.url` → candidatos recomputam → efeito de reset rearma o `<img>`.
+   Se falhar, mostra chip clicável "Imagem indisponível — tentar de novo" (span role=button —
+   vive dentro do `<button.wa-bubble-imgLink>`, botão aninhado é inválido; stopPropagation para
+   não abrir o viewer quebrado). `definitivo:true` → "Imagem expirou no WhatsApp".
+   `BubbleTypedContent` passa `out` ao ImageMessage (mesma regra do AudioMessage).
+
+2. **`MediaViewerOverlay.jsx` (ViewerFallbackImg)** — ganhou estado `exhausted`: em vez de `<img>`
+   quebrado/tela preta, painel `.wa-mediaViewer-imgError` com "Tentar de novo" (reprocesso via
+   `mediaViewer.sourceMsg`; URL recuperada entra por estado local `recoveredUrl` porque o
+   `mediaViewer.url` é fixado na abertura). `out` derivado de `sourceMsg.direcao` — o backend
+   só reprocessa mídia recebida (rejeita `direcao=out`), então o botão não aparece para imagem nossa.
+   `sourceMsg` passado por `ZoomableImage` e pelo fallback não-zoom.
+
+3. **`conversa.css`** — `.wa-mediaViewer-imgError` + `.wa-bubble-imgRetry`.
+
+Caminho online intacto: candidatos, ordem de fallback, retry local de 1 rodada, gestos e zoom não
+mudaram; a recuperação só entra quando TUDO falhou. Build Vite OK; validação em navegador real
+PENDENTE (cenário exige mídia com link expirado em produção). Não deployado.
+
+### 2026-10-07 (parte 2) — Lote de fotos: limites espelhados do backend
+
+Dois all-or-nothing matavam o lote inteiro sem enviar NADA:
+1. **>30 arquivos** (fototeca não tinha teto; backend `MAX_ARQUIVOS_LOTE_ENVIO=30` responde 400
+   para o lote) → novo `MAX_FOTOS_LOTE_ENVIO=30` em conversaConstants; corta e avisa, envia 30.
+2. **1 arquivo acima do teto (32 MB não-vídeo / 128 MB vídeo)** → o middleware `uploadArquivo`
+   APAGA e rejeita o lote inteiro com 400. Novos helpers `arquivoExcedeLimiteUpload` /
+   `mensagemArquivoExcedeLimite` (conversaViewHelpers, espelham DEFAULT_UPLOAD_MAX_BYTES /
+   VIDEO_SOURCE_UPLOAD_MAX_BYTES): fototeca e documentos filtram os grandes com toast e enviam
+   o resto; arquivo único ganha feedback imediato antes do upload.
+
+Filtros rodam ANTES de criar bolhas otimistas (nenhuma bolha órfã). Timeout de lote já era
+proporcional (`resolveUploadTimeoutMs(batchBytes)`, cap 15 min). Backend ganhou try/catch por
+arquivo no loop do lote (doc 25 parte 2). Residual: se a mediaOutbox estourar limites
+(30 itens/200 MB) num lote incerto, os excedentes ficam só com a verificação de consistência
+(sem reenvio durável) — some no F5 se o POST nunca chegou. Build Vite OK; não deployado.

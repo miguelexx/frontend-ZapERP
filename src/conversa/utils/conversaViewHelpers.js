@@ -477,6 +477,26 @@ export function mensagemArquivoBloqueadoWhatsApp(file) {
   );
 }
 
+/**
+ * Espelho dos limites do middleware de upload do backend (DEFAULT_UPLOAD_MAX_BYTES /
+ * VIDEO_SOURCE_UPLOAD_MAX_BYTES): um arquivo acima do teto faz o middleware apagar e
+ * rejeitar o LOTE INTEIRO com 400 — filtrar aqui garante que o resto do lote seja enviado.
+ */
+export const UPLOAD_MAX_BYTES_NAO_VIDEO = 32 * 1024 * 1024;
+export const UPLOAD_MAX_BYTES_VIDEO = 128 * 1024 * 1024;
+
+export function arquivoExcedeLimiteUpload(file) {
+  const size = Number(file?.size) || 0;
+  if (size <= 0) return false;
+  return size > (isVideoFile(file) ? UPLOAD_MAX_BYTES_VIDEO : UPLOAD_MAX_BYTES_NAO_VIDEO);
+}
+
+export function mensagemArquivoExcedeLimite(file) {
+  return isVideoFile(file)
+    ? "Vídeo maior que 128 MB. Reduza o arquivo original e tente novamente."
+    : "Arquivo maior que 32 MB. Apenas vídeos podem ultrapassar esse tamanho para compactação automática.";
+}
+
 function getApiOrigin() {
   try {
     const base = getApiBaseUrl().replace(/\/$/, "");
