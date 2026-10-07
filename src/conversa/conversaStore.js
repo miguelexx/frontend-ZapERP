@@ -1888,12 +1888,9 @@ export const useConversaStore = create((set, get) => {
       const me = getCurrentUserFromStorage()
       const meuId = me?.id
       if (meuId == null) throw new Error("Usuário não identificado")
-      try {
-        await adicionarAtendenteConversa(conversaId, meuId)
-      } catch (err) {
-        // 409 = já participa / já é o principal → estado final é o mesmo, segue para recarregar.
-        if (err?.response?.status !== 409) throw err
-      }
+      // O servidor confirma também pedidos repetidos. Conflitos reais devem interromper
+      // o fluxo antes de liberar o envio ou colocar a conversa na Minha fila.
+      await adicionarAtendenteConversa(conversaId, meuId)
       // Otimista: entra como co-atendente (participante_ativo) → cai na Minha fila do atendente
       // e derruba o bloqueio antes mesmo do refresh terminar. O resync confirma pelo backend
       // (a query de minha_fila já inclui participante_ativo).

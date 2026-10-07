@@ -22,6 +22,11 @@ try {
   const supervisor = { id: 11, perfil: "supervisor" };
   const admin = { id: 12, perfil: "admin" };
 
+  assert.equal(viewerPodePuxarConversaNovamente(
+    { id: 1, atendente_id: 99, status_atendimento: "em_atendimento", participante_ativo: true },
+    supervisor
+  ), false, "participante ativo não precisa puxar novamente");
+
   // Transferidor: o backend só devolve a conversa bloqueada a quem transferiu.
   assert.equal(
     viewerPodePuxarConversaNovamente(
@@ -135,7 +140,40 @@ try {
     "encerrada não entra na Minha fila"
   );
 
-  console.log("OK — puxar conversa novamente: 13/13 casos (permissão + Minha fila).");
+  // Exercita a ação real do store: um 409 não pode desbloquear a conversa.
+  globalThis.localStorage = {
+    getItem: (key) => key === "zap_erp_auth" ? JSON.stringify({ user: atendente }) : null,
+    setItem() {}, removeItem() {},
+  };
+  const { useConversaStore } = await vite.ssrLoadModule("/src/conversa/conversaStore.js");
+  const { useChatStore } = await vite.ssrLoadModule("/src/chats/chatsStore.js");
+  const { default: api } = await vite.ssrLoadModule("/src/api/http.js");
+  const originalPost = api.post;
+  const originalRefresh = useConversaStore.getState().refresh;
+  let refreshes = 0;
+  useConversaStore.setState({ refresh: async () => { refreshes++; } });
+  try {
+    for (const message of ["Limite de 4 atendentes", "Reabra a conversa"]) {
+      const conversa = { id: 1, atendente_id: 99, status_atendimento: "em_atendimento", mensagens_bloqueadas: true };
+      useConversaStore.setState({ conversa });
+      useChatStore.setState({ chats: [conversa] });
+      api.post = async () => { throw Object.assign(new Error(message), { response: { status: 409, data: { error: message } } }); };
+      await assert.rejects(useConversaStore.getState().puxarConversaNovamente(1), (err) => err.response.status === 409);
+      assert.equal(useConversaStore.getState().conversa.mensagens_bloqueadas, true);
+      assert.notEqual(useConversaStore.getState().conversa.participante_ativo, true);
+      assert.notEqual(useChatStore.getState().chats[0].participante_ativo, true);
+      assert.equal(refreshes, 0);
+    }
+    api.post = async () => ({ data: { ok: true, already_participant: true } });
+    await useConversaStore.getState().puxarConversaNovamente(1);
+    assert.equal(useConversaStore.getState().conversa.participante_ativo, true);
+    assert.equal(useConversaStore.getState().conversa.atendente_id, 99);
+    assert.equal(refreshes, 1);
+  } finally {
+    api.post = originalPost;
+    useConversaStore.setState({ refresh: originalRefresh });
+  }
+  console.log("OK — puxar conversa: permissões, Minha fila, rejeição de conflitos e confirmação idempotente.");
 } finally {
   await vite.close();
 }

@@ -10,7 +10,7 @@ import { getDisplayName } from "../chats/chatList";
 import * as cfg from "../api/configService";
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
-import { IconClipboard, IconClose, IconLinkOut, IconPhone, IconTrash } from "./conversaViewIcons";
+import { IconClipboard, IconClose, IconLinkOut, IconPencil, IconPhone, IconTrash } from "./conversaViewIcons";
 import SidebarGrupo from "./SidebarGrupo";
 import { removeChatIdFromFilterRowCaches } from "../chats/chatListSidebarCache";
 
@@ -213,6 +213,9 @@ export default function SidebarCliente({
   const user = useAuthStore((s) => s.user);
   const showToast = useNotificationStore((s) => s.showToast);
   const panelRef = useRef(null);
+  const nomeInputRef = useRef(null);
+  const skipNomeBlurSaveRef = useRef(false);
+  const savingNomeLockRef = useRef(false);
   const [observacao, setObservacao] = useState("");
   const [obsBase, setObsBase] = useState("");
   const [savingObs, setSavingObs] = useState(false);
@@ -244,6 +247,13 @@ export default function SidebarCliente({
         (active.type === "date" || active.type === "time")
       ) {
         return;
+      }
+      if (
+        active instanceof HTMLInputElement &&
+        panel.contains(active) &&
+        active.id === "side-cliente-nome"
+      ) {
+        active.blur();
       }
       onClose?.();
     };
@@ -296,6 +306,7 @@ export default function SidebarCliente({
     nextNote: "",
   });
   const [nomeContatoBase, setNomeContatoBase] = useState("");
+  const [nomeFieldFocused, setNomeFieldFocused] = useState(false);
   const [savingNomeContato, setSavingNomeContato] = useState(false);
   const [deletingContact, setDeletingContact] = useState(false);
   const skipClienteHydrateRef = useRef(false);
@@ -890,8 +901,8 @@ export default function SidebarCliente({
     applyNomeContatoPatch,
   ]);
 
-  const handleSalvarNomeContato = useCallback(async () => {
-    if (!conversa?.id || savingNomeContato) return false;
+  const handleSalvarNomeContato = useCallback(async (nomeOverride) => {
+    if (!conversa?.id || savingNomeContato || savingNomeLockRef.current) return false;
     if (!canEdit) {
       showToast?.({
         type: "error",
@@ -900,12 +911,15 @@ export default function SidebarCliente({
       });
       return false;
     }
-    const nomeTrim = String(cliNome || "").trim();
+    const nomeTrim = String(nomeOverride != null ? nomeOverride : cliNome || "").trim();
+    const prevNome = String(nomeContatoBase || "").trim();
+    if (nomeTrim === prevNome) return true;
     if (!nomeTrim) {
+      if (prevNome) setCliNome(prevNome);
       showToast?.({ type: "error", title: "Nome obrigatório", message: "Informe o nome do contato." });
       return false;
     }
-    const prevNome = String(nomeContatoBase || "").trim();
+    savingNomeLockRef.current = true;
     setSavingNomeContato(true);
     skipClienteHydrateRef.current = true;
     setCliNome(nomeTrim);
@@ -961,6 +975,7 @@ export default function SidebarCliente({
       });
       return false;
     } finally {
+      savingNomeLockRef.current = false;
       skipClienteHydrateRef.current = false;
       setSavingNomeContato(false);
     }
@@ -1218,22 +1233,90 @@ export default function SidebarCliente({
             onError={() => setAvatarImgError(true)}
             onOpen={handleOpenProfilePhoto}
           />
-          {canEdit ? (
-            <input
-              type="text"
-              className="wa-sideCliente-profileNameInput"
-              value={cliNome}
-              onChange={(e) => setCliNome(e.target.value)}
-              placeholder="Nome do contato"
-              disabled={savingAny}
-              aria-label="Nome do contato"
-              maxLength={120}
-            />
-          ) : (
-            <h2 className="wa-sideCliente-profileName" title={clienteNome}>
-              {clienteNome}
-            </h2>
-          )}
+          <div className="wa-sideCliente-nameEdit">
+            <span className="wa-sideCliente-nameEditLabel" id="side-cliente-nome-label">
+              Nome do contato
+            </span>
+            <div className="wa-sideCliente-nameEditBox">
+              {canEdit ? (
+                <input
+                  id="side-cliente-nome"
+                  ref={nomeInputRef}
+                  type="text"
+                  className="wa-sideCliente-profileNameInput"
+                  value={cliNome}
+                  onChange={(e) => setCliNome(e.target.value)}
+                  onFocus={() => setNomeFieldFocused(true)}
+                  onBlur={(e) => {
+                    setNomeFieldFocused(false);
+                    if (skipNomeBlurSaveRef.current) {
+                      skipNomeBlurSaveRef.current = false;
+                      return;
+                    }
+                    void handleSalvarNomeContato(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      skipNomeBlurSaveRef.current = true;
+                      setCliNome(nomeContatoBase);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="Digite o nome do contato"
+                  disabled={savingAny}
+                  aria-labelledby="side-cliente-nome-label"
+                  title="Editar nome do contato"
+                  maxLength={120}
+                  autoComplete="off"
+                  enterKeyHint="done"
+                />
+              ) : (
+                <h2 className="wa-sideCliente-profileName" title={clienteNome || "Sem nome"}>
+                  {clienteNome || "Sem nome"}
+                </h2>
+              )}
+              <button
+                type="button"
+                className="wa-sideCliente-nameEditBtn"
+                aria-label="Editar nome do contato"
+                title={canEdit ? "Editar nome" : "Assuma a conversa para editar o nome"}
+                disabled={savingAny}
+                onMouseDown={(e) => {
+                  if (canEdit) e.preventDefault();
+                }}
+                onClick={() => {
+                  if (!canEdit) {
+                    showToast?.({
+                      type: "error",
+                      title: "Somente leitura",
+                      message: "Assuma a conversa para editar o nome.",
+                    });
+                    return;
+                  }
+                  const el = nomeInputRef.current;
+                  if (!el) return;
+                  el.focus();
+                  const len = el.value.length;
+                  try {
+                    el.setSelectionRange(len, len);
+                  } catch (_) {}
+                }}
+              >
+                <IconPencil />
+              </button>
+            </div>
+            <p className="wa-sideCliente-nameHint">
+              {canEdit
+                ? nomeFieldFocused
+                  ? "Enter salva o nome"
+                  : "Clique para editar o nome"
+                : "Assuma a conversa para editar o nome"}
+            </p>
+          </div>
           <p className="wa-sideCliente-profilePhone">
             {telefone ? <span className="wa-sideCliente-mono">{telefone}</span> : <span className="wa-sideCliente-muted">Sem telefone</span>}
           </p>

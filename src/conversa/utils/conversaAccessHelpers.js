@@ -90,6 +90,7 @@ export function viewerPodePuxarConversaNovamente(conversa, user) {
   if (!conversa || !user) return false;
   if (isGroupConversation(conversa)) return false;
   if (isClosedAttendance(conversa)) return false;
+  if (conversa.participante_ativo === true) return false;
 
   const meuId = user?.id;
   const atendenteId = conversa?.atendente_id ?? conversa?.responsavel_id ?? null;

@@ -685,16 +685,36 @@ function dedupeTags(tags) {
   return out;
 }
 
+/** Tag criada pelo sistema para sinalizar que a conversa deve voltar ao fluxo pai.
+ * Aceita as duas grafias já usadas no produto para não depender do texto exato salvo. */
+function isReturnToParentSystemTag(tag) {
+  const nome = String(tag?.nome ?? "")
+    .trim()
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+  return nome === "retornar ao pai" || nome === "retornar para o pai";
+}
+
 function TagMini({ tag }) {
   if (!tag) return null;
   const cor = String(tag?.cor || "").trim();
+  const isSystemReturn = isReturnToParentSystemTag(tag);
   return (
     <span
-      className={`chat-list-tag-mini${cor ? " chat-list-tag-mini--colored" : ""}`}
-      title={tag?.nome}
-      style={cor ? { background: cor, color: "#fff" } : undefined}
+      className={`chat-list-tag-mini${cor && !isSystemReturn ? " chat-list-tag-mini--colored" : ""}${isSystemReturn ? " chat-list-tag-mini--system-return" : ""}`}
+      title={isSystemReturn ? `${tag?.nome} · Tag do sistema` : tag?.nome}
+      style={cor && !isSystemReturn ? { background: cor, color: "#fff" } : undefined}
     >
-      {tag?.nome}
+      {isSystemReturn ? (
+        <span className="chat-list-tag-system-icon" aria-hidden="true">
+          <svg viewBox="0 0 16 16" focusable="false">
+            <path d="M6.7 3.2 3 6.8l3.7 3.6M3.4 6.8h5.1c2.8 0 4.5 1.5 4.5 4v2" />
+          </svg>
+        </span>
+      ) : null}
+      <span className={isSystemReturn ? "chat-list-tag-system-text" : undefined}>{tag?.nome}</span>
     </span>
   );
 }
@@ -1416,7 +1436,13 @@ function ChatRow({
   // Etiquetas automáticas de "Aguardar cliente" não entram no card: o selo premium
   // «Aguardando cliente / Cliente atrasado» já comunica o estado (sem duplicar).
   const tagsUnicas = useMemo(
-    () => dedupeTags(chat?.tags).filter((t) => !isAutoTagAguardandoCliente(t)),
+    () => {
+      const visibleTags = dedupeTags(chat?.tags).filter((t) => !isAutoTagAguardandoCliente(t));
+      // A tag operacional não pode ficar escondida no “+N”: ela vem antes das tags comuns.
+      return visibleTags.sort(
+        (a, b) => Number(isReturnToParentSystemTag(b)) - Number(isReturnToParentSystemTag(a))
+      );
+    },
     [chat?.tags]
   );
   const waLabelsRaw = useWhatsappLabelsStore(useMemo(() => selectConversationLabels(id), [id]));
@@ -1661,7 +1687,7 @@ function ChatRow({
           </div>
         ) : null}
         {!isGroup && tagsUnicas.length > 0 ? (
-          <div className="chat-list-row-tags">
+          <div className={`chat-list-row-tags${tagsUnicas.some(isReturnToParentSystemTag) ? " chat-list-row-tags--has-system" : ""}`}>
             {tagsUnicas.slice(0, 3).map((t) => (
               <TagMini key={t.id ?? t.nome} tag={t} />
             ))}

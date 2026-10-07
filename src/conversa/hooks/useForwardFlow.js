@@ -14,6 +14,7 @@ import {
   encaminharArquivo,
   encaminharMensagemViaAPI,
   assumirChat,
+  reabrirChat,
 } from "../conversaService";
 import { FORWARD_SELECT_MAX, FORWARD_DEST_MAX } from "../conversaConstants";
 import { safeString, formatForwardHttpError, getMediaUrl } from "../utils/conversaViewHelpers";
@@ -40,6 +41,7 @@ function getForwardDestinationAssigneeId(meta) {
 
 function shouldAssumeForwardDestination(meta, user) {
   if (isForwardGroupDestination(meta)) return false;
+  if (["fechada", "encerrada", "finalizada", "finalizado"].includes(safeString(meta?.status_atendimento).toLowerCase().trim())) return true;
   const assigneeId = getForwardDestinationAssigneeId(meta);
   if (assigneeId != null && user?.id != null && String(assigneeId) === String(user.id)) return false;
   return true;
@@ -635,9 +637,16 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
       const convStore = useConversaStore.getState();
       const destMeta = resolveDestConversaMeta(destConversaId);
       let assumeError = null;
-      if (shouldAssumeForwardDestination(destMeta, user)) {
+      // Mensagens persistidas usam a API, que reabre e assume o destino antes de enviar.
+      // Evita o POST /assumir, que recusa atendimentos finalizados.
+      if (!msgs.some((m) => m.id != null) && shouldAssumeForwardDestination(destMeta, user)) {
         try {
-          await assumirChat(destConversaId);
+          const status = safeString(destMeta?.status_atendimento).toLowerCase().trim();
+          if (["fechada", "encerrada", "finalizada", "finalizado"].includes(status)) {
+            await reabrirChat(destConversaId);
+          } else {
+            await assumirChat(destConversaId);
+          }
         } catch (ae) {
           throw new Error(formatForwardHttpError(ae));
         }
