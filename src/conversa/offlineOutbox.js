@@ -25,6 +25,21 @@ export const OUTBOX_MAX_ATTEMPTS = 8;
 /** Status/flag proprios da espera por conexao (relogio, nunca erro). */
 export const OUTBOX_STATUS = "aguardando_conexao";
 
+/**
+ * Modos de item na fila:
+ *  - 'offline': o POST nunca saiu (sem internet) — bolha "Aguardando conexão".
+ *  - 'incerto': o POST saiu mas a resposta se perdeu (timeout/5xx/429) — bolha "Verificando…".
+ *    O reenvio usa o MESMO client_temp_id; se o backend já tinha recebido, ele responde
+ *    `deduplicated` com a linha existente (idempotência ponta a ponta) — nunca duplica.
+ */
+export const OUTBOX_MODO_OFFLINE = "offline";
+export const OUTBOX_MODO_INCERTO = "incerto";
+
+/** Identifica esta aba no claim de itens (duas abas não devem flushar o mesmo item juntas). */
+const TAB_ID = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+/** Claim expira sozinho: se a aba dona morrer no meio, outra assume. */
+const LOCK_TTL_MS = 45_000;
+
 function getStorage() {
   try {
     if (typeof localStorage === "undefined") return null;
@@ -40,6 +55,7 @@ function sanitizeItem(raw) {
   const texto = typeof raw?.texto === "string" ? raw.texto : "";
   if (!tempId || !conversaId || !texto.trim()) return null;
   const enfileiradoEm = Number(raw?.enfileiradoEm);
+  const lockAte = Number(raw?.lockAte);
   return {
     tempId,
     conversaId,
@@ -49,6 +65,9 @@ function sanitizeItem(raw) {
     enfileiradoEm: Number.isFinite(enfileiradoEm) ? enfileiradoEm : Date.now(),
     tentativas: Number.isFinite(Number(raw?.tentativas)) ? Number(raw.tentativas) : 0,
     ultimoErro: raw?.ultimoErro ? String(raw.ultimoErro).slice(0, 300) : null,
+    modo: raw?.modo === OUTBOX_MODO_INCERTO ? OUTBOX_MODO_INCERTO : OUTBOX_MODO_OFFLINE,
+    lockAte: Number.isFinite(lockAte) && lockAte > Date.now() ? lockAte : 0,
+    lockDono: raw?.lockDono ? String(raw.lockDono) : null,
   };
 }
 
@@ -92,7 +111,7 @@ function writeOutbox(items) {
 }
 
 /** Idempotente por tempId: uma nova tentativa do mesmo envio nao duplica a fila. */
-export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null, criadoEm = null } = {}) {
+export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null, criadoEm = null, modo = OUTBOX_MODO_OFFLINE } = {}) {
   const item = sanitizeItem({
     tempId,
     conversaId,
@@ -101,6 +120,7 @@ export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null,
     criadoEm,
     enfileiradoEm: Date.now(),
     tentativas: 0,
+    modo,
   });
   if (!item) return null;
   const atual = readOutbox();
@@ -115,6 +135,28 @@ export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null,
   }
   writeOutbox([...atual, item]);
   return item;
+}
+
+/** Claim do item por esta aba (best-effort; o dedupe do backend é a rede de segurança). */
+function claimOutboxItem(tempId) {
+  const atual = readOutbox();
+  const idx = atual.findIndex((i) => i.tempId === tempId);
+  if (idx < 0) return false;
+  const item = atual[idx];
+  if (item.lockAte > Date.now() && item.lockDono && item.lockDono !== TAB_ID) return false;
+  const next = [...atual];
+  next[idx] = { ...item, lockAte: Date.now() + LOCK_TTL_MS, lockDono: TAB_ID };
+  writeOutbox(next);
+  return true;
+}
+
+function releaseOutboxItemLock(tempId) {
+  const atual = readOutbox();
+  const idx = atual.findIndex((i) => i.tempId === tempId);
+  if (idx < 0) return;
+  const next = [...atual];
+  next[idx] = { ...next[idx], lockAte: 0, lockDono: null };
+  writeOutbox(next);
 }
 
 export function removeFromOutbox(tempId) {
@@ -154,8 +196,20 @@ export function outboxHasItems() {
   return readOutbox().length > 0;
 }
 
-/** Campos aplicados na bolha para exibir "Aguardando conexão" com relógio. */
+/** Campos aplicados na bolha conforme o modo: offline = "Aguardando conexão"; incerto = "Verificando…". */
 export function outboxPendingMessageFields(item = {}) {
+  if (item?.modo === OUTBOX_MODO_INCERTO) {
+    return {
+      status: "status_indefinido",
+      status_mensagem: "status_indefinido",
+      aguardando_conexao: false,
+      envio_erro: false,
+      envio_incerto: true,
+      envio_demorado: false,
+      client_temp_id: item?.tempId,
+      erro_mensagem: "Verificando se a mensagem foi enviada…",
+    };
+  }
   return {
     status: OUTBOX_STATUS,
     status_mensagem: OUTBOX_STATUS,
@@ -258,7 +312,7 @@ let flushEmAndamento = false;
  * @param {(item: object, classified: object) => void} [deps.onFalhaDefinitiva] nao adianta insistir
  * @param {() => boolean} [deps.estaOffline]
  */
-export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, estaOffline } = {}) {
+export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, estaOffline, jaPersistida } = {}) {
   if (typeof sendText !== "function") return { enviadas: 0, restantes: readOutbox().length, parou: "sem_sender" };
   if (flushEmAndamento) return { enviadas: 0, restantes: readOutbox().length, parou: "em_andamento" };
   if (typeof estaOffline === "function" && estaOffline()) {
@@ -268,12 +322,37 @@ export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, e
   flushEmAndamento = true;
   let enviadas = 0;
   let parou = null;
+  let retryAfterMs = null;
   try {
     // Releitura a cada volta: o storage pode ter mudado em outra aba.
     for (let guard = 0; guard < MAX_ITEMS; guard++) {
       const fila = readOutbox();
       if (!fila.length) break;
       const item = fila[0];
+      // Outra aba está enviando este item agora: não competir (ordem por conversa é sagrada).
+      // O claim expira sozinho em LOCK_TTL_MS; o scheduler volta a tentar depois.
+      if (item.lockAte > Date.now() && item.lockDono && item.lockDono !== TAB_ID) {
+        parou = "lock_outra_aba";
+        break;
+      }
+      // Item 'incerto' cuja linha JÁ apareceu com id na tela (socket/refresh reconciliou):
+      // nada a reenviar — remove em silêncio, sem gastar um POST.
+      if (item.modo === OUTBOX_MODO_INCERTO && typeof jaPersistida === "function") {
+        let resolvida = false;
+        try {
+          resolvida = jaPersistida(item) === true;
+        } catch {
+          resolvida = false;
+        }
+        if (resolvida) {
+          removeFromOutbox(item.tempId);
+          continue;
+        }
+      }
+      if (!claimOutboxItem(item.tempId)) {
+        parou = "lock_outra_aba";
+        break;
+      }
       try {
         const res = await sendText(item);
         removeFromOutbox(item.tempId);
@@ -285,7 +364,11 @@ export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, e
         }
       } catch (err) {
         const classified = classifyOutboundAxiosError(err);
+        if (classified?.retryAfterMs != null) {
+          retryAfterMs = Math.max(retryAfterMs || 0, classified.retryAfterMs);
+        }
         const atualizado = markOutboxAttempt(item.tempId, { erro: classified.message });
+        releaseOutboxItemLock(item.tempId);
         const tentativas = Number(atualizado?.tentativas || 0);
         const desistir = !isFalhaDeRede(classified) || tentativas >= OUTBOX_MAX_ATTEMPTS;
         if (desistir) {
@@ -305,7 +388,17 @@ export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, e
   } finally {
     flushEmAndamento = false;
   }
-  return { enviadas, restantes: readOutbox().length, parou };
+  return { enviadas, restantes: readOutbox().length, parou, retryAfterMs };
+}
+
+/** Logout/troca de usuário: a fila de texto contém conteúdo do usuário — zera. */
+export function limparOutboxTextoLocal() {
+  const storage = getStorage()
+  try {
+    storage?.removeItem(OUTBOX_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function _resetOutboxForTests() {

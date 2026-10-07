@@ -1037,6 +1037,11 @@ export function initSocket(token) {
     // counts e thread — o request aqui só duplicava esses GETs logo após o load inicial.
     if (hadFirstConnect) {
       reconnectRecovery?.request()
+      // Socket voltou = backend acessível: descarrega a outbox offline/incerta agora
+      // (o auto-flush global escuta este evento; senão esperaria o próximo backoff).
+      try {
+        window.dispatchEvent(new Event("zap:socket:reconnect"))
+      } catch (_) {}
     }
     hadFirstConnect = true
     updateDocumentTitleFromChats()

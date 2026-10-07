@@ -64,6 +64,7 @@ export function BubbleImage({ msg, alt, className }) {
       className={`${className || ""} ${loaded ? "is-loaded" : "is-loading"}`.trim()}
       loading="eager"
       decoding="async"
+      draggable={false}
       referrerPolicy="no-referrer"
       onLoad={(e) => {
         setLoaded(true);

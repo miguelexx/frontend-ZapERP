@@ -31,14 +31,16 @@ function drain(payloads) {
   return out;
 }
 
-// 1) pickHigherStatus nunca regride e erro sempre vence.
+// 1) pickHigherStatus nunca regride. Erro vence estados ainda pendentes, mas uma
+// confirmação real do provedor (sent/delivered/read) recupera a falha transitória.
 assert(pickHigherStatus("read", "sent") === "read", "read não pode regredir para sent");
 assert(pickHigherStatus("sent", "read") === "read", "read deve avançar sobre sent");
 assert(pickHigherStatus("delivered", "sent") === "delivered", "delivered > sent");
 assert(pickHigherStatus("read", "delivered") === "read", "read > delivered");
 assert(pickHigherStatus("played", "read") === "played", "played > read");
-assert(pickHigherStatus("read", "erro") === "erro", "erro sempre vence (falha visível)");
-assert(pickHigherStatus("erro", "read") === "erro", "erro vence independente da ordem");
+assert(pickHigherStatus("pending", "erro") === "erro", "erro deve vencer pending");
+assert(pickHigherStatus("read", "erro") === "read", "erro atrasado não pode regredir read");
+assert(pickHigherStatus("erro", "read") === "read", "read confirmado deve recuperar erro");
 assert(pickHigherStatus(null, "sent") === "sent", "null → usa o outro");
 assert(pickHigherStatus("sent", null) === "sent", "outro null → mantém");
 

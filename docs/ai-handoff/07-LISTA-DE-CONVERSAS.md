@@ -69,6 +69,13 @@ Busca: termo local no filho (imediato) → debounce 350 ms no pai → GET só co
 
 Scope key: empresa + usuário. É stale-while-revalidate, não fonte de verdade.
 
+**Ticks do card sincronizados com a thread (2026-10-06):** a reconciliação HTTP
+`tempId → id/whatsapp_id` agora atualiza também `ultima_mensagem` da lista, não apenas a
+bolha aberta. Assim, os ACKs `status_mensagem` seguintes identificam a mesma mensagem nos
+dois lugares. Em empate de `criado_em`, `pickListaUltimaMensagem` preserva o preview
+canônico atualizado pelo socket e não deixa o array legado `mensagens` regredir ✓✓ para ✓.
+O card usa `status_mensagem` antes de `status`, igual à thread e aos comparadores.
+
 **Invalidação (2026-09-03):** resync e eventos de uma conversa usam `removeChatIdFromFilterRowCaches` (não apagam o snapshot da aba). Só sync em massa (`zapi_sync_contatos`, `whatsapp_sync_mensagens_antigas`) e logout limpam o cache do escopo. Reconexão **não** zera os filtros — o `load({ background: true })` atualiza a aba atual. GET principal e paginação capturam uma revisão do cache: uma resposta iniciada antes da invalidação não pode gravar novamente o snapshot. Vazio conhecido continua diferente de cache ausente.
 
 **Prefetch pós-auth (2026-09-03):** `prefetchDefaultChatList` dispara `GET /chats?minha_fila=1` no `login` e no `restore`, em paralelo com permissões/empresa. Grava o snapshot com a mesma `filterRequestKey` da aba padrão. O `load()` da lista reutiliza o GET em voo (ou o resultado com menos de 8 s) para não buscar de novo.

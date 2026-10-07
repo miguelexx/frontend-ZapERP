@@ -63,14 +63,16 @@ export function useMediaViewer({ showToast }) {
     []
   );
 
-  const openMediaViewer = useCallback((url, type = "imagem", fileName) => {
+  const openMediaViewer = useCallback((url, type = "imagem", fileName, sourceMsg) => {
     if (!url) return;
     const normalizedType = normalizeViewerType(type, fileName);
+    const canForward = sourceMsg?.id != null && !sourceMsg?.apagada_para_todos;
     setMediaViewer({
       url,
       type: normalizedType,
-      fileName: fileName || null,
+      fileName: fileName || sourceMsg?.nome_arquivo || null,
       originalType: type || null,
+      sourceMsg: canForward ? sourceMsg : null,
     });
   }, []);
 

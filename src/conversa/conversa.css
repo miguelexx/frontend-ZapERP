@@ -4213,6 +4213,15 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   max-width: 100%;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* No toque, pan-y deixa a conversa rolar e não entrega o long-press ao menu nativo da foto. */
+@media (pointer: coarse) {
+  .wa-bubble-imgLink,
+  .wa-bubble-videoLink {
+    touch-action: pan-y;
+  }
 }
 
 /* Desktop: área mínima se a imagem falhar (evita bolha “esmagada”). Mobile mantém compacto. */
@@ -4238,6 +4247,10 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   object-fit: contain;
   object-position: center;
   vertical-align: bottom;
+  /* O toque cai no botão pai. No <img>, o iOS abre "Salvar imagem" e cancela o long-press. */
+  pointer-events: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 /* ---- Figurinha (.sticker-message) ---- */
@@ -7460,6 +7473,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   box-sizing: border-box;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   isolation: isolate;
   box-shadow: 0 1px 2px rgba(11, 20, 26, 0.18), 0 8px 22px rgba(11, 20, 26, 0.12);
   transition: transform 140ms ease, box-shadow 140ms ease;
@@ -8308,7 +8322,8 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   gap: 8px;
 }
 
-.wa-mediaViewer-print {
+.wa-mediaViewer-print,
+.wa-mediaViewer-forward {
   width: 40px;
   height: 40px;
   display: flex;
@@ -8322,7 +8337,8 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   transition: background 0.2s, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
-.wa-mediaViewer-print:hover:not(:disabled) {
+.wa-mediaViewer-print:hover:not(:disabled),
+.wa-mediaViewer-forward:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.35);
   transform: scale(1.06);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
@@ -8350,6 +8366,20 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   background: rgba(255, 255, 255, 0.35);
   transform: scale(1.06);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 640px) {
+  .wa-mediaViewer-actions {
+    top: max(12px, env(safe-area-inset-top, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+  }
+
+  .wa-mediaViewer-print,
+  .wa-mediaViewer-forward,
+  .wa-mediaViewer-close {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .wa-mediaViewer-videoWrap {
@@ -17856,4 +17886,35 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
   .wa-shell .wa-header {
     background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100% !important;
   }
+}
+
+/* ===== Leitura/áudio OFFLINE (2026-10-06) — estados discretos, zero impacto de layout ===== */
+.wa-audioOfflineHint {
+  font-size: 11px;
+  color: var(--ds-text-secondary, #667781);
+  white-space: nowrap;
+}
+.wa-audioOfflineHint--ok {
+  color: #1fa855;
+}
+.wa-audioPlayBtn.isOfflineBlocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Pill flutuante "sem conexão" — position:fixed (NUNCA sticky/fluxo: barras sticky empurram
+   a virtual list; ver docs 14). pointer-events none = não interfere em toque/scroll. */
+.wa-offlinePill {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 68px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: rgba(17, 27, 33, 0.86);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 14px;
+  border-radius: 999px;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }

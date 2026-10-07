@@ -26,6 +26,50 @@ import {
   extractArquivoApiReconciliations,
   normalizeArquivoApiToMessage,
 } from "../conversaOptimisticMessage";
+import { OUTBOX_MODO_OFFLINE, OUTBOX_MODO_INCERTO } from "../offlineOutbox";
+import { enqueueMediaOutboxItem } from "../mediaOutbox";
+import { scheduleOutboxAutoFlush } from "../outboxAutoFlush";
+
+/**
+ * Persiste a mídia na outbox durável (IndexedDB) quando a falha é de rede/incerta — a
+ * intenção de envio sobrevive a F5 e o auto-flush reenvia com o MESMO client_temp_id
+ * (o backend deduplica; nunca duplica no WhatsApp). Fire-and-forget: a UI já mostrou
+ * "verificando/aguardando" via applyOutboundSendFailure; se o IDB não aceitar (cota,
+ * modo privado), o comportamento permanece o atual (retry manual em sessão).
+ */
+function persistirMidiaNaOutboxSeRetryavel({
+  classified,
+  persisted,
+  tempId,
+  conversaId,
+  file,
+  filename,
+  tipoForcado,
+  caption,
+  audioMeta,
+  conversa,
+  criadoEm,
+}) {
+  if (!classified || persisted) return;
+  const kindOffline = classified.kind === OUTBOUND_ERROR_KIND.OFFLINE;
+  if (!kindOffline && classified.uncertain !== true) return;
+  void enqueueMediaOutboxItem({
+    tempId,
+    conversaId,
+    blob: file,
+    filename,
+    tipoForcado,
+    caption,
+    audioMeta,
+    atendimentoId: conversa?.atendimento_id ?? null,
+    clienteId: conversa?.cliente_id ?? null,
+    phone: conversa?.telefone ?? null,
+    criadoEm,
+    modo: kindOffline ? OUTBOX_MODO_OFFLINE : OUTBOX_MODO_INCERTO,
+  }).then((meta) => {
+    if (meta) scheduleOutboxAutoFlush(classified.retryAfterMs ?? null);
+  });
+}
 
 /**
  * Envio de mídia (arquivo único, lote fototeca/documentos, sticker).
@@ -236,10 +280,36 @@ export function useConversationOutboundMedia({
                 String(row?.client_temp_id ?? "") === String(tempId)
             )
           : null;
-        applyOutboundSendFailure(tempId, err, {
+        const classified = applyOutboundSendFailure(tempId, err, {
           toastTitle: "Falha ao enviar",
           mensagemId: persistedFailure?.id ?? null,
           media: true,
+        });
+        persistirMidiaNaOutboxSeRetryavel({
+          classified,
+          persisted: persistedFailure?.id != null,
+          tempId,
+          conversaId,
+          file,
+          filename: nomeArquivo,
+          tipoForcado: opts.forceStickerType
+            ? "sticker"
+            : opts.tipo === "voice" || opts.tipo === "audio"
+              ? opts.tipo
+              : isVideoSend
+                ? "video"
+                : null,
+          caption: legenda,
+          audioMeta: isAudioSend
+            ? {
+                durationMs: Number(file?.__zaperpAudioDurationMs || 0),
+                elapsedMs: Number(file?.__zaperpAudioElapsedMs || 0),
+                bytes: Number(file?.__zaperpAudioBytes || file?.size || 0),
+                mime: String(file?.__zaperpAudioMimeType || file?.type || ""),
+              }
+            : null,
+          conversa,
+          criadoEm: optimisticMsg.criado_em,
         });
         // Mantém o File retido apenas durante esta sessão; o botão de retry usa o mensagem_id
         // persistido e o arquivo salvo no servidor.
@@ -423,6 +493,21 @@ export function useConversationOutboundMedia({
               marcarMensagemTempErro(tid, { erro_mensagem: classified.message });
             }
           });
+          files.forEach((f, i) =>
+            persistirMidiaNaOutboxSeRetryavel({
+              classified,
+              persisted: false,
+              tempId: tempIds[i],
+              conversaId,
+              file: f,
+              filename: f?.name || "foto",
+              tipoForcado: null,
+              caption: "",
+              audioMeta: null,
+              conversa,
+              criadoEm: null,
+            })
+          );
           if (classified.uncertain) void refresh({ silent: true });
           if (shouldShowOutboundToast(`batch-fotos-${conversaId}-${classified.kind}`)) {
             showToast({
@@ -613,6 +698,21 @@ export function useConversationOutboundMedia({
               marcarMensagemTempErro(tid, { erro_mensagem: classified.message });
             }
           });
+          files.forEach((f, i) =>
+            persistirMidiaNaOutboxSeRetryavel({
+              classified,
+              persisted: false,
+              tempId: tempIds[i],
+              conversaId,
+              file: f,
+              filename: f?.name || "arquivo",
+              tipoForcado: null,
+              caption: "",
+              audioMeta: null,
+              conversa,
+              criadoEm: null,
+            })
+          );
           if (classified.uncertain) void refresh({ silent: true });
           if (shouldShowOutboundToast(`batch-docs-${conversaId}-${classified.kind}`)) {
             showToast({

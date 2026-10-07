@@ -23,6 +23,8 @@ import MessageRetry from "./components/MessageRetry";
 import { LOCAL_MEDIA_LOSS_NOTICE, shouldShowLocalMediaNotice } from "../localMediaNotice";
 import BubbleTypedContent from "./components/BubbleTypedContent";
 import { ReactionPicker, ReactionButton, ReactionBadge } from "./components/MessageReactions";
+import { useOfflineAudioSource } from "./hooks/useOfflineAudioSource";
+import { useOnlineStatus } from "../../utils/useOnlineStatus";
 
 const Bubble = memo(function Bubble({
   msg,
@@ -82,7 +84,7 @@ const Bubble = memo(function Bubble({
     ]
   );
   const mediaUrl = mediaCandidates[0] || "";
-  const audioPlaybackCandidates = useMemo(
+  const audioPlaybackCandidatesBase = useMemo(
     () => resolveAudioPlaybackCandidates(msg),
     [
       msg?._optimisticBlobUrl,
@@ -97,6 +99,20 @@ const Bubble = memo(function Bubble({
       msg?.tipo,
     ]
   );
+  // Áudio OFFLINE (IndexedDB): quando a conexão cai, o blob local é a ÚNICA fonte que toca —
+  // vai na frente. Online, entra como ÚLTIMO fallback (ordem atual preservada; zero mudança
+  // no caminho feliz). Trocar a lista no MEIO de uma reprodução é seguro: o useAudioPlayback
+  // adia a adoção (playList/pendingList).
+  const tipoMsgLower = String(msg?.tipo || "").toLowerCase();
+  const ehBolhaAudio = tipoMsgLower === "audio" || tipoMsgLower === "voice";
+  const online = useOnlineStatus();
+  const offlineAudioUrl = useOfflineAudioSource(msg, ehBolhaAudio);
+  const audioPlaybackCandidates = useMemo(() => {
+    if (!offlineAudioUrl) return audioPlaybackCandidatesBase;
+    return online
+      ? [...audioPlaybackCandidatesBase, offlineAudioUrl]
+      : [offlineAudioUrl, ...audioPlaybackCandidatesBase];
+  }, [audioPlaybackCandidatesBase, offlineAudioUrl, online]);
   const contactBubbleMeta = useMemo(() => resolveContactMetaFromMessage(msg), [msg]);
   const classified = classifyBubbleMessage(msg, mediaUrl, contactBubbleMeta);
   const {
@@ -158,8 +174,16 @@ const Bubble = memo(function Bubble({
     menuElRef,
   } = useMessageMenu({ menuUsesBottomSheet });
 
+  const openBubbleMedia = useCallback(
+    (url, type) => {
+      onOpenMedia?.(url, type, msg?.nome_arquivo || undefined, msg);
+    },
+    [onOpenMedia, msg]
+  );
+
   const {
     onBubblePointerDown,
+    onBubbleContextMenu,
     handleMediaPointerDown,
     handleMediaPointerUp,
     handleMediaClick,
@@ -169,7 +193,7 @@ const Bubble = memo(function Bubble({
     selectMode,
     menuOpen,
     setMenuOpen,
-    onOpenMedia,
+    onOpenMedia: openBubbleMedia,
   });
 
   useEffect(() => {
@@ -281,6 +305,8 @@ const Bubble = memo(function Bubble({
     handleMediaPointerUp,
     handleMediaClick,
     retry,
+    offlineAudioDisponivel: !!offlineAudioUrl,
+    estaOffline: !online,
   };
 
   return (
@@ -366,7 +392,7 @@ const Bubble = memo(function Bubble({
           isApagadaPeloCliente ? "wa-bubble--clientDeleted" : "",
         ].filter(Boolean).join(" ")}
         onPointerDown={mobileMessageChrome && !selectMode ? onBubblePointerDown : undefined}
-        onContextMenu={mobileMessageChrome ? (ev) => ev.preventDefault() : undefined}
+        onContextMenu={mobileMessageChrome ? onBubbleContextMenu : undefined}
         role="group"
         aria-label="Mensagem"
       >

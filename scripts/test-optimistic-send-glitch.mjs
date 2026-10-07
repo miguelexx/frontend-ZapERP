@@ -5,8 +5,10 @@
 import {
   resolveOptimisticCriadoEm,
   pickOptimisticUsuarioNome,
+  reconcileOptimisticChatListPreview,
 } from "../src/conversa/conversaOptimisticMessage.js";
 import { sortMensagensChronological } from "../src/conversa/conversaOutboundMediaMerge.js";
+import { pickListaUltimaMensagem } from "../src/chats/chatListRowAtendimento.js";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -83,4 +85,47 @@ assert(
   `com âncora bumpada a ordem deve ser Ok|Calma|Oi|I, obteve ${ordered.map((m) => m.texto).join("|")}`
 );
 
-console.log("OK - bolha otimista (ordem + nome do atendente) passou.");
+// 3) HTTP reconcilia também o card, ligando tempId aos IDs usados pelos ACKs do socket.
+const optimisticPreview = {
+  tempId: "temp-card",
+  client_temp_id: "temp-card",
+  conversa_id: CONV,
+  direcao: "out",
+  texto: "Boa noite",
+  status: "pending",
+  status_mensagem: "pending",
+  criado_em: bumped,
+};
+const reconciledPreview = reconcileOptimisticChatListPreview(
+  { id: CONV, ultima_mensagem: optimisticPreview },
+  "temp-card",
+  {
+    id: 900,
+    conversa_id: CONV,
+    whatsapp_id: "wa-900",
+    status: "sent",
+    status_mensagem: "sent",
+  }
+);
+assert.equal(reconciledPreview?.id, 900, "card deve receber o id persistido");
+assert.equal(reconciledPreview?.whatsapp_id, "wa-900", "card deve receber whatsapp_id para ACK realtime");
+assert.equal(reconciledPreview?.client_temp_id, "temp-card", "reconciliação deve preservar client_temp_id");
+assert(
+  reconcileOptimisticChatListPreview(
+    { id: CONV, ultima_mensagem: { ...optimisticPreview, tempId: "temp-mais-novo" } },
+    "temp-card",
+    { id: 901, conversa_id: CONV }
+  ) == null,
+  "resposta atrasada não pode sobrescrever mensagem mais nova no card"
+);
+
+// 4) Em empate de horário, o preview canônico atualizado pelo socket vence o array legado.
+const delivered = { ...reconciledPreview, status: "delivered", status_mensagem: "delivered" };
+const picked = pickListaUltimaMensagem({
+  ultima_mensagem: delivered,
+  ultima_mensagem_preview: delivered,
+  mensagens: [{ ...reconciledPreview, status: "sent", status_mensagem: "sent" }],
+});
+assert.equal(picked?.status_mensagem, "delivered", "card não pode regredir ✓✓ para ✓ em empate de timestamp");
+
+console.log("OK - bolha otimista e sincronização do card passaram.");

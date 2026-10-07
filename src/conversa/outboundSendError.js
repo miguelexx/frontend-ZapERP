@@ -89,10 +89,41 @@ export function classifyOutboundAxiosError(err, { media = false } = {}) {
   ) {
     return { kind: OUTBOUND_ERROR_KIND.PROVIDER, uncertain: false, httpStatus, message: String(apiMsg) };
   }
+  // 429 (rate limit) e 408 (timeout no servidor) são TRANSITÓRIOS: retentar depois resolve.
+  // Antes caíam como "definitivo" e a bolha virava erro — divergindo do backend, que trata
+  // os mesmos códigos como falha transitória (outboundFailureClassifier).
+  if (httpStatus === 429 || httpStatus === 408) {
+    return {
+      kind: OUTBOUND_ERROR_KIND.HTTP,
+      uncertain: true,
+      httpStatus,
+      retryAfterMs: parseRetryAfterMs(err?.response?.headers),
+      message: "Servidor ocupado. A mensagem será reenviada automaticamente.",
+    };
+  }
   if (httpStatus != null) {
     return { kind: OUTBOUND_ERROR_KIND.HTTP, uncertain: httpStatus >= 500, httpStatus, message: String(apiMsg) };
   }
   return { kind: OUTBOUND_ERROR_KIND.UNKNOWN, uncertain: true, httpStatus: null, message: String(apiMsg) };
+}
+
+/** Lê Retry-After (segundos ou data HTTP) dos headers do axios; null quando ausente/inválido. */
+export function parseRetryAfterMs(headers) {
+  try {
+    const raw = headers?.["retry-after"] ?? headers?.get?.("retry-after");
+    if (raw == null || raw === "") return null;
+    const s = String(raw).trim();
+    if (/^\d+$/.test(s)) {
+      const seg = Number(s);
+      return Number.isFinite(seg) && seg >= 0 ? Math.min(seg, 3600) * 1000 : null;
+    }
+    const ts = Date.parse(s);
+    if (!Number.isFinite(ts)) return null;
+    const delta = ts - Date.now();
+    return delta > 0 ? Math.min(delta, 3600_000) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Toast único por tempId/mensagem (evita spam). */

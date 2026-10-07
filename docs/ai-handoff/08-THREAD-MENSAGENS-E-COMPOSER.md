@@ -50,6 +50,8 @@ Virtualização: desktop sempre; mobile se `> 24` rows (`MOBILE_VIRTUALIZE_THRES
 
 **Seta de opções na foto (2026-09-16):** em `.image-message` o caret `.wa-msgMenuBtn-caret` é 24×24 (texto continua 15×15) e o botão 56×38, com `z-index: 5` para ficar acima do horário overlay no canto. Mobile UX (`.wa-bubble--mobileUx`) segue sem setinha fixa (long press).
 
+**Encaminhar mídia no mobile (CONFIRMADO no código, 2026-10-06):** no celular não há setinha. O long-press em foto/vídeo era cancelado pelo menu nativo (`pointercancel` / `contextmenu` de "salvar imagem"), e o toque abria o viewer sem ação de encaminhar. Agora o mesmo gesto abre o sheet (Encaminhar) e não o viewer; o viewer em tela cheia tem o botão Encaminhar, que entra no modo seleção já usado no desktop (`handleForwardAction`). A foto de perfil não leva mensagem de origem, então não mostra esse botão.
+
 **Seleção de texto na bolha (CONFIRMADO 2026-09-14):** no desktop (`hover: hover` + `pointer: fine`, sem `.wa-bubble--mobileUx` e fora do `selectMode`) o texto/legenda/link da mensagem pode ser destacado com o mouse (arrastar, duplo clique, Ctrl+C), como no WhatsApp Web. O `selectstart` da bolha só chama `preventDefault` em `selectMode` ou `mobileMessageChrome` — no toque a seleção nativa continua bloqueada para o long-press do menu não abrir o highlight azul do iOS. Horário/ticks (`.wa-inlineMeta`) não entram na seleção.
 
 **Selecionar uma mensagem com o mouse (CONFIRMADO 2026-09-14):** o círculo ao lado da bolha no hover é **reação**, não seleção. Para marcar aquela mensagem: (1) checkbox vazio `.wa-selectChk--hover` ao lado da bolha no desktop; (2) **Ctrl+clique** (Cmd no Mac) na linha; (3) menu ▾ → **Selecionar**. Isso chama `startSelect` e abre a barra `.wa-selectBar`. No modo seleção, clicar a linha/bolha alterna o checkbox. Mobile: long-press → Selecionar. O hover-checkbox não aparece em `pointer: coarse`.
@@ -341,3 +343,113 @@ DUPLICADA no cliente. Agora `classifyOutboundAxiosError` decide: resposta ambíg
 sobe o erro ("confira a conversa de destino antes de tentar novamente") sem reenviar; só recusa
 DEFINITIVA (4xx/recusa no corpo) cai no fallback — que agora manda `client_temp_id`
 (`fwd-…`) para o dedupe do backend cobrir double-submit.
+
+### Reenvio automático estilo WhatsApp Web (2026-10-06)
+
+Objetivo: mensagem enviada sem internet/instável/WHAPI fora fica VISÍVEL como pendente e sai
+sozinha quando a conexão volta — sem duplicar (idempotência = client_temp_id reusado em TODAS
+as tentativas; o backend deduplica por Map 30s + UNIQUE e responde `deduplicated`).
+
+Novidades:
+1. **`outboxAutoFlush.js` (novo, GLOBAL):** backoff exponencial com jitter (15s→…→5min, ±30%),
+   gatilhos `online`, `zap:socket:reconnect` (disparado em socket.js na 2ª+ conexão) e
+   visibilidade da aba. Antes a fila só andava no evento `online` ou com a conversa aberta —
+   backend fora do ar com navegador "online" esperava para sempre. `pokeOutboxAutoFlush`
+   (imediato) e `scheduleOutboxAutoFlush` (agendado — usado em falha incerta para não bater
+   num servidor lento). Respeita Retry-After de 429.
+2. **Falha INCERTA de texto (timeout/5xx/429/sem resposta) agora PERSISTE** na outbox
+   (modo 'incerto', bolha "Verificando…") — antes sumia no F5. O flush confere antes na store
+   se a linha já apareceu com id (socket/refresh) e remove sem POST.
+3. **Outbox de MÍDIA em IndexedDB (`mediaOutbox.js`, novo):** blob+metadados (tipo forçado,
+   caption, audio_duration/elapsed/bytes/mime, atendimento/cliente/phone) sobrevivem a F5;
+   hydrate injeta a bolha com preview via objectURL; flush reconstrói o FormData com o MESMO
+   client_temp_id (dedupe no backend em enviarArquivoProcessarUm). Limites: 30 itens, 64MB/item,
+   ~200MB total, TTL 48h, 8 tentativas; IndexedDB indisponível → degrade ao comportamento atual.
+   Integrado nos 3 catches de useConversationOutboundMedia (single + lotes foto/documento).
+4. **Duas abas:** claim por item (texto, localStorage lockAte/lockDono TTL 45s) e lock único de
+   flush de mídia (TTL 90s) — e o dedupe do backend como rede de segurança.
+5. **Classifier:** 429/408 agora são transitórios (antes viravam erro definitivo no frontend,
+   divergindo do backend) + `parseRetryAfterMs`.
+6. Correção: resposta de flush sem id não deixa mais a bolha presa em "Aguardando conexão"
+   (limpa flags e entrega ao watchdog).
+
+Backend correspondente no doc 25 do backend (reenvio Whapi confirmado pelo histórico do chat).
+Invariante NOVA: qualquer caminho novo de envio que falhe por rede/incerteza deve enfileirar
+com o MESMO client_temp_id — nunca gerar outro id numa retentativa.
+
+### Leitura e áudio OFFLINE (2026-10-06)
+
+Objetivo: conexão caiu → o atendente continua LENDO o que já carregou e TOCANDO os áudios já
+baixados (play/pause/seek/velocidade), com ressincronização automática na volta.
+
+Arquitetura (módulos novos, isolados; IDB indisponível = no-op, online intacto):
+- `utils/idbSimples.js` — helper IndexedDB nativo (sem dependência).
+- `conversa/offlineAudioCache.js` — áudos COMPLETOS em IDB (`zap_offline_audio_v1`):
+  download valida status 200 + Content-Length (parcial NUNCA entra); chave
+  `c<company>:u<user>:wa|id:<msgKey>`; LRU com teto global (100 MB default; localStorage
+  `zap:offline:audio:max_mb` 20–500; reduzido por `navigator.storage.estimate()` →
+  40% do livre) e 15 MB/arquivo; prefetch idle com concorrência 2, só os 15 áudios mais
+  recentes da conversa aberta; dedupe em voo; touch de LRU com throttle de 1h (não regrava
+  o blob a cada play). Entradas de OUTRA identidade são purgadas no load; logout limpa tudo;
+  nunca persiste JWT/URL com token (só o Blob).
+- `conversa/offlineSnapshots.js` — snapshots de leitura (`zap_offline_snapshots_v1`):
+  conversa (últimas 60 msgs, WHITELIST de campos, URLs sem query string) + lista (top 30);
+  25 conversas LRU; debounce 1,5s; mesma política de identidade/limpeza.
+- `utils/useOnlineStatus.js` + `bubble/hooks/useOfflineAudioSource.js`.
+
+Integrações mínimas:
+- `ConversaBubbleShell`: candidates do áudio ganham o blob offline — ONLINE ele entra por
+  ÚLTIMO (ordem atual preservada, zero mudança no caminho feliz); OFFLINE vai na FRENTE.
+  A troca da lista em reprodução é segura (playList/pendingList do player adia a adoção) —
+  inclusive o caso "conexão caiu tocando do buffer": o próximo stall recupera DO BLOB na
+  posição, pelo motor já existente.
+- `AudioMessage`: offline sem cópia → botão de play bloqueado (só o INÍCIO; pausar/retomar
+  um áudio tocando segue livre) + hint "Sem conexão — áudio não baixado"; com cópia →
+  "Disponível offline". `conversa.css`: classes novas apenas (append).
+- `ConversaThread`: pill fixa "Sem conexão — modo leitura offline" (position:FIXED,
+  pointer-events none — NUNCA sticky/fluxo: não empurra a virtual list).
+- `conversaStore`: snapshot+prefetch após carregarConversa E refresh (fire-and-forget);
+  fallback para snapshot APENAS quando o GET falha SEM resposta (rede) e o viewer não está
+  com mensagens bloqueadas; reconexão = reconnectRecovery/refresh normal (merge por id,
+  sem duplicar).
+- `chatsStore`: snapshot da lista em setChats (import DINÂMICO — evita ciclo de eval
+  chatsStore→offlineSnapshots→authStore→chatsStore) + hidratação no boot offline (F5 sem
+  rede) somente se a lista estiver vazia.
+- `authStore.clearSession`: limpa áudios offline, snapshots, outbox de texto e de mídia.
+
+Limitações documentadas: duas abas podem baixar o mesmo áudio em paralelo (last-write-wins,
+inofensivo); mensagens chegadas por socket entre snapshots só entram no próximo load/refresh;
+vídeos/documentos/imagens NÃO são cacheados (fora do escopo por decisão); IndexedDB não é
+criptografado (dados ficam no perfil do navegador); fetch da lista falhando com navegador
+"online" (backend fora) não cai para snapshot — só o boot offline.
+
+### 2ª auditoria do offline (2026-10-07) — 4 correções + achados
+
+Auditoria adversarial independente (diff completo + simulação de corrida/lifecycle). Correções:
+1. **P1 — paginação pós-fallback:** o estado vindo do snapshot (cursor null/hasMore false) era
+   PRESERVADO pelo refresh da reconexão e "carregar mensagens antigas" morria até reabrir a
+   conversa. Fix: `preserveCursor` ignora estado `_snapshot_offline` (a flag some sozinha no
+   refresh, que grava a conversa do GET).
+2. **P1 — retomada do buffer offline:** o bloqueio de play offline impedia RETOMAR um áudio
+   pausado que ainda tinha dados bufferizados (rede caiu tocando). Fix: `temBufferLocal`
+   (currentTime>0 || readyState>=2) libera a retomada; só o início FRIO fica bloqueado.
+3. **P2 — prefetch:** timeout de 45s por download (conexão pendurada não prende slot) e abort
+   ANTES do corpo quando Content-Length > teto por arquivo.
+4. **P2 — useOnlineStatus:** reescrito com useSyncExternalStore (2 listeners por ABA; antes
+   eram 2 por BOLHA, com churn de add/remove a cada scroll da lista virtual).
+
+Confirmações com evidência: 403/bloqueado nunca caem no snapshot (403 retorna antes; fallback
+exige `!err.response` + viewer sem mensagens_bloqueadas); parcial não persiste (status 200 +
+Content-Length conferidos; chunked truncado rejeita no stream); dedupe em voo; identidade no
+load do índice só roda com usuário logado (chaveDe curto-circuita). REFUTADO: "reply_meta.thumb
+vazaria token" — o thumb usa getMediaUrl (sem JWT); URL assinada do PROVEDOR já vive no banco
+hoje (paridade, P3). DECISÃO DOCUMENTADA (logout × outbox): limpar as outboxes no logout/401
+descarta pendentes legítimos do próprio usuário, mas NÃO limpar permitia o pior cenário —
+pendentes do usuário A enviados na sessão de B (token de B). Mantida a limpeza; evolução
+futura: namespacing das outboxes por identidade, como no cache de áudio.
+
+Residuais aceitos: eviction LRU não revoga objectURL vivo (pode estar tocando; blobs ficam
+pinados até o unload — raro/limitado); mesmo áudio pode cachear 2x sob chave id: e wa: se o
+eco demorar (edge, conta 2x no LRU); side-effect de snapshot dentro do updater funcional de
+setChats (1 execução; fire-and-forget). Validação em NAVEGADOR REAL permanece PENDENTE (sem
+runner de testes frontend; app exige login — roteiro manual na seção anterior).

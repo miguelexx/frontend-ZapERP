@@ -7,7 +7,7 @@ import MessageRetry from "./MessageRetry";
 import { buildAudioRetryPayload } from "../utils/bubbleRetry";
 import { canReprocessInboundMedia, requestInboundMediaReprocess } from "../utils/inboundMediaReprocess";
 
-function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, initialDuration, sentAtLabel, reprocessMedia }) {
+function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, initialDuration, sentAtLabel, reprocessMedia, offlineAudioDisponivel = false, estaOffline = false }) {
   const {
     audioRef,
     waveMeasureRef,
@@ -34,14 +34,24 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
     tentarNovamente,
   } = useAudioPlayback({ src, candidates, msgKey, initialDuration, reprocessMedia });
 
+  // Offline sem cópia local: bloquear só o INÍCIO FRIO do play. Tocando (pausar) e RETOMAR
+  // de um buffer já carregado (caiu a rede no meio da reprodução) continuam livres — o
+  // elemento ainda tem dados. Sem isto o clique gastava os vigias (10s+) para então
+  // declarar "indisponível" — aqui o estado é honesto e imediato.
+  const elAtual = audioRef.current;
+  const temBufferLocal = !!elAtual && ((Number(elAtual.currentTime) || 0) > 0 || Number(elAtual.readyState) >= 2);
+  const playBloqueadoOffline = estaOffline && !offlineAudioDisponivel && !playing && !temBufferLocal;
+
   return (
     <div className={`wa-audioPlayer ${playing ? "isPlaying" : ""}`}>
       <button
         type="button"
-        className={`wa-audioPlayBtn ${playing ? "isPlaying" : ""}`}
+        className={`wa-audioPlayBtn ${playing ? "isPlaying" : ""} ${playBloqueadoOffline ? "isOfflineBlocked" : ""}`}
         onPointerDown={keepMobileKeyboardOpen}
-        onPointerUp={handlePlayPointerUp}
-        onClick={handlePlayClick}
+        onPointerUp={playBloqueadoOffline ? keepMobileKeyboardOpen : handlePlayPointerUp}
+        onClick={playBloqueadoOffline ? (e) => e.stopPropagation() : handlePlayClick}
+        aria-disabled={playBloqueadoOffline || undefined}
+        title={playBloqueadoOffline ? "Sem conexão — este áudio ainda não foi baixado para uso offline." : undefined}
         aria-label={playing ? "Pausar áudio" : "Tocar áudio"}
       >
         <span className="wa-audioPlayIcon wa-audioPlayIcon--play" aria-hidden="true">
@@ -118,6 +128,23 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
           <span className="wa-audioTime wa-audioTime--cur" title={formatMmSs(cur)}>
             {formatMmSs(cur)}
           </span>
+          {estaOffline && !expirado && !indisponivel ? (
+            offlineAudioDisponivel ? (
+              <span
+                className="wa-audioOfflineHint wa-audioOfflineHint--ok"
+                title="Este áudio está salvo no dispositivo e toca sem internet."
+              >
+                Disponível offline
+              </span>
+            ) : (
+              <span
+                className="wa-audioOfflineHint"
+                title="Sem conexão — este áudio ainda não foi baixado para uso offline."
+              >
+                Sem conexão — áudio não baixado
+              </span>
+            )
+          ) : null}
           {expirado ? (
             <span
               className="wa-audioUnavailable wa-audioUnavailable--expired"
@@ -191,6 +218,8 @@ export default function AudioMessage({
   isRetrying,
   onRetry,
   retry,
+  offlineAudioDisponivel = false,
+  estaOffline = false,
 }) {
   // Só mídia recebida e persistida pode pedir recópia ao backend; nos demais casos o callback é
   // ausente e o botão "tentar de novo" mantém o comportamento local de sempre.
@@ -207,6 +236,8 @@ export default function AudioMessage({
           avatarLabel={!out ? peerName : null}
           sentAtLabel={formatHora(msg?.criado_em)}
           reprocessMedia={reprocessMedia}
+          offlineAudioDisponivel={offlineAudioDisponivel}
+          estaOffline={estaOffline}
           initialDuration={
             msg?.audio_duracao_sec ?? msg?.duration ?? msg?.media_duration ?? 0
           }

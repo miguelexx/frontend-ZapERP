@@ -19,7 +19,10 @@ import { calcularAguardarClientePrazoAteLocal } from "../atendimento/aguardarCli
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
 import { normalizeMensagemStatusKey } from "../chats/chatListStoreCompare"
 import { attachReplyMeta } from "./replyMeta"
-import { revokeOptimisticBlobFromMessage } from "./conversaOptimisticMessage"
+import {
+  reconcileOptimisticChatListPreview,
+  revokeOptimisticBlobFromMessage,
+} from "./conversaOptimisticMessage"
 import { applyPendingWatchdogToList } from "./pendingMessageWatchdog"
 import {
   stableSyntheticMessageKey,
@@ -43,6 +46,12 @@ import {
   stripPersistedIdIfConflictsWithList,
 } from "./conversaOutboundMediaMerge.js"
 import { hydrateOutboxBubblesForConversa } from "./offlineOutbox.js"
+// Ciclo controlado: mediaOutbox só usa o store DENTRO de funções (nunca no eval do módulo).
+import { hydrateMediaOutboxBubblesForConversa } from "./mediaOutbox.js"
+// Leitura/áudio offline (IndexedDB) — uso deferido, mesmo padrão dos módulos acima.
+import { salvarSnapshotConversa, carregarSnapshotConversa } from "./offlineSnapshots.js"
+import { prefetchAudiosDaConversa } from "./offlineAudioCache.js"
+import { resolveAudioPlaybackCandidates } from "./utils/conversaViewHelpers.js"
 import { prefetchThreadImages } from "./utils/prefetchThreadMedia.js"
 
 export { stableSyntheticMessageKey, mapDedupeKey, getMessageListReactKey, isPendingOutgoingTemp }
@@ -935,7 +944,10 @@ export const useConversaStore = create((set, get) => {
         let mensagens = blockedViewer ? [] : get()._mergeMensagensFromApi(clientSnapshot, apiMensagens, normalizedId)
         // Mensagens enviadas offline vivem no localStorage ate o backend confirmar.
         // Sem isto, F5/troca de conversa apaga a bolha porque nao ha linha no banco.
-        if (!blockedViewer) mensagens = hydrateOutboxBubblesForConversa(normalizedId, mensagens)
+        if (!blockedViewer) {
+          mensagens = hydrateOutboxBubblesForConversa(normalizedId, mensagens)
+          mensagens = hydrateMediaOutboxBubblesForConversa(normalizedId, mensagens)
+        }
         mensagens = filterMensagensForConversa(attachReplyMeta(normalizedId, mensagens), normalizedId)
 
         if (generation !== carregarConversaGeneration) return
@@ -956,6 +968,10 @@ export const useConversaStore = create((set, get) => {
         // Aquece o cache das imagens recentes em background para elas já aparecerem carregadas
         // quando as bolhas montarem (não bloqueia render/scroll; best-effort).
         prefetchThreadImages(mensagens)
+        // Leitura/áudio OFFLINE: snapshot (IndexedDB, debounced) + download completo dos áudios
+        // recentes em baixa prioridade. Fire-and-forget — nunca bloqueia render/scroll.
+        salvarSnapshotConversa(normalizedId, { conversa: nextState.conversa, mensagens })
+        prefetchAudiosDaConversa(mensagens, (m) => resolveAudioPlaybackCandidates(m)[0] || null)
 
         const socket = getSocket?.()
         if (socket && !isEmpresaModoSimplesAtivoCliente()) {
@@ -1010,6 +1026,35 @@ export const useConversaStore = create((set, get) => {
         if (status === 403) {
           get().setSelectedId(null)
           return
+        }
+        // OFFLINE: falha SEM resposta HTTP (rede caída / backend inacessível) cai para o
+        // snapshot salvo — o atendente continua lendo o que já tinha carregado. Qualquer
+        // erro COM resposta (4xx/5xx) mantém o comportamento atual. Ao reconectar, o
+        // reconnectRecovery/refresh refaz o GET e o merge por id reconcilia sem duplicar.
+        if (!err?.response && conversaShellWithId?.mensagens_bloqueadas !== true) {
+          try {
+            const snap = await carregarSnapshotConversa(normalizedId)
+            if (generation !== carregarConversaGeneration) return
+            if (String(get().selectedId) !== String(normalizedId)) return
+            if (snap?.mensagens?.length) {
+              let mensagensSnap = snap.mensagens.map((m) => normalizeMsgForStore({ ...m }))
+              mensagensSnap = filterMensagensForConversa(mensagensSnap, normalizedId)
+              mensagensSnap = hydrateOutboxBubblesForConversa(normalizedId, mensagensSnap)
+              mensagensSnap = hydrateMediaOutboxBubblesForConversa(normalizedId, mensagensSnap)
+              mensagensSnap = sortMensagensChronological(mensagensSnap)
+              set({
+                conversa: { ...(snap.conversa || {}), ...conversaShellWithId, id: normalizedId, _snapshot_offline: true },
+                mensagens: mensagensSnap,
+                tags: [],
+                loading: false,
+                loadError: null,
+                cursor: null,
+                cursorId: null,
+                hasMore: false,
+              })
+              return
+            }
+          } catch (_) { /* sem snapshot: segue para o erro padrão */ }
         }
         set({ loading: false, loadError: msg, conversa: conversaShellWithId })
       } finally {
@@ -1132,13 +1177,20 @@ export const useConversaStore = create((set, get) => {
           const existing = state.mensagens || []
           let mensagens = mensagens_bloqueadas ? [] : get()._mergeMensagensFromApi(existing, apiMensagens, id)
           // Fila offline sobrevive ao F5/refresh: reinstala bolhas que ainda nao tem linha no banco.
-          if (!mensagens_bloqueadas) mensagens = hydrateOutboxBubblesForConversa(id, mensagens)
+          if (!mensagens_bloqueadas) {
+            mensagens = hydrateOutboxBubblesForConversa(id, mensagens)
+            mensagens = hydrateMediaOutboxBubblesForConversa(id, mensagens)
+          }
           mensagens = attachReplyMeta(id, mensagens)
           // Refresh relê apenas a página recente; não pode recuar o cursor do
           // histórico já percorrido, inclusive quando uma paginação terminou durante o GET.
           const currentTime = Date.parse(state.cursor)
           const nextTime = Date.parse(nextCursor)
-          const preserveCursor = !mensagens_bloqueadas && existing.length > 0 && (
+          // _snapshot_offline: o estado veio do fallback OFFLINE (cursor null/hasMore false
+          // artificiais) — o primeiro refresh pós-reconexão deve ADOTAR o cursor do servidor,
+          // senão "carregar mensagens antigas" ficava morto até reabrir a conversa.
+          const veioDeSnapshotOffline = state.conversa?._snapshot_offline === true
+          const preserveCursor = !mensagens_bloqueadas && !veioDeSnapshotOffline && existing.length > 0 && (
             (!state.hasMore && !state.cursor) ||
             (state.cursor && nextCursor && (currentTime < nextTime ||
               (currentTime === nextTime && Number(state.cursorId) <= Number(nextCursorId))))
@@ -1155,6 +1207,13 @@ export const useConversaStore = create((set, get) => {
         })
 
         if (!isCurrent()) return
+        // Snapshot offline também no refresh (mensagens novas da sessão ficam legíveis offline);
+        // debounced e best-effort — nunca afeta o fluxo online.
+        if (!mensagens_bloqueadas) {
+          const stAtual = get()
+          salvarSnapshotConversa(id, { conversa: stAtual.conversa, mensagens: stAtual.mensagens })
+          prefetchAudiosDaConversa(stAtual.mensagens, (m) => resolveAudioPlaybackCandidates(m)[0] || null)
+        }
         if (
           merged?.status_atendimento != null ||
           merged?.status_atendimento_real != null ||
@@ -1437,6 +1496,19 @@ export const useConversaStore = create((set, get) => {
         }
         return state
       })
+      // A thread já reconciliava tempId → id/whatsapp_id, mas o card lateral continuava
+      // com o objeto otimista. Por isso os ACKs seguintes encontravam a bolha (✓✓) e não
+      // encontravam a última mensagem do card (✓). Vincular as mesmas identidades aqui
+      // permite que status_mensagem atualize ambos pelo mesmo evento em tempo real.
+      const targetConversaId = pickExplicitConversaId(realMsg)
+      if (targetConversaId != null) {
+        const chatStore = useChatStore.getState()
+        const chatRow = getChatByIdFromStore(targetConversaId, chatStore.chats)
+        const reconciledPreview = reconcileOptimisticChatListPreview(chatRow, tempId, realMsg)
+        if (reconciledPreview) {
+          chatStore.setUltimaMensagem(targetConversaId, reconciledPreview)
+        }
+      }
       if (!replaced) {
         const list = get().mensagens || []
         const targetConversaId = pickExplicitConversaId(realMsg)

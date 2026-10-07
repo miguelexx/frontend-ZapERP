@@ -7,6 +7,7 @@ import ThreadRow from "./ThreadRow";
 import { messageRowVisualSignature } from "./threadRowCompare";
 import ClosedAttendancePanel from "./ClosedAttendancePanel";
 import { SkeletonMessages } from "../components/feedback/Skeleton";
+import { useOnlineStatus } from "../utils/useOnlineStatus";
 
 const EMPTY_SET = new Set();
 const EMPTY_OBJECT = Object.freeze({});
@@ -108,6 +109,7 @@ function ConversaThread({
   onConversarContact,
   onAdicionarGrupoContact,
 }) {
+  const estaOnline = useOnlineStatus();
   const threadConversaId = scrollThreadId ?? conversaId;
   /** Igual ao ConversaView anterior: chave React da bolha usa conversaId carregado, não só selectedId. */
   const messageKeyConversaId = conversaId ?? threadConversaId;
@@ -386,6 +388,11 @@ function ConversaThread({
   return (
     <>
       {closedBanner}
+      {!estaOnline ? (
+        <div className="wa-offlinePill" role="status" aria-live="polite">
+          Sem conexão — modo leitura offline
+        </div>
+      ) : null}
       {!conversa?.mensagens_bloqueadas && safeMensagens.length > 0 && !loading ? (
         <div className="wa-loadOlderHistory">
           {showContactOldSyncCta ? (

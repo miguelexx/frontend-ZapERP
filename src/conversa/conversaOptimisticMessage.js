@@ -549,6 +549,36 @@ export function bumpChatListWithOptimisticMessage(conversaId, optimisticMsg, con
 }
 
 /**
+ * Reconcilia o preview otimista da lista com a linha persistida retornada pelo backend.
+ * Só substitui quando o card ainda aponta para o mesmo tempId; assim uma resposta HTTP
+ * atrasada nunca pisa numa mensagem mais nova enviada logo depois.
+ */
+export function reconcileOptimisticChatListPreview(chatRow, tempId, realMsg) {
+  if (!chatRow || !tempId || !realMsg) return null;
+  const current = chatRow.ultima_mensagem || chatRow.ultima_mensagem_preview;
+  if (!current) return null;
+  const currentTempId =
+    current.tempId ??
+    current.client_temp_id ??
+    current.clientTempId ??
+    current.temp_id;
+  if (currentTempId == null || String(currentTempId) !== String(tempId)) return null;
+
+  return {
+    ...current,
+    ...realMsg,
+    conversa_id: realMsg.conversa_id ?? current.conversa_id ?? chatRow.id,
+    client_temp_id:
+      realMsg.client_temp_id ??
+      realMsg.clientTempId ??
+      current.client_temp_id ??
+      current.tempId ??
+      tempId,
+    criado_em: realMsg.criado_em ?? current.criado_em,
+  };
+}
+
+/**
  * Modo simples: ao enviar resposta do CRM, muda imediatamente para aguardando cliente
  * (sai da aba Aguardando atendente) + atualiza preview na lista.
  * @returns {{ revert: (() => void)|null }}

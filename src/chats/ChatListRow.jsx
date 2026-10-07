@@ -489,7 +489,8 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (!last) return <span className="chat-list-previewText">Sem mensagens</span>;
 
   const out = String(last?.direcao || "").toLowerCase() === "out";
-  const status = last?.status ?? last?.status_mensagem ?? chat?.status ?? "";
+  // Mesma precedência da bolha e dos comparadores: status_mensagem é o ACK canônico.
+  const status = last?.status_mensagem ?? last?.status ?? chat?.status ?? "";
   const isGroup = isGroupConversation(chat);
   const atendentePrefix = out && last?.enviado_por_usuario && last?.usuario_nome
     ? `${last.usuario_nome}: `

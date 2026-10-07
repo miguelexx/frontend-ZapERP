@@ -29,6 +29,8 @@ export default function BubbleTypedContent({
   handleMediaPointerUp,
   handleMediaClick,
   retry,
+  offlineAudioDisponivel = false,
+  estaOffline = false,
 }) {
   const {
     out,
@@ -115,6 +117,8 @@ export default function BubbleTypedContent({
         isRetrying={retry.isRetrying}
         onRetry={retry.onRetry}
         retry={retry}
+        offlineAudioDisponivel={offlineAudioDisponivel}
+        estaOffline={estaOffline}
       />
     );
   }

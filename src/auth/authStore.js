@@ -110,6 +110,14 @@ export const useAuthStore = create((set, get) => ({
       usePermissoesStore.getState().clearPermissoes()
       useEmpresaStore.getState().clear()
     } catch (_) {}
+    // Dados OFFLINE locais (IndexedDB/localStorage) contêm conteúdo do usuário: zera no
+    // logout/troca de sessão — nada pode sobrar para o próximo login neste navegador.
+    try {
+      void import("../conversa/offlineAudioCache").then((m) => m.limparAudiosOffline()).catch(() => {})
+      void import("../conversa/offlineSnapshots").then((m) => m.limparSnapshotsOffline()).catch(() => {})
+      void import("../conversa/mediaOutbox").then((m) => m.limparMediaOutboxLocal()).catch(() => {})
+      void import("../conversa/offlineOutbox").then((m) => m.limparOutboxTextoLocal()).catch(() => {})
+    } catch (_) {}
     set({ user: null, token: null })
     if (redirect && typeof window !== "undefined") {
       window.location.href = "/login"

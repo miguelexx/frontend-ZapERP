@@ -335,6 +335,7 @@ export const useChatStore = create((set, get) => ({
     const arr = typeof chats === "function" ? null : (chats || [])
     if (arr) {
       const next = sortConversasByRecent(dedupeConversas(arr))
+      salvarListaOfflineAsync(next)
       set((state) => {
         if (chatListsStoreEquivalent(state.chats, next)) return state
         return withUnreadTotal(next, state)
@@ -343,6 +344,7 @@ export const useChatStore = create((set, get) => ({
       set((state) => {
         const next = sortConversasByRecent(dedupeConversas(chats(state.chats || []) || []))
         if (chatListsStoreEquivalent(state.chats, next)) return state
+        salvarListaOfflineAsync(next)
         return withUnreadTotal(next, state)
       })
     }
@@ -866,3 +868,39 @@ export function getChatByIdFromStore(id, chats) {
   return getChatsByIdIndex(arr).byId.get(String(id)) ?? null
 }
 
+
+/* =========================================
+   LISTA OFFLINE (snapshot em IndexedDB)
+   Import DINÂMICO de offlineSnapshots: evita ciclo de eval
+   chatsStore → offlineSnapshots → authStore → chatsStore.
+========================================= */
+let _salvarSnapshotListaFn = null
+function salvarListaOfflineAsync(chats) {
+  if (typeof window === "undefined" || !Array.isArray(chats) || !chats.length) return
+  if (_salvarSnapshotListaFn) {
+    try { _salvarSnapshotListaFn(chats) } catch (_) { /* best-effort */ }
+    return
+  }
+  void import("../conversa/offlineSnapshots.js")
+    .then((m) => {
+      _salvarSnapshotListaFn = m.salvarSnapshotLista
+      try { _salvarSnapshotListaFn(chats) } catch (_) { /* best-effort */ }
+    })
+    .catch(() => {})
+}
+
+// F5 SEM conexão: hidrata a lista a partir do snapshot (apenas se continuar vazia —
+// qualquer fetch que chegue primeiro vence; o merge normal segue valendo ao reconectar).
+if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.onLine === false) {
+  setTimeout(() => {
+    void import("../conversa/offlineSnapshots.js")
+      .then(async ({ carregarSnapshotLista }) => {
+        if ((useChatStore.getState().chats || []).length > 0) return
+        const snap = await carregarSnapshotLista()
+        if (snap?.chats?.length && (useChatStore.getState().chats || []).length === 0) {
+          useChatStore.getState().setChats(snap.chats)
+        }
+      })
+      .catch(() => {})
+  }, 300)
+}

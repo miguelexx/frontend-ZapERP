@@ -107,6 +107,7 @@ function ConversaViewOverlays({
   mediaViewerVideoRef,
   closeMediaViewer,
   handleMediaViewerPrint,
+  onForwardMedia,
   shareContactOpen,
   shareContactQuery,
   setShareContactQuery,
@@ -288,6 +289,7 @@ function ConversaViewOverlays({
             mediaViewerVideoRef={mediaViewerVideoRef}
             onClose={closeMediaViewer}
             onPrint={handleMediaViewerPrint}
+            onForward={onForwardMedia}
           />
         </Suspense>
       ) : null}

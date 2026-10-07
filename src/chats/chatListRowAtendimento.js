@@ -172,7 +172,14 @@ export function pickListaUltimaMensagem(c) {
     c?.messages?.[0],
     getLastMessage(c),
   ].filter(Boolean);
-  return pickNewerMessage(...candidates);
+  // `ultima_mensagem`/preview são as fontes atualizadas pelo socket. Em empate de
+  // criado_em, preserve a primeira em vez de deixar o array legado de `mensagens`
+  // sobrescrever o ACK novo com um status antigo.
+  let best = null;
+  for (const candidate of candidates) {
+    if (!best || messageTs(candidate) > messageTs(best)) best = candidate;
+  }
+  return best;
 }
 
 /** Entre várias mensagens, retorna a de timestamp mais recente. */

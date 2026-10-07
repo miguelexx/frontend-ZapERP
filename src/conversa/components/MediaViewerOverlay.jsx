@@ -5,7 +5,7 @@ import {
   getMediaPlaybackUrl,
   mediaViewerSupportsPrint,
 } from "../utils/conversaViewHelpers";
-import { IconClose, IconPrint } from "../conversaViewIcons";
+import { IconClose, IconForward, IconPrint } from "../conversaViewIcons";
 
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
@@ -249,6 +249,7 @@ export default function MediaViewerOverlay({
   mediaViewerVideoRef,
   onClose,
   onPrint,
+  onForward,
 }) {
   useEffect(() => {
     if (!mediaViewer) return;
@@ -279,6 +280,17 @@ export default function MediaViewerOverlay({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="wa-mediaViewer-actions">
+          {mediaViewer.sourceMsg && typeof onForward === "function" ? (
+            <button
+              type="button"
+              className="wa-mediaViewer-forward"
+              onClick={onForward}
+              title="Encaminhar"
+              aria-label="Encaminhar"
+            >
+              <IconForward />
+            </button>
+          ) : null}
           {mediaViewerSupportsPrint(mediaViewer.type, mediaViewer.fileName) ? (
             <button
               type="button"

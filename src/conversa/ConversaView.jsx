@@ -26,7 +26,9 @@ import {
   enqueueOutboxText,
   isBrowserOffline,
   removeFromOutbox,
+  OUTBOX_MODO_INCERTO,
 } from "./offlineOutbox";
+import { pokeOutboxAutoFlush, scheduleOutboxAutoFlush } from "./outboxAutoFlush";
 import { useAuthStore } from "../auth/authStore";
 import { canAssumir, canNotaInterna, canReabrir, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import "../atendimento/atendentes.css";
@@ -1795,6 +1797,9 @@ function ConversaViewBody() {
       }
       // Preserva o tempId para retry manual do mesmo texto, se o usuario insistir.
       manualTextRetryRef.current = { conversaId, texto: t, tempId };
+      // Arma o backoff do auto-flush: "Network Error" com navigator.onLine=true (backend
+      // fora do ar) não dispara o evento `online` — sem isto a fila esperava para sempre.
+      pokeOutboxAutoFlush("envio_offline");
     };
 
     const runSend = async () => {
@@ -1865,6 +1870,23 @@ function ConversaViewBody() {
           toastTitle: "Falha ao enviar",
           mensagemId: failureData?.id ?? persistedFailure?.id ?? null,
         });
+        // Falha INCERTA (timeout/5xx/429/sem resposta): além do estado "verificando…",
+        // PERSISTE a intenção na outbox (modo incerto) — antes, um F5 aqui perdia a
+        // mensagem em silêncio. O reenvio automático usa o MESMO client_temp_id; se o
+        // backend já tinha recebido, responde `deduplicated` — nunca duplica no cliente.
+        if (classified.uncertain && failureData?.id == null) {
+          enqueueOutboxText({
+            conversaId,
+            texto: t,
+            tempId,
+            replyMeta: replyMeta || null,
+            criadoEm: optimisticMsg.criado_em,
+            modo: OUTBOX_MODO_INCERTO,
+          });
+          // Agendado (não imediato): o servidor pode estar lento — o 1º retry respeita o
+          // backoff (~15s + jitter) e o Retry-After de um 429, quando presente.
+          scheduleOutboxAutoFlush(classified.retryAfterMs ?? null);
+        }
         // Timeout/rede: preserva client_temp_id para reconciliar sem duplicar.
         // Falha confirmada: mesmo texto no próximo clique reutiliza o tempId.
         if (!is403 && (failureData?.id != null || classified.uncertain || !err?.response)) {
@@ -2169,6 +2191,13 @@ function ConversaViewBody() {
     startSelect(msg);
     setForwardSelectIntent(true);
   }, [showToast, startSelect, setForwardSelectIntent]);
+
+  const handleForwardFromMediaViewer = useCallback(() => {
+    const msg = mediaViewer?.sourceMsg;
+    closeMediaViewer();
+    if (!msg?.id || msg.apagada_para_todos) return;
+    handleForwardAction(msg);
+  }, [mediaViewer, closeMediaViewer, handleForwardAction]);
 
   const handleForwardAdvance = useCallback(() => {
     // Lê a lista na hora do clique: `mensagens` nas deps recriava o callback a cada
@@ -2968,6 +2997,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           mediaViewerVideoRef={mediaViewerVideoRef}
           closeMediaViewer={closeMediaViewer}
           handleMediaViewerPrint={handleMediaViewerPrint}
+          onForwardMedia={handleForwardFromMediaViewer}
           shareContactOpen={shareContactOpen}
           shareContactQuery={shareContactQuery}
           setShareContactQuery={setShareContactQuery}
