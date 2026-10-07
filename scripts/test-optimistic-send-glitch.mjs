@@ -6,6 +6,7 @@ import {
   resolveOptimisticCriadoEm,
   pickOptimisticUsuarioNome,
   reconcileOptimisticChatListPreview,
+  shouldMoveSearchedConversationToMinhaFila,
 } from "../src/conversa/conversaOptimisticMessage.js";
 import { sortMensagensChronological } from "../src/conversa/conversaOutboundMediaMerge.js";
 import { pickListaUltimaMensagem } from "../src/chats/chatListRowAtendimento.js";
@@ -127,5 +128,40 @@ const picked = pickListaUltimaMensagem({
   mensagens: [{ ...reconciledPreview, status: "sent", status_mensagem: "sent" }],
 });
 assert.equal(picked?.status_mensagem, "delivered", "card não pode regredir ✓✓ para ✓ em empate de timestamp");
+
+// 5) Busca global: só sai da pesquisa quando o envio coloca a conversa na Minha fila.
+const user = { id: 7, perfil: "atendente" };
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "fechada", mensagens_bloqueadas: false },
+    user,
+    { searchActive: true }
+  ),
+  "conversa encerrada encontrada pela busca deve ir para Minha fila após reabrir/enviar"
+);
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "aberta", atendente_id: null },
+    user,
+    { searchActive: true }
+  ),
+  "conversa aberta sem atendente deve ir para Minha fila após o primeiro envio"
+);
+assert(
+  !shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "em_atendimento", atendente_id: 99 },
+    { id: 7, perfil: "admin" },
+    { searchActive: true }
+  ),
+  "admin enviando numa conversa de outro atendente não deve ser redirecionado"
+);
+assert(
+  !shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "fechada", mensagens_bloqueadas: false },
+    user,
+    { searchActive: false }
+  ),
+  "envio fora da busca não deve trocar o filtro atual"
+);
 
 console.log("OK - bolha otimista e sincronização do card passaram.");

@@ -100,13 +100,48 @@ export async function excluirStatusWhatsapp(instanceId, storyId) {
   return data;
 }
 
+/**
+ * 501 = canal sem etiquetas (ex.: UltraMSG). O seletor do cabeçalho carrega ao abrir CADA
+ * conversa; sem memória, todo canal não-Whapi gerava um 501 novo por conversa (spam no
+ * console + requisições inúteis). Memoriza por instância com TTL e responde um 501 sintético
+ * local — os chamadores já tratam 501 com a mensagem amigável.
+ */
+const labelsUnsupportedUntil = new Map();
+const LABELS_UNSUPPORTED_TTL_MS = 10 * 60 * 1000;
+
+function labelsMarcadasSemSuporte(instanceId) {
+  const key = String(instanceId ?? "");
+  const until = labelsUnsupportedUntil.get(key);
+  if (until == null) return false;
+  if (Date.now() > until) {
+    labelsUnsupportedUntil.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function erroLabelsSemSuporte() {
+  const err = new Error("Etiquetas do WhatsApp não disponíveis neste canal.");
+  err.response = { status: 501 };
+  err.silent = true;
+  return err;
+}
+
 export async function listarLabelsWhatsapp(instanceId, options = {}) {
-  const { data } = await api.get(LABELS_BASE, {
-    params: instanceParams(instanceId),
-    signal: options.signal,
-    silent: options.silent === true,
-  });
-  return Array.isArray(data?.labels) ? data.labels : [];
+  if (labelsMarcadasSemSuporte(instanceId)) throw erroLabelsSemSuporte();
+  try {
+    const { data } = await api.get(LABELS_BASE, {
+      params: instanceParams(instanceId),
+      signal: options.signal,
+      silent: options.silent === true,
+    });
+    return Array.isArray(data?.labels) ? data.labels : [];
+  } catch (err) {
+    if (err?.response?.status === 501) {
+      labelsUnsupportedUntil.set(String(instanceId ?? ""), Date.now() + LABELS_UNSUPPORTED_TTL_MS);
+    }
+    throw err;
+  }
 }
 
 export async function criarLabelWhatsapp(instanceId, { id = "", name, color }) {

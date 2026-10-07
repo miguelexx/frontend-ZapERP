@@ -510,6 +510,31 @@ export function shouldAutoAssumirOnOutgoingSend(source, user, opts = {}) {
   return status === "aberta" || status === "ociosa" || !status;
 }
 
+/**
+ * Busca global → primeiro envio: decide se a conversa passará a pertencer à Minha fila.
+ * A navegação só deve ocorrer quando o envio realmente assume uma conversa livre ou
+ * reabre uma encerrada; admin enviando numa conversa de outro atendente permanece onde está.
+ */
+export function shouldMoveSearchedConversationToMinhaFila(source, user, opts = {}) {
+  if (opts.searchActive !== true || !source || !user?.id) return false;
+  if (user?.atendimento_modo_simples === true || opts.isGroup === true) return false;
+
+  const status = String(
+    source.status_atendimento_real ?? source.status_atendimento ?? ""
+  )
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  const closed =
+    status === "fechada" ||
+    status === "encerrada" ||
+    status === "finalizada" ||
+    status === "finalizado";
+
+  if (closed) return source.mensagens_bloqueadas !== true;
+  return shouldAutoAssumirOnOutgoingSend(source, user, opts);
+}
+
 function canAssumirUser(user) {
   const role = String(user?.role || user?.perfil || "").toLowerCase();
   return role === "admin" || role === "supervisor" || role === "atendente";

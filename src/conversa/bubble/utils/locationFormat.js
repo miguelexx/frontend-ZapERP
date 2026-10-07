@@ -37,10 +37,16 @@ export function parseLocationText(texto) {
   return { address, coords: coordsMatch ? `${coordsMatch[1]}, ${coordsMatch[2]}` : null, coordsFormatted };
 }
 
-/** Mapa estático (OSM) — sem API key; fallback é só o link em `url`. */
+/**
+ * Miniatura de mapa estático: DESLIGADA. O staticmap.openstreetmap.de foi descontinuado
+ * (DNS nem resolve mais) — a <img> nunca carregava e só gerava ERR_NAME_NOT_RESOLVED no
+ * console a cada bolha de localização. Não há hoje provedor estático gratuito sem API key
+ * confiável; o card segue com 📍 + endereço + "Abrir no mapa" (Google Maps). Se um provedor
+ * com key for contratado, basta voltar a retornar a URL aqui — o LocationMessage já trata null.
+ */
 export function buildStaticMapUrl(lat, lng) {
   const la = Number(lat);
   const ln = Number(lng);
   if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${la},${ln}&zoom=15&size=320x160&maptype=mapnik&markers=${la},${ln},red-pushpin`;
+  return null;
 }

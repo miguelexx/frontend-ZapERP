@@ -70,10 +70,16 @@ export function useChatListFilterState({
   const chatListTabRequestNonce = useChatStore((s) => s.chatListTabRequestNonce);
   useEffect(() => {
     if (!chatListTabRequestNonce) return;
-    const requested = useChatStore.getState().chatListTabRequest;
-    useChatStore.setState({ chatListTabRequest: null });
+    const requestState = useChatStore.getState();
+    const requested = requestState.chatListTabRequest;
+    const clearSearch = requestState.chatListTabRequestClearSearch === true;
+    useChatStore.setState({
+      chatListTabRequest: null,
+      chatListTabRequestClearSearch: false,
+    });
+    if (clearSearch) clearChatSearch();
     if (requested && requested !== tabRef.current) setTab(requested);
-  }, [chatListTabRequestNonce]);
+  }, [chatListTabRequestNonce, clearChatSearch]);
 
   useEffect(() => {
     if (tab === "nao_lidas") setTab("todas");

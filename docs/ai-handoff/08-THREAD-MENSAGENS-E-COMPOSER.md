@@ -502,3 +502,19 @@ proporcional (`resolveUploadTimeoutMs(batchBytes)`, cap 15 min). Backend ganhou 
 arquivo no loop do lote (doc 25 parte 2). Residual: se a mediaOutbox estourar limites
 (30 itens/200 MB) num lote incerto, os excedentes ficam só com a verificação de consistência
 (sem reenvio durável) — some no F5 se o POST nunca chegou. Build Vite OK; não deployado.
+
+### 2026-10-07 (parte 4) — Ruído de console em produção (501 etiquetas + staticmap morto)
+
+Print do Miguel (fotos presas no relógio) trouxe dois ruídos reais de console, corrigidos:
+1. **501 repetido** `GET /whatsapp-business/labels?whatsapp_instance_id=N`: o seletor de
+   etiquetas (`ConversationWhatsappLabels`) carrega na montagem de CADA conversa aberta; em
+   canal UltraMSG o backend responde 501 e nada memorizava → um 501 por conversa.
+   `whapiBusinessService.listarLabelsWhatsapp` agora memoriza "sem suporte" por instância
+   (TTL 10 min) e lança 501 sintético local — chamadores já tratam com mensagem amigável.
+2. **staticmap.openstreetmap.de descontinuado** (ERR_NAME_NOT_RESOLVED em toda bolha de
+   localização): `buildStaticMapUrl` passou a retornar null (miniatura desligada; card segue
+   com 📍 + "Abrir no mapa"). Para reativar, basta retornar uma URL de provedor com key.
+
+As fotos presas no relógio NÃO eram esses erros: instância UltraMSG com envio aceito/enfileirado
+pelo provedor (pending aguardando ACK) — tratamento é operacional: deploy do backend atual
+(reconciliação varre pending a cada 5 min) + conferir conexão do WhatsApp no painel do provedor.

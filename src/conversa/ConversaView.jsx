@@ -47,6 +47,7 @@ import {
   bumpChatListWithOptimisticMessage,
   applyModoSimplesClienteOnOutgoingSend,
   shouldAutoAssumirOnOutgoingSend,
+  shouldMoveSearchedConversationToMinhaFila,
   normalizeTextSendApiToMessage,
 } from "./conversaOptimisticMessage";
 import {
@@ -1678,6 +1679,38 @@ function ConversaViewBody() {
     }
   }, [conversaId, conversa, reabrirConversa, showToast]);
 
+  /**
+   * Quando o contato foi aberto pela busca global e o primeiro envio vai assumi-lo/reabri-lo,
+   * devolve um callback para concluir a navegação somente após a API aceitar a mensagem.
+   */
+  const beginSearchResultSendTransition = useCallback(() => {
+    const chatState = useChatStore.getState();
+    const searchActive =
+      chatState.chatListSearchActive === true || chatState.chatListSearchDebounced === true;
+    const convState = useConversaStore.getState();
+    const openConv =
+      convState.conversa && String(convState.conversa.id) === String(conversaId)
+        ? convState.conversa
+        : conversa;
+    const row = (chatState.chats || []).find((item) => String(item?.id) === String(conversaId));
+    const source = openConv || row || fromChat;
+    const shouldMove = shouldMoveSearchedConversationToMinhaFila(source, user, {
+      searchActive,
+      isGroup: isGroupConversation(source),
+    });
+    if (!shouldMove) return null;
+
+    let completed = false;
+    return () => {
+      if (completed) return;
+      completed = true;
+      // Uma resposta HTTP atrasada não deve trocar o filtro se o atendente já abriu outro chat.
+      if (String(useConversaStore.getState().selectedId ?? "") !== String(conversaId)) return;
+      const currentChatStore = useChatStore.getState();
+      currentChatStore.requestChatListTab?.("minha_fila", { clearSearch: true });
+    };
+  }, [conversa, conversaId, fromChat, user]);
+
   const {
     handleEnviarArquivo,
     handleFileInputChange,
@@ -1721,6 +1754,7 @@ function ConversaViewBody() {
     pendingSendOptions,
     pendingConversaIdRef,
     confirmSendLockRef,
+    beginSearchResultSendTransition,
   });
 
   const { dropActive, fileDropHandlers } = useConversationFileDrop({
@@ -1754,6 +1788,7 @@ function ConversaViewBody() {
       ("nativeEvent" in forcedText || "preventDefault" in forcedText || "currentTarget" in forcedText);
     const t = safeString(forcedLooksLikeEvent ? undefined : forcedText).trim();
     if (!t) return;
+    const finishSearchResultSendTransition = beginSearchResultSendTransition();
     const conversaAberta = await garantirConversaAbertaParaEnvio();
     if (!conversaAberta) return;
     const socket = getSocket();
@@ -1846,6 +1881,7 @@ function ConversaViewBody() {
           });
         }
         manualTextRetryRef.current = null;
+        finishSearchResultSendTransition?.();
       } catch (err) {
         envioFalhou = true;
         console.error("Erro ao enviar mensagem:", err);
@@ -1937,6 +1973,7 @@ function ConversaViewBody() {
     fromChat,
     podeEnviar,
     garantirConversaAbertaParaEnvio,
+    beginSearchResultSendTransition,
     focusMessageInput,
     setSendingTracked,
   ]);

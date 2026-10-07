@@ -109,6 +109,7 @@ export function useConversationOutboundMedia({
   pendingSendOptions,
   pendingConversaIdRef,
   confirmSendLockRef,
+  beginSearchResultSendTransition,
 }) {
   const handleEnviarArquivo = useCallback(
     async (file, opts = {}) => {
@@ -141,6 +142,7 @@ export function useConversationOutboundMedia({
         clearPending();
         return;
       }
+      const finishSearchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) {
         clearPending();
@@ -281,6 +283,7 @@ export function useConversationOutboundMedia({
         });
         // Enviado (persistido no back-end): não precisa mais reter o File para retry.
         if (isAudioSend) audioRetryFilesRef.current.delete(tempId);
+        finishSearchResultSendTransition?.();
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
@@ -353,6 +356,7 @@ export function useConversationOutboundMedia({
       applyOutgoingStatusOptimistic,
       scheduleArquivoSendConsistencyCheck,
       setSendingTracked,
+      beginSearchResultSendTransition,
     ]
   );
   
@@ -419,6 +423,7 @@ export function useConversationOutboundMedia({
         });
         return;
       }
+      const finishSearchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) return;
       const tempIds = [];
@@ -500,6 +505,7 @@ export function useConversationOutboundMedia({
                 : failures[0]?.error || "Não foi possível enviar as fotos. Tente novamente.",
           });
         }
+        finishSearchResultSendTransition?.();
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
@@ -580,6 +586,7 @@ export function useConversationOutboundMedia({
       applyOutgoingStatusOptimistic,
       scheduleArquivoSendConsistencyCheck,
       setSendingTracked,
+      beginSearchResultSendTransition,
     ]
   );
   
@@ -639,6 +646,7 @@ export function useConversationOutboundMedia({
         return;
       }
   
+      const finishSearchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) return;
       const tempIds = [];
@@ -720,6 +728,7 @@ export function useConversationOutboundMedia({
                 : failures[0]?.error || "Não foi possível enviar os documentos. Tente novamente.",
           });
         }
+        finishSearchResultSendTransition?.();
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
@@ -802,6 +811,7 @@ export function useConversationOutboundMedia({
       applyOutgoingStatusOptimistic,
       scheduleArquivoSendConsistencyCheck,
       setSendingTracked,
+      beginSearchResultSendTransition,
     ]
   );
 
