@@ -142,12 +142,13 @@ export function useConversationOutboundMedia({
         clearPending();
         return;
       }
-      const finishSearchResultSendTransition = beginSearchResultSendTransition?.();
+      const searchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) {
         clearPending();
         return;
       }
+      searchResultSendTransition?.afterConversationReady?.();
   
       const flightKey = `${conversaId}:${file?.name || "arquivo"}:${file?.size ?? 0}:${file?.lastModified ?? 0}`;
       if (arquivoEnvioInFlightRef.current.has(flightKey)) return;
@@ -283,7 +284,7 @@ export function useConversationOutboundMedia({
         });
         // Enviado (persistido no back-end): não precisa mais reter o File para retry.
         if (isAudioSend) audioRetryFilesRef.current.delete(tempId);
-        finishSearchResultSendTransition?.();
+        searchResultSendTransition?.afterSendAccepted?.();
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
@@ -423,9 +424,10 @@ export function useConversationOutboundMedia({
         });
         return;
       }
-      const finishSearchResultSendTransition = beginSearchResultSendTransition?.();
+      const searchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) return;
+      searchResultSendTransition?.afterConversationReady?.();
       const tempIds = [];
       shouldStickToBottomRef.current = true;
       const revertOutgoingStatus = applyOutgoingStatusOptimistic();
@@ -505,7 +507,7 @@ export function useConversationOutboundMedia({
                 : failures[0]?.error || "Não foi possível enviar as fotos. Tente novamente.",
           });
         }
-        finishSearchResultSendTransition?.();
+        searchResultSendTransition?.afterSendAccepted?.();
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
@@ -646,9 +648,10 @@ export function useConversationOutboundMedia({
         return;
       }
   
-      const finishSearchResultSendTransition = beginSearchResultSendTransition?.();
+      const searchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) return;
+      searchResultSendTransition?.afterConversationReady?.();
       const tempIds = [];
       shouldStickToBottomRef.current = true;
       const revertOutgoingStatus = applyOutgoingStatusOptimistic();
@@ -728,7 +731,7 @@ export function useConversationOutboundMedia({
                 : failures[0]?.error || "Não foi possível enviar os documentos. Tente novamente.",
           });
         }
-        finishSearchResultSendTransition?.();
+        searchResultSendTransition?.afterSendAccepted?.();
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();

@@ -1681,7 +1681,8 @@ function ConversaViewBody() {
 
   /**
    * Quando o contato foi aberto pela busca global e o primeiro envio vai assumi-lo/reabri-lo,
-   * devolve um callback para concluir a navegação somente após a API aceitar a mensagem.
+   * devolve os marcos seguros para concluir a navegação. Conversa encerrada pode mudar de
+   * tela assim que o reabrir confirma; conversa livre aguarda o envio confirmar o auto-assumir.
    */
   const beginSearchResultSendTransition = useCallback(() => {
     const chatState = useChatStore.getState();
@@ -1701,13 +1702,17 @@ function ConversaViewBody() {
     if (!shouldMove) return null;
 
     let completed = false;
-    return () => {
+    const complete = () => {
       if (completed) return;
       completed = true;
       // Uma resposta HTTP atrasada não deve trocar o filtro se o atendente já abriu outro chat.
       if (String(useConversaStore.getState().selectedId ?? "") !== String(conversaId)) return;
       const currentChatStore = useChatStore.getState();
       currentChatStore.requestChatListTab?.("minha_fila", { clearSearch: true });
+    };
+    return {
+      afterConversationReady: isClosedAttendance(source) ? complete : null,
+      afterSendAccepted: complete,
     };
   }, [conversa, conversaId, fromChat, user]);
 
@@ -1788,9 +1793,10 @@ function ConversaViewBody() {
       ("nativeEvent" in forcedText || "preventDefault" in forcedText || "currentTarget" in forcedText);
     const t = safeString(forcedLooksLikeEvent ? undefined : forcedText).trim();
     if (!t) return;
-    const finishSearchResultSendTransition = beginSearchResultSendTransition();
+    const searchResultSendTransition = beginSearchResultSendTransition();
     const conversaAberta = await garantirConversaAbertaParaEnvio();
     if (!conversaAberta) return;
+    searchResultSendTransition?.afterConversationReady?.();
     const socket = getSocket();
     if (socket?.connected) socket.emit("typing_stop", { conversa_id: conversaId });
     const chatParaNome = fromChat ?? conversa;
@@ -1881,7 +1887,7 @@ function ConversaViewBody() {
           });
         }
         manualTextRetryRef.current = null;
-        finishSearchResultSendTransition?.();
+        searchResultSendTransition?.afterSendAccepted?.();
       } catch (err) {
         envioFalhou = true;
         console.error("Erro ao enviar mensagem:", err);

@@ -10,6 +10,7 @@ import {
 } from "../src/conversa/conversaOptimisticMessage.js";
 import { sortMensagensChronological } from "../src/conversa/conversaOutboundMediaMerge.js";
 import { pickListaUltimaMensagem } from "../src/chats/chatListRowAtendimento.js";
+import { useChatStore } from "../src/chats/chatsStore.js";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -163,5 +164,16 @@ assert(
   ),
   "envio fora da busca não deve trocar o filtro atual"
 );
+
+// 6) O pedido publica a visão de destino no mesmo tick; o hook React apenas espelha na UI.
+useChatStore.setState({
+  chatListActiveTab: "todas",
+  chatListSearchActive: true,
+  chatListSearchDebounced: true,
+});
+useChatStore.getState().requestChatListTab("minha_fila", { clearSearch: true });
+assert(useChatStore.getState().chatListActiveTab === "minha_fila", "aba publicada imediatamente");
+assert(useChatStore.getState().chatListSearchActive === false, "busca imediata deve ser desativada");
+assert(useChatStore.getState().chatListSearchDebounced === false, "busca debounced deve ser desativada");
 
 console.log("OK - bolha otimista e sincronização do card passaram.");

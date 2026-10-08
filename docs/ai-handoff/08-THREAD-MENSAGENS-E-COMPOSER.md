@@ -518,3 +518,22 @@ Print do Miguel (fotos presas no relógio) trouxe dois ruídos reais de console,
 As fotos presas no relógio NÃO eram esses erros: instância UltraMSG com envio aceito/enfileirado
 pelo provedor (pending aguardando ACK) — tratamento é operacional: deploy do backend atual
 (reconciliação varre pending a cada 5 min) + conferir conexão do WhatsApp no painel do provedor.
+
+### 2026-10-07 (parte 5) — 2ª auditoria independente envio/recebimento
+
+Certificação sobre o estado atual, incluindo diffs NÃO commitados de terceiros no fluxo de envio
+(transição pós-busca em dois marcos: `afterConversationReady` ao reabrir encerrada /
+`afterSendAccepted` no aceite; `requestChatListTab` publica `chatListActiveTab` + limpa busca no
+mesmo tick). Revisão desses diffs: APROVADOS — `complete()` idempotente com guarda de selectedId;
+consumidor do tab-request é dirigido por nonce (useChatListFilterState), então a publicação
+antecipada não pula o reload; campos de busca são booleans; `isClosedAttendance` importado; o
+import `conversaOptimisticMessage → chatsStore` é de uso adiado (getState em função) e sem
+back-edge — sem ciclo problemático; build Vite OK.
+
+Fix aplicado: `scripts/test-optimistic-send-glitch.mjs` usava `assert.equal` sobre o helper
+local `assert(cond,msg)` (TypeError quando rodasse) → trocado por `assert(a === b, msg)`.
+PENDENTE (pré-existente, não é desta mudança): o script não roda em Node puro — a cadeia
+`conversaOptimisticMessage → chatsStore → …` usa imports sem extensão (`ERR_MODULE_NOT_FOUND`);
+o app no Vite não é afetado. Consertar exigiria adicionar `.js` pela cadeia ou rodar via vite-node.
+
+Backend (envio/ACK/webhook/reconciliação): suíte completa 208/2184 verde no estado atual.

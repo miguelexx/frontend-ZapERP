@@ -323,10 +323,17 @@ export const useChatStore = create((set, get) => ({
   requestChatListTab: (tab, opts = {}) => {
     const next = tab != null ? String(tab) : null
     if (!next) return
+    const clearSearch = opts?.clearSearch === true
     set((s) => ({
       chatListTabRequest: next,
-      chatListTabRequestClearSearch: opts?.clearSearch === true,
+      chatListTabRequestClearSearch: clearSearch,
       chatListTabRequestNonce: (s.chatListTabRequestNonce || 0) + 1,
+      // Publica a visão de destino no mesmo tick. Socket/mutações otimistas que chegarem
+      // antes do próximo render já avaliam a pertinência contra Minha fila, sem janela stale.
+      chatListActiveTab: next,
+      ...(clearSearch
+        ? { chatListSearchActive: false, chatListSearchDebounced: false }
+        : {}),
     }))
   },
 
