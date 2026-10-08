@@ -1,6 +1,7 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { useEmpresaStore } from "../auth/empresaStore";
+import { useAuthStore } from "../auth/authStore";
 import {
   isGroupConversation,
   getStatusAtendimentoEffective,
@@ -36,6 +37,7 @@ import {
   getLastDirection,
   atendimentoRowVisualClass,
   isEmAtendimentoUltimaDoCliente,
+  isConversaEmAtendimentoBadge,
   getAtendimentoAssigneeNames,
 } from "./chatListRowAtendimento";
 import { chatRowPropsAreEqual } from "./chatListRowCompare";
@@ -1302,6 +1304,11 @@ function ChatRow({
   showWhatsappInstanceUi = false,
 }) {
   const exibirAtendentesNoCard = useEmpresaStore((s) => s.empresa?.exibir_atendentes_no_card === true);
+  // Badge "atendente responsável" é exclusivo da visão admin (perfil admin/administrador).
+  const isAdminViewer = useAuthStore((s) => {
+    const r = String(s.user?.role || s.user?.perfil || "").toLowerCase();
+    return r === "admin" || r === "administrador";
+  });
   const avatarLockRef = useRef({ identity: null, url: null });
   const id = chat?.id;
   const clienteId = chat?.cliente_id;
@@ -1472,10 +1479,22 @@ function ChatRow({
       ).trim()
     : "";
   const atendimentoAssigneeNames = useMemo(
-    () => (exibirAtendentesNoCard ? getAtendimentoAssigneeNames(chat, currentUserId, currentUserName) : []),
-    [chat, currentUserId, currentUserName, exibirAtendentesNoCard]
+    () =>
+      exibirAtendentesNoCard || isAdminViewer
+        ? getAtendimentoAssigneeNames(chat, currentUserId, currentUserName)
+        : [],
+    [chat, currentUserId, currentUserName, exibirAtendentesNoCard, isAdminViewer]
   );
   const atendimentoAssigneeLabel = atendimentoAssigneeNames.join(", ");
+  // Admin: pill premium do atendente responsável, só em conversas em atendimento.
+  const mostrarAtendenteAdmin =
+    isAdminViewer &&
+    !isGroup &&
+    Boolean(atendimentoAssigneeLabel) &&
+    isConversaEmAtendimentoBadge(chat);
+  // Quando a pill admin aparece, ela substitui a linha simples de assignee (evita linha dupla).
+  const mostrarAssigneeSimples =
+    exibirAtendentesNoCard && Boolean(atendimentoAssigneeLabel) && !mostrarAtendenteAdmin;
 
   useEffect(() => {
     if (avatarRetryTimerRef.current != null) {
@@ -1633,7 +1652,18 @@ function ChatRow({
                 {setorLabelNome}
               </div>
             ) : null}
-            {!isGroup && atendimentoAssigneeLabel ? (
+            {mostrarAtendenteAdmin ? (
+              <div
+                className="chat-list-atendente-admin"
+                title={`Atendente responsável: ${atendimentoAssigneeLabel}`}
+                aria-label={`Atendente responsável: ${atendimentoAssigneeLabel}`}
+              >
+                <span className="chat-list-atendente-admin-avatar" aria-hidden="true">
+                  {initials(atendimentoAssigneeNames[0])}
+                </span>
+                <span className="chat-list-atendente-admin-name">{atendimentoAssigneeLabel}</span>
+              </div>
+            ) : mostrarAssigneeSimples ? (
               <div
                 className="chat-list-assignee"
                 title={`Atendimento assumido por ${atendimentoAssigneeLabel}`}

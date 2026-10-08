@@ -495,6 +495,7 @@ const VIRTUAL_ROW_METRICS = {
     titleLine: 17.5,
     setor: 15,
     assignee: 15,
+    assigneeAdmin: 26,
     empresa: 15,
     preview: 17,
     mainGap: 2,
@@ -510,6 +511,7 @@ const VIRTUAL_ROW_METRICS = {
     titleLine: 16.2,
     setor: 12.5,
     assignee: 13.5,
+    assigneeAdmin: 24,
     empresa: 13.5,
     preview: 14.8,
     mainGap: 3,
@@ -561,7 +563,13 @@ function estimateMetaColumnHeight(chat, pendentesIdSet, isMobileLayout) {
  * Altura fixa por card na virtualização — calculada pelo conteúdo (título até 2 linhas, setor, badges).
  * Deve ser >= altura real; measureElement fica desligado para o layout não “pular” após abrir/atualizar.
  */
-export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = null, showAssigneeNames = false) {
+export function estimateChatListRowSize(
+  chat,
+  isMobileLayout,
+  pendentesIdSet = null,
+  showAssigneeNames = false,
+  showAdminAtendente = false
+) {
   const m = isMobileLayout ? VIRTUAL_ROW_METRICS.mobile : VIRTUAL_ROW_METRICS.desktop;
   if (!chat) return m.minRow;
 
@@ -583,20 +591,26 @@ export function estimateChatListRowSize(chat, isMobileLayout, pendentesIdSet = n
   const hasEmpresa = !isGroup
     ? Boolean(String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim())
     : false;
-  const hasAssignee = showAssigneeNames && !isGroup && getAtendimentoAssigneeNames(chat).length > 0;
+  const assigneeNames =
+    (showAssigneeNames || showAdminAtendente) && !isGroup ? getAtendimentoAssigneeNames(chat) : [];
+  // Pill premium de admin (atendente responsável) só aparece em conversa em atendimento.
+  const hasAdminAtendente =
+    showAdminAtendente && assigneeNames.length > 0 && isConversaEmAtendimentoBadge(chat);
+  const hasAssignee = showAssigneeNames && assigneeNames.length > 0 && !hasAdminAtendente;
+  const assigneeExtra = hasAdminAtendente ? m.assigneeAdmin : hasAssignee ? m.assignee : 0;
   const hasEncontradoPor = !isGroup && Boolean(String(chat?.encontrado_por || "").trim());
 
   let titleBlock = titleLines * m.titleLine;
   if (hasEncontradoPor) titleBlock += m.setor;
   if (hasSetor) titleBlock += m.setor;
-  if (hasAssignee) titleBlock += m.assignee;
+  if (assigneeExtra) titleBlock += assigneeExtra;
   if (hasEmpresa) titleBlock += m.empresa;
 
   const metaCol = estimateMetaColumnHeight(chat, pendentesIdSet, isMobileLayout);
   const mobileBadgeGrid = isMobileLayout && chatRowUsesMobileBadgeGrid(chat, pendentesIdSet);
   let topBlock = titleBlock;
   if (mobileBadgeGrid) {
-    topBlock = titleLines * m.titleLine + (hasEncontradoPor ? m.setor : 0) + (hasSetor ? m.setor : 0) + (hasEmpresa ? m.empresa : 0) + m.badgeGridExtra;
+    topBlock = titleLines * m.titleLine + (hasEncontradoPor ? m.setor : 0) + (hasSetor ? m.setor : 0) + (hasEmpresa ? m.empresa : 0) + (hasAdminAtendente ? m.assigneeAdmin : 0) + m.badgeGridExtra;
   } else if (metaCol > 0) {
     topBlock = Math.max(titleBlock, metaCol);
   }

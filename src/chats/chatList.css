@@ -2335,6 +2335,62 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   background: rgba(95, 227, 192, .68);
 }
 
+/* Pill premium "atendente responsável" — exclusiva da visão admin, só em conversa em atendimento. */
+.chat-list-atendente-admin {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 9px 2px 3px;
+  border-radius: 999px;
+  background: rgba(16, 158, 117, .10);
+  border: .5px solid rgba(16, 158, 117, .30);
+}
+
+.chat-list-atendente-admin-avatar {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #0F6E56;
+  background: rgba(16, 158, 117, .18);
+}
+
+.chat-list-atendente-admin-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  line-height: 1.2;
+  color: #0F6E56;
+}
+
+[data-theme="dark"] .chat-list-atendente-admin {
+  background: rgba(95, 227, 192, .10);
+  border-color: rgba(95, 227, 192, .26);
+}
+
+[data-theme="dark"] .chat-list-atendente-admin-avatar {
+  color: #5fe3c0;
+  background: rgba(95, 227, 192, .20);
+}
+
+[data-theme="dark"] .chat-list-atendente-admin-name {
+  color: #9fe9d7;
+}
+
 .chat-list-row-meta {
   display: flex;
   flex-direction: column;

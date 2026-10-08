@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useConversaStore } from "../conversa/conversaStore";
 import { useEmpresaStore } from "../auth/empresaStore";
+import { useAuthStore } from "../auth/authStore";
 import { CHAT_LIST_ROW_GAP, estimateChatListRowSize } from "./chatListRowAtendimento";
 import MemoChatRow from "./ChatListRow";
 import { useWhatsappInstancesStore } from "./whatsappInstancesStore";
@@ -59,6 +60,10 @@ const ChatListRows = memo(function ChatListRows({
 }) {
   const showWhatsappInstanceUi = useWhatsappInstancesStore((s) => s.hasMultiple);
   const showAssigneeNames = useEmpresaStore((s) => s.empresa?.exibir_atendentes_no_card === true);
+  const isAdminViewer = useAuthStore((s) => {
+    const r = String(s.user?.role || s.user?.perfil || "").toLowerCase();
+    return r === "admin" || r === "administrador";
+  });
   const mobileSelectedId = useConversaStore((s) => (isMobileLayout ? s.selectedId : null));
   const selectedIdHighlight = useConversaStore((s) => (isMobileLayout ? null : s.selectedId));
   const mobileConversaAberta = isMobileLayout && mobileSelectedId != null;
@@ -117,8 +122,8 @@ const ChatListRows = memo(function ChatListRows({
   const waLabelsByConversa = useWhatsappLabelsStore((s) => s.byConversa);
   const estimateRowSize = useCallback(
     (index) =>
-      estimateChatListRowSize(chatsFiltrados[index], isMobileLayout, pendentesFuncionarioSet, showAssigneeNames),
-    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, waLabelsByConversa]
+      estimateChatListRowSize(chatsFiltrados[index], isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer),
+    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer, waLabelsByConversa]
   );
 
   // Identidade estável: getItemKey entra nas deps do memo de medidas do virtualizador
