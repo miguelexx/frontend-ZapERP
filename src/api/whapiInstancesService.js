@@ -395,6 +395,53 @@ export async function validarNumerosInstancia(instanceId, phones, forceCheck = f
 }
 
 /**
+ * GET /integrations/whatsapp/visibilidade
+ * Quais usuários veem cada número. Supervisor/admin.
+ * Retorna { numeros: [{ whatsapp_instance_id, nome, display_phone, todos_veem, usuarios_marcados }], usuarios }.
+ */
+export async function obterVisibilidadeNumeros() {
+  try {
+    const { data, status } = await api.get(`${WHATSAPP_BASE}/visibilidade`);
+    return {
+      status,
+      ok: true,
+      numeros: Array.isArray(data?.numeros) ? data.numeros : [],
+      usuarios: Array.isArray(data?.usuarios) ? data.usuarios : [],
+      error: null,
+    };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Erro ao carregar a visibilidade por número.");
+    return { status: parsed.status, ok: false, numeros: [], usuarios: [], error: parsed.error };
+  }
+}
+
+/**
+ * PUT /integrations/whatsapp/instances/:id/visibilidade  { usuario_ids }
+ * Os ids enviados são EXATAMENTE quem vê o número. Lista vazia = "Todos veem".
+ */
+export async function salvarVisibilidadeNumero(instanceId, usuarioIds) {
+  try {
+    const ids = (Array.isArray(usuarioIds) ? usuarioIds : [])
+      .map((n) => Number(n))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    const { data, status } = await api.put(
+      `${WHATSAPP_BASE}/instances/${instanceId}/visibilidade`,
+      { usuario_ids: ids }
+    );
+    return {
+      status,
+      ok: data?.ok === true,
+      usuariosMarcados: Array.isArray(data?.usuarios_marcados) ? data.usuarios_marcados : ids,
+      todosVeem: data?.todos_veem === true,
+      error: null,
+    };
+  } catch (err) {
+    const parsed = normalizeHttpError(err, "Não foi possível salvar a visibilidade do número.");
+    return { status: parsed.status, ok: false, usuariosMarcados: [], todosVeem: false, error: parsed.error };
+  }
+}
+
+/**
  * GET /integrations/whatsapp/instances/:id/limits/antiban
  * Limites anti-ban Whapi (novos chats + reachout timelock). Read-only.
  */

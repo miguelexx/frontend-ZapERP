@@ -14,6 +14,7 @@ import {
 } from "../api/whapiInstancesService";
 import { whatsappInstanceLabel } from "../chats/whatsappInstancesService";
 import WhapiAntibanLimitsCard from "./WhapiAntibanLimitsCard";
+import WhapiNumberVisibilityCard from "./WhapiNumberVisibilityCard";
 import "./whapiConnect.css";
 
 const QR_POLL_MS = 20000;
@@ -955,6 +956,12 @@ export default function WhapiConnectPanel({ showToast }) {
               )}
             </div>
           </div>
+
+          <WhapiNumberVisibilityCard
+            instanceId={selectedId}
+            enabled={instances.filter((i) => i && i.ativo !== false).length > 1}
+            showToast={showToast}
+          />
         </section>
       ) : null}
 
