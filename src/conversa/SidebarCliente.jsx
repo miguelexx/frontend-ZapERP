@@ -1,7 +1,7 @@
 import "./conversa.css";
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
-import { vincularClienteConversa, atualizarNomeContatoConversa, apagarConversaCompleta } from "./conversaService";
+import { salvarObservacao, vincularClienteConversa, atualizarNomeContatoConversa, apagarConversaCompleta } from "./conversaService";
 import { useConversaStore } from "./conversaStore";
 import { useChatStore } from "../chats/chatsStore";
 import { useAuthStore } from "../auth/authStore";
@@ -216,7 +216,17 @@ export default function SidebarCliente({
   const nomeInputRef = useRef(null);
   const skipNomeBlurSaveRef = useRef(false);
   const savingNomeLockRef = useRef(false);
+  const [observacao, setObservacao] = useState("");
+  const [obsBase, setObsBase] = useState("");
+  const [savingObs, setSavingObs] = useState(false);
   const [avatarImgError, setAvatarImgError] = useState(false);
+
+  useEffect(() => {
+    if (isGroup) return;
+    const valor = conversa?.observacao != null ? String(conversa.observacao) : "";
+    setObservacao(valor);
+    setObsBase(valor);
+  }, [open, conversa?.id, conversa?.observacao, isGroup]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -333,29 +343,6 @@ export default function SidebarCliente({
     });
     setNomeContatoBase(nome);
   }, [conversa?.id]);
-
-  // Semente imediata da observação/próximo contato a partir do que já veio na conversa
-  // (mesma coluna `clientes.observacoes` que `loadCliente` buscará em seguida). Evita o "flash"
-  // em branco ao abrir e garante que o marcador [NEXT_CONTACT] nunca apareça no textarea.
-  useEffect(() => {
-    if (!open || isGroup) return;
-    const raw = conversa?.observacao != null ? String(conversa.observacao) : "";
-    const parsed = parseNextContactFromObservacoes(raw);
-    const meta = parsed.meta || {};
-    setCliObsText(parsed.text || "");
-    setNextDate(meta.date || "");
-    setNextTime(meta.time || "");
-    setNextNote(meta.note || "");
-    setClienteBase((prev) => ({
-      ...prev,
-      observacoes: parsed.text || "",
-      nextDate: meta.date || "",
-      nextTime: meta.time || "",
-      nextNote: meta.note || "",
-    }));
-    // Só semeia ao abrir/trocar de conversa — não a cada tecla digitada.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, conversa?.id, isGroup]);
 
   const loadClienteSeqRef = useRef(0);
   const loadCliente = useCallback(async () => {
@@ -700,24 +687,54 @@ export default function SidebarCliente({
     }
   }, []);
 
-  const isoFromDate = useCallback((d) => {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }, []);
-
-  const todayISO = useMemo(() => isoFromDate(new Date()), [isoFromDate, open]);
-  const tomorrowISO = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return isoFromDate(d);
-  }, [isoFromDate, open]);
+  const handleSalvarObs = useCallback(async () => {
+    if (!conversa?.id) return false;
+    if (!canEdit) {
+      showToast?.({
+        type: "error",
+        title: "Somente leitura",
+        message: "Assuma a conversa para editar/salvar detalhes.",
+      });
+      return false;
+    }
+    try {
+      setSavingObs(true);
+      const before = obsBase;
+      await salvarObservacao(conversa.id, observacao);
+      setObsBase(observacao);
+      showToast?.({ type: "success", title: "Salvo", message: "Observação atualizada com sucesso." });
+      safeAudit({
+        acao: "detalhes_cliente_salvar_observacao_atendimento",
+        conversa_id: conversa.id,
+        cliente_id: clienteId,
+        usuario_id: user?.id ?? null,
+        usuario: user?.nome || user?.email || null,
+        diff: diffObject({ observacao: before }, { observacao }),
+        criado_em: new Date().toISOString(),
+      });
+      onObservacaoSaved?.();
+      return true;
+    } catch (err) {
+      console.error("Erro ao salvar observação da conversa:", err);
+      showToast?.({ type: "error", title: "Falha ao salvar", message: "Não foi possível salvar a observação." });
+      return false;
+    } finally {
+      setSavingObs(false);
+    }
+  }, [conversa?.id, observacao, onObservacaoSaved, showToast, canEdit, obsBase, safeAudit, user?.id, user?.nome, user?.email, clienteId]);
 
   const setDateToday = useCallback(() => {
-    setNextDate(todayISO);
-  }, [todayISO]);
+    const d = new Date();
+    const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setNextDate(v);
+  }, []);
 
   const setDateTomorrow = useCallback(() => {
-    setNextDate(tomorrowISO);
-  }, [tomorrowISO]);
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setNextDate(v);
+  }, []);
 
   const handleLimparProximoContato = useCallback(() => {
     setNextDate("");
@@ -1114,8 +1131,12 @@ export default function SidebarCliente({
     applyNomeContatoPatch,
   ]);
 
-  const savingAny = Boolean(savingCliente || creatingCliente || savingNomeContato || deletingContact);
-  const hasAnyChanges = Boolean(hasClienteChanges || hasNomeContatoChanges);
+  const hasObsChanges = useMemo(
+    () => String(observacao || "") !== String(obsBase || ""),
+    [observacao, obsBase]
+  );
+  const savingAny = Boolean(savingObs || savingCliente || creatingCliente || savingNomeContato || deletingContact);
+  const hasAnyChanges = Boolean(hasObsChanges || hasClienteChanges || hasNomeContatoChanges);
 
   const handleSalvarTudo = useCallback(async () => {
     if (!canEdit) {
@@ -1135,6 +1156,11 @@ export default function SidebarCliente({
       await handleSalvarNomeContato();
     }
 
+    if (hasObsChanges) {
+      did = true;
+      await handleSalvarObs();
+    }
+
     if (clienteId) {
       if (hasClienteChanges) {
         did = true;
@@ -1151,9 +1177,11 @@ export default function SidebarCliente({
   }, [
     canEdit,
     savingAny,
+    hasObsChanges,
     hasClienteChanges,
     hasNomeContatoChanges,
     clienteId,
+    handleSalvarObs,
     handleSalvarNomeContato,
     handleSalvarCliente,
     handleCriarEVincularCliente,
@@ -1408,49 +1436,46 @@ export default function SidebarCliente({
             <div className="wa-sideCliente-hint">Carregando cadastro do cliente…</div>
           ) : null}
 
-          <div className="wa-sideCliente-schedule">
-            <h4 className="wa-sideCliente-subTitle">Próximo contato</h4>
-            <div className="wa-sideCliente-grid2">
-              <div className="wa-sideCliente-field">
-                <span className="wa-sideCliente-label">Dia</span>
-                <input
-                  type="date"
-                  className="wa-sideCliente-input"
-                  value={nextDate}
-                  onChange={(e) => setNextDate(e.target.value)}
-                  disabled={!canEdit || savingCliente || creatingCliente}
-                />
-                <div className="wa-sideCliente-miniActions">
-                  <button type="button" className={`wa-miniBtn${nextDate === todayISO ? " isActive" : ""}`} onClick={setDateToday} disabled={!canEdit || savingCliente || creatingCliente}>
-                    Hoje
-                  </button>
-                  <button type="button" className={`wa-miniBtn${nextDate === tomorrowISO ? " isActive" : ""}`} onClick={setDateTomorrow} disabled={!canEdit || savingCliente || creatingCliente}>
-                    Amanhã
-                  </button>
-                </div>
-              </div>
-              <div className="wa-sideCliente-field">
-                <span className="wa-sideCliente-label">Horário</span>
-                <input
-                  type="time"
-                  className="wa-sideCliente-input"
-                  value={nextTime}
-                  onChange={(e) => setNextTime(e.target.value)}
-                  disabled={!canEdit || savingCliente || creatingCliente}
-                />
+          <h4 className="wa-sideCliente-subTitle">Próximo contato</h4>
+          <div className="wa-sideCliente-grid2">
+            <div className="wa-sideCliente-field">
+              <span className="wa-sideCliente-label">Dia</span>
+              <input
+                type="date"
+                className="wa-sideCliente-input"
+                value={nextDate}
+                onChange={(e) => setNextDate(e.target.value)}
+                disabled={!canEdit || savingCliente || creatingCliente}
+              />
+              <div className="wa-sideCliente-miniActions">
+                <button type="button" className="wa-miniBtn" onClick={setDateToday} disabled={!canEdit || savingCliente || creatingCliente}>
+                  Hoje
+                </button>
+                <button type="button" className="wa-miniBtn" onClick={setDateTomorrow} disabled={!canEdit || savingCliente || creatingCliente}>
+                  Amanhã
+                </button>
               </div>
             </div>
             <div className="wa-sideCliente-field">
-              <span className="wa-sideCliente-label">Lembrete (opcional)</span>
+              <span className="wa-sideCliente-label">Horário</span>
               <input
+                type="time"
                 className="wa-sideCliente-input"
-                value={nextNote}
-                onChange={(e) => setNextNote(e.target.value)}
-                placeholder='Ex.: "confirmar pagamento" / "retornar com proposta"'
+                value={nextTime}
+                onChange={(e) => setNextTime(e.target.value)}
                 disabled={!canEdit || savingCliente || creatingCliente}
-                maxLength={160}
               />
             </div>
+          </div>
+          <div className="wa-sideCliente-field">
+            <span className="wa-sideCliente-label">Lembrete (opcional)</span>
+            <input
+              className="wa-sideCliente-input"
+              value={nextNote}
+              onChange={(e) => setNextNote(e.target.value)}
+              placeholder='Ex.: "confirmar pagamento" / "retornar com proposta"'
+              disabled={!canEdit || savingCliente || creatingCliente}
+            />
           </div>
 
           <details className="wa-sideCliente-details">
@@ -1478,8 +1503,8 @@ export default function SidebarCliente({
                   disabled={!canEdit || savingCliente || creatingCliente}
                 />
               </div>
-            <div className="wa-sideCliente-field">
-              <span className="wa-sideCliente-label">Empresa</span>
+              <div className="wa-sideCliente-field">
+                <span className="wa-sideCliente-label">Empresa</span>
                 <input
                   className="wa-sideCliente-input"
                   value={cliEmpresa}
@@ -1488,6 +1513,16 @@ export default function SidebarCliente({
                   disabled={!canEdit || savingCliente || creatingCliente}
                 />
               </div>
+            </div>
+            <div className="wa-sideCliente-field">
+              <span className="wa-sideCliente-label">Observações do cliente</span>
+              <textarea
+                className="wa-sideCliente-textarea"
+                value={cliObsText}
+                onChange={(e) => setCliObsText(e.target.value)}
+                placeholder="Preferências, contexto, histórico..."
+                disabled={!canEdit || savingCliente || creatingCliente}
+              />
             </div>
           </details>
         </section>
@@ -1511,20 +1546,13 @@ export default function SidebarCliente({
             <h3 className="wa-sideCliente-sectionTitle">Observação do atendimento</h3>
             {!canEdit ? <span className="wa-sideCliente-miniPill isRead">Somente leitura</span> : null}
           </div>
-          <p className="wa-sideCliente-fieldHint">
-            Fica salva no cadastro do cliente — qualquer atendente que abrir esta conversa verá estas notas.
-          </p>
           <textarea
             className="wa-sideCliente-textarea"
-            value={cliObsText}
-            onChange={(e) => setCliObsText(e.target.value)}
+            value={observacao}
+            onChange={(e) => setObservacao(e.target.value)}
             placeholder="Ex.: Cliente VIP, prefere contato à tarde, combinou retorno amanhã..."
-            disabled={!canEdit || savingCliente || creatingCliente}
-            maxLength={2000}
+            disabled={!canEdit}
           />
-          <div className="wa-sideCliente-fieldFoot">
-            <span className="wa-sideCliente-charCount">{String(cliObsText || "").length}/2000</span>
-          </div>
         </section>
 
         <div className="wa-sideCliente-saveBar" role="region" aria-label="Salvar alterações">

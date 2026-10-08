@@ -62,14 +62,6 @@ HTTP fetchChats / getChatById / send
 
 Detalhe da lista: [07](07-LISTA-DE-CONVERSAS.md). Thread/envio: [08](08-THREAD-MENSAGENS-E-COMPOSER.md). Clique no avatar+nome do cabeçalho abre o perfil (`SidebarCliente`); em grupo o painel é `SidebarGrupo` (participantes com nome/rank, convite, admins, foto). Ampliar foto é no painel. **Ligar** abre o discador (`tel:`) para conversar; no Whapi também tenta o toque de atenção no WhatsApp.
 
-### SidebarCliente — observação, próximo contato e cadastro (2026-10-08)
-
-Fonte única: tudo que é "nota" vive em `clientes.observacoes` (por cliente, visível a qualquer atendente que abrir a conversa). O "Próximo contato" (dia/hora/lembrete) é serializado numa 1ª linha com marcador `[NEXT_CONTACT] YYYY-MM-DD HH:mm | nota` e o restante é o texto livre. `parseNextContactFromObservacoes`/`buildObservacoesWithNextContact` fazem o ida-e-volta — o marcador **nunca** aparece no textarea.
-
-- **Observação do atendimento** e o campo de observações do "Cadastro completo" foram unificados num único editor (`cliObsText`). Antes existiam dois textareas gravando na MESMA coluna por caminhos diferentes (`PUT /chats/:id/observacao` cru **vs** `PUT /clientes/:id` com marcador): um salvamento apagava o outro e o marcador vazava no texto. **Corrigido**: o painel só grava via `atualizarCliente` (preserva o próximo contato); sem cadastro, "Salvar" vira "Criar e vincular" e persiste a nota ao criar o cliente. O endpoint `PUT /chats/:id/observacao` ficou órfão no front (não removido no backend).
-- Semente imediata ao abrir vem de `conversa.observacao` (= `clientes.observacoes`, do `conversationDetailController`), parseada; `loadCliente` refina com o cadastro real. Reseed só em `open`/troca de conversa — não a cada tecla.
-- Visual: bloco "Próximo contato" num cartão com leve destaque; chips Hoje/Amanhã com estado ativo (`todayISO`/`tomorrowISO`); contador de caracteres; `details` "Cadastro completo" com seta animada. Tudo via tokens `--wa-*` (ok em tema escuro). Não mexer na `.wa-sideCliente-saveBar` sticky.
-
 ## Invariantes deste módulo
 
 - Não criar row de conversa só porque chegou socket se a política de setor não autoriza (`addChatIfAuthorized` / `updateChat` não inventa row).

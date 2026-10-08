@@ -1753,27 +1753,6 @@ export function initSocket(token) {
   socket.on("conversa_apagada", (payload = {}) => {
     handleConversaRemovidaOuMesclada(payload)
   })
-  // Visibilidade por número mudou (admin salvou a lista de um número).
-  // Quem perdeu acesso dropa as conversas desse número da tela; todos ressincronizam.
-  socket.on("whatsapp_instance_visibilidade_atualizada", (payload = {}) => {
-    if (shouldIgnoreByCompany(payload)) return
-    const instId = Number(payload?.whatsapp_instance_id)
-    if (!Number.isFinite(instId) || instId <= 0) return
-    const myId = getCurrentUserId()
-    const todos = payload?.todos_veem === true
-    const marcados = Array.isArray(payload?.usuario_ids) ? payload.usuario_ids.map((n) => String(n)) : []
-    const euPosso = todos || (myId != null && marcados.includes(String(myId)))
-    const store = useChatStore.getState()
-    if (!euPosso) {
-      const chats = store.chats || []
-      for (const c of chats) {
-        const ci = Number(c?.whatsapp_instance_id ?? c?.whatsappInstanceId)
-        if (ci === instId) store.removeChat?.(c.id)
-      }
-    }
-    // Ganhou ou perdeu acesso: lista + contadores ressincronizam sem F5.
-    store.requestChatListResync?.({ force: true })
-  })
   socket.on("conversa_encerrada", (payload) => {
     logSocketConversaDebug("conversa_encerrada", payload)
     void patchEverywhere(payload, { forceResync: true, treatAsClosed: true })
