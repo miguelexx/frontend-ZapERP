@@ -886,14 +886,19 @@ export function getChatByIdFromStore(id, chats) {
 let _salvarSnapshotListaFn = null
 function salvarListaOfflineAsync(chats) {
   if (typeof window === "undefined" || !Array.isArray(chats) || !chats.length) return
+  // Aba corrente acompanha o snapshot: permite trocar de filtro OFFLINE para abas já
+  // visitadas online. Durante uma troca de aba com load em voo, as linhas antigas podem
+  // ser gravadas por instantes sob a aba nova — o load que conclui regrava certo.
+  let tab = null
+  try { tab = useChatStore.getState().chatListActiveTab || null } catch (_) { /* boot */ }
   if (_salvarSnapshotListaFn) {
-    try { _salvarSnapshotListaFn(chats) } catch (_) { /* best-effort */ }
+    try { _salvarSnapshotListaFn(chats, tab) } catch (_) { /* best-effort */ }
     return
   }
   void import("../conversa/offlineSnapshots.js")
     .then((m) => {
       _salvarSnapshotListaFn = m.salvarSnapshotLista
-      try { _salvarSnapshotListaFn(chats) } catch (_) { /* best-effort */ }
+      try { _salvarSnapshotListaFn(chats, tab) } catch (_) { /* best-effort */ }
     })
     .catch(() => {})
 }

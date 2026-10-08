@@ -537,3 +537,40 @@ PENDENTE (pré-existente, não é desta mudança): o script não roda em Node pu
 o app no Vite não é afetado. Consertar exigiria adicionar `.js` pela cadeia ou rodar via vite-node.
 
 Backend (envio/ACK/webhook/reconciliação): suíte completa 208/2184 verde no estado atual.
+
+### 2026-10-07 (parte 6) — App-shell offline no Service Worker (abrir o ZapERP sem internet)
+
+Diagnóstico do "áudio offline não funcionou": o SW (public/sw.js) era SÓ push — sem handler de
+fetch/cache. A leitura offline + áudios baixados (sessão anterior) só funcionavam com a ABA JÁ
+ABERTA quando a internet caía; abrir o app do zero offline (ou Android matar a aba e reabrir)
+falhava antes de qualquer código nosso rodar. Implementado no próprio sw.js (push intocado;
+SW_VERSION 2026-10-07-offline-shell-1):
+- navegação → network-first com fallback do shell em cache (`zap-shell-v1`, chave /__zap_shell__;
+  resposta redirected é re-empacotada); install pré-aquece o shell;
+- /assets/* (hash, imutáveis) → cache-first (`zap-assets-v1`);
+- estáticos leves (svg/png/manifest/fontes) → network-first com fallback;
+- NUNCA intercepta não-GET nem outra origem (API/socket/mídia ficam em zapapi.* — passam direto);
+- activate limpa caches zap-* de versões antigas (bump dos nomes de cache invalida tudo).
+Staleness controlado: navegação online sempre busca index fresco; assets novos têm hash novo.
+Limitações honestas: 1º uso precisa ser online (SW instala e pré-aquece); rota cujo chunk lazy
+nunca carregou online não abre offline; snapshots/áudios continuam cobrindo só conversas já
+abertas online (design). PENDENTE DE VALIDAÇÃO em aparelho real (roteiro: abrir online → modo
+avião → fechar e reabrir o app → deve abrir com as conversas lidas e áudios "Disponível offline").
+
+### 2026-10-07 (parte 7) — Trocar de filtro OFFLINE (snapshot de lista POR ABA)
+
+Pedido do Miguel: offline, sair de "Minha fila" para "Todas". Antes: o load da aba falhava e a
+tela mantinha as linhas da aba anterior com erro. Agora, na mesma filosofia "offline lê o que
+você carregou online":
+- `offlineSnapshots.salvarSnapshotLista(chats, tab)` grava DUAS chaves: a genérica (boot,
+  comportamento original) e `lista:<tab>`; `carregarSnapshotLista(tab)` lê SÓ a da aba pedida
+  (cair na genérica mostraria linhas de outro filtro com rótulo errado).
+- `chatsStore.salvarListaOfflineAsync` passa `chatListActiveTab` (janela mínima de rótulo
+  trocado durante troca-de-aba-com-load-em-voo; o load que conclui regrava certo).
+- `chatList.jsx` (catch do load): erro SEM resposta HTTP + sem busca + não-background →
+  carrega o snapshot da aba; minha_fila também alimenta `setMinhaFilaList`; sem snapshot da
+  aba fica o erro padrão ("aba não disponível offline" na prática).
+Resultado: offline, alternar entre abas JÁ VISITADAS online funciona (top 30 por aba); aba
+nunca visitada mostra o erro padrão. Guarda estrita da Minha fila preservada (linhas vêm da
+própria aba). Build OK; validação em aparelho PENDENTE (roteiro: online visitar Minha fila e
+Todas → modo avião → alternar entre as duas).

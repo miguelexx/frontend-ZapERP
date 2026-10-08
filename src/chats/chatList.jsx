@@ -1009,6 +1009,24 @@ export default function ChatList() {
         loading: false,
         error: e?.response?.data?.error || e?.message || "Erro ao carregar conversas.",
       }));
+      // OFFLINE: troca de filtro sem rede cai no snapshot DAQUELA aba (gravado quando ela
+      // foi vista online). Só sem resposta HTTP (rede), fora de busca e fora de load em
+      // segundo plano; se não houver snapshot da aba, fica o erro padrão acima.
+      if (!e?.response && !searchTerm && !background) {
+        const tabAtual = String(tabRef.current || "");
+        void import("../conversa/offlineSnapshots")
+          .then(async ({ carregarSnapshotLista }) => {
+            if (requestId !== loadRequestIdRef.current) return;
+            const snap = await carregarSnapshotLista(tabAtual);
+            if (!snap?.chats?.length) return;
+            if (requestId !== loadRequestIdRef.current) return;
+            if (String(tabRef.current || "") !== tabAtual) return;
+            if (tabAtual === "minha_fila") setMinhaFilaList(snap.chats);
+            setChats(snap.chats);
+            setChatListPage((prev) => ({ ...prev, loading: false, error: null }));
+          })
+          .catch(() => {});
+      }
     } finally {
       if (requestId === loadRequestIdRef.current) {
         setLoading(false);

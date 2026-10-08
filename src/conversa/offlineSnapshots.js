@@ -171,10 +171,15 @@ export async function carregarSnapshotConversa(conversaId) {
   return { conversa: item.conversa || null, mensagens: item.mensagens, salvoEm: item.salvoEm };
 }
 
+function sanitizarTabLista(tab) {
+  return String(tab || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
+}
+
 let _debounceLista = null;
-export function salvarSnapshotLista(chats) {
+export function salvarSnapshotLista(chats, tab) {
   const id = identidadeAtual();
   if (!id || !idbDisponivel() || !Array.isArray(chats) || !chats.length) return;
+  const tabSan = sanitizarTabLista(tab);
   if (_debounceLista) clearTimeout(_debounceLista);
   _debounceLista = setTimeout(() => {
     _debounceLista = null;
@@ -183,12 +188,13 @@ export function salvarSnapshotLista(chats) {
         await purgarOutrasIdentidades();
         const lista = chats.slice(0, MAX_CHATS_LISTA).map(sanitizarChatLista).filter(Boolean);
         if (!lista.length) return;
-        await idbPut(DB, STORES, STORE, {
-          chave: `${id.prefixo}lista`,
-          kind: "lista",
-          chats: lista,
-          salvoEm: Date.now(),
-        });
+        const registro = { kind: "lista", chats: lista, salvoEm: Date.now() };
+        // Chave genérica = última lista vista (hidratação no boot offline, comportamento original).
+        await idbPut(DB, STORES, STORE, { ...registro, chave: `${id.prefixo}lista` });
+        // Chave POR ABA: permite trocar de filtro offline para abas já visitadas online.
+        if (tabSan) {
+          await idbPut(DB, STORES, STORE, { ...registro, chave: `${id.prefixo}lista:${tabSan}`, tab: tabSan });
+        }
       } catch {
         /* best-effort */
       }
@@ -196,10 +202,14 @@ export function salvarSnapshotLista(chats) {
   }, DEBOUNCE_MS);
 }
 
-export async function carregarSnapshotLista() {
+export async function carregarSnapshotLista(tab) {
   const id = identidadeAtual();
   if (!id) return null;
-  const item = await idbGet(DB, STORES, STORE, `${id.prefixo}lista`);
+  const tabSan = sanitizarTabLista(tab);
+  // Com aba: SÓ o snapshot daquela aba (cair na genérica mostraria linhas de outro filtro
+  // com o rótulo errado — pior que avisar que a aba não está disponível offline).
+  const chave = tabSan ? `${id.prefixo}lista:${tabSan}` : `${id.prefixo}lista`;
+  const item = await idbGet(DB, STORES, STORE, chave);
   if (!item || !Array.isArray(item.chats) || !item.chats.length) return null;
   return { chats: item.chats, salvoEm: item.salvoEm };
 }

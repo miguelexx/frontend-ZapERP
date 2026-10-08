@@ -2,10 +2,94 @@
 // Marcador de versão do Service Worker. Serve para COMPARAR máquinas: um PC preso numa
 // versão antiga do PWA responderá com versão diferente (ou não responderá) ao ZAP_SW_VERSION.
 // Atualize a data quando mudar a lógica do SW.
-const SW_VERSION = '2026-07-13-notif-autoclose-4s'
+const SW_VERSION = '2026-10-07-offline-shell-1'
 const SUPPRESS_REPLY_MS = 180
 // Tempo até o banner sumir sozinho (notificação de mensagem não deve ficar fixa na tela).
 const AUTO_CLOSE_MS = 4000
+
+// =====================================================
+// APP-SHELL OFFLINE (abrir o ZapERP sem internet, estilo WhatsApp)
+// Sem isto, abrir o app do zero offline falhava ANTES de qualquer código nosso rodar —
+// a leitura offline (snapshots) e os áudios baixados (IndexedDB) só serviam com a aba
+// já aberta. Estratégias:
+//  - navegação (index.html): network-first; offline → shell em cache (sempre fresco online);
+//  - /assets/* (bundles com hash, imutáveis): cache-first (repetição instantânea + offline);
+//  - estáticos leves (ícones/manifest/fontes/svg): network-first com fallback em cache.
+// NUNCA intercepta: métodos não-GET e QUALQUER outra origem — a API, o Socket.IO e a mídia
+// vivem em zapapi.* (origem diferente), então passam direto sem tocar neste SW.
+// =====================================================
+const CACHE_SHELL = 'zap-shell-v1'
+const CACHE_ASSETS = 'zap-assets-v1'
+const SHELL_KEY = '/__zap_shell__'
+
+async function armazenarShell(res) {
+  try {
+    if (!res || !res.ok) return
+    // Response "redirected" não pode ser reutilizada em navegação (SecurityError em
+    // alguns browsers) — re-empacota o corpo numa Response limpa.
+    const limpa = res.redirected
+      ? new Response(await res.clone().blob(), { status: 200, headers: res.headers })
+      : res.clone()
+    const cache = await caches.open(CACHE_SHELL)
+    await cache.put(SHELL_KEY, limpa)
+  } catch (_) {}
+}
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request
+  if (!req || req.method !== 'GET') return
+  let url
+  try { url = new URL(req.url) } catch (_) { return }
+  if (url.origin !== self.location.origin) return
+
+  // SPA: qualquer navegação (/, /atendimento, ...) devolve o index — fresco quando online,
+  // do cache quando offline. É o que permite ABRIR o app sem internet.
+  if (req.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const fresh = await fetch(req)
+        armazenarShell(fresh)
+        return fresh
+      } catch (err) {
+        const cached = await caches.match(SHELL_KEY)
+        if (cached) return cached
+        throw err
+      }
+    })())
+    return
+  }
+
+  // Bundles com hash no nome: imutáveis por definição — cache-first.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith((async () => {
+      const hit = await caches.match(req)
+      if (hit) return hit
+      const res = await fetch(req)
+      if (res && res.ok) {
+        try { const cache = await caches.open(CACHE_ASSETS); await cache.put(req, res.clone()) } catch (_) {}
+      }
+      return res
+    })())
+    return
+  }
+
+  // Estáticos leves da raiz (ícones, manifest, padrão de fundo, fontes).
+  if (/\.(svg|png|ico|jpg|jpeg|webp|webmanifest|woff2?)$/i.test(url.pathname)) {
+    event.respondWith((async () => {
+      try {
+        const res = await fetch(req)
+        if (res && res.ok) {
+          try { const cache = await caches.open(CACHE_ASSETS); await cache.put(req, res.clone()) } catch (_) {}
+        }
+        return res
+      } catch (err) {
+        const hit = await caches.match(req)
+        if (hit) return hit
+        throw err
+      }
+    })())
+  }
+})
 
 // Responde a versão do SW a quem perguntar (usado pelo diagnóstico no console).
 self.addEventListener('message', (event) => {
@@ -54,11 +138,33 @@ async function algumClientePedeSupressao(clientList, conversaId) {
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting())
+  event.waitUntil(
+    (async () => {
+      // Pré-aquece o shell já na instalação (sem depender de uma navegação futura):
+      // quem instalou o SW hoje consegue abrir offline amanhã. Best-effort.
+      try {
+        const res = await fetch('/', { cache: 'reload' })
+        await armazenarShell(res)
+      } catch (_) {}
+      await self.skipWaiting()
+    })()
+  )
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    (async () => {
+      // Remove caches zap-* de versões antigas (bump de CACHE_SHELL/CACHE_ASSETS limpa tudo).
+      try {
+        const manter = new Set([CACHE_SHELL, CACHE_ASSETS])
+        const nomes = await caches.keys()
+        await Promise.all(
+          nomes.filter((n) => n.startsWith('zap-') && !manter.has(n)).map((n) => caches.delete(n))
+        )
+      } catch (_) {}
+      await self.clients.claim()
+    })()
+  )
 })
 
 self.addEventListener('push', (event) => {
