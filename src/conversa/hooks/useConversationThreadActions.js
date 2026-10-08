@@ -154,8 +154,9 @@ export function useConversationThreadActions({
   }, [conversa, isLidValue]);
 
   const showContactOldSyncCta = useMemo(() => {
-    if (isGroup) return false;
     if (!conversa?.id || conversa?.mensagens_bloqueadas) return false;
+    // Grupo busca histórico pelo JID @g.us (não tem telefone); o backend resolve o chatId.
+    if (isGroup) return true;
     return Boolean(contactDisplayPhone);
   }, [conversa, isGroup, contactDisplayPhone]);
 
