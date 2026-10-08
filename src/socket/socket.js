@@ -997,6 +997,7 @@ export function initSocket(token) {
   off("tag_adicionada")
   off("tag_removida")
   off("nova_conversa")
+  off("acesso_numeros_atualizado")
   off(SOCKET_EVENTS.MENSAGEM_INTERNA_ATENDIMENTO)
   off(SOCKET_EVENTS.NOVA_MENSAGEM)
   off("mensagem_excluida")
@@ -1147,6 +1148,28 @@ export function initSocket(token) {
     if (!payload?.id) return
     if (shouldIgnoreByCompany(payload)) return
     void addChatIfAuthorized(useChatStore.getState(), payload.id)
+  })
+
+  socket.on("acesso_numeros_atualizado", (payload = {}) => {
+    if (shouldIgnoreByCompany(payload)) return
+    const store = useChatStore.getState()
+    if (payload.sem_restricao !== true && Array.isArray(payload.whatsapp_instance_ids)) {
+      const allow = new Set(payload.whatsapp_instance_ids.map((id) => Number(id)))
+      const chats = Array.isArray(store.chats) ? store.chats : []
+      const next = chats.filter((chat) => {
+        const instanceId = Number(chat?.whatsapp_instance_id ?? chat?.whatsappInstanceId)
+        return Number.isFinite(instanceId) && instanceId > 0 && allow.has(instanceId)
+      })
+      if (next.length !== chats.length) store.setChats(next)
+      const conv = useConversaStore.getState()
+      const openRow = chats.find((chat) => String(chat?.id) === String(conv.selectedId))
+      const openInstanceId = Number(conv.conversa?.whatsapp_instance_id ?? openRow?.whatsapp_instance_id ?? openRow?.whatsappInstanceId)
+      if (conv.selectedId && Number.isFinite(openInstanceId) && openInstanceId > 0 && !allow.has(openInstanceId)) {
+        closeSelectedConversation()
+      }
+    }
+    clearChatListRowsFilterSessionCache()
+    store.requestChatListResync({ force: true })
   })
 
   socket.on(SOCKET_EVENTS.MENSAGEM_INTERNA_ATENDIMENTO, (rawMsg) => {

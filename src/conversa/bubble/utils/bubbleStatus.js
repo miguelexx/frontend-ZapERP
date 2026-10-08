@@ -15,11 +15,43 @@ const CONFIRMED_STATUS = [
  * Resolve o indicador de envio. Status é monotônico na UI: pending → sent →
  * delivered → read. Flag stale de offline não rebaixa um tick já confirmado.
  */
+/**
+ * Linhas legadas no banco podem ter os dois campos DIVERGENTES (ex.: status='played' com
+ * status_mensagem='pending', ou ambos com o ACK cru 'device'/'server' sem canonizar).
+ * Para EXIBIÇÃO, vale o mais avançado dos dois — normalizado para o nome canônico, senão
+ * 'device' não casa com as regexes abaixo e viraria tique único. Estados especiais
+ * (erro/blocked/status_indefinido/aguardando_conexao) não entram no rank: neles a regra
+ * original (status_mensagem primeiro) permanece intacta.
+ */
+const PROGRESS_DISPLAY_RANK = {
+  pending: 0, sending: 0, enviando: 0,
+  sent: 1, enviada: 1, enviado: 1, server: 1,
+  delivered: 2, device: 2, entregue: 2, received: 2,
+  read: 3, lida: 3, seen: 3,
+  played: 4,
+};
+const PROGRESS_CANONICAL = ["pending", "sent", "delivered", "read", "played"];
+
+function progressRank(v) {
+  const s = safeString(v).toLowerCase().trim();
+  return Object.prototype.hasOwnProperty.call(PROGRESS_DISPLAY_RANK, s)
+    ? PROGRESS_DISPLAY_RANK[s]
+    : null;
+}
+
 export function resolveOutgoingTick(msg, isGroup) {
   const out = isOutgoingMessage(msg);
   if (!out) return null;
 
-  const raw = msg?.status_mensagem ?? msg?.status ?? msg?.situacao;
+  let raw = msg?.status_mensagem ?? msg?.status ?? msg?.situacao;
+  const rankSm = progressRank(msg?.status_mensagem);
+  const rankSt = progressRank(msg?.status);
+  if (rankSm != null) {
+    // status_mensagem é progresso: exibe o MAIOR entre os dois, já canônico.
+    raw = PROGRESS_CANONICAL[rankSt != null ? Math.max(rankSm, rankSt) : rankSm];
+  } else if (msg?.status_mensagem == null && rankSt != null) {
+    raw = PROGRESS_CANONICAL[rankSt];
+  }
   const maybeNum = typeof raw === "number" && Number.isFinite(raw) ? raw : (/^\d+$/.test(String(raw || "").trim()) ? Number(raw) : null);
   const rawStatus = raw != null && maybeNum == null ? safeString(raw).toLowerCase() : String(maybeNum ?? "");
   const hasReadAt = !!(msg?.lida_em || msg?.lidaEm || msg?.read_at || msg?.readAt);

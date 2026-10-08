@@ -574,3 +574,21 @@ Resultado: offline, alternar entre abas JÁ VISITADAS online funciona (top 30 po
 nunca visitada mostra o erro padrão. Guarda estrita da Minha fila preservada (linhas vêm da
 própria aba). Build OK; validação em aparelho PENDENTE (roteiro: online visitar Minha fila e
 Todas → modo avião → alternar entre as duas).
+
+### 2026-10-08 — Tique de status: exibição pelo MAIOR entre status e status_mensagem
+
+SELECT do Miguel em produção revelou linhas legadas com os campos divergentes
+(status='played' + status_mensagem='pending' → relógio eterno na bolha) e ACK cru sem
+canonizar ('device'/'server' → não casava com as regexes e caía em tique único).
+`bubbleStatus.resolveOutgoingTick` agora: quando status_mensagem é um estado de PROGRESSO
+conhecido (pending/sending/sent/server/delivered/device/received/read/played...), exibe o
+maior rank entre os dois campos, normalizado ao nome canônico. Estados especiais
+(erro/blocked/status_indefinido/aguardando_conexao) ficam fora do rank — regra original
+intacta. Display-only; nada muda no banco/socket.
+
+As duas mensagens presas do print (Whapi inst.3, id salvo + sending) NÃO eram bug de código:
+ACK `statuses` não chega do canal em produção + backend antigo sem o sweep que promove por
+GET /messages/{id}. Pós-deploy o sweep cura em ≤5 min; tempo real = garantir evento
+`statuses` no webhook do canal (painel Whapi OU POST
+/integrations/whatsapp/instances/:id/configure-webhooks — botão já exposto via
+whapiInstancesService.configureInstanceWebhooks).

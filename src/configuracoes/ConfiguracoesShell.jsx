@@ -26,11 +26,13 @@ const BotSection = lazy(() => import("./sections/BotSection"));
 const ClientesSection = lazy(() => import("./sections/ClientesSection"));
 const AuditoriaSection = lazy(() => import("./sections/AuditoriaSection"));
 const WhapiSection = lazy(() => import("./sections/WhapiSection"));
+const NumerosAcessoSection = lazy(() => import("./sections/NumerosAcessoSection"));
 
 const TABS = [
   { id: "geral", label: "Geral" },
   { id: "whapi", label: "Whapi" },
   { id: "usuarios", label: "Usuários" },
+  { id: "numeros", label: "Números" },
   { id: "permissoes", label: "Permissões" },
   { id: "departamentos", label: "Departamentos" },
   { id: "tags", label: "Tags" },
@@ -64,6 +66,7 @@ function SectionContent({ tab, usuarioIdPermissoes, onUsuarioIdPermissoesChange,
   if (tab === "clientes") return <ClientesSection />;
   if (tab === "auditoria") return <AuditoriaSection />;
   if (tab === "whapi") return <WhapiSection />;
+  if (tab === "numeros") return <NumerosAcessoSection />;
   return null;
 }
 
@@ -79,7 +82,7 @@ export default function ConfiguracoesShell() {
   const visibleTabs = useMemo(() => {
     if (respostasOnlyMode) return TABS.filter((item) => item.id === "respostas");
     const isAdmin = String(user?.perfil || "").toLowerCase() === "admin";
-    const roleTabs = isAdmin ? TABS : TABS.filter((item) => item.id !== "limites");
+    const roleTabs = isAdmin ? TABS : TABS.filter((item) => item.id !== "limites" && item.id !== "numeros");
     return canAccessUsers
       ? roleTabs
       : roleTabs.filter((item) => item.id !== "usuarios" && item.id !== "permissoes");

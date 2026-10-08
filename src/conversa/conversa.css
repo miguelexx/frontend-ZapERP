@@ -5288,6 +5288,29 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   border-top-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Balão ENVIADO (azul claro nos 2 temas): card de localização com texto escuro legível.
+   Sem isto, no modo escuro o card herdava --wa-text (claro) sobre o fundo azul-claro = ilegível. */
+.wa-bubble-locationCard--out .wa-bubble-locationBadge,
+.wa-bubble-locationCard--out .wa-bubble-locationCoords {
+  color: rgba(11, 42, 74, 0.66);
+}
+.wa-bubble-locationCard--out .wa-bubble-locationAddress {
+  color: #0B2A4A;
+}
+.wa-bubble-locationCard--out .wa-bubble-locationCta {
+  color: #1657C7;
+}
+.wa-bubble-locationCard--out .wa-bubble-locationCta:hover {
+  color: #0B3D91;
+}
+.wa-bubble-locationCard--out .wa-bubble-locationFooter {
+  color: rgba(11, 42, 74, 0.58);
+  border-top-color: rgba(11, 42, 74, 0.14);
+}
+[data-theme="dark"] .wa-bubble-locationCard--out .wa-bubble-locationFooter {
+  border-top-color: rgba(11, 42, 74, 0.18);
+}
+
 /* Enquete (poll) — bolha clean / premium */
 .wa-triage { min-width: 230px; max-width: 340px; padding: 10px 12px; color: #000; }
 .wa-triage__title { font-weight: 600; white-space: pre-wrap; color: #000; }
