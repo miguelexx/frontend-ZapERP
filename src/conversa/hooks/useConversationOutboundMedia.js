@@ -29,7 +29,7 @@ import {
   normalizeArquivoApiToMessage,
 } from "../conversaOptimisticMessage";
 import { OUTBOX_MODO_OFFLINE, OUTBOX_MODO_INCERTO } from "../offlineOutbox";
-import { enqueueMediaOutboxItem } from "../mediaOutbox";
+import { enqueueMediaOutboxItem, removeMediaOutboxItem } from "../mediaOutbox";
 import { scheduleOutboxAutoFlush } from "../outboxAutoFlush";
 
 /**
@@ -229,6 +229,46 @@ export function useConversationOutboundMedia({
       if (conversa?.cliente_id != null) formData.append("cliente_id", String(conversa.cliente_id));
       if (conversa?.telefone != null) formData.append("phone", String(conversa.telefone));
   
+      // ÁUDIO: grava a intenção na fila durável ANTES do POST. Até aqui a mídia só era
+      // persistida depois de uma falha — um F5, o fechamento da aba ou o encerramento do app com
+      // o upload em andamento (ou com o áudio esperando atrás de outro) perdia a gravação sem
+      // rastro, e áudio não tem como ser "digitado de novo". O item sai da fila na resposta.
+      const tipoForcadoEnvio = opts.forceStickerType
+        ? "sticker"
+        : opts.tipo === "voice" || opts.tipo === "audio"
+          ? opts.tipo
+          : isVideoSend
+            ? "video"
+            : null;
+      const audioMetaEnvio = isAudioSend
+        ? {
+            durationMs: Number(file?.__zaperpAudioDurationMs || 0),
+            elapsedMs: Number(file?.__zaperpAudioElapsedMs || 0),
+            bytes: Number(file?.__zaperpAudioBytes || file?.size || 0),
+            mime: String(file?.__zaperpAudioMimeType || file?.type || ""),
+          }
+        : null;
+      const preGravado = isAudioSend
+        ? enqueueMediaOutboxItem({
+            tempId,
+            conversaId,
+            blob: file,
+            filename: nomeArquivo,
+            tipoForcado: tipoForcadoEnvio,
+            caption: legenda,
+            audioMeta: audioMetaEnvio,
+            atendimentoId: conversa?.atendimento_id ?? null,
+            clienteId: conversa?.cliente_id ?? null,
+            phone: conversa?.telefone ?? null,
+            criadoEm: optimisticMsg.criado_em,
+            modo: OUTBOX_MODO_INCERTO,
+            emVooMs: resolveUploadTimeoutMs(file) + 15_000,
+          }).catch(() => null)
+        : Promise.resolve(null);
+      const removerPreGravado = () => {
+        if (isAudioSend) void preGravado.then(() => removeMediaOutboxItem(tempId)).catch(() => {});
+      };
+
       // Áudios consecutivos precisam aparecer imediatamente, mas devem chegar ao back-end em FIFO.
       // A bolha otimista já foi anexada acima; somente o POST aguarda o upload anterior.
       let releaseAudioUpload = null;
@@ -284,6 +324,7 @@ export function useConversationOutboundMedia({
         });
         // Enviado (persistido no back-end): não precisa mais reter o File para retry.
         if (isAudioSend) audioRetryFilesRef.current.delete(tempId);
+        removerPreGravado();
         searchResultSendTransition?.afterSendAccepted?.();
       } catch (err) {
         revertModoSimples?.();
@@ -301,32 +342,40 @@ export function useConversationOutboundMedia({
           mensagemId: persistedFailure?.id ?? null,
           media: true,
         });
-        persistirMidiaNaOutboxSeRetryavel({
-          classified,
-          persisted: persistedFailure?.id != null,
-          tempId,
-          conversaId,
-          file,
-          filename: nomeArquivo,
-          tipoForcado: opts.forceStickerType
-            ? "sticker"
-            : opts.tipo === "voice" || opts.tipo === "audio"
-              ? opts.tipo
-              : isVideoSend
-                ? "video"
-                : null,
-          caption: legenda,
-          audioMeta: isAudioSend
-            ? {
-                durationMs: Number(file?.__zaperpAudioDurationMs || 0),
-                elapsedMs: Number(file?.__zaperpAudioElapsedMs || 0),
-                bytes: Number(file?.__zaperpAudioBytes || file?.size || 0),
-                mime: String(file?.__zaperpAudioMimeType || file?.type || ""),
-              }
-            : null,
-          conversa,
-          criadoEm: optimisticMsg.criado_em,
-        });
+        // Falha de rede/incerta: regrava o item (encerra a janela "em voo") para a fila assumir.
+        // Recusa definitiva ou falha já registrada no servidor: tira o item pré-gravado da fila.
+        const vaiParaFila =
+          persistedFailure?.id == null &&
+          (classified?.kind === OUTBOUND_ERROR_KIND.OFFLINE || classified?.uncertain === true);
+        if (!vaiParaFila) removerPreGravado();
+        void preGravado.then(() =>
+          persistirMidiaNaOutboxSeRetryavel({
+            classified,
+            persisted: persistedFailure?.id != null,
+            tempId,
+            conversaId,
+            file,
+            filename: nomeArquivo,
+            tipoForcado: opts.forceStickerType
+              ? "sticker"
+              : opts.tipo === "voice" || opts.tipo === "audio"
+                ? opts.tipo
+                : isVideoSend
+                  ? "video"
+                  : null,
+            caption: legenda,
+            audioMeta: isAudioSend
+              ? {
+                  durationMs: Number(file?.__zaperpAudioDurationMs || 0),
+                  elapsedMs: Number(file?.__zaperpAudioElapsedMs || 0),
+                  bytes: Number(file?.__zaperpAudioBytes || file?.size || 0),
+                  mime: String(file?.__zaperpAudioMimeType || file?.type || ""),
+                }
+              : null,
+            conversa,
+            criadoEm: optimisticMsg.criado_em,
+          })
+        );
         // Mantém o File retido apenas durante esta sessão; o botão de retry usa o mensagem_id
         // persistido e o arquivo salvo no servidor.
         if (isAudioSend) {

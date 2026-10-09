@@ -59,6 +59,18 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.StrictMode>
 );
 
+// Fila de reenvio (texto + mídia): liga os gatilhos já no carregamento do app. Antes eles só
+// eram ligados ao abrir uma conversa — depois de um F5, quem ficasse na lista não tinha as
+// mensagens pendentes enviadas, mesmo com a internet de volta.
+if (typeof window !== "undefined") {
+  setTimeout(() => {
+    if (!useAuthStore.getState().token) return;
+    import("./conversa/outboxAutoFlush")
+      .then((m) => m.ensureOutboxAutoFlush?.())
+      .catch(() => {});
+  }, 3000);
+}
+
 if (import.meta.env.PROD && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     // updateViaCache: "none" força o navegador a ignorar o cache HTTP ao verificar o SW

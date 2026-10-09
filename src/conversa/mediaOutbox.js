@@ -192,6 +192,9 @@ export async function enqueueMediaOutboxItem({
   phone = null,
   criadoEm = null,
   modo = OUTBOX_MODO_OFFLINE,
+  // > 0: gravado ANTES do POST; durante esta janela o envio ao vivo tem prioridade e o flush
+  // não reenvia. Se a aba morrer no meio, a janela expira e a fila assume com o mesmo id.
+  emVooMs = 0,
 } = {}) {
   const tid = String(tempId ?? "").trim();
   const cid = String(conversaId ?? "").trim();
@@ -221,6 +224,7 @@ export async function enqueueMediaOutboxItem({
     tentativas: metaCache.get(tid)?.tentativas || 0,
     ultimoErro: null,
     modo: modo === OUTBOX_MODO_INCERTO ? OUTBOX_MODO_INCERTO : OUTBOX_MODO_OFFLINE,
+    emVooAte: Number(emVooMs) > 0 ? Date.now() + Number(emVooMs) : 0,
   };
   const ok = await idbPut(item);
   if (!ok) return null;
@@ -291,7 +295,7 @@ export function buildMediaOutboxBubble(meta) {
     ...(meta.audioMeta?.durationMs > 0
       ? { audio_duracao_sec: Math.round(meta.audioMeta.durationMs / 1000) }
       : {}),
-    ...outboxPendingMessageFields({ tempId: meta.tempId, modo: meta.modo }),
+    ...outboxPendingMessageFields({ tempId: meta.tempId, modo: meta.modo, emVooAte: meta.emVooAte }),
   };
 }
 
@@ -378,6 +382,23 @@ function aplicarFalhaDefinitivaNaStore(meta, classified) {
   }
 }
 
+/** Aviso visível mesmo com a conversa fechada (o item sai da fila; sem isto a perda era muda). */
+function avisarFalhaDefinitivaDeMidia(meta, classified) {
+  try {
+    void import("./outboxAutoFlush").then((m) =>
+      m.avisarFalhaDeEnvio?.({
+        type: "error",
+        title: "Arquivo não enviado",
+        message:
+          `${meta?.filename ? `"${String(meta.filename).slice(0, 50)}" — ` : ""}` +
+          (classified?.message || "Não foi possível enviar o arquivo que estava na fila."),
+      })
+    ).catch(() => {});
+  } catch {
+    /* best-effort */
+  }
+}
+
 function montarFormData(item) {
   const fd = new FormData();
   fd.append("file", item.blob, item.filename || "arquivo");
@@ -431,8 +452,14 @@ export async function flushMediaOutbox() {
     for (const meta of fila) {
       if (expirou(meta)) {
         aplicarFalhaDefinitivaNaStore(meta, { message: "O arquivo esperou tempo demais e não foi enviado. Reenvie manualmente." });
+        avisarFalhaDefinitivaDeMidia(meta, { message: "O arquivo esperou tempo demais e não foi enviado. Reenvie manualmente." });
         await removeMediaOutboxItem(meta.tempId);
         continue;
+      }
+      // Envio ao vivo deste item ainda em andamento nesta sessão: não competir com ele.
+      if (Number(meta.emVooAte) > Date.now()) {
+        parou = "em_voo";
+        break;
       }
       if (meta.modo === OUTBOX_MODO_INCERTO && itemJaPersistidaNaStore(meta)) {
         await removeMediaOutboxItem(meta.tempId);
@@ -464,13 +491,22 @@ export async function flushMediaOutbox() {
         if (classified?.retryAfterMs != null) {
           retryAfterMs = Math.max(retryAfterMs || 0, classified.retryAfterMs);
         }
+        // Sessão expirada não é falha do arquivo: mantém na fila e para (igual à fila de texto).
+        if (Number(classified?.httpStatus) === 401) {
+          parou = "sessao";
+          break;
+        }
         const tentativas = (Number(meta.tentativas) || 0) + 1;
         const atualizado = { ...meta, tentativas, ultimoErro: String(classified.message || "").slice(0, 300) };
         metaCache.set(String(meta.tempId), atualizado);
         void idbPut({ ...item, tentativas, ultimoErro: atualizado.ultimoErro });
-        const desistir = !falhaDeRede(classified) || tentativas >= MEDIA_OUTBOX_MAX_ATTEMPTS;
+        // Falha de REDE não conta para desistir: cada volta de aba/reconexão é uma tentativa e
+        // 8 delas apagavam o áudio em minutos com o servidor fora do ar. O prazo de validade do
+        // item (48 h) é quem limita a espera.
+        const desistir = !falhaDeRede(classified);
         if (desistir) {
           aplicarFalhaDefinitivaNaStore(meta, classified);
+          avisarFalhaDefinitivaDeMidia(meta, classified);
           await removeMediaOutboxItem(meta.tempId);
           if (!falhaDeRede(classified)) continue; // erro do item: segue para o próximo
         }

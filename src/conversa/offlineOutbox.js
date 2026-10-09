@@ -35,6 +35,38 @@ export const OUTBOX_STATUS = "aguardando_conexao";
 export const OUTBOX_MODO_OFFLINE = "offline";
 export const OUTBOX_MODO_INCERTO = "incerto";
 
+/**
+ * Janela em que um item gravado ANTES do POST é considerado "em voo": o envio ao vivo ainda
+ * está rodando, então o flush não o reenvia. Se a aba morrer no meio (F5, PWA encerrada), a
+ * janela expira sozinha e o flush assume — com o mesmo client_temp_id, o backend deduplica.
+ */
+export const OUTBOX_EM_VOO_MS = 70_000;
+
+/**
+ * Dono do item ("empresa:usuario"). A fila fica no localStorage do navegador: sem carimbar o
+ * dono, uma mensagem que sobrasse na fila (ex.: sessão expirada) era enviada pelo PRÓXIMO
+ * usuário que fizesse login neste navegador, em nome dele.
+ */
+export function outboxIdentidadeAtual() {
+  try {
+    const raw = getStorage()?.getItem("zap_erp_auth");
+    if (!raw) return null;
+    const user = JSON.parse(raw)?.user;
+    const uid = user?.id;
+    const cid = user?.company_id ?? user?.empresa_id;
+    if (uid == null || cid == null) return null;
+    return `${cid}:${uid}`;
+  } catch {
+    return null;
+  }
+}
+
+function itemPertenceAoUsuarioAtual(item, eu = outboxIdentidadeAtual()) {
+  // Item legado (sem dono) segue valendo para não perder o que já estava na fila.
+  if (!item?.dono) return true;
+  return eu != null && item.dono === eu;
+}
+
 /** Identifica esta aba no claim de itens (duas abas não devem flushar o mesmo item juntas). */
 const TAB_ID = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 /** Claim expira sozinho: se a aba dona morrer no meio, outra assume. */
@@ -56,6 +88,7 @@ function sanitizeItem(raw) {
   if (!tempId || !conversaId || !texto.trim()) return null;
   const enfileiradoEm = Number(raw?.enfileiradoEm);
   const lockAte = Number(raw?.lockAte);
+  const emVooAte = Number(raw?.emVooAte);
   return {
     tempId,
     conversaId,
@@ -68,6 +101,8 @@ function sanitizeItem(raw) {
     modo: raw?.modo === OUTBOX_MODO_INCERTO ? OUTBOX_MODO_INCERTO : OUTBOX_MODO_OFFLINE,
     lockAte: Number.isFinite(lockAte) && lockAte > Date.now() ? lockAte : 0,
     lockDono: raw?.lockDono ? String(raw.lockDono) : null,
+    emVooAte: Number.isFinite(emVooAte) && emVooAte > Date.now() ? emVooAte : 0,
+    dono: raw?.dono ? String(raw.dono) : null,
   };
 }
 
@@ -111,7 +146,7 @@ function writeOutbox(items) {
 }
 
 /** Idempotente por tempId: uma nova tentativa do mesmo envio nao duplica a fila. */
-export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null, criadoEm = null, modo = OUTBOX_MODO_OFFLINE } = {}) {
+export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null, criadoEm = null, modo = OUTBOX_MODO_OFFLINE, emVooMs = 0 } = {}) {
   const item = sanitizeItem({
     tempId,
     conversaId,
@@ -121,13 +156,22 @@ export function enqueueOutboxText({ conversaId, texto, tempId, replyMeta = null,
     enfileiradoEm: Date.now(),
     tentativas: 0,
     modo,
+    emVooAte: Number(emVooMs) > 0 ? Date.now() + Number(emVooMs) : 0,
+    dono: outboxIdentidadeAtual(),
   });
   if (!item) return null;
   const atual = readOutbox();
   const idx = atual.findIndex((i) => i.tempId === item.tempId);
   if (idx >= 0) {
-    // Mantem a posicao original para nao furar a ordem da fila.
-    const preservado = { ...atual[idx], texto: item.texto, replyMeta: item.replyMeta };
+    // Mantem a posicao original para nao furar a ordem da fila. Modo e "em voo" acompanham a
+    // classificação mais recente (ex.: gravado antes do POST e depois confirmado como offline).
+    const preservado = {
+      ...atual[idx],
+      texto: item.texto,
+      replyMeta: item.replyMeta,
+      modo: item.modo,
+      emVooAte: item.emVooAte,
+    };
     const next = [...atual];
     next[idx] = preservado;
     writeOutbox(next);
@@ -189,15 +233,30 @@ export function markOutboxAttempt(tempId, { erro = null } = {}) {
 export function listOutboxForConversa(conversaId) {
   const alvo = conversaId != null ? String(conversaId).trim() : "";
   if (!alvo) return [];
-  return readOutbox().filter((i) => i.conversaId === alvo);
+  const eu = outboxIdentidadeAtual();
+  return readOutbox().filter((i) => i.conversaId === alvo && itemPertenceAoUsuarioAtual(i, eu));
 }
 
 export function outboxHasItems() {
-  return readOutbox().length > 0;
+  const eu = outboxIdentidadeAtual();
+  return readOutbox().some((i) => itemPertenceAoUsuarioAtual(i, eu));
 }
 
 /** Campos aplicados na bolha conforme o modo: offline = "Aguardando conexão"; incerto = "Verificando…". */
 export function outboxPendingMessageFields(item = {}) {
+  // Gravado antes do POST e ainda dentro da janela "em voo": é um envio normal em andamento
+  // (relógio), não "verificando".
+  if (Number(item?.emVooAte) > Date.now()) {
+    return {
+      status: "pending",
+      status_mensagem: "pending",
+      aguardando_conexao: false,
+      envio_erro: false,
+      envio_incerto: false,
+      envio_demorado: false,
+      client_temp_id: item?.tempId,
+    };
+  }
   if (item?.modo === OUTBOX_MODO_INCERTO) {
     return {
       status: "status_indefinido",
@@ -271,6 +330,8 @@ export function hydrateOutboxBubblesForConversa(conversaId, existingList = []) {
       const prev = next[idx];
       // Nao sobrescrever mensagem ja persistida no backend.
       if (prev?.id != null || prev?.whatsapp_id) continue;
+      // Envio ao vivo em andamento: a bolha na tela já está no estado certo.
+      if (Number(item.emVooAte) > Date.now()) continue;
       next[idx] = {
         ...prev,
         ...outboxPendingMessageFields(item),
@@ -326,9 +387,16 @@ export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, e
   try {
     // Releitura a cada volta: o storage pode ter mudado em outra aba.
     for (let guard = 0; guard < MAX_ITEMS; guard++) {
-      const fila = readOutbox();
+      // Só itens do usuário logado: os de outro dono ficam guardados para ele, sem travar a fila.
+      const eu = outboxIdentidadeAtual();
+      const fila = readOutbox().filter((i) => itemPertenceAoUsuarioAtual(i, eu));
       if (!fila.length) break;
       const item = fila[0];
+      // Gravado antes do POST e o envio ao vivo ainda está rodando nesta sessão: não competir.
+      if (item.emVooAte > Date.now()) {
+        parou = "em_voo";
+        break;
+      }
       // Outra aba está enviando este item agora: não competir (ordem por conversa é sagrada).
       // O claim expira sozinho em LOCK_TTL_MS; o scheduler volta a tentar depois.
       if (item.lockAte > Date.now() && item.lockDono && item.lockDono !== TAB_ID) {
@@ -367,10 +435,19 @@ export async function flushOutbox({ sendText, onConfirmado, onFalhaDefinitiva, e
         if (classified?.retryAfterMs != null) {
           retryAfterMs = Math.max(retryAfterMs || 0, classified.retryAfterMs);
         }
-        const atualizado = markOutboxAttempt(item.tempId, { erro: classified.message });
+        // Sessão expirada não é falha da MENSAGEM: mantém na fila (o dono a envia ao logar de
+        // novo) e para. Antes o item era apagado, embora a tela prometesse envio automático.
+        if (Number(classified?.httpStatus) === 401) {
+          releaseOutboxItemLock(item.tempId);
+          parou = "sessao";
+          break;
+        }
+        markOutboxAttempt(item.tempId, { erro: classified.message });
         releaseOutboxItemLock(item.tempId);
-        const tentativas = Number(atualizado?.tentativas || 0);
-        const desistir = !isFalhaDeRede(classified) || tentativas >= OUTBOX_MAX_ATTEMPTS;
+        // Falha de REDE não conta para desistir: cada troca de conversa, volta de aba e
+        // reconexão dispara uma tentativa, e 8 delas apagavam a mensagem em minutos com o
+        // servidor fora do ar. Quem limita a espera é o prazo de validade do item (7 dias).
+        const desistir = !isFalhaDeRede(classified);
         if (desistir) {
           removeFromOutbox(item.tempId);
           try {

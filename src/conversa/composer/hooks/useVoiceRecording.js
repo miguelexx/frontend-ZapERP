@@ -153,6 +153,14 @@ export function useVoiceRecording({
         recorder.__zapInterrupted = reason;
         recorder.__zapStopAt = Date.now();
         cleanupSession({ markCanceled: true });
+        // O cleanup acima remove o onstop (markCanceled), então o aviso que mora lá nunca
+        // rodava: a barra de gravação sumia e o áudio se perdia sem explicação nenhuma.
+        showToast?.({
+          type: "error",
+          title: "Gravação interrompida",
+          message:
+            "O microfone parou de gravar antes do envio (pode ter sido desconectado ou usado por outro app). Grave o áudio novamente.",
+        });
       };
       function onTrackEnded() {
         interruptRecording("track_ended");
@@ -202,7 +210,14 @@ export function useVoiceRecording({
           });
           return;
         }
-        if (recordedChunks.length === 0) return;
+        if (recordedChunks.length === 0) {
+          showToast?.({
+            type: "error",
+            title: "Áudio",
+            message: "O navegador não entregou o áudio gravado. Grave novamente.",
+          });
+          return;
+        }
         const finalType = recorder.mimeType || mimeType || "audio/webm";
         const extension = audioExtensionFromMime(finalType);
         const blob = new Blob(recordedChunks, { type: finalType });
@@ -302,9 +317,34 @@ export function useVoiceRecording({
     recordingConversaIdRef.current = conversaId;
   }, [cancelRecording, conversaId, isRecording, onConversationChange]);
 
+  // Refs: o intervalo abaixo não pode ser recriado a cada render (showToast/stopRecording
+  // mudam de identidade), senão o contador reiniciaria o tique.
+  const stopRecordingRef = useRef(stopRecording);
+  const showToastRef = useRef(showToast);
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+    showToastRef.current = showToast;
+  }, [stopRecording, showToast]);
+
   useEffect(() => {
     if (!isRecording) return undefined;
-    recordingTimerRef.current = setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000);
+    let limiteAtingido = false;
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingSeconds((seconds) => seconds + 1);
+      // O limite de 10 min só era conferido ao enviar: quem passava dele perdia a gravação
+      // inteira. Agora a gravação é finalizada e enviada pouco antes do teto. Usa o relógio
+      // real (o intervalo atrasa com a aba em segundo plano).
+      const startedAt = Number(mediaRecorderRef.current?.__zapStartedAt) || 0;
+      if (!limiteAtingido && startedAt && Date.now() - startedAt >= RECORDED_AUDIO_MAX_MS - 3000) {
+        limiteAtingido = true;
+        showToastRef.current?.({
+          type: "info",
+          title: "Limite de 10 minutos",
+          message: "A gravação chegou ao limite e foi enviada.",
+        });
+        stopRecordingRef.current?.();
+      }
+    }, 1000);
     return () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     };

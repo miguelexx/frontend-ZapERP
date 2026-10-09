@@ -25,6 +25,7 @@ import {
 import { shouldShowOutboundToast } from "./outboundSendError";
 import { normalizeTextSendApiToMessage } from "./conversaOptimisticMessage";
 import { flushMediaOutbox, mediaOutboxHasItems, initMediaOutbox } from "./mediaOutbox";
+import { useNotificationStore } from "../notifications/notificationStore";
 
 export const SOCKET_RECONNECT_EVENT = "zap:socket:reconnect";
 
@@ -39,6 +40,20 @@ let toastFn = null;
 /** O hook da conversa registra o toast quando montado; sem UI, o flush segue em silêncio. */
 export function registrarOutboxToast(fn) {
   toastFn = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * Aviso de falha de envio. Com a conversa aberta usa o toast dela; sem ela (lista de conversas,
+ * outra tela, celular) cai no toast GLOBAL — antes a falha era totalmente silenciosa e a
+ * mensagem simplesmente não existia mais quando o atendente voltava.
+ */
+export function avisarFalhaDeEnvio(payload) {
+  try {
+    if (toastFn) toastFn(payload);
+    else useNotificationStore.getState().showToast?.(payload);
+  } catch {
+    /* aviso é best-effort */
+  }
 }
 
 function haItensPendentes() {
@@ -160,11 +175,14 @@ function aoFalharDefinitivo(item, classified) {
     /* ignore */
   }
   const toastKey = `outbox-fail-${item.tempId}`;
-  if (toastFn && shouldShowOutboundToast(toastKey)) {
-    toastFn({
+  if (shouldShowOutboundToast(toastKey)) {
+    const trecho = String(item?.texto || "").trim().slice(0, 60);
+    avisarFalhaDeEnvio({
       type: "error",
-      title: "Falha ao enviar",
-      message: classified?.message || "Não foi possível enviar a mensagem salva offline.",
+      title: "Mensagem não enviada",
+      message:
+        (trecho ? `"${trecho}${String(item?.texto || "").trim().length > 60 ? "…" : ""}" — ` : "") +
+        (classified?.message || "Não foi possível enviar a mensagem que estava na fila."),
     });
   }
 }
@@ -209,10 +227,15 @@ export async function executarFlushGlobal(origem = "manual") {
   // Parada por concorrência (flush em andamento / outra aba segurando o lock) não é falha
   // de rede: não deve inflar o backoff — senão duas abas se penalizavam mutuamente.
   const paradaPorConcorrencia =
-    resultado.parou === "em_andamento" || resultado.parou === "lock_outra_aba";
+    resultado.parou === "em_andamento" ||
+    resultado.parou === "lock_outra_aba" ||
+    resultado.parou === "em_voo" ||
+    resultado.parou === "sessao";
   if (resultado.enviadas > 0 || !restam) falhasSeguidas = 0;
   else if (!paradaPorConcorrencia) falhasSeguidas += 1;
-  if (restam) agendar(resultado.retryAfterMs);
+  // Sessão expirada: insistir só repetiria o 401. Os itens ficam guardados para o dono e o
+  // flush volta sozinho no próximo carregamento, já autenticado.
+  if (restam && resultado.parou !== "sessao") agendar(resultado.retryAfterMs);
   return resultado;
 }
 

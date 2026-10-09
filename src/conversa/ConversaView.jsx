@@ -27,6 +27,7 @@ import {
   isBrowserOffline,
   removeFromOutbox,
   OUTBOX_MODO_INCERTO,
+  OUTBOX_EM_VOO_MS,
 } from "./offlineOutbox";
 import { pokeOutboxAutoFlush, scheduleOutboxAutoFlush } from "./outboxAutoFlush";
 import { useAuthStore } from "../auth/authStore";
@@ -1795,17 +1796,44 @@ function ConversaViewBody() {
     if (!t) return;
     const searchResultSendTransition = beginSearchResultSendTransition();
     const conversaAberta = await garantirConversaAbertaParaEnvio();
-    if (!conversaAberta) return;
+    if (!conversaAberta) {
+      // O composer já limpou o campo antes de chamar este handler: sem devolver o texto, uma
+      // falha ao reabrir a conversa (rede/5xx) fazia a mensagem digitada sumir de vez.
+      if (String(useConversaStore.getState().selectedId) === String(conversaId)) {
+        const draftAtual = String(composerRef.current?.getText?.() ?? "").trim();
+        if (!draftAtual) composerRef.current?.setText?.(t);
+      }
+      return;
+    }
     searchResultSendTransition?.afterConversationReady?.();
     const socket = getSocket();
     if (socket?.connected) socket.emit("typing_stop", { conversa_id: conversaId });
     const chatParaNome = fromChat ?? conversa;
     const replyMeta = buildReplyMetaForPersist(replyTo, nome, chatParaNome);
     const retryCandidate = manualTextRetryRef.current;
-    const isManualRetry =
+    let isManualRetry =
       retryCandidate &&
       String(retryCandidate.conversaId) === String(conversaId) &&
       retryCandidate.texto === t;
+    if (isManualRetry) {
+      // Só é "nova tentativa da mesma mensagem" se a anterior AINDA não teve desfecho. Se ela
+      // já foi confirmada por fora (socket ou fila automática) e o atendente manda o mesmo
+      // texto de novo ("ok"… "ok"), é uma mensagem NOVA: reaproveitar o id antigo fazia o
+      // backend responder "já existe" e a segunda sumia sem erro e sem ser enviada.
+      const anterior = (useConversaStore.getState().mensagens || []).find(
+        (m) => String(m?.tempId ?? m?.client_temp_id ?? "") === String(retryCandidate.tempId)
+      );
+      if (anterior) {
+        const stAnterior = String(anterior.status_mensagem ?? anterior.status ?? "").toLowerCase();
+        const semDesfecho =
+          anterior.id == null ||
+          anterior.envio_erro === true ||
+          anterior.envio_incerto === true ||
+          anterior.aguardando_conexao === true ||
+          ["erro", "error", "failed", "falhou", "blocked", "status_indefinido", "aguardando_conexao"].includes(stAnterior);
+        if (!semDesfecho) isManualRetry = false;
+      }
+    }
     if (retryCandidate && !isManualRetry) manualTextRetryRef.current = null;
 
     const optimisticMsg = buildOptimisticOutgoingMessage({
@@ -1818,6 +1846,23 @@ function ConversaViewBody() {
     const revertOutgoingStatus = applyOutgoingStatusOptimistic();
     const revertModoSimples = appendOutgoingOptimisticMessage(optimisticMsg);
     setReplyTo(null);
+
+    // Grava a intenção de envio ANTES do POST. Até aqui a mensagem só era persistida depois de
+    // uma falha: um F5, o fechamento da aba ou o encerramento do app com o POST em andamento
+    // (ou com a mensagem ainda na fila atrás de outra) a perdia sem deixar rastro. "Em voo" =
+    // o envio ao vivo tem prioridade; se a aba morrer, a fila assume com o MESMO id (o backend
+    // deduplica). O item sai da fila na resposta, de sucesso ou de recusa definitiva.
+    const gravarIntencaoEmVoo = () =>
+      enqueueOutboxText({
+        conversaId,
+        texto: t,
+        tempId,
+        replyMeta: replyMeta || null,
+        criadoEm: optimisticMsg.criado_em,
+        modo: OUTBOX_MODO_INCERTO,
+        emVooMs: OUTBOX_EM_VOO_MS,
+      });
+    if (!isBrowserOffline()) gravarIntencaoEmVoo();
 
     const enfileirarOffline = () => {
       enqueueOutboxText({
@@ -1855,6 +1900,8 @@ function ConversaViewBody() {
           return;
         }
 
+        // Renova a janela "em voo": a mensagem pode ter esperado na fila atrás de outro envio.
+        gravarIntencaoEmVoo();
         const res = await enviarMensagem(
           conversaId,
           t,
@@ -1928,6 +1975,9 @@ function ConversaViewBody() {
           // Agendado (não imediato): o servidor pode estar lento — o 1º retry respeita o
           // backoff (~15s + jitter) e o Retry-After de um 429, quando presente.
           scheduleOutboxAutoFlush(classified.retryAfterMs ?? null);
+        } else {
+          // Recusa definitiva (ou falha já registrada no servidor): nada a reenviar pela fila.
+          removeFromOutbox(tempId);
         }
         // Timeout/rede: preserva client_temp_id para reconciliar sem duplicar.
         // Falha confirmada: mesmo texto no próximo clique reutiliza o tempId.
@@ -1943,7 +1993,12 @@ function ConversaViewBody() {
         // Restaura o texto no composer SOMENTE se estiver vazio — se o atendente já
         // continuou digitando um novo rascunho, não sobrescrever/misturar com o texto
         // que falhou (ele fica preservado na bolha de erro, com botão de retry).
-        if (!classified.uncertain) {
+        // E somente se ESTA conversa ainda estiver aberta: o composer é compartilhado entre
+        // conversas, então devolver o texto depois de o atendente trocar de conversa colocava a
+        // mensagem (e a citação) de um cliente no campo de digitação de outro.
+        const mesmaConversaAberta =
+          String(useConversaStore.getState().selectedId) === String(conversaId);
+        if (!classified.uncertain && mesmaConversaAberta) {
           const draftAtual = String(composerRef.current?.getText?.() ?? "").trim();
           if (!draftAtual) {
             composerRef.current?.setText?.(t);

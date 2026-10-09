@@ -149,11 +149,12 @@ assert(definitivas.length === 1 && definitivas[0][0] === "ruim", "deveria report
 assert(r.enviadas === 1, "a mensagem boa deveria seguir");
 assert(readOutbox().length === 0, "fila deveria esvaziar");
 
-// 11) Teto de tentativas: erro de rede repetido acaba virando falha visivel
+// 11) Falha de REDE nunca descarta a mensagem, por mais que se repita. Antes havia um teto de
+//     tentativas: cada troca de conversa/volta de aba contava uma, e a mensagem era apagada em
+//     minutos com o servidor fora do ar. Quem limita a espera agora e a validade do item.
 _resetOutboxForTests();
 enqueueOutboxText({ conversaId: 10, texto: "Insistente", tempId: "x" });
-for (let i = 0; i < OUTBOX_MAX_ATTEMPTS - 1; i++) markOutboxAttempt("x", { erro: "rede" });
-assert(readOutbox()[0].tentativas === OUTBOX_MAX_ATTEMPTS - 1, "deveria acumular tentativas");
+for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 5; i++) markOutboxAttempt("x", { erro: "rede" });
 const desistiu = [];
 r = await flushOutbox({
   sendText: async () => {
@@ -161,8 +162,69 @@ r = await flushOutbox({
   },
   onFalhaDefinitiva: (it) => desistiu.push(it.tempId),
 });
-assert(desistiu.join(",") === "x", "deveria desistir apos o teto de tentativas");
-assert(readOutbox().length === 0, "item deveria sair da fila ao desistir");
+assert(desistiu.length === 0, "falha de rede nao deveria virar falha definitiva");
+assert(r.parou === "rede", "deveria parar por rede");
+assert(readOutbox().length === 1 && readOutbox()[0].tempId === "x", "item deveria permanecer na fila");
+
+// 11b) Sessao expirada (401): nao e falha da mensagem — mantem na fila e para.
+_resetOutboxForTests();
+enqueueOutboxText({ conversaId: 10, texto: "Sessao caiu", tempId: "s401" });
+const definitivas401 = [];
+r = await flushOutbox({
+  sendText: async () => {
+    const err = new Error("Request failed");
+    err.response = { status: 401, data: {} };
+    throw err;
+  },
+  onFalhaDefinitiva: (it) => definitivas401.push(it.tempId),
+});
+assert(r.parou === "sessao", `401 deveria parar por sessao (parou=${r.parou})`);
+assert(definitivas401.length === 0, "401 nao deveria reportar falha definitiva");
+assert(readOutbox().length === 1, "item deveria permanecer na fila apos 401");
+
+// 11c) Item "em voo" (gravado antes do POST, envio ao vivo em andamento): o flush nao compete.
+_resetOutboxForTests();
+enqueueOutboxText({ conversaId: 10, texto: "Em voo", tempId: "voo", modo: "incerto", emVooMs: 60_000 });
+let chamadasVoo = 0;
+r = await flushOutbox({
+  sendText: async () => {
+    chamadasVoo += 1;
+    return { id: "srv-voo" };
+  },
+});
+assert(chamadasVoo === 0, "nao deveria reenviar item em voo");
+assert(r.parou === "em_voo", `deveria parar por em_voo (parou=${r.parou})`);
+assert(outboxPendingMessageFields(readOutbox()[0]).status === "pending", "bolha em voo deveria ser relogio comum");
+// Reenfileirar sem emVooMs (falha incerta confirmada) encerra a janela: a fila assume.
+enqueueOutboxText({ conversaId: 10, texto: "Em voo", tempId: "voo", modo: "incerto" });
+r = await flushOutbox({
+  sendText: async () => {
+    chamadasVoo += 1;
+    return { id: "srv-voo" };
+  },
+});
+assert(chamadasVoo === 1 && readOutbox().length === 0, "apos a janela, a fila deveria enviar o item");
+
+// 11d) Dono do item: mensagem de um usuario nunca e enviada por outro que logar no navegador.
+_resetOutboxForTests();
+store.set("zap_erp_auth", JSON.stringify({ token: "t", user: { id: 7, company_id: 1 } }));
+enqueueOutboxText({ conversaId: 10, texto: "Do usuario 7", tempId: "dono7" });
+assert(readOutbox()[0].dono === "1:7", "item deveria carregar o dono");
+store.set("zap_erp_auth", JSON.stringify({ token: "t2", user: { id: 8, company_id: 1 } }));
+let enviadasPorOutro = 0;
+r = await flushOutbox({
+  sendText: async () => {
+    enviadasPorOutro += 1;
+    return { id: "x" };
+  },
+});
+assert(enviadasPorOutro === 0, "outro usuario nao deveria enviar a mensagem");
+assert(listOutboxForConversa(10).length === 0, "outro usuario nao deveria ver a bolha");
+assert(readOutbox().length === 1, "o item deveria ficar guardado para o dono");
+store.set("zap_erp_auth", JSON.stringify({ token: "t", user: { id: 7, company_id: 1 } }));
+r = await flushOutbox({ sendText: async () => ({ id: "srv-dono7" }) });
+assert(r.enviadas === 1 && readOutbox().length === 0, "o dono deveria enviar ao voltar");
+store.delete("zap_erp_auth");
 
 // 12) HTTP 500 conta como rede (incerto): mantem na fila para nova tentativa
 _resetOutboxForTests();

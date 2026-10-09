@@ -592,3 +592,31 @@ GET /messages/{id}. Pós-deploy o sweep cura em ≤5 min; tempo real = garantir 
 `statuses` no webhook do canal (painel Whapi OU POST
 /integrations/whatsapp/instances/:id/configure-webhooks — botão já exposto via
 whapiInstancesService.configureInstanceWebhooks).
+
+
+---
+
+## 2026-10-08 — Auditoria do fluxo inteiro de envio (frontend)
+
+Parte frontend da auditoria em 6 frentes (detalhe do backend no doc 25 do backend, parte 4).
+Build Vite OK; `scripts/test-offline-outbox.mjs` atualizado (16 cenários).
+
+| Onde | Defeito | Correção |
+|------|---------|----------|
+| `ConversaView.handleEnviar` | Mesmo texto enviado de novo após a tentativa anterior já ter sido confirmada ("ok"… "ok") reusava o `client_temp_id` → backend respondia "já existe" → 2ª mensagem sumia sem erro | Só é retry se a bolha anterior segue sem desfecho |
+| idem | Texto/citação de uma conversa devolvidos ao composer de OUTRA conversa após falha | Só restaura se a mesma conversa segue aberta |
+| idem | Falha ao reabrir conversa fechada apagava o texto digitado | Devolve o texto ao composer |
+| idem + `offlineOutbox` | Mensagem só era persistida APÓS falha: F5/aba fechada com POST em voo ou na fila perdia tudo | Grava na fila ANTES do POST (`emVooMs`); sai na resposta |
+| `useConversationOutboundMedia` + `mediaOutbox` | Idem para áudio (gravação irrecuperável) | Áudio gravado na fila durável antes do POST |
+| `offlineOutbox` / `mediaOutbox` | 8 falhas de REDE apagavam o item; cada troca de conversa/volta de aba contava uma | Falha de rede não descarta (validade: 7 dias texto, 48 h mídia) |
+| idem | 401 no flush apagava o item; fila sem dono → próximo usuário do navegador enviava | 401 = para e mantém; item carimbado com `empresa:usuario` |
+| `outboxAutoFlush` + `main.jsx` | Após F5 a fila só descarregava ao abrir uma conversa | Gatilhos ligados no boot do app |
+| `outboxAutoFlush` | Falha definitiva com a conversa fechada era muda | `avisarFalhaDeEnvio` cai no toast global |
+| `useVoiceRecording` | Gravação interrompida (ligação, fone) sumia sem aviso — o toast existente era inalcançável | Toast exibido na interrupção |
+| idem | Acima de 10 min a gravação era descartada ao enviar | Finaliza e envia ao atingir o limite |
+| idem | Gravação sem dados fechava calada | Toast |
+
+Pendente (não alterado): bolha de mídia com erro e sem id do servidor não tem "Tentar novamente"
+(`reuseTempId` é código morto); falha que resolve com a conversa fechada deixa a bolha em cache
+como pendente até o próximo refresh; áudio enviado logo após outro que caiu na fila pode chegar
+antes dele; item recusado pela fila de mídia (>64 MB, 31º item) fica em "verificando".
