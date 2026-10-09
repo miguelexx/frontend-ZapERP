@@ -3,6 +3,7 @@ import { useNotificationStore } from "../notifications/notificationStore";
 import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
 import { IconClose } from "./conversaViewIcons";
 import { useGroupWhatsapp } from "./hooks/useGroupWhatsapp";
+import GrupoBulkAddModal from "./components/GrupoBulkAddModal";
 
 function initials(nome = "") {
   const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
@@ -48,6 +49,7 @@ export default function SidebarGrupo({
   const [editDesc, setEditDesc] = useState("");
   const [editing, setEditing] = useState(false);
   const [photoError, setPhotoError] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const name = group.grupo?.name || conversa?.nome_grupo || "Grupo";
   const foto = group.grupo?.photo || conversa?.foto_grupo || null;
@@ -207,9 +209,10 @@ export default function SidebarGrupo({
                   className="wa-groupAddRow"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (!invitePhone.trim()) return;
-                    group.sendInvite(invitePhone.trim());
-                    setInvitePhone("");
+                    const tel = invitePhone.trim();
+                    if (!tel) return;
+                    // Limpa o campo só se o envio deu certo (antes apagava o número mesmo em falha).
+                    Promise.resolve(group.sendInvite(tel)).then((ok) => { if (ok) setInvitePhone(""); });
                   }}
                 >
                   <input className="wa-input" placeholder="Enviar convite para o número" value={invitePhone} onChange={(e) => setInvitePhone(e.target.value)} />
@@ -273,15 +276,20 @@ export default function SidebarGrupo({
               className="wa-groupAddRow"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!addPhone.trim()) return;
-                group.addParticipant(addPhone.trim());
-                setAddPhone("");
+                const tel = addPhone.trim();
+                if (!tel) return;
+                // Limpa o campo só no sucesso: se o WhatsApp recusar (anti-spam/desconectado),
+                // o número digitado é preservado para o usuário tentar o convite.
+                Promise.resolve(group.addParticipant(tel)).then((ok) => { if (ok) setAddPhone(""); });
               }}
             >
               <input className="wa-input" placeholder="Adicionar participante (DDI+número)" value={addPhone} onChange={(e) => setAddPhone(e.target.value)} />
               <button type="submit" className="wa-btn wa-btn-primary" disabled={!!group.busy}>Adicionar</button>
             </form>
-            <button type="button" className="wa-sideCliente-quickBtn" onClick={() => group.loadApps()}>
+            <button type="button" className="wa-sideCliente-quickBtn" onClick={() => setBulkOpen(true)}>
+              Adicionar em massa (puxar vários contatos)
+            </button>
+            <button type="button" className="wa-sideCliente-quickBtn" disabled={!!group.busy} onClick={() => group.loadApps()}>
               Pedidos para entrar
             </button>
             {Array.isArray(group.apps) && group.apps.length ? (
@@ -341,6 +349,7 @@ export default function SidebarGrupo({
           </ul>
         </section>
       </div>
+      <GrupoBulkAddModal open={bulkOpen} onClose={() => setBulkOpen(false)} group={group} />
     </div>
   );
 }

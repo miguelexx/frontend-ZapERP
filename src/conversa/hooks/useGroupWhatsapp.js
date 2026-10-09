@@ -16,6 +16,9 @@ import {
   removeGrupoFoto,
   setGrupoFoto,
   updateGrupoWhatsapp,
+  enfileirarParticipantesGrupo,
+  listarFilaGrupo,
+  cancelarFilaGrupo,
 } from "../groupWhatsappService";
 
 export function useGroupWhatsapp({ open, conversaId, showToast }) {
@@ -98,7 +101,14 @@ export function useGroupWhatsapp({ open, conversaId, showToast }) {
     },
     revokeInvite: () => run("inv", async () => {
       const data = await revokeGrupoInvite(conversaId);
-      setInvite(null);
+      // Re-busca o link NOVO em vez de esconder a caixa de convite (antes sumia e
+      // obrigava o usuário a clicar "Link do grupo" de novo).
+      try {
+        const fresh = await getGrupoInvite(conversaId);
+        setInvite(fresh);
+      } catch {
+        setInvite(null);
+      }
       return data;
     }, "Link de convite redefinido."),
     sendInvite: (telefone) => run("sendInv", () => sendGrupoInvite(conversaId, telefone), "Convite enviado."),
@@ -116,5 +126,23 @@ export function useGroupWhatsapp({ open, conversaId, showToast }) {
     rejectApp: (application) => run("app", () => rejectGrupoSolicitacao(conversaId, application), "Solicitação recusada."),
     setPhoto: (media, mimeType) => run("pic", () => setGrupoFoto(conversaId, media, mimeType), "Foto do grupo atualizada."),
     removePhoto: () => run("pic", () => removeGrupoFoto(conversaId), "Foto do grupo removida."),
+    // Adição em massa (fila protegida): não usa run() para evitar recarregar o grupo inteiro.
+    addMany: async (phones) => {
+      try {
+        const data = await enfileirarParticipantesGrupo(conversaId, phones);
+        return data;
+      } catch (e) {
+        showToast?.({ type: "error", title: "Grupo", message: e?.response?.data?.error || e?.message || "Não foi possível enfileirar." });
+        return null;
+      }
+    },
+    loadFila: async () => {
+      try { const d = await listarFilaGrupo(conversaId); return Array.isArray(d?.operacoes) ? d.operacoes : []; }
+      catch { return []; }
+    },
+    cancelFila: async (opId) => {
+      try { await cancelarFilaGrupo(conversaId, opId); showToast?.({ type: "success", title: "Grupo", message: "Adição cancelada." }); return true; }
+      catch (e) { showToast?.({ type: "error", title: "Grupo", message: e?.response?.data?.error || e?.message }); return false; }
+    },
   };
 }
