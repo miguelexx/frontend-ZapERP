@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   IconWorld, IconPlus, IconX, IconUsers, IconUsersGroup, IconCrown,
   IconSettings, IconLink, IconTrash, IconCopy, IconUserPlus, IconRefresh,
-  IconPlayerPause, IconPlayerPlay, IconBan,
+  IconPlayerPause, IconPlayerPlay,
 } from "@tabler/icons-react";
 import { useComunidadesStore } from "../comunidades/comunidadesStore";
 import { useNotificationStore } from "../notifications/notificationStore";
@@ -382,8 +382,8 @@ function DetalheComunidadeModal({ instanceId, comunidadeId, onClose, onChanged }
               ))}
               <div style={{ borderTop: "1px solid var(--ds-border,#e2e8f0)", paddingTop: 14 }}>
                 <button className="cm-btn cm-btn--danger" disabled={actionBusy}
-                  onClick={() => setConfirm({ title: "Desativar comunidade?", body: "A comunidade será desativada no WhatsApp. Esta ação não pode ser desfeita por aqui.", danger: true, onYes: async () => { try { await api.desativarComunidade(comunidadeId, instanceId); showToast({ type: "success", title: "Comunidade desativada" }); onChanged?.(); onClose?.(); } catch (e) { showToast({ type: "error", title: "Erro", message: errMsg(e) }); } } })}>
-                  <IconBan size={18} /> Desativar comunidade
+                  onClick={() => setConfirm({ title: "Apagar comunidade?", body: "A comunidade será desativada no WhatsApp (some para todos, inclusive no celular) e removida do sistema. Operações pendentes na fila serão canceladas. Esta ação não pode ser desfeita.", danger: true, onYes: async () => { try { await api.apagarComunidade(comunidadeId, instanceId); showToast({ type: "success", title: "Comunidade apagada" }); onChanged?.(); onClose?.(); } catch (e) { showToast({ type: "error", title: "Erro", message: errMsg(e) }); } } })}>
+                  <IconTrash size={18} /> Apagar comunidade
                 </button>
               </div>
             </>
@@ -486,6 +486,8 @@ export default function Comunidades() {
   const [instanceId, setInstanceId] = useState(null);
   const [criarOpen, setCriarOpen] = useState(false);
   const [detalheId, setDetalheId] = useState(null);
+  const [apagarAlvo, setApagarAlvo] = useState(null); // comunidade a apagar (confirmação)
+  const [apagando, setApagando] = useState(false);
   const [aviso, setAviso] = useState("");
   const opsTimer = useRef(null);
 
@@ -587,7 +589,18 @@ export default function Comunidades() {
                 </div>
                 <div className="cm-card-foot">
                   <span className="cm-badge cm-badge--ok">ativa</span>
-                  <span className="cm-btn cm-btn--ghost cm-btn--sm">Gerenciar →</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <button
+                      className="cm-iconbtn cm-iconbtn--danger"
+                      aria-label="Apagar comunidade"
+                      title="Apagar comunidade"
+                      onClick={(e) => { e.stopPropagation(); setApagarAlvo(c); }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <IconTrash size={17} />
+                    </button>
+                    <span className="cm-btn cm-btn--ghost cm-btn--sm">Gerenciar →</span>
+                  </div>
                 </div>
               </div>
             );
@@ -595,8 +608,52 @@ export default function Comunidades() {
         </div>
       )}
 
-      {criarOpen ? <CriarComunidadeModal instanceId={instanceId} onClose={() => setCriarOpen(false)} onCreated={() => { setCriarOpen(false); carregar(); }} /> : null}
+      {criarOpen ? (
+        <CriarComunidadeModal
+          instanceId={instanceId}
+          onClose={() => setCriarOpen(false)}
+          onCreated={(novo) => {
+            setCriarOpen(false);
+            // Mostra na hora (otimista): a Whapi leva ~1-2s para refletir no GET /communities.
+            if (novo && communityIdOf(novo)) {
+              const nid = communityIdOf(novo);
+              setComunidades([novo, ...comunidades.filter((c) => communityIdOf(c) !== nid)]);
+            }
+            // Reconcilia com a API depois da carência de propagação.
+            setTimeout(() => carregar(), 2500);
+          }}
+        />
+      ) : null}
       {detalheId ? <DetalheComunidadeModal instanceId={instanceId} comunidadeId={detalheId} onClose={() => setDetalheId(null)} onChanged={() => { carregar(); carregarOps(); }} /> : null}
+
+      <ConfirmDialog
+        open={!!apagarAlvo}
+        title="Apagar comunidade?"
+        danger
+        confirmLabel={apagando ? "Apagando…" : "Apagar"}
+        onCancel={() => { if (!apagando) setApagarAlvo(null); }}
+        onConfirm={async () => {
+          if (apagando || !apagarAlvo) return;
+          const alvo = apagarAlvo;
+          const cid = communityIdOf(alvo);
+          setApagando(true);
+          try {
+            await api.apagarComunidade(cid, instanceId);
+            setApagarAlvo(null);
+            // Some na hora; o backend garante que ela não volta na próxima listagem.
+            setComunidades(comunidades.filter((c) => communityIdOf(c) !== cid));
+            if (detalheId === cid) setDetalheId(null);
+            showToast({ type: "success", title: "Comunidade apagada", message: alvo?.name || alvo?.subject || "" });
+            carregarOps();
+          } catch (e) {
+            showToast({ type: "error", title: "Erro", message: errMsg(e, "Não foi possível apagar a comunidade.") });
+          } finally { setApagando(false); }
+        }}
+      >
+        A comunidade <b>{apagarAlvo?.name || apagarAlvo?.subject || ""}</b> será desativada no WhatsApp
+        (some para todos, inclusive no celular) e removida do sistema. Operações pendentes na fila serão
+        canceladas. Esta ação não pode ser desfeita.
+      </ConfirmDialog>
     </div>
   );
 }

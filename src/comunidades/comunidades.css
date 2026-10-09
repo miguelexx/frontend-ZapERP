@@ -83,6 +83,7 @@
   color: var(--ds-text-tertiary, #64748b);
 }
 .cm-iconbtn:hover { background: var(--ds-surface-2, #f1f5f9); color: var(--ds-text-primary, #0f172a); }
+.cm-iconbtn--danger:hover { background: var(--ds-error-soft, rgba(220,38,38,0.1)); color: var(--ds-error, #dc2626); }
 
 /* ---- cards grid ---- */
 .cm-grid {

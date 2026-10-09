@@ -37,7 +37,9 @@ export async function configurarComunidade(cid, { setting, policy, instanceId })
   return data;
 }
 
-export async function desativarComunidade(cid, instanceId) {
+// Apaga a comunidade: desativa no WhatsApp (some para todos, inclusive no celular
+// conectado) e remove do sistema (fila cancelada + não volta a ser listada).
+export async function apagarComunidade(cid, instanceId) {
   const { data } = await api.delete(`/comunidades/${enc(cid)}`, base({ data: inst(instanceId) }));
   return data;
 }
