@@ -510,7 +510,8 @@ export async function criarGrupo(nome, participantes = []) {
   const body = { nome };
   const list = Array.isArray(participantes) ? participantes.filter(Boolean) : [];
   if (list.length) body.participantes = list;
-  const { data } = await api.post("/chats/grupos", body);
+  // skipAuthLogout: um 401 aqui = canal Whapi desconectado, não sessão expirada — não deslogar.
+  const { data } = await api.post("/chats/grupos", body, { skipAuthLogout: true });
   return data;
 }
 

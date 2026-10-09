@@ -8,6 +8,23 @@ function numeroLabel(inst) {
   return nome || fone || `Número #${inst?.id}`;
 }
 
+function perfilLabel(perfil) {
+  const p = String(perfil || "").toLowerCase();
+  if (p === "admin" || p === "administrador") return "Admin";
+  if (p === "supervisor") return "Supervisor";
+  return "Atendente";
+}
+
+function ordenarUsuarios(lista) {
+  const ordem = { atendente: 0, supervisor: 1, admin: 2, administrador: 2 };
+  return [...lista].sort((a, b) => {
+    const pa = ordem[String(a?.perfil || "").toLowerCase()] ?? 9;
+    const pb = ordem[String(b?.perfil || "").toLowerCase()] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return String(a?.nome || "").localeCompare(String(b?.nome || ""), "pt");
+  });
+}
+
 export default function NumerosAcessoSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,7 +42,7 @@ export default function NumerosAcessoSection() {
       const data = await listarAcessoNumeros();
       setDisponivel(data.configuracaoDisponivel);
       setInstances(data.instances);
-      setAtendentes(data.atendentes);
+      setAtendentes(ordenarUsuarios(data.atendentes));
       const next = {};
       for (const inst of data.instances) {
         next[String(inst.id)] = new Set((inst.atendente_ids || []).map((id) => Number(id)));
@@ -79,7 +96,7 @@ export default function NumerosAcessoSection() {
         <span className="ia-auto-reply-eyebrow">Atendimento</span>
         <h4 className="config-geral-title">Visão por número</h4>
         <p className="config-geral-lead">
-          Marque quais atendentes podem ver as conversas de cada número. Quem não tiver nenhum número marcado continua vendo tudo, como hoje. Admin e supervisor sempre veem todos os números.
+          Marque quem pode ver as conversas de cada número. Quem não tiver nenhum número marcado continua vendo tudo, como hoje — inclusive admin e supervisor. A trava só vale para quem tiver pelo menos um número marcado.
         </p>
       </header>
 
@@ -96,7 +113,7 @@ export default function NumerosAcessoSection() {
       ) : null}
 
       {!loading && atendentes.length === 0 && instances.length > 0 ? (
-        <p className="ia-muted">Não há atendentes ativos para marcar.</p>
+        <p className="ia-muted">Não há usuários ativos para marcar.</p>
       ) : null}
 
       <div style={{ display: "grid", gap: 12 }}>
@@ -149,6 +166,7 @@ export default function NumerosAcessoSection() {
                           onChange={() => toggle(inst.id, uid)}
                         />
                         <span>{usuario.nome}</span>
+                        <span className="ia-muted" style={{ fontSize: 12 }}>{perfilLabel(usuario.perfil)}</span>
                       </label>
                     );
                   })}
