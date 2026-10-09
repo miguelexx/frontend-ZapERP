@@ -486,6 +486,7 @@ export default function Comunidades() {
   const [instanceId, setInstanceId] = useState(null);
   const [criarOpen, setCriarOpen] = useState(false);
   const [detalheId, setDetalheId] = useState(null);
+  const [aviso, setAviso] = useState("");
   const opsTimer = useRef(null);
 
   useEffect(() => { instancesStore.load?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -498,9 +499,18 @@ export default function Comunidades() {
     try {
       const r = await api.listarComunidades(instanceId);
       setComunidades(r?.comunidades || []);
-    } catch (e) { showToast({ type: "error", title: "Erro ao listar", message: errMsg(e) }); }
-    finally { setLoading(false); }
-  }, [instanceId, setComunidades, setLoading, showToast]);
+      setAviso("");
+    } catch (e) {
+      // 409 = WhatsApp desconectado: não desloga (skipAuthLogout). Mostra aviso e mantém a tela.
+      const codigo = e?.response?.data?.codigo;
+      if (e?.response?.status === 409 || codigo === "WHATSAPP_DESCONECTADO") {
+        setAviso("WhatsApp desconectado — reconecte o número para listar e gerenciar as comunidades existentes.");
+      } else {
+        setAviso(errMsg(e, "Não foi possível carregar as comunidades."));
+      }
+      setComunidades([]);
+    } finally { setLoading(false); }
+  }, [instanceId, setComunidades, setLoading]);
 
   const carregarOps = useCallback(async () => {
     try { const r = await api.listarOperacoes({ limit: 30 }); setOperacoes(r?.operacoes || []); } catch { /* silencioso */ }
@@ -539,6 +549,8 @@ export default function Comunidades() {
           </button>
         </div>
       </div>
+
+      {aviso ? <div className="cm-info" role="status">{aviso}</div> : null}
 
       <OperacoesPanel operacoes={operacoes} onRefresh={carregarOps} />
 
