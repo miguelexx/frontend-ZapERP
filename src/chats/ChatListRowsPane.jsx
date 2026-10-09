@@ -161,6 +161,7 @@ function ChatListRowsPane({
             openConversationId={openConversationId}
             onToggleMenu={onToggleMenu}
             pendentesFuncionarioSet={pendentesFuncionarioSet}
+            showResponsavelAtendimento={tab === "em_atendimento"}
           />
         )}
         {filteredLen > 0 ? paginationFooter : null}

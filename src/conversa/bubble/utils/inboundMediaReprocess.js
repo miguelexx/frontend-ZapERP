@@ -11,14 +11,15 @@ function aplicarUrlRecuperadaNaStore(msg, url) {
   const u = String(url || "").trim();
   // /media/r2/: mídia já migrada ao R2 — o backend responde ja_persistido com essa URL.
   if (!u.startsWith("/uploads/") && !u.startsWith("/media/r2/")) return;
-  if (u === String(msg?.url || "").trim()) return;
+  const absAtual = String(msg?.url_absoluta || "").trim();
+  if (u === String(msg?.url || "").trim() && (!absAtual || absAtual === u)) return;
   const conversaId = Number(msg?.conversa_id ?? msg?.conversaId);
   const mensagemId = Number(msg?.id ?? msg?.mensagem_id);
   if (!Number.isSafeInteger(conversaId) || !Number.isSafeInteger(mensagemId)) return;
   try {
     useConversaStore
       .getState()
-      .patchMensagem(mensagemId, { url: u }, { conversa_id: conversaId, preserveOrder: true });
+      .patchMensagem(mensagemId, { url: u, url_absoluta: u }, { conversa_id: conversaId, preserveOrder: true });
   } catch {
     /* best-effort; o socket ainda pode curar */
   }

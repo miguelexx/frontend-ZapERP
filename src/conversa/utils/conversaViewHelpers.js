@@ -532,8 +532,12 @@ export function resolveMediaUrlForPlayback(raw) {
 
 export function getMediaUrl(url, urlAbsoluta) {
   const absRaw = urlAbsoluta != null && String(urlAbsoluta).trim() !== "" ? String(urlAbsoluta).trim() : "";
-  if (absRaw) return resolveMediaUrlForPlayback(absRaw);
   const urlRaw = url != null && String(url).trim() !== "" ? String(url).trim() : "";
+  // `url` é o campo que o servidor atualiza (/uploads -> /media/r2). `url_absoluta` só vence
+  // quando é o blob local do envio otimista, ou quando não há `url` utilizável.
+  if (absRaw.startsWith("blob:")) return resolveMediaUrlForPlayback(absRaw);
+  if (urlRaw && !urlRaw.startsWith("blob:")) return resolveMediaUrlForPlayback(urlRaw);
+  if (absRaw) return resolveMediaUrlForPlayback(absRaw);
   if (urlRaw) return resolveMediaUrlForPlayback(urlRaw);
   return "";
 }

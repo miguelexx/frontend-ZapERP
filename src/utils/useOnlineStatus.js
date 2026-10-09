@@ -23,16 +23,29 @@ function emitir(valor) {
   }
 }
 
+function lerNavegador() {
+  return typeof navigator === "undefined" ? true : navigator.onLine !== false;
+}
+
 function ligarListeners() {
   if (listenersLigados || typeof window === "undefined") return;
   listenersLigados = true;
   window.addEventListener("online", () => emitir(true));
   window.addEventListener("offline", () => emitir(false));
+  // Evento `online` perdido (aba congelada em segundo plano no celular) deixava o app "offline"
+  // até o F5 — e o play dos áudios bloqueado. Reconfere ao voltar à aba.
+  const reconferir = () => emitir(lerNavegador());
+  window.addEventListener("pageshow", reconferir);
+  window.addEventListener("focus", reconferir);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", reconferir);
 }
+
+ligarListeners();
 
 function subscribe(fn) {
   ligarListeners();
   assinantes.add(fn);
+  emitir(lerNavegador());
   return () => assinantes.delete(fn);
 }
 

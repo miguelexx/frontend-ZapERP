@@ -19,7 +19,7 @@ const IA = lazy(() => import("../pages/IA"));
 const DashboardIA = lazy(() => import("../pages/DashboardIA"));
 const NovoContato = lazy(() => import("../pages/NovoContato"));
 const NovoGrupo = lazy(() => import("../pages/NovoGrupo"));
-const NovaComunidade = lazy(() => import("../pages/NovaComunidade"));
+const Comunidades = lazy(() => import("../pages/Comunidades"));
 const ConnectWhatsApp = lazy(() => import("../pages/ConnectWhatsApp"));
 const Permissoes = lazy(() => import("../pages/Permissoes"));
 const Mensagens = lazy(() => import("../pages/Mensagens"));
@@ -99,6 +99,7 @@ export default function AppRoutes() {
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
   const canAccessDisparo = canAcessarDisparo(user);
+  const canAccessComunidades = ["admin", "administrador"].includes(String(user?.perfil || "").toLowerCase());
 
   if (!token) {
     return (
@@ -193,10 +194,16 @@ export default function AppRoutes() {
           />
           <Route
             path="/atendimento/nova-comunidade"
+            element={<Navigate to="/comunidades" replace />}
+          />
+          <Route
+            path="/comunidades"
             element={
-              <LazyPage>
-                <NovaComunidade />
-              </LazyPage>
+              <ProtectedRoute canAccess={canAccessComunidades} redirectTo="/atendimento">
+                <LazyPage>
+                  <Comunidades />
+                </LazyPage>
+              </ProtectedRoute>
             }
           />
           <Route

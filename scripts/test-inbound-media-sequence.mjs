@@ -84,4 +84,30 @@ list = mergeMessageIntoListForTest(list, CONV, inboundImage(5001, "wa-5001", 50,
 assert(countByTipo(list, "imagem") === 1, `eco legítimo (mesmo id) deve fundir em 1 bolha, obteve ${countByTipo(list, "imagem")}`);
 assert(list[0].url === "/uploads/foto-5001.jpg", "bolha fundida deve ficar com a URL final");
 
-console.log("OK — regressão de mídia recebida em sequência passou (4 cenários).");
+// 5) Áudio recebido, eventos fora de ordem: /uploads chega ANTES do evento original com a URL do
+//    provedor, depois vem a troca para /media/r2. O player prefere url_absoluta — ela não pode
+//    ficar presa no /uploads (arquivo purgado do disco ~5 min depois: play mudo até o F5).
+const PROV = "https://s3.provedor.example/audio-6001.oga";
+list = [];
+list = mergeMessageIntoListForTest(list, CONV, inboundAudio(6001, "wa-6001", 4, 0, "/uploads/audio-6001.ogg"));
+list = mergeMessageIntoListForTest(list, CONV, inboundAudio(6001, "wa-6001", 4, 0, PROV));
+assert(list[0].url === "/uploads/audio-6001.ogg", "URL do provedor atrasada não pode rebaixar o /uploads");
+list = mergeMessageIntoListForTest(list, CONV, inboundAudio(6001, "wa-6001", 4, 0, "/media/r2/media/1/audio-6001.ogg"));
+assert(list.length === 1, "mesma mensagem deve seguir numa única bolha");
+assert(list[0].url === "/media/r2/media/1/audio-6001.ogg", `url deve avançar para o R2, obteve ${list[0].url}`);
+assert(
+  !list[0].url_absoluta || list[0].url_absoluta === list[0].url,
+  `url_absoluta não pode ficar presa na URL antiga, obteve ${list[0].url_absoluta}`
+);
+
+// 6) Depois do R2, um evento atrasado/GET antigo com /uploads não pode devolver a linha ao /uploads.
+list = mergeMessageIntoListForTest(list, CONV, inboundAudio(6001, "wa-6001", 4, 0, "/uploads/audio-6001.ogg"));
+assert(list[0].url === "/media/r2/media/1/audio-6001.ogg", `R2 deve prevalecer sobre /uploads, obteve ${list[0].url}`);
+assert(!list[0].url_absoluta || list[0].url_absoluta === list[0].url, "url_absoluta deve acompanhar a url");
+
+// 7) Linha que já estava com url_absoluta velha (estado herdado) é saneada no próximo merge.
+list = [{ ...inboundAudio(6002, "wa-6002", 3, 0, "/media/r2/media/1/audio-6002.ogg"), url_absoluta: "/uploads/audio-6002.ogg" }];
+list = mergeMessageIntoListForTest(list, CONV, { ...inboundAudio(6002, "wa-6002", 3, 0, "/media/r2/media/1/audio-6002.ogg"), status: "read" });
+assert(list[0].url_absoluta === "/media/r2/media/1/audio-6002.ogg", `url_absoluta velha deve ser corrigida, obteve ${list[0].url_absoluta}`);
+
+console.log("OK — regressão de mídia recebida em sequência passou (7 cenários).");

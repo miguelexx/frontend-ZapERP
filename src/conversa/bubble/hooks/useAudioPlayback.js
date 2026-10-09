@@ -7,6 +7,7 @@ import {
   classifyStallRecovery,
   planReloadOnStall,
   needsReloadBeforeResume,
+  canPlayDirectlyFromStart,
   classifyStuckStart,
 } from "../../utils/audioPlaybackRecovery";
 import { normalizeAudioDuration, rememberAudioDuration, readAudioDuration } from "../utils/audioDuration";
@@ -357,7 +358,12 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     if (!el || !activeSrc) return;
     // sanePosition: durante a sonda de Infinity o currentTime é ~1e101 — "retomar" dali
     // deixava o player mudo (posição além do fim) e o vigia sem baseline de progresso.
-    const resumeAt = sanePosition(el.currentTime);
+    // Parado no fim (áudio já ouvido, ou posição deixada pela sonda): retomar dali terminava
+    // na hora ou nunca chegava ao `canplay`. Replay começa do início.
+    const posAtual = sanePosition(el.currentTime);
+    const durAtual = Number(el.duration);
+    const noFim = el.ended || (Number.isFinite(durAtual) && durAtual > 0 && posAtual >= durAtual - 0.5);
+    const resumeAt = noFim ? 0 : posAtual;
     applyFreshSrc(el);
     try {
       el.load();
@@ -384,6 +390,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       const atual = getCurrentAudio();
       if (atual && atual !== el) {
         pendingPlayRef.current = 0;
+        playingRef.current = false;
+        setPlaying(false);
         return;
       }
       pauseOtherAudios(el); // reivindica a sessão (cobre recarga do vigia/tentar de novo)
@@ -426,6 +434,7 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     if (!el || !playing) return;
     let timer = 0;
     let recovered = false;
+    let recuperacoes = 0;
     let seekGraceUsada = false;
     let baseline = sanePosition(el.currentTime);
     const progressed = () => sanePosition(el.currentTime) > baseline + 0.2;
@@ -457,10 +466,16 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       if (decisao === "noop") return;
       if (decisao === "giveup") {
         try { el.pause(); } catch { /* ignore */ }
+        // `load()` de uma recarga anterior pausa sem evento `pause`: sem zerar aqui, o próximo
+        // clique era lido como "cancelar início" e não fazia nada.
+        playingRef.current = false;
+        autoPlayRef.current.ate = 0;
+        setPlaying(false);
         setIndisponivel(true);
         return;
       }
       recovered = true;
+      recuperacoes += 1;
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: autoPlayRef.current.tentativas || 0 };
       // A recarga abaixo só confirma vida no `canplay`; se o fetch travar, NENHUM evento chega e
       // ninguém mais vigiava (o estado React `playing` segue true — `load()` pausa o elemento sem
@@ -484,6 +499,9 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
         clear();
         baseline = sanePosition(el.currentTime);
         seekGraceUsada = false;
+        // O áudio voltou a andar: um novo engasgo mais adiante é outro incidente e merece nova
+        // recarga (antes ia direto a "indisponível"). Teto evita laço em arquivo corrompido.
+        if (recuperacoes < 3) recovered = false;
       }
     };
     el.addEventListener("waiting", armFromStall);
@@ -538,6 +556,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       if (decisao === "giveup") {
         pendingPlayRef.current = 0;
         try { a.pause(); } catch { /* ignore */ }
+        playingRef.current = false;
+        autoPlayRef.current.ate = 0;
         setPlaying(false);
         setIndisponivel(true);
         return;
@@ -585,7 +605,13 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
           autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
           return;
         }
+        const playDiretoAFrio = canPlayDirectlyFromStart({
+          hasError: !!el.error,
+          readyState: el.readyState,
+          currentTime: el.currentTime,
+        });
         if (
+          !playDiretoAFrio &&
           needsReloadBeforeResume({
             hasError: !!el.error,
             readyState: el.readyState,
@@ -610,6 +636,10 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
         el.pause();
       }
     } catch (err) {
+      // AbortError = o play() pendente foi interrompido por um pause()/load() NOSSO (clique de
+      // pausa durante o carregamento, recarga do vigia). Quem interrompeu já cuida do desfecho;
+      // tratar como falha recarregava e o áudio voltava a tocar sozinho após o usuário pausar.
+      if (err?.name === "AbortError") return;
       logAudioPlayFailure(el, err);
       autoPlayRef.current = { ate: Date.now() + 10_000, tentativas: 0 };
       solicitarInicioPlayback(false); // continua vigiando a recarga disparada pela falha
@@ -684,6 +714,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
       e.preventDefault();
       e.stopPropagation();
       pointerToggleRef.current = true;
+      // Sem `click` depois do toque (gesto cancelado), a marca não pode engolir o próximo clique.
+      setTimeout(() => { pointerToggleRef.current = false; }, 700);
       void toggle();
     },
     [toggle]

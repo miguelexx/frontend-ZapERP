@@ -96,6 +96,20 @@ export function classifyStuckStart({ playing, progressed, alreadyRecovered }) {
  * Não força reload no início (posição 0): ali o `play()` já dispara o fetch como sempre — evita
  * recarregar à toa o primeiro play.
  */
+/**
+ * Primeiro play "a frio": elemento sem erro, ainda sem metadados (readyState 0) e na posição
+ * inicial. Aqui NÃO há o que recarregar nem posição a restaurar — o `play()` direto, dentro do
+ * gesto do usuário, já dispara/continua o download e toca quando houver dado. Recarregar
+ * (load → canplay → play) abortava o download em andamento a cada clique, não dava retorno
+ * visual e, no iOS, perdia o gesto (o `canplay` pode nunca vir sem um play() explícito).
+ */
+export function canPlayDirectlyFromStart({ hasError, readyState, currentTime }) {
+  if (hasError) return false;
+  if ((Number(readyState) || 0) !== 0) return false;
+  const t = Number(currentTime) || 0;
+  return Number.isFinite(t) && t >= 0 && t <= 0.25;
+}
+
 export function needsReloadBeforeResume({ hasError, readyState, positionCovered, currentTime }) {
   if (hasError) return true;
   const rs = Number(readyState) || 0;

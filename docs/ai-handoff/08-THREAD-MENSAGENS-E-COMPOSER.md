@@ -620,3 +620,27 @@ Pendente (não alterado): bolha de mídia com erro e sem id do servidor não tem
 (`reuseTempId` é código morto); falha que resolve com a conversa fechada deixa a bolha em cache
 como pendente até o próximo refresh; áudio enviado logo após outro que caiu na fila pode chegar
 antes dele; item recusado pela fila de mídia (>64 MB, 31º item) fica em "verificando".
+
+---
+
+## 2026-10-09 — Áudio recebido que só tocava após F5 (recebimento)
+
+**Causa-raiz:** `preserveLocalMediaFields` gravava `url_absoluta = prev.url` ao rejeitar uma URL
+atrasada do provedor; nada a atualizava depois. Quando a linha avançava para `/media/r2`, ficava
+`{url: '/media/r2/…', url_absoluta: '/uploads/…'}` e `getMediaUrl` preferia `url_absoluta` — o
+player pedia o `/uploads` já purgado (404). O F5 reconstruía a linha só com `url`.
+
+| Onde | Correção |
+|------|----------|
+| `conversaOutboundMediaMerge.preserveLocalMediaFields` | Não inventa `url_absoluta`; fora de blob ela nunca diverge de `url` (saneia estado herdado); `/media/r2` não é rebaixado para `/uploads` por evento/GET atrasado |
+| `conversaViewHelpers.getMediaUrl` | `url` vence; `url_absoluta` só na frente se for blob ou se não houver `url` |
+| `inboundMediaReprocess.aplicarUrlRecuperadaNaStore` | Patch `{url, url_absoluta}` e não sai cedo se `url_absoluta` estiver velha |
+| `useAudioPlayback.toggle` | Play "a frio" (`readyState 0`, posição 0, sem erro) chama `play()` direto no gesto (`canPlayDirectlyFromStart`) — antes recarregava a cada clique, sem retorno visual, e perdia o gesto no iOS |
+| idem | `AbortError` não é falha (áudio voltava a tocar sozinho após pausar durante o carregamento) |
+| idem | Desistência dos vigias zera `playingRef`/janela (clique seguinte era engolido); engasgo novo após progresso ganha nova recarga (teto 3); recarga não retoma "no fim"; marca de toque expira em 700 ms |
+| `utils/useOnlineStatus` | Reconfere `navigator.onLine` em `focus`/`pageshow`/`visibilitychange` (evento `online` perdido deixava o play bloqueado até F5) |
+
+Testes: `test:inbound-media-sequence` (7 cenários), `scripts/test-inbound-audio-url.mjs` (novo,
+rodar com `--import ./scripts/vite-env-shim.mjs`). Pendente, não alterado: `loadMore` com linha do
+cliente vencendo; auto-heal desiste após 3 falhas até o F5 (botão manual segue); troca
+Static→Virtual em 24 linhas remonta as bolhas; validar em iPhone real.

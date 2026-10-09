@@ -1439,6 +1439,14 @@ function isLocalUploadMediaMessage(m) {
   return raw.startsWith("/uploads/") || raw.startsWith("/media/r2/")
 }
 
+function isR2MediaUrl(u) {
+  return String(u || "").trim().startsWith("/media/r2/")
+}
+
+function isUploadsMediaUrl(u) {
+  return String(u || "").trim().startsWith("/uploads/")
+}
+
 function resolveClientTempId(msg) {
   const v = msg?.client_temp_id ?? msg?.clientTempId
   if (v == null || String(v).trim() === "") return null
@@ -1960,10 +1968,15 @@ function preserveLocalMediaFields(prev, merged) {
   // URL do CRM (/uploads/) tem prioridade sobre eco WebSocket sem mídia ou CDN externo.
   if (prevLocal && (!mergedHasUrl || !mergedLocal)) {
     next.url = prev.url
-    next.url_absoluta = prev.url_absoluta ?? prev.url
+    next.url_absoluta = prev.url_absoluta
   } else if (!mergedHasUrl && prevHasUrl) {
     next.url = prev.url
-    next.url_absoluta = prev.url_absoluta ?? prev.url
+    next.url_absoluta = prev.url_absoluta
+  } else if (isR2MediaUrl(prev.url) && isUploadsMediaUrl(merged.url)) {
+    // /media/r2 é o destino final; o /uploads correspondente é purgado do disco minutos depois.
+    // Evento atrasado ou GET antigo não pode devolver a linha ao /uploads.
+    next.url = prev.url
+    next.url_absoluta = prev.url_absoluta
   }
 
   if (prev.nome_arquivo && !next.nome_arquivo) next.nome_arquivo = prev.nome_arquivo
@@ -1987,6 +2000,15 @@ function preserveLocalMediaFields(prev, merged) {
       next.url = prevBlobUrl
       next.url_absoluta = prevBlobUrl
     }
+  }
+
+  // `url_absoluta` só existe no cliente (o backend não envia) e os players a preferem. Se ficar
+  // com uma URL antiga enquanto `url` avança (/uploads -> /media/r2), o áudio toca o arquivo já
+  // purgado e só o F5 corrige. Fora do blob otimista, ela nunca pode divergir de `url`.
+  const absFinal = String(next.url_absoluta || "").trim()
+  const urlFinal = String(next.url || "").trim()
+  if (absFinal && urlFinal && !absFinal.startsWith("blob:") && !urlFinal.startsWith("blob:") && absFinal !== urlFinal) {
+    next.url_absoluta = urlFinal
   }
 
   return next

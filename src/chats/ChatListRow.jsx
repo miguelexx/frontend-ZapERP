@@ -1302,6 +1302,7 @@ function ChatRow({
   pendentesFuncionarioSet = EMPTY_PENDENTES_SET,
   minuteTick,
   showWhatsappInstanceUi = false,
+  showResponsavelAtendimento = false,
 }) {
   const exibirAtendentesNoCard = useEmpresaStore((s) => s.empresa?.exibir_atendentes_no_card === true);
   // Badge "atendente responsável" é exclusivo da visão admin (perfil admin/administrador).
@@ -1486,15 +1487,19 @@ function ChatRow({
     [chat, currentUserId, currentUserName, exibirAtendentesNoCard, isAdminViewer]
   );
   const atendimentoAssigneeLabel = atendimentoAssigneeNames.join(", ");
-  // Admin: pill premium do atendente responsável, só em conversas em atendimento.
+  // Nome do responsável só no filtro Em atendimento. Fora dessa aba o card não mostra quem assumiu.
   const mostrarAtendenteAdmin =
+    showResponsavelAtendimento &&
     isAdminViewer &&
     !isGroup &&
     Boolean(atendimentoAssigneeLabel) &&
     isConversaEmAtendimentoBadge(chat);
   // Quando a pill admin aparece, ela substitui a linha simples de assignee (evita linha dupla).
   const mostrarAssigneeSimples =
-    exibirAtendentesNoCard && Boolean(atendimentoAssigneeLabel) && !mostrarAtendenteAdmin;
+    showResponsavelAtendimento &&
+    exibirAtendentesNoCard &&
+    Boolean(atendimentoAssigneeLabel) &&
+    !mostrarAtendenteAdmin;
 
   useEffect(() => {
     if (avatarRetryTimerRef.current != null) {

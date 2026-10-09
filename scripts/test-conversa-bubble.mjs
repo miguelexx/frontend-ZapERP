@@ -315,7 +315,8 @@ assert.equal(getReactionEmojiOptions(true).length, WA_REACTION_EMOJIS.length + 6
 assert.equal(formatCoords(-23.55052, -46.633308), "-23.55052, -46.63331");
 const parsed = parseLocationText("Av. Paulista • (-23.56, -46.65)");
 assert.equal(parsed.address, "Av. Paulista");
-assert.ok(buildStaticMapUrl(-23.5, -46.6).includes("staticmap.openstreetmap.de"));
+// Mapa estático desativado (serviço público fora do ar): a bolha usa o cartão sem imagem.
+assert.equal(buildStaticMapUrl(-23.5, -46.6), null);
 
 // ── Gestos ───────────────────────────────────────────────────────────────────
 assert.equal(LONG_PRESS_MS, 480);

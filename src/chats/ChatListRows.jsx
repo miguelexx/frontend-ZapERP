@@ -38,6 +38,7 @@ function renderChatListRow(c, selectedId, props) {
       pendentesFuncionarioSet={props.pendentesFuncionarioSet}
       minuteTick={props.minuteTick}
       showWhatsappInstanceUi={props.showWhatsappInstanceUi}
+      showResponsavelAtendimento={props.showResponsavelAtendimento}
     />
   );
 }
@@ -57,6 +58,7 @@ const ChatListRows = memo(function ChatListRows({
   openConversationId,
   onToggleMenu,
   pendentesFuncionarioSet,
+  showResponsavelAtendimento = false,
 }) {
   const showWhatsappInstanceUi = useWhatsappInstancesStore((s) => s.hasMultiple);
   const showAssigneeNames = useEmpresaStore((s) => s.empresa?.exibir_atendentes_no_card === true);
@@ -100,6 +102,7 @@ const ChatListRows = memo(function ChatListRows({
       pendentesFuncionarioSet,
       minuteTick,
       showWhatsappInstanceUi,
+      showResponsavelAtendimento,
     }),
     [
       onSelect,
@@ -111,6 +114,7 @@ const ChatListRows = memo(function ChatListRows({
       pendentesFuncionarioSet,
       minuteTick,
       showWhatsappInstanceUi,
+      showResponsavelAtendimento,
     ]
   );
 
@@ -122,8 +126,14 @@ const ChatListRows = memo(function ChatListRows({
   const waLabelsByConversa = useWhatsappLabelsStore((s) => s.byConversa);
   const estimateRowSize = useCallback(
     (index) =>
-      estimateChatListRowSize(chatsFiltrados[index], isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer),
-    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer, waLabelsByConversa]
+      estimateChatListRowSize(
+        chatsFiltrados[index],
+        isMobileLayout,
+        pendentesFuncionarioSet,
+        showAssigneeNames && showResponsavelAtendimento,
+        isAdminViewer && showResponsavelAtendimento
+      ),
+    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer, showResponsavelAtendimento, waLabelsByConversa]
   );
 
   // Identidade estável: getItemKey entra nas deps do memo de medidas do virtualizador
@@ -263,7 +273,8 @@ const ChatListRows = memo(function ChatListRows({
   prev.currentUserName === next.currentUserName &&
   prev.openConversationId === next.openConversationId &&
   prev.onToggleMenu === next.onToggleMenu &&
-  prev.pendentesFuncionarioSet === next.pendentesFuncionarioSet
+  prev.pendentesFuncionarioSet === next.pendentesFuncionarioSet &&
+  prev.showResponsavelAtendimento === next.showResponsavelAtendimento
   );
 });
 

@@ -16,6 +16,7 @@ import {
   IconMoon,
   IconSun,
   IconUsers,
+  IconUsersGroup,
   IconTicket,
 } from "@tabler/icons-react";
 import ZapERPLogo from "../brand/ZapERPLogo";
@@ -87,6 +88,7 @@ export default function MainLayout() {
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
   const canAccessDisparo = canAcessarDisparo(user);
+  const canAccessComunidades = ["admin", "administrador"].includes(String(user?.perfil || "").toLowerCase());
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
   const navItems = useMemo(
@@ -163,6 +165,13 @@ export default function MainLayout() {
           show: canAccessDisparo,
         },
         {
+          to: "/comunidades",
+          label: "Comunidades",
+          title: "Comunidades do WhatsApp",
+          icon: IconUsersGroup,
+          show: canAccessComunidades,
+        },
+        {
           to: "/configuracoes",
           label: "Configurações",
           title: "Configurações",
@@ -193,6 +202,7 @@ export default function MainLayout() {
       canAccessConfig,
       canAccessDashboard_,
       canAccessDisparo,
+      canAccessComunidades,
       canAccessHelpDesk,
       canAccessRespostasSalvas,
       canAccessSupervisao,

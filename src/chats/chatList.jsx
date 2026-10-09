@@ -1647,7 +1647,7 @@ export default function ChatList() {
 
       const routes = {
         novo_grupo: "/atendimento/novo-grupo",
-        nova_comunidade: "/atendimento/nova-comunidade",
+        nova_comunidade: "/comunidades",
       };
 
       const path = routes[type];

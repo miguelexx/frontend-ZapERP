@@ -16,6 +16,7 @@ import { createUnreadSnapshotSync } from "../chats/unreadSnapshotSync"
 import { removeChatIdFromFilterRowCaches, clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
 import { buildChatListFiltersScopeKey } from "../chats/chatListFiltersData"
 import { createReconnectRecovery } from "./reconnectRecovery"
+import { useComunidadesStore } from "../comunidades/comunidadesStore"
 import { useInternalChatNotifyStore } from "../internal-chat/internalChatNotifyStore"
 import { useHelpDeskNotifyStore } from "../helpdesk/helpDeskNotifyStore"
 import {
@@ -1020,6 +1021,11 @@ export function initSocket(token) {
   off(SOCKET_EVENTS.CONVERSA_ATRIBUIDA)
   off("atualizar_conversa")
   off("contato_atualizado")
+  off("comunidade_operacao_atualizada")
+  off("comunidade_operacao_concluida")
+  off("comunidade_operacao_pausada")
+  off("comunidade_item_atualizado")
+  off("comunidade_atualizada")
 
   let hadFirstConnect = false
   socket.on("connect", () => {
@@ -1142,6 +1148,17 @@ export function initSocket(token) {
       convStore.setTags((convStore.tags || []).filter(t => String(t.id) !== String(tag_id)))
     }
   })
+
+  /* Comunidades — progresso da fila de participantes (módulo admin; store atualizado só se montado) */
+  const onComunidadeEvent = (event) => (payload = {}) => {
+    if (shouldIgnoreByCompany(payload)) return
+    try { useComunidadesStore.getState().applyRealtime(event, payload) } catch (_) {}
+  }
+  socket.on("comunidade_operacao_atualizada", onComunidadeEvent("comunidade_operacao_atualizada"))
+  socket.on("comunidade_operacao_concluida", onComunidadeEvent("comunidade_operacao_concluida"))
+  socket.on("comunidade_operacao_pausada", onComunidadeEvent("comunidade_operacao_pausada"))
+  socket.on("comunidade_item_atualizado", onComunidadeEvent("comunidade_item_atualizado"))
+  socket.on("comunidade_atualizada", onComunidadeEvent("comunidade_atualizada"))
 
   /* Nova conversa criada (ex.: primeira mensagem via webhook) — só adiciona se API autorizar */
   socket.on("nova_conversa", (payload) => {

@@ -80,11 +80,13 @@ export function chatRowPropsAreEqual(prev, next) {
     prev.onToggleMenu === next.onToggleMenu &&
     prev.currentUserId === next.currentUserId &&
     prev.currentUserName === next.currentUserName &&
-    prev.showWhatsappInstanceUi === next.showWhatsappInstanceUi
+    prev.showWhatsappInstanceUi === next.showWhatsappInstanceUi &&
+    prev.showResponsavelAtendimento === next.showResponsavelAtendimento
   ) {
     return true;
   }
   if (prev.showWhatsappInstanceUi !== next.showWhatsappInstanceUi) return false;
+  if (prev.showResponsavelAtendimento !== next.showResponsavelAtendimento) return false;
   const a = prev.chat || {};
   const b = next.chat || {};
   const pa = rowPrefs(a);
