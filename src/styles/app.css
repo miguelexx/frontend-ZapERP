@@ -1822,19 +1822,30 @@ body:has(.login-wrap) {
    MOBILE — legibilidade, toque, sem zoom iOS
 ============================== */
 
-@media (max-width: 480px) {
+/*
+ * ZOOM AUTOMATICO DO iOS AO FOCAR UM CAMPO.
+ *
+ * O Safari (e o Chrome do iPhone) dao zoom na pagina inteira quando o campo focado tem
+ * font-size COMPUTADO abaixo de 16px; sair do zoom depois exige pinca. Esta regra existia, mas
+ * medicao em 13/10/2026 com o CSS real mostrou que ela nao cobria o caso:
+ *
+ *   - `max-width: 480px` deixava de fora celular DEITADO (667-932px) e tablet: a 600px e a
+ *     768px, 16 de 16 campos testados davam zoom.
+ *   - `textarea` e `select` "nus" valem (0,0,1) de especificidade e PERDIAM para qualquer
+ *     regra com classe, como `.wb-field select` (0,1,1). A 375px, 7 de 16 campos ainda davam
+ *     zoom — todos select/textarea. O `input` escapava so por acidente: a cadeia de
+ *     `:not([type=...])` lhe da (0,5,1) e vence as regras de classe.
+ *
+ * Por isso agora: `pointer: coarse` (o zoom so existe em tela de toque; janela estreita no
+ * desktop mantem o desenho compacto de 12-14px) e `!important`, para nao depender de aritmetica
+ * de especificidade contra cada componente. `max(16px, 1em)` preserva campos intencionalmente
+ * maiores, porque `1em` aqui e o tamanho do PAI.
+ */
+@media (pointer: coarse) and (max-width: 1024px) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
   textarea,
   select {
-    font-size: max(16px, 1em);
-  }
-
-  .page input {
-    font-size: max(16px, 1em);
-  }
-
-  .login-form input {
-    font-size: max(16px, 1em);
+    font-size: max(16px, 1em) !important;
   }
 }
 
