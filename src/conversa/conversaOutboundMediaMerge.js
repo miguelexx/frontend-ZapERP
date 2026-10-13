@@ -1,5 +1,6 @@
 /** Merge/dedupe de mensagens — módulo puro (sem React/socket) para store + testes. */
 import { pollOptionHashClient } from "./utils/pollOptionHash.js"
+import { observeServerTimestamp } from "./serverClockSkew.js"
 
 function cleanupOptimisticBlobFields(merged) {
   if (!merged || typeof merged !== "object") return merged
@@ -2025,6 +2026,11 @@ function pickCanonicalMergedCriadoEm(existing, incoming) {
   const incomingHasCanonicalTime = !hasFallbackTimestamp(incoming) && Number.isFinite(ti)
 
   if (hasPersistedMessageIdentity(incoming) && incomingHasCanonicalTime) {
+    // Bolha otimista virando persistida = horário do servidor FRESCO, recém-gravado.
+    // É a única amostra confiável de dessincronia entre os relógios (histórico por GET
+    // mediria a idade da mensagem, não o offset). Alimenta a âncora dos próximos envios
+    // para que a reconciliação não reordene uma rajada.
+    if (isPendingOutgoingTemp(existing)) observeServerTimestamp(ti)
     return new Date(ti).toISOString()
   }
   if (Number.isFinite(te)) return new Date(te).toISOString()

@@ -109,8 +109,30 @@ export function pushSupported() {
   )
 }
 
+/*
+ * A chave VAPID é pública, estática e idêntica para todo mundo, mas era buscada a cada
+ * chamador: no boot do atendimento saíam DUAS requisições (auditoria 10/10/2026). Cacheia o
+ * resultado bem-sucedido e compartilha a promessa em voo para chamadas simultâneas.
+ * Falha NÃO é cacheada — senão um erro de rede no boot desligaria push até o próximo F5.
+ */
+let vapidCache = null
+let vapidInFlight = null
+
 /** GET chave pública VAPID (sem auth). */
 export async function fetchVapidPublicKey() {
+  if (vapidCache) return vapidCache
+  if (vapidInFlight) return vapidInFlight
+  vapidInFlight = fetchVapidPublicKeyUncached()
+  try {
+    const resultado = await vapidInFlight
+    if (resultado?.ok) vapidCache = resultado
+    return resultado
+  } finally {
+    vapidInFlight = null
+  }
+}
+
+async function fetchVapidPublicKeyUncached() {
   const base = getApiBaseUrl()
   const endpoints = ["/usuarios/push/vapid-public-key", "/users/push/vapid-public-key"]
   for (const ep of endpoints) {

@@ -96,14 +96,14 @@ export default function HelpDeskGlobalSocketBridge() {
       return undefined
     }
 
-    let cancelled = false
-    listHelpDeskNotifications({ limit: 100 })
-      .then((payload) => {
-        if (!cancelled) useHelpDeskNotifyStore.getState().hydrate(payload)
-      })
-      .catch(() => {})
-
-    return () => { cancelled = true }
+    /*
+     * A carga inicial fica a cargo do efeito do lembrete logo abaixo, que já chama
+     * `remindOpenTickets()` na montagem e hidrata esta mesma store com o mesmo payload.
+     * Com a busca aqui também, as duas saíam juntas: a auditoria de 10/10/2026 flagrou
+     * dois GET /api/helpdesk/notifications com 2 ms de diferença no boot. Este efeito fica
+     * só com o reset de quem não é a empresa do HelpDesk.
+     */
+    return undefined
   }, [user?.company_id, user?.id])
 
   useEffect(() => {

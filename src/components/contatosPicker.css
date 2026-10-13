@@ -37,8 +37,8 @@
   width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
   background: var(--ds-accent-soft, rgba(30,111,232,0.12)); color: var(--ds-accent, #1e6fe8);
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
 }
-.cp-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .cp-rowMeta { display: flex; flex-direction: column; min-width: 0; }
 .cp-rowName { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ds-text-primary, #0f172a); }
 .cp-rowSub { font-size: 12px; color: var(--ds-text-tertiary, #64748b); }

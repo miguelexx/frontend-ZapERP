@@ -4,6 +4,7 @@ import { useAuthStore } from "../auth/authStore";
 import { isGroupConversation } from "../utils/conversaUtils";
 import { getDisplayName } from "../chats/chatListDisplay";
 import { allocStableInsertSeq, isOutgoingLike, toMillis } from "./conversaOutboundMediaMerge";
+import { estimatedServerNowMs } from "./serverClockSkew";
 import {
   fileToPreviewURL,
   getAudioFilename,
@@ -86,7 +87,10 @@ function nextOptimisticInsertTiming() {
     existing = [];
   }
   return {
-    criado_em: resolveOptimisticCriadoEm(Date.now() + ord, existing),
+    // Relógio do SERVIDOR estimado (não `Date.now()`): `criado_em` é gravado pelo backend,
+    // e com os relógios dessincronizados a reconciliação jogava a mensagem para frente,
+    // deixando uma bolha otimista mais nova atrás dela (rajada fora de ordem).
+    criado_em: resolveOptimisticCriadoEm(estimatedServerNowMs() + ord, existing),
     _stableInsertSeq: allocStableInsertSeq(),
   };
 }
@@ -410,7 +414,8 @@ function forwardBodyFromSource(src) {
 export function buildOptimisticForwardMessages(destConversaId, sourceMsgs) {
   if (destConversaId == null || !Array.isArray(sourceMsgs) || !sourceMsgs.length) return [];
   const cid = normalizeOptimisticConversaId(destConversaId);
-  const baseMs = Date.now();
+  // Mesma razão do envio normal: a âncora segue o relógio do servidor, não o do navegador.
+  const baseMs = estimatedServerNowMs();
   return sourceMsgs.map((src, idx) => {
     const tempId = createOptimisticTempId();
     const tipoRaw = String(src?.tipo || "texto").toLowerCase();

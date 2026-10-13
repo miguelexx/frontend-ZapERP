@@ -237,66 +237,42 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
          * renderiza o que sabe (PDF, XML, imagens, texto) e baixa os que não sabe
          * (zip, exe, Office) — download imposto pelo navegador, nenhum site evita.
          *
-         * Arquivo em /uploads (ou mídia nossa): `<a>` nativo. Arquivo recebido que
-         * ainda depende da URL do provedor: botão que abre com recuperação (evita a
-         * aba em branco quando o link do provedor já expirou).
+         * Sempre botão + busca autenticada (nunca `<a href>` com o token na URL).
+         * O href carregava o JWT de sessão inteiro na query — e esse JWT é de 30 dias,
+         * com o perfil do usuário dentro. Como "Abrir"/"Salvar como..." são exatamente
+         * os controles que o atendente copia e repassa ("segue o arquivo"), o link virava
+         * uma credencial compartilhável, além de entrar no histórico e na barra de
+         * endereços. `handleOpen` já baixava o binário autenticado e abria por blob:
+         * aqui só deixamos de ter os dois caminhos (auditoria 10/10/2026).
          */}
-        {needsRecovery ? (
-          <button
-            type="button"
-            className="wa-bubble-fileAction"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpen();
-            }}
-            disabled={selectMode || busy}
-            aria-busy={busy ? "true" : undefined}
-          >
-            {abrirLabel}
-          </button>
-        ) : (
-          <a
-            href={selectMode ? undefined : openHref}
-            target="_blank"
-            rel="noreferrer"
-            className="wa-bubble-fileAction"
-            aria-disabled={selectMode || !openHref}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (selectMode || !openHref) e.preventDefault();
-            }}
-          >
-            Abrir
-          </a>
-        )}
+        <button
+          type="button"
+          className="wa-bubble-fileAction"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpen();
+          }}
+          disabled={selectMode || busy || (!openHref && !needsRecovery)}
+          aria-busy={busy ? "true" : undefined}
+        >
+          {abrirLabel}
+        </button>
         {showSave ? (
           <>
             <span className="wa-bubble-fileActionSep" aria-hidden="true">·</span>
-            {needsRecovery ? (
-              <button
-                type="button"
-                className="wa-bubble-fileAction"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDownload();
-                }}
-                disabled={selectMode || busy}
-                aria-busy={busy ? "true" : undefined}
-              >
-                {salvarLabel}
-              </button>
-            ) : (
-              <a
-                href={downloadHref || mediaUrl}
-                download={nome}
-                className="wa-bubble-fileAction"
-                onClick={(e) => e.stopPropagation()}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Salvar como...
-              </a>
-            )}
+            {/* Mesmo motivo do "Abrir": `<a href>` expunha o token de sessão na URL. */}
+            <button
+              type="button"
+              className="wa-bubble-fileAction"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload();
+              }}
+              disabled={selectMode || busy}
+              aria-busy={busy ? "true" : undefined}
+            >
+              {salvarLabel}
+            </button>
           </>
         ) : null}
       </div>

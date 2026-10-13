@@ -465,6 +465,14 @@ export function useConversationOutboundMedia({
         });
         files = files.slice(0, MAX_FOTOS_LOTE_ENVIO);
       }
+      // Uma foto só => tela de confirmação com legenda/editor, igual ao documento e ao
+      // arrastar-e-soltar (mesma regra de `handleIncomingFiles`). Antes a galeria era o
+      // ÚNICO caminho que disparava direto para o cliente: anexou errado, já foi, sem
+      // chance de revisar nem legendar (auditoria 10/10/2026). Lote segue em lote.
+      if (files.length === 1) {
+        handleDropFile(files[0]);
+        return;
+      }
       if (!podeEnviar) {
         showToast({
           type: "warning",
@@ -627,6 +635,7 @@ export function useConversationOutboundMedia({
       debugMessageBoundary,
       podeEnviar,
       showToast,
+      handleDropFile,
       garantirConversaAbertaParaEnvio,
       focusMessageInput,
       marcarMensagemTempErro,
@@ -640,7 +649,7 @@ export function useConversationOutboundMedia({
       beginSearchResultSendTransition,
     ]
   );
-  
+
   const handleIncomingFiles = useCallback(
     async (incomingFiles) => {
       let files = Array.from(incomingFiles || []).filter(Boolean);

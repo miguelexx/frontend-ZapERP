@@ -14,6 +14,7 @@ import {
   attachRecordedAudioMetadata,
   audioExtensionFromMime,
   inspectRecordedAudioBlob,
+  pickRecordedDurationMs,
   pickRecordingMimeType,
 } from "../utils/recordedAudio";
 
@@ -245,10 +246,7 @@ export function useVoiceRecording({
           const rawDurationMs = Number.isFinite(metadata.durationSec)
             ? Math.round(metadata.durationSec * 1000)
             : null;
-          const durationMs =
-            rawDurationMs !== null && rawDurationMs <= elapsedMs * 2 + 5000
-              ? rawDurationMs
-              : elapsedMs;
+          const durationMs = pickRecordedDurationMs({ rawDurationMs, elapsedMs });
           if (Number.isFinite(durationMs) && durationMs < RECORDED_AUDIO_MIN_MS) {
             showToast?.({
               type: "warning",

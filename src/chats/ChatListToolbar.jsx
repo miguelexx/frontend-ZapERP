@@ -4,6 +4,7 @@ import { isSupervisorOrAdmin } from "../auth/permissions";
 import AdminAtendenteFilter from "./AdminAtendenteFilter";
 import { ChatListSearchBox } from "./ChatListSearchBox";
 import { Icon, Chip } from "./chatListUiPrimitives";
+import { buildChatListHintText } from "./chatListHint";
 
 function isAppAdmin(user) {
   return isSupervisorOrAdmin(user);
@@ -70,23 +71,16 @@ function ChatListToolbar({
   hasActivePendencia = false,
 }) {
   const isMainChipActive = (targetTab) => !hasActivePendencia && tab === targetTab;
-  const hintLoading = loading && !hasStoreChats;
-  const totalForHint =
-    activeFilterTotalCount != null && Number.isFinite(Number(activeFilterTotalCount))
-      ? Number(activeFilterTotalCount)
-      : null;
-  const searchActive = Boolean(String(searchInput || "").trim());
-  const hintText = hintLoading
-    ? "Carregando…"
-    : listRefreshing && !searchPending
-      ? "Atualizando…"
-      : searchActive && searchPending
-        ? `${filteredCount} ${filteredCount === 1 ? "resultado" : "resultados"}`
-      : adminPorFuncionarioAtivo
-        ? `${filteredCount} conversas`
-        : totalForHint != null
-          ? `${filteredCount} de ${totalForHint}`
-          : `${filteredCount} conversas`;
+  const hintText = buildChatListHintText({
+    loading,
+    hasStoreChats,
+    listRefreshing,
+    searchInput,
+    searchPending,
+    adminPorFuncionarioAtivo,
+    filteredCount,
+    activeFilterTotalCount,
+  });
 
   return (
     <div className="chat-list-toolbar">

@@ -54,13 +54,44 @@ export function inspectRecordedAudioBlob(blob) {
       URL.revokeObjectURL(url);
       resolve(result);
     };
+    // Guardado no `loadedmetadata`: em formatos com cabeçalho íntegro (m4a/mp4) esse valor
+    // já é correto. Se a varredura forçada abaixo não terminar a tempo, caímos nele em vez
+    // de devolver null — assim o resultado nunca fica PIOR que o comportamento anterior.
+    let duracaoNoMetadata = null;
     const timeoutId = setTimeout(() => {
-      finish({ durationSec: null, error: null, timedOut: true });
+      finish({ durationSec: duracaoNoMetadata, error: null, timedOut: true });
     }, RECORDED_AUDIO_METADATA_TIMEOUT_MS);
     audio.preload = "metadata";
+    const finishComDuracaoAtual = () => {
+      const d = Number(audio.duration);
+      const valida = Number.isFinite(d) && d > 0 ? d : null;
+      finish({ durationSec: valida ?? duracaoNoMetadata, error: null, timedOut: false });
+    };
     audio.onloadedmetadata = () => {
-      const durationSec = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null;
-      finish({ durationSec, error: null, timedOut: false });
+      /*
+       * Blob do MediaRecorder (WebM/Opus) não traz duração no cabeçalho, então em
+       * `loadedmetadata` o `duration` pode vir Infinity OU, pior, um valor PARCIAL que
+       * parece válido: a auditoria de 10/10/2026 gravou 16 s e leu 14 s aqui, enquanto o
+       * arquivo real tinha 17 s. Buscar além do fim força o navegador a varrer o stream e
+       * recalcular a duração real; `timeupdate` avisa quando terminou. Se nada disso
+       * acontecer, o timeout existente devolve null e quem chama usa o tempo cronometrado.
+       */
+      const d0 = Number(audio.duration);
+      if (Number.isFinite(d0) && d0 > 0) duracaoNoMetadata = d0;
+      try {
+        audio.ontimeupdate = () => {
+          audio.ontimeupdate = null;
+          try {
+            audio.currentTime = 0;
+          } catch {
+            /* ignore */
+          }
+          finishComDuracaoAtual();
+        };
+        audio.currentTime = 1e101;
+      } catch {
+        finishComDuracaoAtual();
+      }
     };
     audio.onerror = () => {
       finish({ durationSec: null, error: "decode_error", timedOut: false });
@@ -72,6 +103,31 @@ export function inspectRecordedAudioBlob(blob) {
       finish({ durationSec: null, error: "decode_error", timedOut: false });
     }
   });
+}
+
+/** Folga entre o cronômetro e o áudio real (atraso do mic no começo/fim da captura). */
+const DURACAO_TOLERANCIA_MS = 1500;
+
+/**
+ * Decide a duração que vai para a bolha: valor decodificado do arquivo x tempo cronometrado.
+ *
+ * O cronômetro (`elapsedMs`) é um bom piso — não dá para gravar 16 s e ter 14 s de conteúdo.
+ * O decodificado é melhor quando confiável, mas em blob do MediaRecorder ele erra para os
+ * dois lados: inflado (bug conhecido do WebM cru) e subestimado (leitura parcial — 10/10/2026
+ * mostrou 14 s para um arquivo de 17 s). O guard antigo só cobria o lado inflado.
+ */
+export function pickRecordedDurationMs({ rawDurationMs, elapsedMs } = {}) {
+  const bruto = Number(rawDurationMs);
+  const medido = Number(elapsedMs);
+  if (!Number.isFinite(medido) || medido <= 0) {
+    return Number.isFinite(bruto) && bruto > 0 ? bruto : null;
+  }
+  if (!Number.isFinite(bruto) || bruto <= 0) return medido;
+  // Inflado (ex.: WebM sem cabeçalho devolvendo minutos para segundos de áudio).
+  if (bruto > medido * 2 + 5000) return medido;
+  // Subestimado: leitura parcial do stream. O cronômetro é mais perto da verdade.
+  if (bruto < medido - DURACAO_TOLERANCIA_MS) return medido;
+  return bruto;
 }
 
 export function attachRecordedAudioMetadata(file, meta) {

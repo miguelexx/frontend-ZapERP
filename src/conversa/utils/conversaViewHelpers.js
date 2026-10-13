@@ -822,7 +822,27 @@ export async function fetchMediaBinaryAuthenticated(absoluteUrl) {
   } catch {
     /* ignore */
   }
-  const res = await fetch(absoluteUrl, {
+  /*
+   * Com o header Authorization montado, o `?access_token=` da URL é redundante — e o
+   * middleware do backend (authBearerOrQuery) lê o header PRIMEIRO, só caindo para a query
+   * quando não há header. Removê-lo evita que o JWT entre no log de acesso do servidor
+   * (vulnerabilidade já registrada em backend/CLAUDE.md). Sem header, a URL é preservada
+   * intacta, senão a requisição perderia a autenticação.
+   */
+  let urlRequisicao = absoluteUrl;
+  if (headers.Authorization) {
+    try {
+      const u = new URL(absoluteUrl, window.location.origin);
+      if (u.searchParams.has("access_token") || u.searchParams.has("token")) {
+        u.searchParams.delete("access_token");
+        u.searchParams.delete("token");
+        urlRequisicao = u.toString();
+      }
+    } catch {
+      /* URL relativa/estranha: segue como veio */
+    }
+  }
+  const res = await fetch(urlRequisicao, {
     method: "GET",
     headers,
     credentials: credentialedFetchMode(),

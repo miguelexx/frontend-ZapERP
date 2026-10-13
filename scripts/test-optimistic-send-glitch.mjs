@@ -9,6 +9,12 @@ import {
   shouldMoveSearchedConversationToMinhaFila,
 } from "../src/conversa/conversaOptimisticMessage.js";
 import { sortMensagensChronological } from "../src/conversa/conversaOutboundMediaMerge.js";
+import {
+  estimatedServerNowMs,
+  getServerClockSkewMs,
+  observeServerTimestamp,
+  resetServerClockSkew,
+} from "../src/conversa/serverClockSkew.js";
 import { pickListaUltimaMensagem } from "../src/chats/chatListRowAtendimento.js";
 import { useChatStore } from "../src/chats/chatsStore.js";
 
@@ -176,4 +182,71 @@ assert(useChatStore.getState().chatListActiveTab === "minha_fila", "aba publicad
 assert(useChatStore.getState().chatListSearchActive === false, "busca imediata deve ser desativada");
 assert(useChatStore.getState().chatListSearchDebounced === false, "busca debounced deve ser desativada");
 
-console.log("OK - bolha otimista e sincronização do card passaram.");
+// 7) Rajada fora de ordem por relógios dessincronizados (auditoria 10/10/2026).
+//    Medido em produção: o backend grava `criado_em` com o relógio DELE, ~3s adiantado.
+//    As 4 primeiras reconciliam e pulam para o horário do servidor; a 5ª, ainda otimista
+//    com horário do navegador, ficava ANTES de todas (7C-5 aparecia em 1º por ~10s).
+const T = Date.parse("2026-10-10T05:17:00.000Z");
+const ADIANTAMENTO = 3000;
+
+const persistida = (n) => ({
+  id: 1000 + n,
+  direcao: "out",
+  conteudo: `7C-${n}`,
+  criado_em: new Date(T + ADIANTAMENTO + n).toISOString(),
+  _stableInsertSeq: n,
+});
+const otimista = (n, criadoEmMs) => ({
+  tempId: `tmp-${n}`,
+  direcao: "out",
+  conteudo: `7C-${n}`,
+  criado_em: new Date(criadoEmMs).toISOString(),
+  _stableInsertSeq: n,
+});
+const rotulos = (lista) => sortMensagensChronological(lista).map((m) => m.conteudo).join(",");
+
+// 7a) Sem compensação (comportamento antigo): a 5ª nasce com o relógio do navegador e sobe.
+resetServerClockSkew();
+const semCorrecao = [persistida(1), persistida(2), persistida(3), persistida(4), otimista(5, T + 5)];
+assert.equal(
+  rotulos(semCorrecao),
+  "7C-5,7C-1,7C-2,7C-3,7C-4",
+  "cenário da auditoria deve mesmo embaralhar sem compensação — senão este teste não prova nada"
+);
+
+// 7b) Com a dessincronia observada, a bolha nasce no relógio do servidor e fica no fim.
+resetServerClockSkew();
+observeServerTimestamp(new Date(T + ADIANTAMENTO).toISOString(), T);
+assert.equal(getServerClockSkewMs(), ADIANTAMENTO, "offset deve refletir o adiantamento observado");
+
+const nascidaCorrigida = resolveOptimisticCriadoEm(
+  estimatedServerNowMs(T + 5),
+  [persistida(1), persistida(2), persistida(3), persistida(4)]
+);
+const comCorrecao = [persistida(1), persistida(2), persistida(3), persistida(4), {
+  ...otimista(5, 0),
+  criado_em: nascidaCorrigida,
+}];
+assert.equal(rotulos(comCorrecao), "7C-1,7C-2,7C-3,7C-4,7C-5", "rajada deve sair em ordem");
+
+// 7c) Sem amostra alguma o comportamento é idêntico ao anterior (degradação segura).
+resetServerClockSkew();
+assert.equal(getServerClockSkewMs(), 0, "sem amostras o offset deve ser zero");
+assert.equal(estimatedServerNowMs(T), T, "sem amostras a âncora não pode ser deslocada");
+
+// 7d) Amostra absurda (mensagem antiga / data inválida) não pode virar offset.
+resetServerClockSkew();
+observeServerTimestamp(new Date(T - 6 * 60 * 60 * 1000).toISOString(), T);
+observeServerTimestamp("nao-e-data", T);
+assert.equal(getServerClockSkewMs(), 0, "amostra fora do limite deve ser descartada");
+
+// 7e) Mediana descarta o outlier de uma requisição lenta isolada.
+resetServerClockSkew();
+[3000, 3100, 60000, 2900, 3050].forEach((d) =>
+  observeServerTimestamp(new Date(T + d).toISOString(), T)
+);
+const offset = getServerClockSkewMs();
+assert(offset >= 2900 && offset <= 3100, `mediana deve ignorar o outlier, obteve ${offset}`);
+resetServerClockSkew();
+
+console.log("OK - bolha otimista, sincronização do card e relógio do servidor passaram.");

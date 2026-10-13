@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSearch, IconUsers, IconX } from "@tabler/icons-react";
+import { IconSearch, IconX } from "@tabler/icons-react";
 import { getClientesComTotal } from "../api/configService";
 import "./contatosPicker.css";
 
@@ -7,6 +7,18 @@ const PAGE = 25;
 
 function soDigitos(s) {
   return String(s || "").replace(/\D/g, "");
+}
+
+// Iniciais do nome — evitamos carregar foto_perfil (URLs do WhatsApp/Facebook expiram e
+// devolvem 403, enchendo o console de erro e mostrando imagem quebrada numa lista grande).
+function iniciais(nome, telefone) {
+  const base = String(nome || "").trim();
+  if (base) {
+    const p = base.split(/\s+/).filter(Boolean);
+    return ((p[0]?.[0] || "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
+  }
+  const d = soDigitos(telefone);
+  return d.slice(-2) || "#";
 }
 function parseNumeros(texto) {
   return String(texto || "")
@@ -125,9 +137,7 @@ export default function ContatosPicker({ onPhonesChange, alreadyIn, maxHeight = 
           return (
             <label key={c.id} className={`cp-row ${ja ? "is-disabled" : ""}`}>
               <input type="checkbox" className="cp-check" checked={checked} disabled={ja} onChange={() => toggle(c)} />
-              <span className="cp-avatar">
-                {c.foto_perfil ? <img src={c.foto_perfil} alt="" /> : <IconUsers size={16} />}
-              </span>
+              <span className="cp-avatar">{iniciais(c.nome, c.telefone)}</span>
               <span className="cp-rowMeta">
                 <span className="cp-rowName">{c.nome || maskPhone(c.telefone)}</span>
                 <span className="cp-rowSub">{maskPhone(c.telefone)}{ja ? " · já no grupo" : ""}</span>

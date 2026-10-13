@@ -5,7 +5,6 @@ import {
   IconCamera as TablerCamera,
   IconChartBar,
   IconFileText,
-  IconLayoutGrid,
   IconMapPin,
   IconPhoto,
   IconSettings2,
@@ -87,23 +86,13 @@ function AttachmentMenu({
         <span className="wa-attachItem-icon wa-attachIcon-doc" aria-hidden="true">
           <IconPhoto size={16} strokeWidth={1.6} />
         </span>
-        <span>Fototeca/Galeria</span>
+        <span>Fotos e vídeos</span>
       </button>
-      <button
-        type="button"
-        className="wa-attachItem"
-        role="menuitem"
-        onClick={() => {
-          onOpenGallery();
-          onClose();
-        }}
-        disabled={sending || !conversaId || !podeEnviar}
-      >
-        <span className="wa-attachItem-icon wa-attachIcon-gallery" aria-hidden="true">
-          <IconLayoutGrid size={16} strokeWidth={1.6} />
-        </span>
-        <span>Galeria</span>
-      </button>
+      {/*
+       * Havia aqui um segundo item "Galeria" com onClick IDÊNTICO (onOpenGallery) — dois
+       * rótulos e dois ícones para exatamente a mesma ação, o que só fazia o atendente
+       * parar para decidir entre opções iguais (auditoria 10/10/2026).
+       */}
       <button
         type="button"
         className="wa-attachItem"

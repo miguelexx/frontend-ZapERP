@@ -23,6 +23,7 @@ const tests = [
   "test-audio-stress.mjs",
   "test-chat-list-fetch-params.mjs",
   "test-chat-list-admin-scope.mjs",
+  "test-chat-list-hint.mjs",
   "test-unread-and-minha-fila.mjs",
   "test-minha-fila-strict.mjs",
   "test-search-status-media.mjs",
