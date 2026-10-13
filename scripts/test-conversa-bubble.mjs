@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { classifyBubbleMessage, canEditMessage, getEditableComposerText, isMessageEdited, EDIT_WINDOW_MS } from "../src/conversa/bubble/utils/bubbleClassify.js";
 import { getRetryUiState, buildRetryPayload, buildAudioRetryPayload } from "../src/conversa/bubble/utils/bubbleRetry.js";
-import { resolveOutgoingTick } from "../src/conversa/bubble/utils/bubbleStatus.js";
+import { resolveOutgoingTick, temIdDoProvedor } from "../src/conversa/bubble/utils/bubbleStatus.js";
 import { formatCoords, parseLocationText, buildStaticMapUrl } from "../src/conversa/bubble/utils/locationFormat.js";
 import {
   normalizeAudioDuration,
@@ -377,5 +377,74 @@ assert.equal(typeof refreshed, "string");
 const audioMsgSrc = await readFile(new URL("../src/conversa/bubble/components/AudioMessage.jsx", import.meta.url), "utf8");
 assert.match(audioMsgSrc, /data-testid="audio-indisponivel"/);
 assert.match(audioMsgSrc, /wa-audioElHidden/);
+
+// --- Mensagem aceita pelo provedor nunca desenha relogio (producao, 13/10/2026) ----------
+// `whatsapp_id` so e gravado com id REAL devolvido pelo provedor (o backend diz isso
+// explicitamente e devolve status 'sent' junto). Entregues cujo ACK nao voltou ficavam
+// presas em pending/status_indefinido e apareciam como relogio: o atendente lia
+// "nao enviei" e reenviava, duplicando para o cliente.
+{
+  const WA = "PspI8aQmjtEc";
+
+  const presoComId = resolveOutgoingTick({ direcao: "out", status: "pending", status_mensagem: "pending", whatsapp_id: WA }, false);
+  assert.equal(presoComId.kind, "sent", "pending com whatsapp_id = enviada");
+  assert.ok(!/isPending/.test(presoComId.className), "nao pode ter classe isPending");
+
+  const indefinidoComId = resolveOutgoingTick({ direcao: "out", status: "status_indefinido", status_mensagem: "status_indefinido", envio_incerto: true, envio_demorado: true, whatsapp_id: WA }, false);
+  assert.equal(indefinidoComId.kind, "sent", "status_indefinido com whatsapp_id = enviada");
+  assert.ok(!/isPending|isDemorado/.test(indefinidoComId.className), "sem classe de pendente/demorado");
+  assert.equal(indefinidoComId.title, undefined, "sem titulo de 'verificando'");
+
+  const sendingComId = resolveOutgoingTick({ direcao: "out", status: "sending", status_mensagem: "sending", whatsapp_id: WA }, false);
+  assert.equal(sendingComId.kind, "sent", "sending com whatsapp_id = enviada");
+
+  // Nao inventa entrega: so o ACK real sobe para delivered/read.
+  const entregue = resolveOutgoingTick({ direcao: "out", status: "delivered", whatsapp_id: WA }, false);
+  assert.equal(entregue.kind, "delivered", "ACK de entrega continua mandando");
+
+  // SEM whatsapp_id o relogio permanece — nao escondemos envio de verdade nao confirmado.
+  const semId = resolveOutgoingTick({ direcao: "out", status: "pending", status_mensagem: "pending" }, false);
+  assert.equal(semId.kind, "pending", "sem whatsapp_id continua relogio");
+  const indefinidoSemId = resolveOutgoingTick({ direcao: "out", status: "status_indefinido", envio_incerto: true }, false);
+  assert.equal(indefinidoSemId.kind, "pending", "incerta sem id continua relogio");
+
+  // Erro real continua erro, mesmo com id: nao mascaramos falha informada pelo provedor.
+  const erroComId = resolveOutgoingTick({ direcao: "out", status: "erro", status_mensagem: "failed", whatsapp_id: WA }, false);
+  assert.equal(erroComId.kind, "err", "erro nao e mascarado por ter id");
+
+  // Fila offline (sem internet) continua aguardando conexao.
+  const offline = resolveOutgoingTick({ direcao: "out", status: "aguardando_conexao", aguardando_conexao: true }, false);
+  assert.equal(offline.kind, "pending", "offline continua pendente");
+
+  // whatsapp_id em branco nao confirma nada.
+  const idBranco = resolveOutgoingTick({ direcao: "out", status: "pending", whatsapp_id: "  " }, false);
+  assert.equal(idBranco.kind, "pending", "whatsapp_id em branco nao confirma");
+}
+
+// --- Erro "nosso" x erro do provedor (producao, 13/10/2026) -----------------------------
+// Quando o provedor RECUSA nao existe messageId, entao a linha fica `erro` SEM whatsapp_id.
+// Quando ele ACEITA e o ACK nunca chega, o servico de reconciliacao marca `erro` apos
+// PENDING_OUTBOUND_WHAPI_UNACKED_FAIL_MINUTES (120 min) — com whatsapp_id presente. Dizer
+// "Nao foi possivel enviar" nesse caso e falso: a mensagem chegou ao cliente, o atendente
+// reenviava e duplicava.
+{
+  assert.equal(temIdDoProvedor({ whatsapp_id: "PsoUK1JlvTAY_Po-wEuA2z_ovQ" }), true);
+  assert.equal(temIdDoProvedor({ whatsapp_id: "   " }), false);
+  assert.equal(temIdDoProvedor({ whatsapp_id: null }), false);
+  assert.equal(temIdDoProvedor({}), false);
+  assert.equal(temIdDoProvedor(null), false);
+
+  const retrySrc = await readFile(new URL("../src/conversa/bubble/components/MessageRetry.jsx", import.meta.url), "utf8");
+  assert.match(retrySrc, /aceitoPeloProvedor/, "MessageRetry precisa distinguir os dois erros");
+  assert.match(retrySrc, /o WhatsApp não confirmou a entrega/, "texto honesto para envio aceito");
+  assert.match(retrySrc, /Não foi possível enviar/, "recusa real mantém o texto antigo");
+  assert.match(retrySrc, /pode duplicá-la/, "o botão precisa avisar do risco de duplicar");
+
+  // Os dois pontos que renderizam o retry precisam passar a flag, senao o texto errado volta.
+  const shellSrc = await readFile(new URL("../src/conversa/bubble/ConversaBubbleShell.jsx", import.meta.url), "utf8");
+  assert.match(shellSrc, /aceitoPeloProvedor=\{temIdDoProvedor\(msg\)\}/, "bolha de texto liga a flag");
+  const audioSrc2 = await readFile(new URL("../src/conversa/bubble/components/AudioMessage.jsx", import.meta.url), "utf8");
+  assert.match(audioSrc2, /aceitoPeloProvedor=\{temIdDoProvedor\(msg\)\}/, "bolha de audio liga a flag");
+}
 
 console.log("OK — Bubble modular: tipos, status, retry, reply, gestos e áudio passaram.");

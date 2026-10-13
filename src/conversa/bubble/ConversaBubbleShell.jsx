@@ -10,6 +10,7 @@ import BubbleDeletedNotice from "./components/BubbleDeletedNotice";
 import { SwipeReplyTrack } from "../SwipeReplyTrack";
 import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
 import { classifyBubbleMessage, canDeleteMessageForEveryone, canEditMessage } from "./utils/bubbleClassify";
+import { temIdDoProvedor } from "./utils/bubbleStatus";
 import { buildRetryPayload } from "./utils/bubbleRetry";
 import { useMessageMenu } from "./hooks/useMessageMenu";
 import { useMessageGestures } from "./hooks/useMessageGestures";
@@ -498,6 +499,7 @@ const Bubble = memo(function Bubble({
               isRetrying={retry.isRetrying}
               onRetry={retry.onRetry}
               payload={buildRetryPayload(msg, retry)}
+              aceitoPeloProvedor={temIdDoProvedor(msg)}
             />
           ) : null}
         </div>

@@ -5,6 +5,7 @@ import { useAudioPlayback } from "../hooks/useAudioPlayback";
 import { AudioCaption } from "./MessageCaption";
 import MessageRetry from "./MessageRetry";
 import { buildAudioRetryPayload } from "../utils/bubbleRetry";
+import { temIdDoProvedor } from "../utils/bubbleStatus";
 import { canReprocessInboundMedia, requestInboundMediaReprocess } from "../utils/inboundMediaReprocess";
 
 function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, initialDuration, sentAtLabel, reprocessMedia, offlineAudioDisponivel = false, estaOffline = false }) {
@@ -250,6 +251,7 @@ export default function AudioMessage({
           isRetrying={isRetrying}
           onRetry={onRetry}
           payload={buildAudioRetryPayload(msg, retry)}
+          aceitoPeloProvedor={temIdDoProvedor(msg)}
         />
       ) : null}
     </div>

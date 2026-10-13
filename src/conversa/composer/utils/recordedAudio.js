@@ -105,16 +105,17 @@ export function inspectRecordedAudioBlob(blob) {
   });
 }
 
-/** Folga entre o cronômetro e o áudio real (atraso do mic no começo/fim da captura). */
-const DURACAO_TOLERANCIA_MS = 1500;
-
 /**
  * Decide a duração que vai para a bolha: valor decodificado do arquivo x tempo cronometrado.
  *
- * O cronômetro (`elapsedMs`) é um bom piso — não dá para gravar 16 s e ter 14 s de conteúdo.
- * O decodificado é melhor quando confiável, mas em blob do MediaRecorder ele erra para os
- * dois lados: inflado (bug conhecido do WebM cru) e subestimado (leitura parcial — 10/10/2026
- * mostrou 14 s para um arquivo de 17 s). O guard antigo só cobria o lado inflado.
+ * A duração decodificada é a verdade do ARQUIVO e tem precedência. O cronômetro
+ * (`elapsedMs`) só entra quando não há decodificação, ou quando ela vem absurdamente
+ * inflada (bug conhecido do WebM cru devolvendo minutos para segundos de áudio).
+ *
+ * NÃO existe guard de "subestimado". Teste em produção (13/10/2026) mostrou por que: um
+ * áudio com 12,97 s de conteúdo cronometrou 17 s, porque o cronômetro começa no clique e a
+ * captura só começa depois que o microfone é adquirido. O cronômetro é um TETO, não um piso.
+ * Um guard desses descartava a duração correta e publicava a inflada.
  */
 export function pickRecordedDurationMs({ rawDurationMs, elapsedMs } = {}) {
   const bruto = Number(rawDurationMs);
@@ -125,8 +126,6 @@ export function pickRecordedDurationMs({ rawDurationMs, elapsedMs } = {}) {
   if (!Number.isFinite(bruto) || bruto <= 0) return medido;
   // Inflado (ex.: WebM sem cabeçalho devolvendo minutos para segundos de áudio).
   if (bruto > medido * 2 + 5000) return medido;
-  // Subestimado: leitura parcial do stream. O cronômetro é mais perto da verdade.
-  if (bruto < medido - DURACAO_TOLERANCIA_MS) return medido;
   return bruto;
 }
 

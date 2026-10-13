@@ -6603,6 +6603,14 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   color: var(--wa-danger, #e5484d);
   line-height: 1.2;
 }
+/*
+ * "Enviada — o WhatsApp não confirmou a entrega" NÃO é falha: o provedor aceitou a mensagem
+ * (há whatsapp_id) e só não confirmou a tempo. Vermelho de erro aqui faz o atendente reenviar
+ * algo já entregue e duplicar no cliente — por isso âmbar de atenção, não vermelho.
+ */
+.wa-msgRetryHint--naoConfirmada {
+  color: var(--wa-warning, #b45309);
+}
 .wa-msgRetryBtn,
 .wa-audioRetryBtn {
   align-self: flex-start;

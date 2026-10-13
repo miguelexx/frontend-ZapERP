@@ -172,37 +172,42 @@ invalidateMicStream();
   releaseMicStream();
 }
 
-// --- Duração do áudio gravado (auditoria 10/10/2026) ---------------------------------
-// Caso real medido: cronômetro 16 s, leitura do blob 14 s, arquivo verdadeiro 17 s.
-// O guard antigo só rejeitava duração INFLADA, então os 14 s passavam e iam para a bolha.
+// --- Duração do áudio gravado -------------------------------------------------------
+// Evidência de produção (13/10/2026): um áudio com 12,97 s de conteúdo cronometrou 17 s,
+// porque o cronômetro começa no clique e a captura só começa após adquirir o microfone.
+// Logo o cronômetro é um TETO, não um piso: a duração DECODIFICADA tem precedência.
 {
   const S = 1000;
 
-  // 1) O caso da auditoria: decodificado bem abaixo do cronômetro => usa o cronômetro.
-  assert.equal(pickRecordedDurationMs({ rawDurationMs: 14 * S, elapsedMs: 16 * S }), 16 * S);
+  // 1) O caso medido em produção: decodificado abaixo do cronômetro é o valor CERTO.
+  assert.equal(pickRecordedDurationMs({ rawDurationMs: 12.97 * S, elapsedMs: 17 * S }), 12.97 * S);
 
-  // 2) Diferença pequena (atraso normal do microfone) => confia no arquivo.
+  // 2) Diferença pequena: também confia no arquivo.
   assert.equal(pickRecordedDurationMs({ rawDurationMs: 15.2 * S, elapsedMs: 16 * S }), 15.2 * S);
 
-  // 3) Decodificado maior que o cronômetro, dentro do razoável => confia no arquivo.
+  // 3) Decodificado acima do cronômetro, dentro do razoável: confia no arquivo.
   assert.equal(pickRecordedDurationMs({ rawDurationMs: 17 * S, elapsedMs: 16 * S }), 17 * S);
 
-  // 4) Inflado (WebM cru devolvendo minutos) => cronômetro. Comportamento antigo preservado.
+  // 4) Inflado (WebM cru devolvendo minutos) => cronômetro. Guard original preservado.
   assert.equal(pickRecordedDurationMs({ rawDurationMs: 70 * S, elapsedMs: 10 * S }), 10 * S);
+  assert.equal(pickRecordedDurationMs({ rawDurationMs: 25.1 * S, elapsedMs: 10 * S }), 10 * S);
+  // Limite exato do guard (2x + 5s) ainda é aceito como válido.
+  assert.equal(pickRecordedDurationMs({ rawDurationMs: 25 * S, elapsedMs: 10 * S }), 25 * S);
 
   // 5) Sem leitura do arquivo (decode falhou/timeout) => cronômetro.
   assert.equal(pickRecordedDurationMs({ rawDurationMs: null, elapsedMs: 9 * S }), 9 * S);
   assert.equal(pickRecordedDurationMs({ rawDurationMs: NaN, elapsedMs: 9 * S }), 9 * S);
   assert.equal(pickRecordedDurationMs({ rawDurationMs: 0, elapsedMs: 9 * S }), 9 * S);
 
-  // 6) Entrada degenerada não pode devolver lixo.
+  // 6) Entrada degenerada não devolve lixo.
   assert.equal(pickRecordedDurationMs({ rawDurationMs: 5 * S, elapsedMs: 0 }), 5 * S);
   assert.equal(pickRecordedDurationMs({}), null);
 
-  // 7) Invariante: o resultado nunca é menor que o cronômetro menos a tolerância.
-  for (const [raw, el] of [[14 * S, 16 * S], [1 * S, 60 * S], [15 * S, 15 * S], [8 * S, 9 * S]]) {
+  // 7) Invariante: o resultado NUNCA é maior que o cronômetro + folga. Não se grava mais
+  //    áudio do que o tempo que o botão ficou pressionado.
+  for (const [raw, el] of [[12.97 * S, 17 * S], [70 * S, 10 * S], [15 * S, 15 * S], [8 * S, 9 * S]]) {
     const out = pickRecordedDurationMs({ rawDurationMs: raw, elapsedMs: el });
-    assert.ok(out >= el - 1500, `duração ${out} abaixo do piso para cronômetro ${el}`);
+    assert.ok(out <= el * 2 + 5000, `duração ${out} acima do teto para cronômetro ${el}`);
   }
 }
 

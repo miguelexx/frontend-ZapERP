@@ -12,6 +12,7 @@ import { hasActivePushSubscription } from "../push/webPushClient"
 import { shouldDeferLocalNotificationToWebPush } from "../push/pushPlatform"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById, fetchUnreadSnapshot } from "../chats/chatService"
+import { createInFlightDeduper } from "../runtime/dedupeInFlight"
 import { createUnreadSnapshotSync } from "../chats/unreadSnapshotSync"
 import { removeChatIdFromFilterRowCaches, clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
 import { buildChatListFiltersScopeKey } from "../chats/chatListFiltersData"
@@ -664,27 +665,38 @@ function upsertModoSimplesListRowFromPayload(chatStore, payload, id) {
 /**
  * Adiciona conversa à lista somente se o backend autorizar (GET /chats/:id).
  * Evita vazamento visual entre setores via socket.
+ *
+ * O guard "já está no store" é avaliado ANTES do await, então dois eventos de socket da mesma
+ * conversa separados por poucos ms passavam os dois e disparavam dois GET idênticos. Medido em
+ * produção (13/10/2026): o mesmo detalhe buscado a 5 ms de distância, ~400-700 ms cada. Atinge
+ * toda conversa fora das 80 já carregadas — ou seja, a maioria. Compartilhar a requisição em
+ * voo resolve sem mudar semântica: o GET é idempotente e quem espera recebe o mesmo resultado.
  */
+const dedupeAddChat = createInFlightDeduper()
+
 async function addChatIfAuthorized(chatStore, conversaId) {
   if (conversaId == null || conversaId === "") return false
   if (getChatByIdFromStore(conversaId, chatStore.chats)) return false
-  try {
-    const data = await fetchChatById(conversaId)
-    const chat = data?.conversa ?? data
-    if (!chat?.id) return false
-    const latestStore = useChatStore.getState()
-    if (getChatByIdFromStore(chat.id, latestStore.chats)) {
-      latestStore.updateChat(chat)
-      maybeRestoreMinhaFilaRow(chat)
+
+  return dedupeAddChat(conversaId, async () => {
+    try {
+      const data = await fetchChatById(conversaId)
+      const chat = data?.conversa ?? data
+      if (!chat?.id) return false
+      const latestStore = useChatStore.getState()
+      if (getChatByIdFromStore(chat.id, latestStore.chats)) {
+        latestStore.updateChat(chat)
+        maybeRestoreMinhaFilaRow(chat)
+        return true
+      }
+      if (!shouldInsertChatRowInActiveList(chat, getActiveChatListView())) return false
+      if (latestStore.addChat(chat) === false) return false
+      maybeRestoreMinhaFilaRow(chat, { bumpStatusChips: true })
       return true
+    } catch (_) {
+      return false
     }
-    if (!shouldInsertChatRowInActiveList(chat, getActiveChatListView())) return false
-    if (latestStore.addChat(chat) === false) return false
-    maybeRestoreMinhaFilaRow(chat, { bumpStatusChips: true })
-    return true
-  } catch (_) {
-    return false
-  }
+  })
 }
 
 function emitMinhaFilaOptimisticMutation(rawPayload, opts = {}) {

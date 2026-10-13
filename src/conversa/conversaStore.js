@@ -1718,6 +1718,10 @@ export const useConversaStore = create((set, get) => {
         if (["sent", "enviada", "enviado", "delivered", "entregue", "read", "lida", "played"].includes(curStatus)) {
           return state
         }
+        // Com `whatsapp_id` o provedor já aceitou e identificou a mensagem (o backend só
+        // grava esse campo com id real). Ela saiu — marcar "incerta" fazia o atendente
+        // reenviar algo entregue (produção, 13/10/2026).
+        if (String(prev.whatsapp_id ?? "").trim()) return state
         const next = [...list]
         next[idx] = {
           ...prev,

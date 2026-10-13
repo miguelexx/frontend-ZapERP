@@ -39,6 +39,23 @@ function progressRank(v) {
     : null;
 }
 
+/**
+ * O provedor aceitou e identificou a mensagem?
+ *
+ * `whatsapp_id` só é gravado com um id REAL e rastreável devolvido pelo provedor. Quando o
+ * provedor RECUSA o envio não há id nenhum. Logo este campo separa dois erros que a tela
+ * tratava como um só:
+ *   - `erro` SEM id  → o provedor recusou. "Não foi possível enviar" é verdade.
+ *   - `erro` COM id  → o provedor aceitou e NÓS desistimos de esperar a confirmação
+ *     (o serviço de reconciliação marca erro após `PENDING_OUTBOUND_WHAPI_UNACKED_FAIL_MINUTES`,
+ *     120 min por padrão). Dizer "não foi possível enviar" aí é falso: em produção, em
+ *     13/10/2026, mensagens entregues ao cliente apareciam assim, o atendente reenviava e o
+ *     cliente recebia duplicado.
+ */
+export function temIdDoProvedor(msg) {
+  return !!safeString(msg?.whatsapp_id).trim();
+}
+
 export function resolveOutgoingTick(msg, isGroup) {
   const out = isOutgoingMessage(msg);
   if (!out) return null;
@@ -76,11 +93,33 @@ export function resolveOutgoingTick(msg, isGroup) {
     !isErr &&
     !statusJaConfirmado &&
     (s === "aguardando_conexao" || !!msg?.aguardando_conexao);
-  const isIndefinido = !isErr && !isAguardandoConexao && (s === "status_indefinido" || !!msg?.envio_incerto);
-  const isDemorado = !isErr && !isAguardandoConexao && !!(msg?.envio_demorado || isIndefinido);
-  const isRetry = !isErr && !isIndefinido && !isAguardandoConexao && !!(msg?.em_retry);
+  /*
+   * `whatsapp_id` só é gravado com um id REAL e rastreável devolvido pelo provedor — o
+   * backend é explícito sobre isso ("whatsapp_id só recebe IDs reais do WhatsApp", e a
+   * resposta do envio devolve `status: 'sent'` junto com ele). Logo, ter whatsapp_id
+   * significa que o WhatsApp ACEITOU a mensagem: ela saiu.
+   *
+   * Sem isto, uma mensagem entregue cujo ACK de entrega não voltou (status preso em
+   * pending/sending, ou rebaixada a `status_indefinido` pelo watchdog) desenhava RELÓGIO —
+   * o atendente lia "não enviei" e reenviava, duplicando para o cliente. Observado em
+   * produção em 13/10/2026: várias mensagens com whatsapp_id presente e status preso.
+   *
+   * O tique continua único (enviada) e só vira duplo com o ACK de entrega de verdade —
+   * não inventamos entrega, apenas paramos de negar o envio.
+   */
+  const temIdDoProvedor = !!safeString(msg?.whatsapp_id).trim();
+  const confirmadoPeloProvedor = temIdDoProvedor && !isErr && !isAguardandoConexao;
+
+  const isIndefinido =
+    !isErr && !isAguardandoConexao && !confirmadoPeloProvedor &&
+    (s === "status_indefinido" || !!msg?.envio_incerto);
+  const isDemorado =
+    !isErr && !isAguardandoConexao && !confirmadoPeloProvedor &&
+    !!(msg?.envio_demorado || isIndefinido);
+  const isRetry = !isErr && !isIndefinido && !isAguardandoConexao && !confirmadoPeloProvedor && !!(msg?.em_retry);
   const isPending =
     !isRetry &&
+    !confirmadoPeloProvedor &&
     (isAguardandoConexao ||
       isIndefinido ||
       s === "pending" ||
@@ -98,7 +137,7 @@ export function resolveOutgoingTick(msg, isGroup) {
     hasDeliveredAt ||
     hasDeliveredKeyword;
   const isSent = !isErr && !isPending && !isDelivered && !isRead &&
-    (!s || s === "sent" || s === "enviada" || s === "enviado");
+    (!s || s === "sent" || s === "enviada" || s === "enviado" || confirmadoPeloProvedor);
 
   const title = isAguardandoConexao
     ? "Aguardando conexão"

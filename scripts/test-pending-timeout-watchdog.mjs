@@ -141,5 +141,40 @@ assert(seq.next[0].envio_demorado !== true, "seq jovem intacta");
 assert(seq.next[1].envio_demorado === true, "seq soft demorada");
 assert(seq.next[2].status === "status_indefinido", "seq hard indefinida");
 
+// --- Mensagem JA ACEITA pelo provedor nao pode virar "incerta" (producao, 13/10/2026) ---
+// O backend so grava `whatsapp_id` com id REAL e rastreavel devolvido pelo provedor; a
+// resposta do envio inclusive devolve status 'sent' junto. Ter o id => a mensagem saiu.
+// O guard antigo testava whatsapp_id && status in [sent,delivered,read,played] — inalcancavel,
+// porque status nao-pendente ja retornava antes. Mensagens entregues viravam relogio e o
+// atendente reenviava, duplicando para o cliente.
+{
+  const velha = new Date(Date.now() - WATCHDOG_HARD_MS - 60_000).toISOString();
+  const media = new Date(Date.now() - WATCHDOG_SOFT_MS - 5_000).toISOString();
+
+  const comId = { direcao: "out", status: "pending", status_mensagem: "pending", whatsapp_id: "PspI8aQmjtEc", criado_em: velha };
+  assert(decidePendingWatchdogAction(comId) === "none", "com whatsapp_id: nunca marcar incerta");
+
+  const comIdSoft = { ...comId, criado_em: media };
+  assert(decidePendingWatchdogAction(comIdSoft) === "none", "com whatsapp_id: nem marcar demorada");
+
+  const comIdSending = { ...comId, status: "sending", status_mensagem: "sending" };
+  assert(decidePendingWatchdogAction(comIdSending) === "none", "sending com whatsapp_id tambem fica");
+
+  // Sem o id, o comportamento anterior continua valendo.
+  const semId = { direcao: "out", status: "pending", status_mensagem: "pending", criado_em: velha };
+  assert(decidePendingWatchdogAction(semId) === "mark_indefinido", "sem whatsapp_id: segue marcando incerta");
+  const semIdSoft = { direcao: "out", status: "pending", status_mensagem: "pending", criado_em: media };
+  assert(decidePendingWatchdogAction(semIdSoft) === "mark_demorado", "sem whatsapp_id: segue marcando demorada");
+
+  // whatsapp_id vazio/espaco nao conta como confirmacao.
+  const idVazio = { ...comId, whatsapp_id: "   " };
+  assert(decidePendingWatchdogAction(idVazio) === "mark_indefinido", "whatsapp_id em branco nao confirma");
+
+  // Na lista, a mensagem aceita sai intacta.
+  const r = applyPendingWatchdogToList([comId, semId]);
+  assert(r.next[0].status === "pending" && r.next[0].envio_incerto !== true, "lista: aceita intacta");
+  assert(r.next[1].status === "status_indefinido", "lista: sem id vira indefinida");
+}
+
 console.log(`pending-timeout-watchdog: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

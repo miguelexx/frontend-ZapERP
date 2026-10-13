@@ -42,10 +42,19 @@ export function decidePendingWatchdogAction(msg, now = Date.now()) {
     return "none";
   }
   if (!isPendingishStatus(status)) return "none";
-  // Já confirmado pelo provedor — nunca regressar.
-  if (msg.whatsapp_id && ["sent", "delivered", "read", "played"].includes(String(status).toLowerCase())) {
-    return "none";
-  }
+
+  /*
+   * O guard anterior testava `whatsapp_id && status in [sent, delivered, read, played]` —
+   * código MORTO: a linha acima já devolve "none" para qualquer status não-pendente, então
+   * esses quatro nunca chegavam aqui. A intenção ("provedor já confirmou, não regredir")
+   * estava certa; a condição é que nunca era satisfeita.
+   *
+   * O que vale é só a presença do id: o backend grava `whatsapp_id` apenas com um id REAL e
+   * rastreável devolvido pelo provedor. Ter o id significa que o WhatsApp aceitou a mensagem.
+   * Marcá-la "incerta" por tempo fazia o atendente reenviar algo já entregue (produção,
+   * 13/10/2026). Sem o id, o watchdog segue como antes.
+   */
+  if (String(msg.whatsapp_id ?? "").trim()) return "none";
   if (msg.envio_erro === true && String(status).toLowerCase() === "erro") return "none";
 
   const age = messageAgeMs(msg, now);
