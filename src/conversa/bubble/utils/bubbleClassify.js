@@ -98,7 +98,7 @@ export function isMessageEdited(msg) {
   return msg?.editado === true || msg?.editada === true;
 }
 
-function parseCriadoEmMs(criadoEm) {
+export function parseCriadoEmMs(criadoEm) {
   if (criadoEm == null || criadoEm === "") return NaN;
   if (criadoEm instanceof Date) {
     const t = criadoEm.getTime();

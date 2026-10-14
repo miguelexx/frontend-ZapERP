@@ -89,6 +89,8 @@ import {
   isInternalNoteEditTipo,
   CAPTION_EDIT_MAX_LEN,
   TEXT_EDIT_MAX_LEN,
+  EDIT_WINDOW_MS,
+  parseCriadoEmMs,
 } from "./bubble/utils/bubbleClassify";
 import Bubble from "./ConversaBubble";
 import { useConversationToast } from "./hooks/useConversationToast";
@@ -2129,6 +2131,22 @@ function ConversaViewBody() {
 
   const handleEditAction = useCallback((msg) => {
     if (!msg?.id) return;
+    // Segunda barreira da janela de 15 min (a primeira e o proprio item do menu, recalculado
+    // na abertura). Cobre o menu que ficou aberto na virada do prazo: sem isto o atendente
+    // entrava em edicao, redigitava o texto inteiro e so no "salvar" descobria que nao dava
+    // mais — perdendo o que escreveu e o rascunho que estava no composer.
+    if (!isInternalNoteEditTipo(msg)) {
+      const criadoMs = parseCriadoEmMs(msg?.criado_em);
+      const expirou = !Number.isFinite(criadoMs) || Date.now() - criadoMs >= EDIT_WINDOW_MS;
+      if (expirou) {
+        showToast({
+          type: "info",
+          title: "Prazo de edicao encerrado",
+          message: "O WhatsApp so permite editar mensagens enviadas ha menos de 15 minutos.",
+        });
+        return;
+      }
+    }
     if (composerRef.current?.isRecording?.()) {
       composerRef.current?.cancelRecording?.();
     }
@@ -2143,7 +2161,7 @@ function ConversaViewBody() {
     setEditingMessage(msg);
     composerRef.current?.setText?.(getEditableComposerText(msg));
     focusMessageInput({ force: true });
-  }, [conversaId, focusMessageInput]);
+  }, [conversaId, focusMessageInput, showToast]);
 
   const handleSaveEdit = useCallback(async (forcedText) => {
     const msg = editingMessageRef.current;
@@ -2191,6 +2209,12 @@ function ConversaViewBody() {
       conteudo: nextTexto,
       editado: true,
       editada: true,
+      // Sem `editada_em` aqui, a assinatura visual da linha (messageRowVisualSignature) podia
+      // nao mudar numa SEGUNDA edicao de texto longo: ela trunca o texto em 512 caracteres, e
+      // os flags ja estavam ligados. A bolha so repintava quando a resposta chegava. Com o
+      // carimbo, toda edicao muda a assinatura e pinta na hora; o rollback no catch restaura
+      // o valor anterior.
+      editada_em: new Date().toISOString(),
     };
     store.patchMensagem(msg.id, optimisticPartial, { conversa_id: conversaId, preserveOrder: true });
 

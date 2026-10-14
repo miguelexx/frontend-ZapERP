@@ -139,23 +139,6 @@ const Bubble = memo(function Bubble({
     () => canDeleteMessageForEveryone(msg, { out, currentUserId }),
     [out, currentUserId, msg?.autor_usuario_id, msg?.apagada_para_todos]
   );
-  const canEdit = useMemo(
-    () => canEditMessage(msg, { out, currentUserId, provider: whatsappInstanceProvider }),
-    [
-      out,
-      currentUserId,
-      whatsappInstanceProvider,
-      msg?.autor_usuario_id,
-      msg?.apagada_para_todos,
-      msg?.tipo,
-      msg?.direcao,
-      msg?.whatsapp_id,
-      msg?.criado_em,
-      msg?.status,
-      msg?.status_mensagem,
-      msg?.envio_erro,
-    ]
-  );
   const remetente = showRemetente && !out && (msg?.remetente_nome || msg?.remetente_telefone);
   const retry = useMediaRetry(msg, classified, { onReenviarFalha, onReenviarAudio });
   // Mídia recebida cuja cópia p/ /uploads não chegou pelo socket se cura sozinha (sem F5).
@@ -174,6 +157,23 @@ const Bubble = memo(function Bubble({
     menuBtnRef,
     menuElRef,
   } = useMessageMenu({ menuUsesBottomSheet });
+
+  /*
+   * A janela de edicao do WhatsApp (15 min) expira com o RELOGIO, nao com uma mudanca na
+   * mensagem. Antes isto era um useMemo com dependencias so de campos da mensagem: o
+   * `Date.now()` ficava congelado no ultimo render da linha — e o comparador de memo da
+   * linha (threadRowPropsAreEqual) existe justamente para evitar re-renders. Na pratica, uma
+   * mensagem lida aos 3 minutos nunca mais recalculava e o menu seguia oferecendo "Editar"
+   * horas depois; o atendente entrava em modo de edicao, redigitava o texto e so entao
+   * levava 409 EDIT_WINDOW_EXPIRED do backend.
+   *
+   * Avaliar na ABERTURA do menu custa nada (acontece uma vez por clique) e e sempre verdade
+   * no instante em que a opcao e exibida. A segunda barreira esta em handleEditAction, que
+   * reconfere antes de entrar em edicao — cobre o menu aberto na virada dos 15 minutos.
+   */
+  const canEdit = menuOpen
+    ? canEditMessage(msg, { out, currentUserId, provider: whatsappInstanceProvider })
+    : false;
 
   const openBubbleMedia = useCallback(
     (url, type) => {
