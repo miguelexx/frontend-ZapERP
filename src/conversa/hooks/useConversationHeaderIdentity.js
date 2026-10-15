@@ -6,6 +6,7 @@ import {
   buildConversaModoSimplesUiSource,
 } from "../../utils/conversaUtils";
 import { getDisplayName } from "../../chats/chatListDisplay";
+import { contactIdentitiesConflict } from "../../chats/chatContactIdentity";
 import { useChatStore, getChatByIdFromStore } from "../../chats/chatsStore";
 import { chatRowListStoreKey } from "../../chats/chatListStoreCompare";
 import { useWhatsappInstancesStore } from "../../chats/whatsappInstancesStore";
@@ -52,6 +53,9 @@ export function useConversationHeaderIdentity({
     return row ? getDisplayName(row) : "";
   });
 
+  const listaConfereComAberta =
+    !fromChat || !conversa || !contactIdentitiesConflict(conversa, fromChat);
+
   const nome = useMemo(() => {
     const valid = (v) => {
       const s = String(v || "").trim();
@@ -59,7 +63,7 @@ export function useConversationHeaderIdentity({
       return s;
     };
     const aberto = valid(conversa ? getDisplayName(conversa) : "");
-    const lista = valid(nomeLista);
+    const lista = listaConfereComAberta ? valid(nomeLista) : "";
     // Header estável: a row da lista já tem nome/foto; o GET não deve trocar o título ao chegar.
     if (lista) return lista;
     if (aberto) return aberto;
@@ -78,13 +82,12 @@ export function useConversationHeaderIdentity({
       "";
     if (tel && !isLidValue(tel)) return String(tel).trim();
     return "Contato";
-  }, [conversa, nomeLista, conversaId, isGroup]);
+  }, [conversa, nomeLista, conversaId, isGroup, listaConfereComAberta]);
 
   const rawAvatarUrl = isGroup
     ? (fromChat?.foto_grupo ?? conversa?.foto_grupo ?? null)
     : (
-        fromChat?.foto_perfil ??
-        fromChat?.foto_perfil_contato_cache ??
+        (listaConfereComAberta ? (fromChat?.foto_perfil ?? fromChat?.foto_perfil_contato_cache) : null) ??
         conversa?.foto_perfil ??
         conversa?.foto_perfil_contato_cache ??
         conversa?.cliente?.foto_perfil ??

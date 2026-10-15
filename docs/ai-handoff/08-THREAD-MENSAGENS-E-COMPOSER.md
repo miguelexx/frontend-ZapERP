@@ -644,3 +644,33 @@ Testes: `test:inbound-media-sequence` (7 cenários), `scripts/test-inbound-audio
 rodar com `--import ./scripts/vite-env-shim.mjs`). Pendente, não alterado: `loadMore` com linha do
 cliente vencendo; auto-heal desiste após 3 falhas até o F5 (botão manual segue); troca
 Static→Virtual em 24 linhas remonta as bolhas; validar em iPhone real.
+
+---
+
+## 2026-10-15 — Alarme falso "não foi possível enviar" (o frontend NÃO mascara)
+
+Relato com print: PDFs e texto em vermelho numa conversa em que o cliente já tinha recebido tudo.
+O pedido foi "tira o vermelho, deixa só a setinha", e a primeira tentativa fez exatamente isso:
+`erro` COM `whatsapp_id` passava a desenhar tique de enviada, sem bloco vermelho nem botão.
+
+**Essa tentativa foi revertida no mesmo dia, na revisão.** Motivo: `erro` com id também é
+produzido por falha que o provedor INFORMA — `providerRowIndicatesFailure`
+(`unsent`/`invalid`/`expired`/`failed`) e o ACK `failed` da Whapi, que o `statusZapi` aplica
+enquanto a linha ainda está em pending. Mascarar trocaria um alarme falso por uma **falha
+silenciosa**: o atendente veria ✓ numa mensagem que o WhatsApp recusou.
+
+Não existe marcador confiável para separar os dois casos no cliente: a reconciliação antiga
+gravava `status_mensagem: 'failed'`, e as falhas confirmadas pela varredura gravam o mesmo valor.
+
+**A correção está no backend** (doc 25, 2026-10-15): ele parou de inventar `erro` por decurso de
+prazo em linha que o provedor aceitou, e a varredura de reparo converte para `sent` as linhas já
+marcadas — cada bolha se corrige sozinha por socket, sem F5.
+
+Invariante para quem mexer aqui: **`erro` na UI significa "há evidência de falha"**. Se voltar a
+aparecer vermelho em mensagem entregue, o defeito é no backend que escreveu `erro`, não aqui.
+`bubbleStatus.resolveOutgoingTick` tem um comentário no ponto exato; os testes de
+`scripts/test-conversa-bubble.mjs` travam `erro` com id, `erro` sem id e `blocked` como erro.
+
+Mantido de antes (correto e não mexido): `pending`/`status_indefinido` COM id desenham tique de
+enviada — ali não há afirmação de falha, só ausência de ACK. E `MessageRetry` segue avisando
+"Reenviar mesmo assim / pode duplicá-la" quando há id.

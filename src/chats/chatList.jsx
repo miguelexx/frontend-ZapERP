@@ -40,6 +40,7 @@ import NovoContatoModal from "./NovoContatoModal";
 import { OPEN_CONVERSA_BY_PHONE_EVENT } from "./openConversaByPhoneBridge";
 import { ZAPERP_FOCUS_CHAT_SEARCH_EVENT } from "../atendimento/atendimentoUiEvents";
 import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
+import { contactIdentitiesConflict } from "./chatContactIdentity";
 const ProdutoConsultaPanel = lazy(() => import("../conversa/ProdutoConsultaPanel"));
 export { getDisplayName };
 import {
@@ -905,18 +906,32 @@ export default function ChatList() {
             nomeApi = nomeContatoCache || nomeCliente || nomeApi;
           }
           const nomeJaExiste = (existing?.contato_nome || existing?.nome || "").trim();
-          const contato_nome = nomeApi || nomeJaExiste || nomeContatoCache || nomeCliente || existing?.contato_nome || c?.contato_nome || c?.nome;
-          // Respostas parciais podem voltar com foto_perfil=null. Isso não significa remoção:
-          // preservamos a última URL válida e também aceitamos cache/nested/paths relativos.
-          const foto_perfil = pickPreferredAvatarUrl(c, existing);
+          // Outra pessoa no mesmo id de conversa (cliente_id/telefone): não herdar nome, foto nem cliente aninhado.
+          const identidadeTrocou = Boolean(
+            existing && !isGroupConversation(c) && contactIdentitiesConflict(existing, c)
+          );
+          const contato_nome = identidadeTrocou
+            ? (nomeApi || nomeContatoCache || nomeCliente || "")
+            : (nomeApi || nomeJaExiste || nomeContatoCache || nomeCliente || existing?.contato_nome || c?.contato_nome || c?.nome);
+          // Respostas parciais podem voltar com foto_perfil=null. Isso não significa remoção
+          // quando ainda é a mesma pessoa. Troca de identidade zera a foto antiga.
+          const foto_perfil = identidadeTrocou
+            ? pickPreferredAvatarUrl(c, null)
+            : pickPreferredAvatarUrl(c, existing);
           const mergedRow = mergeChatRowListaAtividade(
             {
               ...c,
               contato_nome,
+              nome_contato_cache: identidadeTrocou ? (contato_nome || null) : (c?.nome_contato_cache ?? existing?.nome_contato_cache),
+              cliente_nome: identidadeTrocou ? (contato_nome || null) : (c?.cliente_nome ?? existing?.cliente_nome),
               foto_perfil,
+              foto_perfil_contato_cache: identidadeTrocou
+                ? (foto_perfil || null)
+                : (c?.foto_perfil_contato_cache ?? existing?.foto_perfil_contato_cache),
               nome_grupo: c?.nome_grupo || existing?.nome_grupo,
               foto_grupo: c?.foto_grupo || existing?.foto_grupo,
-              cliente: c?.cliente || existing?.cliente,
+              cliente: identidadeTrocou ? (c?.cliente || null) : (c?.cliente || existing?.cliente),
+              clientes: identidadeTrocou ? (c?.clientes || null) : (c?.clientes || existing?.clientes),
             },
             existing
           );

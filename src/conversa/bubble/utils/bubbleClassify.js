@@ -40,6 +40,19 @@ export function getFallbackContentLabel(tipoMsg, textoRawNorm) {
   return "Mensagem";
 }
 
+/**
+ * Placeholder interno ("(mensagem)", "(áudio)") → rótulo legível, ou null quando o texto é do
+ * cliente e deve passar intacto. Mora aqui (e não no conversaMessageDisplay) para ser testável
+ * fora do bundle: aquele módulo importa um .jsx e não carrega em Node puro.
+ */
+export function placeholderSnippetLabel(snippet, kind) {
+  const s = String(snippet || "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "(mensagem)" || s === "(mensagem vazia)") return "Mensagem";
+  if (!MEDIA_PLACEHOLDER_TEXTS.has(s)) return null;
+  return getFallbackContentLabel(kind, s);
+}
+
 export function isPlaceholderCaptionText(texto, nomeArquivo, isGenericMessagePlaceholder = false) {
   return (
     !texto ||
@@ -237,7 +250,11 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     !!msg?.encaminhado ||
     (typeof msg?.texto === "string" && msg.texto.trimStart().startsWith("[Encaminhado]"));
   const inlineMeta = !showCaption || (!isImg && !isVideo && !isSticker);
-  const hasInlineMetaClass = inlineMeta && !isImg && !isVideo && !isSticker && !isAudioOrVoice;
+  // Áudio normalmente carrega a hora dentro do player (por isso fica de fora do meta inline).
+  // Sem URL não há player: a bolha cai no rótulo "🎤 Áudio" e precisa do meta inline, senão fica
+  // sem horário nenhum.
+  const hasInlineMetaClass =
+    inlineMeta && !isImg && !isVideo && !isSticker && (!isAudioOrVoice || !mediaUrl);
   const showFloatingMetaTime =
     (!inlineMeta || ((isImg || isSticker || isVideo) && !showCaption)) ||
     (isAudioOrVoice && !!mediaUrl);

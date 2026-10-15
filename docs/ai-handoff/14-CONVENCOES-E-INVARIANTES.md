@@ -13,7 +13,7 @@
 
 - Dedupe: `whatsapp_id` → `id` → `tempId`. Merge temp↔server no outbound.
 - Direção: normalizar `fromMe`/`from_me`/`isFromMe` → `direcao` in/out. Unread e notify só inbound.
-- Nome/foto sticky: nunca sobrescrever com vazio, “Conversa” ou chatName de outbound. Foto http **pode** ser substituída por outra URL http (sync UltraMSG / correção).
+- Nome/foto sticky só para a **mesma** pessoa (`cliente_id` ou telefone da mesma identidade WhatsApp). Celular com/sem 9º dígito é a mesma pessoa; fixo não herda o celular do 9 inserido. Se o cliente ou o telefone mudam, o card não reaproveita nome, foto nem `cliente` aninhado. Vazio, “Conversa” e `chatName` de mensagem outbound/grupo não substituem o contato. Foto http da mesma pessoa **pode** ser substituída por outra URL http.
 - Envio: bolha otimista imediata; reconciliar; outbox só texto; watchdog 45s/180s.
 - Drop mensagem se `conversa_id` ≠ conversa aberta.
 - **Não** recarregar a SPA sozinha (`location.reload` / `location.replace` em timer ou falha de chunk). O rascunho do composer vai para `sessionStorage` a cada tecla. Recarregar só no clique do usuário (ErrorBoundary).

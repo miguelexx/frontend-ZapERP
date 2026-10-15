@@ -10,6 +10,8 @@ import ProductMessage from "./ProductMessage";
 import PixMessage from "./PixMessage";
 import WhapiTriageMessage from "./WhapiTriageMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
+import MissingAudioRecover from "./MissingAudioRecover";
+import { canReprocessInboundMedia } from "../utils/inboundMediaReprocess";
 
 export default function BubbleTypedContent({
   includeAudioAndCall,
@@ -171,5 +173,24 @@ export default function BubbleTypedContent({
   if (hasText) {
     return <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />;
   }
-  return <FallbackMessage label={fallbackContentLabel} />;
+  // Áudio recebido sem URL: o player não monta, então o "tentar de novo" dele não existe.
+  // Esta bolha oferece a busca da mídia no provedor em vez de ficar um chip morto.
+  if (includeAudioAndCall && isAudioOrVoice && !mediaUrl && canReprocessInboundMedia(msg, out)) {
+    return (
+      <MissingAudioRecover
+        label={fallbackContentLabel}
+        msg={msg}
+        isGroup={isGroup}
+        inlineMeta={inlineMeta}
+      />
+    );
+  }
+  return (
+    <FallbackMessage
+      label={fallbackContentLabel}
+      inlineMeta={inlineMeta}
+      msg={msg}
+      isGroup={isGroup}
+    />
+  );
 }

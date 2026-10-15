@@ -1,5 +1,14 @@
 import { isGroupConversation } from "../utils/conversaUtils";
 import { getApiBaseUrl } from "../api/baseUrl";
+import { contactIdentitiesConflict, rowPhone } from "./chatContactIdentity";
+
+/** true quando o cliente aninhado é outra pessoa (telefone de identidade diferente). */
+function nestedClientBelongsToConversation(chat) {
+  if (!chat || isGroupConversation(chat)) return true;
+  const nested = chat.cliente || chat.clientes;
+  if (!nested?.telefone || !rowPhone(chat)) return true;
+  return !contactIdentitiesConflict({ telefone: rowPhone(chat) }, { telefone: nested.telefone });
+}
 
 /**
  * Aceita tanto URLs absolutas quanto caminhos devolvidos pela API.
@@ -24,13 +33,14 @@ export function resolveAvatarUrl(raw) {
 
 function getAvatarCandidates(chat) {
   const isGroup = isGroupConversation(chat);
+  const nestedOk = nestedClientBelongsToConversation(chat);
   return isGroup
     ? [chat?.foto_grupo, chat?.group_photo, chat?.photo_url, chat?.avatar_url]
     : [
         chat?.foto_perfil,
         chat?.foto_perfil_contato_cache,
-        chat?.cliente?.foto_perfil,
-        chat?.clientes?.foto_perfil,
+        nestedOk ? chat?.cliente?.foto_perfil : null,
+        nestedOk ? chat?.clientes?.foto_perfil : null,
         chat?.foto,
         chat?.photo_url,
         chat?.avatar_url,
@@ -82,11 +92,12 @@ export function getDisplayName(chat) {
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
     return formatPhoneForDisplay(getPhone(chat)) || "Grupo";
   }
+  const nestedOk = nestedClientBelongsToConversation(chat);
   const raw =
     chat?.contato_nome ??
     chat?.nome_contato_cache ??
-    chat?.cliente?.nome ??
-    chat?.clientes?.nome ??
+    (nestedOk ? chat?.cliente?.nome : null) ??
+    (nestedOk ? chat?.clientes?.nome : null) ??
     chat?.cliente_nome ??
     chat?.nome ??
     "";

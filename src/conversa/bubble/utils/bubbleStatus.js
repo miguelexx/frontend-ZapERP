@@ -87,6 +87,15 @@ export function resolveOutgoingTick(msg, isGroup) {
   const hasDeliveredKeyword = /entregue|deliver|receiv/.test(s);
   // "blocked" vem na resposta HTTP quando a proteção de envio barrou a mensagem (no banco a
   // linha fica 'erro'). Sem ele aqui, a bolha caía no fallback "sent" e a falha ficava invisível.
+  /*
+   * `erro` NUNCA é mascarado aqui, nem quando há id do provedor. Em 15/10/2026 cheguei a
+   * esconder esse caso (o relato era de mensagem entregue aparecendo como falha), mas a
+   * revisão mostrou que `erro` COM id também é produzido por falha que o provedor INFORMOU
+   * (`providerRowIndicatesFailure`: unsent/invalid/expired/failed, e o ACK `failed` da Whapi).
+   * Esconder isso trocaria um alarme falso por uma falha silenciosa. A correção certa é não
+   * deixar o backend inventar `erro` por decurso de prazo — feita em
+   * `pendingOutboundReconciliationService`, que ainda cura as linhas já marcadas.
+   */
   const isErr = s === "erro" || s === "error" || s === "failed" || s === "falhou" || s === "blocked";
   const statusJaConfirmado = CONFIRMED_STATUS.includes(s);
   const isAguardandoConexao =

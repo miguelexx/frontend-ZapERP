@@ -159,7 +159,7 @@ Busca com termo continua global. Fechar a thread na UI continua ≠ encerrar.
 - Preview da última mensagem não usa nome vazio do outbound.
 - Setor: socket não “inventa” conversa invisível; `addChatIfAuthorized`.
 - Fechar atendimento na API remove/atualiza row; fechar thread na UI não.
-- Foto: não limpar URL http válida. `contato_atualizado` / `conversa_atualizada` **podem** trocar a URL se a nova for http diferente (correção de foto trocada). Não usar `msg.photo` (mídia) como avatar.
+- Foto: não limpar URL http válida da **mesma** pessoa. `contato_atualizado` / `conversa_atualizada` **podem** trocar a URL se a nova for http diferente (correção de foto trocada). Se `cliente_id` ou o telefone forem de outra identidade, nome, foto e `cliente` aninhado não são herdados do card anterior. Evento `contato_atualizado` com telefone/cliente de outra pessoa é ignorado. `nova_mensagem` não copia `senderName`/`senderPhoto` de outbound nem de grupo para o card. Não usar `msg.photo` (mídia) como avatar. A trava visual do avatar (`lockCardAvatarUrl`) usa a assinatura da pessoa, não só o id da conversa.
 
 ## Auditoria estática de 2026-09-09
 

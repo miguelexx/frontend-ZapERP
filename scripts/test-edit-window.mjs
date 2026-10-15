@@ -34,9 +34,17 @@ const checar = (ok, msg) => {
 // ---------------------------------------------------------- camada 1: o shell
 const shell = ler("src/conversa/bubble/ConversaBubbleShell.jsx");
 
+// O invariante e a AVALIACAO sob menuOpen, nao uma sintaxe especifica: canEditMessage so
+// pode ser chamado dentro de um guard de menu aberto.
+const iGuard = shell.search(/if\s*\(\s*menuOpen\s*\)/);
+const iChamada = shell.indexOf("canEditMessage(");
 checar(
-  /const canEdit\s*=\s*menuOpen/.test(shell),
-  "canEdit precisa ser avaliado na abertura do menu (menuOpen), e nao memoizado por campos da mensagem"
+  iGuard >= 0 && iChamada > iGuard && iChamada - iGuard < 200,
+  "canEditMessage precisa ser avaliado sob `if (menuOpen)` — na abertura do menu, nunca memoizado por campos da mensagem"
+);
+checar(
+  /canEditLatchRef/.test(shell),
+  "o valor precisa ficar travado durante a animacao de saida do menu (useMotionPresence mantem o menu montado)"
 );
 checar(
   !/const canEdit\s*=\s*useMemo\(/.test(shell),

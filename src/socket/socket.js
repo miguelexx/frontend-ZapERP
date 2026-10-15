@@ -1,5 +1,6 @@
 import { io } from "socket.io-client"
 import { useChatStore, getChatByIdFromStore, getChatsByIdIndex } from "../chats/chatsStore"
+import { contactIdentitiesConflict } from "../chats/chatContactIdentity"
 import {
   normalizeMensagemStatusKey,
   ultimaMensagemRefsEqual,
@@ -1234,15 +1235,26 @@ export function initSocket(token) {
 
     /* Não fazer early-return por "jaExiste": anexarMensagem faz UPSERT — merge status/whatsapp_id se já existir */
 
-    // Nome/foto do CONTATO (quem estamos conversando): usar sempre que vier no payload
-    // Inbound: pushname do remetente. Outbound (envio pelo celular): sync UltraMSG traz nome/foto do destinatário
+    // Nome/foto do contato só em mensagem recebida de conversa individual.
+    // Outbound e grupo trazem a identidade de quem enviou, não a do dono do card.
     const isOutbound = msg?.direcao === "out" || msg?.fromMe
-    const nomeContato = (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
-      ? String(msg.chatName).trim()
-      : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
-        ? String(msg.senderName).trim()
-        : null
-    const fotoContato = (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http")) ? String(msg.senderPhoto).trim() : null
+    const isGroupMsg = msg?.isGroup || msg?.is_group || String(msg?.chatId ?? msg?.remoteJid ?? "").endsWith("@g.us")
+    // Outbound e grupo: chatName/senderPhoto são de quem enviou (atendente ou participante),
+    // não do contato dono do card. Não copiar essa identidade para a conversa.
+    const nomeContato = isOutbound || isGroupMsg
+      ? null
+      : (msg.chatName && String(msg.chatName).trim() && String(msg.chatName).trim() !== "name")
+        ? String(msg.chatName).trim()
+        : (msg.senderName && String(msg.senderName).trim() && String(msg.senderName).trim() !== "name")
+          ? String(msg.senderName).trim()
+          : null
+    const fotoContato = !isOutbound && !isGroupMsg && (msg.senderPhoto && String(msg.senderPhoto).trim().startsWith("http"))
+      ? String(msg.senderPhoto).trim()
+      : null
+    const msgIdentity = {
+      cliente_id: msg?.cliente_id,
+      telefone: msg?.telefone || msg?.phone || msg?.remetente_telefone,
+    }
 
     if (!jaNaLista) {
       // Não adicionar row inventada pelo socket — fetch autorizado (setor/atendente).
@@ -1257,15 +1269,17 @@ export function initSocket(token) {
         updateDocumentTitleFromChats()
       })
     } else {
-      // Só preenche quando vazio — nome NUNCA troca uma vez definido
-      if (nomeContato || fotoContato) {
+      // Só preenche quando vazio — e nunca com a identidade de outro telefone/cliente.
+      const rowAtual = getChatByIdFromStore(conversaId, chatStore.chats)
+      const identidadeMsgConflita = rowAtual && contactIdentitiesConflict(rowAtual, msgIdentity)
+      if ((nomeContato || fotoContato) && !identidadeMsgConflita) {
         chatStore.updateChatContato(conversaId, {
           contato_nome: nomeContato || undefined,
           foto_perfil: fotoContato || undefined
         })
       }
       // Grupos: preencher nome_grupo quando vier na mensagem e o chat ainda não tiver
-      const isGroup = msg?.isGroup || msg?.is_group || String(msg?.chatId ?? msg?.remoteJid ?? "").endsWith("@g.us")
+      const isGroup = isGroupMsg
       if (isGroup && nomeContato && String(nomeContato).trim() && String(nomeContato).toLowerCase() !== "name") {
         const c = getChatByIdFromStore(conversaId, chatStore.chats)
         const nomeGrupoAtual = c?.nome_grupo
@@ -1611,7 +1625,23 @@ export function initSocket(token) {
     if (idx >= 0) {
       const cur = chats[idx]
       const next = { ...cur }
+      const identidadePayload = {
+        cliente_id: Object.prototype.hasOwnProperty.call(payload, "cliente_id") ? payload.cliente_id : cur.cliente_id,
+        telefone: Object.prototype.hasOwnProperty.call(payload, "telefone") ? payload.telefone : cur.telefone,
+      }
+      const identidadeTrocou = contactIdentitiesConflict(cur, identidadePayload)
       if (payload.ultima_atividade != null) next.ultima_atividade = payload.ultima_atividade
+      if (identidadeTrocou) {
+        const nomeTroca = payload.contato_nome || payload.nome_contato_cache || null
+        const fotoTroca = payload.foto_perfil || payload.foto_perfil_contato_cache || null
+        next.contato_nome = nomeTroca
+        next.nome_contato_cache = nomeTroca
+        next.cliente_nome = nomeTroca
+        next.foto_perfil = fotoTroca
+        next.foto_perfil_contato_cache = fotoTroca
+        next.cliente = payload.cliente ?? null
+        next.clientes = payload.clientes ?? null
+      } else {
       if (payload.contato_nome != null && payload.contato_nome !== "") next.contato_nome = payload.contato_nome
       if (payload.nome_contato_cache != null && payload.nome_contato_cache !== "") next.nome_contato_cache = payload.nome_contato_cache
       // Foto: anti-flicker só contra limpar URL válida.
@@ -1642,6 +1672,7 @@ export function initSocket(token) {
         }
       } else if (nextFotoCache && nextFotoCache !== curFotoCache && !curFotoPerfil) {
         next.foto_perfil_contato_cache = nextFotoCache
+      }
       }
       if (payload.status_atendimento != null) next.status_atendimento = payload.status_atendimento
       if ("status_atendimento_real" in payload) next.status_atendimento_real = payload.status_atendimento_real
@@ -1989,6 +2020,8 @@ export function initSocket(token) {
     const { conversa_id, contato_nome, nome_contato_cache, nome_grupo, foto_perfil, foto_perfil_contato_cache, foto_grupo } = payload
     if (conversa_id == null) return
     if (shouldIgnoreByCompany(payload)) return
+    const rowContato = getChatByIdFromStore(conversa_id)
+    if (rowContato && contactIdentitiesConflict(rowContato, payload)) return
     const nome = contato_nome ?? nome_contato_cache
     const foto = foto_perfil ?? foto_perfil_contato_cache
     if (nome != null || foto != null || nome_grupo != null || foto_grupo != null) {

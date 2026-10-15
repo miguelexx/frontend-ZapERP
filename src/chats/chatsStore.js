@@ -5,6 +5,7 @@ import {
   ultimaMensagemPreviewEqual,
 } from "./chatListStoreCompare"
 import { chatRowStableKey } from "./chatRowStableKey"
+import { contactIdentitiesConflict } from "./chatContactIdentity"
 import { getChatListSortTimestampMs, sortChatListByRecent, pickNewerMessage, applyNewerOptimisticMembershipTo } from "./chatListRowAtendimento"
 import {
   CHAT_LIST_HIDDEN_CLOSED_TTL_MS,
@@ -403,23 +404,41 @@ export const useChatStore = create((set, get) => ({
       const existing = next[newIdx]
       const nomeAtual = (existing.contato_nome || existing.nome || existing.nome_contato_cache || "").trim()
       const nomeNovo = (mergedNome || "").trim()
-      // NOME IMUTÁVEL: se já temos nome válido (não "Conversa"), NUNCA trocar
-      const manterNome = nomeAtual && nomeAtual !== "Conversa" && nomeAtual.toLowerCase() !== "conversa"
+      // Mesma pessoa: não trocar um nome válido por vazio/"Conversa".
+      // Pessoa diferente (cliente_id ou telefone): não reaproveitar nome/foto do card anterior.
+      const identidadeTrocou = contactIdentitiesConflict(existing, merged)
+      const manterNome = !identidadeTrocou && nomeAtual && nomeAtual !== "Conversa" && nomeAtual.toLowerCase() !== "conversa"
       const nomeGrupoValido = (v) => v != null && String(v).trim() !== "" && !String(v).toLowerCase().startsWith("lid:")
       const updated = {
         ...existing,
         ...merged,
-        contato_nome: manterNome ? nomeAtual : (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : existing.contato_nome ?? mergedNome),
+        contato_nome: identidadeTrocou
+          ? (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : null)
+          : (manterNome ? nomeAtual : (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : existing.contato_nome ?? mergedNome)),
+        nome_contato_cache: identidadeTrocou
+          ? (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : null)
+          : (merged.nome_contato_cache ?? existing.nome_contato_cache),
+        cliente_nome: identidadeTrocou
+          ? (nomeNovo && nomeNovo !== "Conversa" ? nomeNovo : null)
+          : (merged.cliente_nome ?? existing.cliente_nome),
         foto_perfil: (() => {
+          if (identidadeTrocou) {
+            const next = mergedFoto != null ? String(mergedFoto).trim() : ""
+            return next || null
+          }
           const prev = existing.foto_perfil != null ? String(existing.foto_perfil).trim() : ""
           const next = mergedFoto != null ? String(mergedFoto).trim() : ""
           if (next.startsWith("http") && next !== prev) return next
           return prev || mergedFoto || existing.foto_perfil
         })(),
+        foto_perfil_contato_cache: identidadeTrocou
+          ? (mergedFoto || null)
+          : (merged.foto_perfil_contato_cache ?? existing.foto_perfil_contato_cache),
+        cliente: identidadeTrocou ? (merged.cliente ?? null) : (merged.cliente !== undefined ? merged.cliente : existing.cliente),
+        clientes: identidadeTrocou ? (merged.clientes ?? null) : (merged.clientes !== undefined ? merged.clientes : existing.clientes),
         nome_grupo: nomeGrupoValido(merged.nome_grupo) ? merged.nome_grupo : (existing.nome_grupo ?? merged.nome_grupo),
         foto_grupo: (merged.foto_grupo && String(merged.foto_grupo).trim().startsWith("http")) ? merged.foto_grupo : (existing.foto_grupo ?? merged.foto_grupo),
         // Preservar metadados quando payload é parcial (envio otimista)
-        cliente: merged.cliente !== undefined ? merged.cliente : existing.cliente,
         telefone: merged.telefone !== undefined ? merged.telefone : existing.telefone,
         telefone_exibivel: merged.telefone_exibivel !== undefined ? merged.telefone_exibivel : existing.telefone_exibivel,
       }
@@ -500,6 +519,24 @@ export const useChatStore = create((set, get) => ({
         merged.foto_perfil_contato_cache = partial.foto_perfil_contato_cache
         merged.foto_perfil = merged.foto_perfil || partial.foto_perfil_contato_cache
       }
+    }
+    // cliente_id ou telefone de outra pessoa: o nome/foto que já estavam no card não podem permanecer.
+    if (contactIdentitiesConflict(cur, partial)) {
+      const nomeTroca = (partial.nome_contato_cache != null && String(partial.nome_contato_cache).trim() !== "")
+        ? String(partial.nome_contato_cache).trim()
+        : (partial.contato_nome != null && String(partial.contato_nome).trim() !== "" ? String(partial.contato_nome).trim() : "")
+      merged.contato_nome = nomeTroca || null
+      merged.nome_contato_cache = nomeTroca || null
+      merged.cliente_nome = nomeTroca || null
+      const fotoTroca = (partial.foto_perfil != null && String(partial.foto_perfil).trim() !== "")
+        ? String(partial.foto_perfil).trim()
+        : (partial.foto_perfil_contato_cache != null && String(partial.foto_perfil_contato_cache).trim() !== ""
+          ? String(partial.foto_perfil_contato_cache).trim()
+          : "")
+      merged.foto_perfil = fotoTroca || null
+      merged.foto_perfil_contato_cache = fotoTroca || null
+      merged.cliente = partial.cliente !== undefined ? partial.cliente : null
+      merged.clientes = partial.clientes !== undefined ? partial.clientes : null
     }
     // Grupos: nunca sobrescrever nome_grupo/foto_grupo com vazio
     if (partial.nome_grupo != null && String(partial.nome_grupo).trim() !== "" && !String(partial.nome_grupo).toLowerCase().startsWith("lid:")) {

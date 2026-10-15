@@ -25,6 +25,7 @@ import {
 } from "../atendimento/aguardarClientePrazo";
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import { getContactDisplay, lockCardAvatarUrl } from "./chatListDisplay";
+import { contactIdentitySignature } from "./chatContactIdentity";
 import {
   rowPrefs,
   EMPTY_PENDENTES_SET,
@@ -1386,13 +1387,8 @@ function ChatRow({
   const contact = getContactDisplay(chat);
   const { displayName, phone, isGroup } = contact;
   const encontradoPor = !isGroup ? String(chat?.encontrado_por || "").trim() : "";
-  // Trava URL do avatar por conversa: envio/entrega não pode trocar CDN antiga ↔ atual (pulo visual).
-  const avatarIdentity =
-    id != null && String(id).trim() !== ""
-      ? `conv:${String(id)}`
-      : clienteId != null
-        ? `cli:${String(clienteId)}`
-        : "row:unknown";
+  // Trava a foto pela pessoa (conversa + cliente + telefone). Trocar de cliente no mesmo id solta a URL antiga.
+  const avatarIdentity = contactIdentitySignature(chat);
   avatarLockRef.current = lockCardAvatarUrl(avatarLockRef.current, avatarIdentity, contact.avatarUrl);
   const avatarUrl = avatarLockRef.current.url;
   const empresa = String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim();

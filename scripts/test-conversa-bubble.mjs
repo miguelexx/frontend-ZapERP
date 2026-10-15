@@ -408,9 +408,23 @@ assert.match(audioMsgSrc, /wa-audioElHidden/);
   const indefinidoSemId = resolveOutgoingTick({ direcao: "out", status: "status_indefinido", envio_incerto: true }, false);
   assert.equal(indefinidoSemId.kind, "pending", "incerta sem id continua relogio");
 
-  // Erro real continua erro, mesmo com id: nao mascaramos falha informada pelo provedor.
+  // `erro` NUNCA e mascarado, nem com id. Em 15/10/2026 tentei esconder este caso (o relato era
+  // de mensagem entregue aparecendo como falha), mas `erro` COM id tambem e produzido por falha
+  // que o PROVEDOR informa (unsent/invalid/expired/failed e o ACK `failed` da Whapi). Esconder
+  // trocaria alarme falso por falha silenciosa. A correcao esta no backend, que parou de
+  // inventar `erro` por decurso de prazo e cura as linhas ja marcadas.
   const erroComId = resolveOutgoingTick({ direcao: "out", status: "erro", status_mensagem: "failed", whatsapp_id: WA }, false);
   assert.equal(erroComId.kind, "err", "erro nao e mascarado por ter id");
+  assert.ok(/isErr/.test(erroComId.className), "erro com id mantem a classe de erro");
+
+  // Recusa REAL (sem id) tambem continua vermelha.
+  const erroSemId = resolveOutgoingTick({ direcao: "out", status: "erro", status_mensagem: "failed" }, false);
+  assert.equal(erroSemId.kind, "err", "erro sem id continua erro");
+  assert.ok(/isErr/.test(erroSemId.className), "erro sem id mantem a classe de erro");
+
+  // Proteção de envio ("blocked") barra antes de existir id: continua erro.
+  const bloqueada = resolveOutgoingTick({ direcao: "out", status: "blocked", status_mensagem: "blocked" }, false);
+  assert.equal(bloqueada.kind, "err", "blocked continua erro");
 
   // Fila offline (sem internet) continua aguardando conexao.
   const offline = resolveOutgoingTick({ direcao: "out", status: "aguardando_conexao", aguardando_conexao: true }, false);
@@ -433,6 +447,19 @@ assert.match(audioMsgSrc, /wa-audioElHidden/);
   assert.equal(temIdDoProvedor({ whatsapp_id: null }), false);
   assert.equal(temIdDoProvedor({}), false);
   assert.equal(temIdDoProvedor(null), false);
+
+  // O botao de reenviar continua disponivel nos DOIS erros — inclusive com id, porque o
+  // provedor pode ter informado a falha (unsent/invalid/expired) e aí a mensagem precisa mesmo
+  // ser reenviada. O que muda e o TEXTO, que avisa do risco de duplicar (ver MessageRetry).
+  const erroComIdRetry = { id: 91, direcao: "out", tipo: "texto", texto: "ok", status: "erro", status_mensagem: "failed", whatsapp_id: "PspI8aQmjtEc" };
+  assert.equal(retryOf(erroComIdRetry).canShowRetry, true, "erro com id ainda oferece reenviar");
+
+  const recusada = { id: 92, direcao: "out", tipo: "texto", texto: "ok", status: "erro", status_mensagem: "failed" };
+  assert.equal(retryOf(recusada).canShowRetry, true, "recusa real oferece reenviar");
+
+  // Documento com erro (o PDF do print de 15/10/2026) segue a mesma regra da bolha de texto.
+  const pdfComErro = { id: 93, direcao: "out", tipo: "arquivo", nome_arquivo: "nf 2278.pdf", url: "/uploads/nf.pdf", status: "erro", status_mensagem: "failed", whatsapp_id: "PspI8aQmjtEd" };
+  assert.equal(retryOf(pdfComErro).canShowRetry, true, "documento com erro oferece reenviar");
 
   const retrySrc = await readFile(new URL("../src/conversa/bubble/components/MessageRetry.jsx", import.meta.url), "utf8");
   assert.match(retrySrc, /aceitoPeloProvedor/, "MessageRetry precisa distinguir os dois erros");

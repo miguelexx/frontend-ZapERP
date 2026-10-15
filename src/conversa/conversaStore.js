@@ -14,6 +14,7 @@ import {
 import { getSocket, leaveConversa, joinConversaIfNeeded } from "../socket/socket"
 import { pickHigherStatus } from "../socket/statusMensagemBatch"
 import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore"
+import { contactIdentitiesConflict } from "../chats/chatContactIdentity"
 import { buildPatchAguardandoPagamentoOptimista } from "../utils/pagamentoPrazoFormat"
 import { calcularAguardarClientePrazoAteLocal } from "../atendimento/aguardarClientePrazo"
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
@@ -894,7 +895,7 @@ export const useConversaStore = create((set, get) => {
 
         try {
           const fromList = getChatByIdFromStore(normalizedId)
-          if (fromList) {
+          if (fromList && !contactIdentitiesConflict(conversa, fromList)) {
             const merged = { ...conversa }
             if (!merged.contato_nome && fromList.contato_nome) merged.contato_nome = fromList.contato_nome
             if (!merged.contato_nome && fromList.nome_contato_cache) merged.contato_nome = fromList.nome_contato_cache
@@ -1151,7 +1152,9 @@ export const useConversaStore = create((set, get) => {
         try {
           const current = get().conversa
           const fromList = getChatByIdFromStore(id)
-          const sources = [conversa, current, fromList].filter(Boolean)
+          const currentOk = current && String(current.id) === String(id) && !contactIdentitiesConflict(conversa, current)
+          const listOk = fromList && !contactIdentitiesConflict(conversa || { id }, fromList)
+          const sources = [conversa, currentOk ? current : null, listOk ? fromList : null].filter(Boolean)
           if (sources.length > 1) {
             merged = { ...conversa }
             const pick = (f) => {

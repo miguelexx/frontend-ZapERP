@@ -1,5 +1,6 @@
 import { getDisplayName } from "../../chats/chatList";
 import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
+import { placeholderSnippetLabel } from "../bubble/utils/bubbleClassify";
 import {
   safeString,
   isOutgoingMessage,
@@ -109,7 +110,10 @@ export function replySnippetDisplay(rm) {
   }
   if (sn && isFilenameOnlyText(sn) && /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(sn)) return "Foto";
   if (kind === "imagem" && (!sn || sn === "(foto)" || isFilenameOnlyText(sn))) return "Foto";
-  return sn;
+  // Placeholder interno não é texto do cliente: o snippet da citação é o texto gravado da
+  // mensagem respondida, então "(mensagem)" / "(áudio)" vazavam crus para dentro da caixa de
+  // resposta. Traduz para o rótulo tipado que o resto da thread já usa.
+  return placeholderSnippetLabel(sn, kind) ?? sn;
 }
 
 export function getReplySenderLabel(replyMsg, peerName, chat) {

@@ -171,9 +171,16 @@ const Bubble = memo(function Bubble({
    * no instante em que a opcao e exibida. A segunda barreira esta em handleEditAction, que
    * reconfere antes de entrar em edicao — cobre o menu aberto na virada dos 15 minutos.
    */
-  const canEdit = menuOpen
-    ? canEditMessage(msg, { out, currentUserId, provider: whatsappInstanceProvider })
-    : false;
+  const canEditLatchRef = useRef(false);
+  if (menuOpen) {
+    canEditLatchRef.current = canEditMessage(msg, {
+      out, currentUserId, provider: whatsappInstanceProvider,
+    });
+  }
+  // Travado enquanto o menu esta na tela: o MessageMenu usa useMotionPresence e continua
+  // montado durante a animacao de saida. Recalcular ali faria o item "Editar" sumir no meio
+  // do fade e o menu saltar de altura. Avaliar so na ABERTURA basta e e sempre fresco.
+  const canEdit = canEditLatchRef.current;
 
   const openBubbleMedia = useCallback(
     (url, type) => {
