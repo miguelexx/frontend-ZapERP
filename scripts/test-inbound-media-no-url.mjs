@@ -64,6 +64,17 @@ check(placeholderSnippetLabel("(arquivo)"), "📄 Documento", "citação traduz 
 check(placeholderSnippetLabel("bom dia"), null, "texto real passa intacto (null = não traduzir)");
 check(placeholderSnippetLabel(""), null, "snippet vazio não vira rótulo");
 
+// 6) Card da lista: foto sem link é gravada como '(imagem)' com tipo 'texto' (o tipo real só vem
+// junto com a URL), então o card caía no ramo "texto cru" e mostrava "(imagem)" literal.
+// A lista usa rótulo seco, sem emoji — diferente da bolha.
+const rotuloDoCard = (txt, tipo) => placeholderSnippetLabel(txt, tipo)?.replace(/^[^\p{L}]+/u, "");
+check(rotuloDoCard("(imagem)", "texto"), "Foto", "card da lista: (imagem) vira Foto, sem emoji");
+check(rotuloDoCard("(vídeo)", "texto"), "Vídeo", "card da lista: (vídeo) vira Vídeo");
+check(rotuloDoCard("(áudio)", "texto"), "Áudio", "card da lista: (áudio) vira Áudio");
+check(rotuloDoCard("(arquivo)", "texto"), "Documento", "card da lista: (arquivo) vira Documento");
+check(rotuloDoCard("(mensagem)", "texto"), "Mensagem", "card da lista: genérico vira Mensagem");
+check(rotuloDoCard("bom dia", "texto"), undefined, "card da lista: texto real não é traduzido");
+
 if (falhas > 0) {
   console.error(`\n${falhas} falha(s) em mídia recebida sem URL.`);
   process.exit(1);

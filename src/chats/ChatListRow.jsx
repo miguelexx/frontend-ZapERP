@@ -26,6 +26,7 @@ import {
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import { getContactDisplay, lockCardAvatarUrl } from "./chatListDisplay";
 import { contactIdentitySignature } from "./chatContactIdentity";
+import { placeholderSnippetLabel } from "../conversa/bubble/utils/bubbleClassify";
 import {
   rowPrefs,
   EMPTY_PENDENTES_SET,
@@ -438,6 +439,14 @@ function getPreview(chat, { audioDurationSec } = {}) {
     const n = String(last?.nome_arquivo || "").trim();
     return `${outPrefix}${n || "Documento"}`;
   }
+
+  // Placeholder tipado sem tipo de mídia na linha: é o caso da foto/vídeo/documento que chega
+  // sem o `link` do provedor — o backend grava '(imagem)' com tipo 'texto' (o tipo real só é
+  // gravado junto com a URL). Sem esta tradução o card mostraria "(imagem)" cru, que é texto
+  // interno nosso e não o que o cliente mandou.
+  // Sem o emoji: a lista usa rótulos secos ("Foto", "Áudio", "Documento"), diferente da bolha.
+  const rotuloPlaceholder = placeholderSnippetLabel(txt, tipo)?.replace(/^[^\p{L}]+/u, "");
+  if (rotuloPlaceholder) return `${outPrefix}${rotuloPlaceholder}`;
 
   if (txt && !isPlaceholderGenericMessageText(txt)) return `${outPrefix}${txt}`;
   // Existe uma última mensagem, só não temos o texto/tipo dela — "Mensagem" (não "Sem mensagens").
