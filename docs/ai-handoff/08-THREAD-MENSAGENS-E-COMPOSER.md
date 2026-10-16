@@ -344,6 +344,8 @@ sobe o erro ("confira a conversa de destino antes de tentar novamente") sem reen
 DEFINITIVA (4xx/recusa no corpo) cai no fallback — que agora manda `client_temp_id`
 (`fwd-…`) para o dedupe do backend cobrir double-submit.
 
+**Encaminhar (2026-10-16):** nota interna não aparece em "Encaminhar" e, na seleção múltipla, é ignorada antes do POST — uma nota no lote fazia o backend recusar o encaminhamento inteiro. A lista "Conversas recentes" do modal assina o store só enquanto o modal está aberto (antes lia `getState()` num `useMemo` e ficava congelada). No backend, o SELECT de `encaminharMensagem` inclui `whatsapp_id` e `whatsapp_instance_id`; sem isso o encaminhamento nativo do Whapi nunca disparava e caía sempre na cópia.
+
 ### Reenvio automático estilo WhatsApp Web (2026-10-06)
 
 Objetivo: mensagem enviada sem internet/instável/WHAPI fora fica VISÍVEL como pendente e sai

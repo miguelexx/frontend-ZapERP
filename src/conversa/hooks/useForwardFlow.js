@@ -20,6 +20,7 @@ import { FORWARD_SELECT_MAX, FORWARD_DEST_MAX } from "../conversaConstants";
 import { safeString, formatForwardHttpError, getMediaUrl } from "../utils/conversaViewHelpers";
 import { classifyOutboundAxiosError } from "../outboundSendError";
 import { snippetFromMsg } from "../utils/conversaMessageDisplay";
+import { isInternalNoteEditTipo } from "../bubble/utils/bubbleClassify";
 import * as cfg from "../../api/configService";
 import { useConversaStore } from "../conversaStore";
 import {
@@ -115,6 +116,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
   const [forwardGruposFetched, setForwardGruposFetched] = useState([]);
   const [forwardMax10Msg, setForwardMax10Msg] = useState("");
   const [forwardMultiProgress, setForwardMultiProgress] = useState(null);
+  /** Snapshot da lista enquanto o modal está aberto. getState() dentro de useMemo não assina o store. */
+  const [forwardChatSnap, setForwardChatSnap] = useState([]);
   const forwardMax10TimerRef = useRef(null);
   /** Cache da lista completa de contatos (carregada ao abrir, sem busca). */
   const forwardAllContatosRef = useRef(null);
@@ -134,8 +137,21 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     }, 4000);
   }, []);
 
+  useEffect(() => {
+    if (!forwardOpen) return undefined;
+    const pull = () => {
+      const list = useChatStore.getState().chats;
+      setForwardChatSnap(Array.isArray(list) ? list : []);
+    };
+    pull();
+    return useChatStore.subscribe((state, prev) => {
+      if (state.chats === prev?.chats) return;
+      setForwardChatSnap(Array.isArray(state.chats) ? state.chats : []);
+    });
+  }, [forwardOpen]);
+
   const forwardCandidates = useMemo(() => {
-    const list = Array.isArray(useChatStore.getState().chats) ? useChatStore.getState().chats : [];
+    const list = Array.isArray(forwardChatSnap) ? forwardChatSnap : [];
     const q = safeString(forwardQuery).toLowerCase();
     const byName = (c) => {
       if (!q) return true;
@@ -159,11 +175,11 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
       .filter((c) => c?.id != null && String(c.id) !== String(conversaId))
       .filter(byName)
       .slice(0, 80);
-  }, [forwardQuery, conversaId]);
+  }, [forwardChatSnap, forwardQuery, conversaId]);
 
   // Grupos já carregados no store (aparecem mesmo sem busca).
   const forwardGruposStore = useMemo(() => {
-    const list = Array.isArray(useChatStore.getState().chats) ? useChatStore.getState().chats : [];
+    const list = Array.isArray(forwardChatSnap) ? forwardChatSnap : [];
     const q = safeString(forwardQuery).toLowerCase();
     return list
       .filter((c) => c?.id != null && String(c.id) !== String(conversaId))
@@ -173,7 +189,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
         const n = safeString(c?.nome_grupo || c?.contato_nome || c?.nome_contato_cache || c?.nome || c?.telefone).toLowerCase();
         return n.includes(q);
       });
-  }, [forwardQuery, conversaId]);
+  }, [forwardChatSnap, forwardQuery, conversaId]);
 
   // Lista final de grupos: os do store + os encontrados na busca (dedup por id).
   const forwardGrupos = useMemo(() => {
@@ -382,6 +398,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
 
   const openForwardWithMsgs = useCallback((msgs) => {
     if (!msgs?.length) return;
+    const list = useChatStore.getState().chats;
+    setForwardChatSnap(Array.isArray(list) ? list : []);
     setForwardMsgs(msgs);
     setForwardQuery("");
     setForwardSelectedConversaIds([]);
@@ -403,8 +421,26 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
         });
         return;
       }
-      const capped = orderedMsgs.slice(0, FORWARD_SELECT_MAX);
-      if (orderedMsgs.length > capped.length) {
+      const forwardable = orderedMsgs.filter(
+        (m) => !isInternalNoteEditTipo(m) && !m?.apagada_para_todos
+      );
+      if (!forwardable.length) {
+        showToast({
+          type: "info",
+          title: "Não disponível",
+          message: "Notas internas e mensagens apagadas não podem ser encaminhadas.",
+        });
+        return;
+      }
+      if (forwardable.length < orderedMsgs.length) {
+        showToast({
+          type: "info",
+          title: "Algumas mensagens foram ignoradas",
+          message: "Notas internas e mensagens apagadas não entram no encaminhamento.",
+        });
+      }
+      const capped = forwardable.slice(0, FORWARD_SELECT_MAX);
+      if (forwardable.length > capped.length) {
         showToast({
           type: "info",
           title: "Limite",

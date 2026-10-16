@@ -2298,12 +2298,18 @@ function ConversaViewBody() {
   }, [showToast]);
 
   const handleForwardAction = useCallback((msg) => {
-    if (!msg?.id || msg.apagada_para_todos) {
+    if (!msg?.id || msg.apagada_para_todos || isInternalNoteEditTipo(msg)) {
       if (msg?.apagada_para_todos) {
         showToast({
           type: "info",
           title: "Não disponível",
           message: "Não é possível encaminhar uma mensagem apagada.",
+        });
+      } else if (isInternalNoteEditTipo(msg)) {
+        showToast({
+          type: "info",
+          title: "Não disponível",
+          message: "Notas internas não podem ser encaminhadas.",
         });
       }
       return;

@@ -37,6 +37,7 @@ import {
   enqueueStatusMensagemEvent,
   flushStatusMensagemBatch,
   resetStatusMensagemBatch,
+  resolveCardStatusFromMsg,
 } from "./statusMensagemBatch"
 import { getStatusAtendimentoEffective, isClosedAttendance } from "../utils/conversaUtils"
 
@@ -894,10 +895,14 @@ function applyStatusMensagemEvent(events) {
 
   for (const evt of list) {
     if (!evt) continue
-    const { mensagem_id, conversa_id, status: s, whatsapp_id, em_retry } = evt
+    const { mensagem_id, conversa_id, status: s, whatsapp_id, em_retry, entregue_em, lida_em } = evt
     const partial = { status_mensagem: s, status: s }
     if (whatsapp_id) partial.whatsapp_id = whatsapp_id
     if (em_retry != null) partial.em_retry = em_retry
+    // Horário de entrega/leitura (F9 do doc 33): o backend só manda no ACK que acabou de
+    // gravá-lo, então nunca sobrescreve um horário já conhecido com nulo.
+    if (entregue_em) partial.entregue_em = entregue_em
+    if (lida_em) partial.lida_em = lida_em
 
     if (selectedId != null && conversa_id && String(conversa_id) === String(selectedId)) {
       threadPatches.push({
@@ -922,7 +927,12 @@ function applyStatusMensagemEvent(events) {
     else if (lastFromArray && match(lastFromArray)) targetMsg = lastFromArray
     if (!targetMsg) continue
 
-    const nextUm = { ...targetMsg, status_mensagem: s, status: s }
+    // Guarda monotônica no card da lista (F6 do doc 33).
+    // A bolha da thread passa por pickHigherStatus no conversaStore; o card não passava por
+    // nada: fora da janela de 75ms da fila, um evento fora de ordem rebaixava o tique aqui
+    // (✓✓ azul voltava a ✓✓) e as duas telas ficavam discordando até o próximo evento ou F5.
+    const statusCard = resolveCardStatusFromMsg(targetMsg, s)
+    const nextUm = { ...targetMsg, status_mensagem: statusCard, status: statusCard }
     if (whatsapp_id) nextUm.whatsapp_id = whatsapp_id
     if (em_retry != null) nextUm.em_retry = em_retry
     if (
@@ -1373,7 +1383,10 @@ export function initSocket(token) {
     if (shouldIgnoreByCompany(payload)) return
 
     const chatStore = useChatStore.getState()
-    chatStore.setUltimaMensagem(conversa_id, ultima_mensagem || null)
+    // Só mexe no preview se o backend mandou um: `setUltimaMensagem(id, null)` LIMPA o preview
+    // do card. A revogação vinda do webhook da Whapi (mensagem apagada pelo celular do
+    // atendente) não recalcula a última mensagem — e não precisa, a linha continua na conversa.
+    if (ultima_mensagem) chatStore.setUltimaMensagem(conversa_id, ultima_mensagem)
 
     const convStore = useConversaStore.getState()
     if (convStore.selectedId && String(convStore.selectedId) === String(conversa_id)) {

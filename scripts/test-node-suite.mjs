@@ -42,6 +42,7 @@ const tests = [
   "test-conversa-refresh-races.mjs",
   "test-conversa-bubble.mjs",
   "test-inbound-media-no-url.mjs",
+  "test-media-update-no-notify.mjs",
   "test-conversa-composer.mjs",
   "test-conversa-escape-order.mjs",
   "test-puxar-conversa-novamente.mjs",

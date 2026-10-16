@@ -98,6 +98,12 @@ export function shouldNotifyIncomingMessage({ msg, selectedConversationId, curre
   const direction = normalize(msg?.direcao).toLowerCase()
   if (direction !== "in") return { notify: false, reason: "non_inbound" }
 
+  // Cura de mídia: o backend reemite `nova_mensagem` para a MESMA mensagem quando a URL da mídia
+  // finalmente chega (cópia para /uploads, merge de corrida, backfill). A bolha precisa do evento
+  // para virar player; o atendente não precisa de um segundo beep. O dedupe comum não cobre isso:
+  // ele dura 6s e a cura costuma demorar mais (vídeo grande, CDN lenta, retry, backfill).
+  if (msg?.midia_atualizada === true) return { notify: false, reason: "media_update" }
+
   if (!isRealtimeFreshMessage(msg)) {
     return { notify: false, reason: "stale_history_message" }
   }

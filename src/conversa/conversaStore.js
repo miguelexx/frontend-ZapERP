@@ -147,7 +147,9 @@ function normalizeConversaId(id) {
   return s
 }
 
-const STATUS_ONLY_PATCH_KEYS = ["status", "status_mensagem", "whatsapp_id", "em_retry"]
+// entregue_em/lida_em entram aqui porque NÃO afetam a ordenação (que é por criado_em/id):
+// fora desta lista, todo ACK com horário marcaria needsSort e reordenaria a thread inteira.
+const STATUS_ONLY_PATCH_KEYS = ["status", "status_mensagem", "whatsapp_id", "em_retry", "entregue_em", "lida_em"]
 
 function isStatusOnlyPatch(partial) {
   if (!partial || typeof partial !== "object") return false

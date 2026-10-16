@@ -9,7 +9,7 @@ import {
 import BubbleDeletedNotice from "./components/BubbleDeletedNotice";
 import { SwipeReplyTrack } from "../SwipeReplyTrack";
 import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
-import { classifyBubbleMessage, canDeleteMessageForEveryone, canEditMessage } from "./utils/bubbleClassify";
+import { classifyBubbleMessage, canDeleteMessageForEveryone, canEditMessage, isInternalNoteEditTipo } from "./utils/bubbleClassify";
 import { temIdDoProvedor } from "./utils/bubbleStatus";
 import { buildRetryPayload } from "./utils/bubbleRetry";
 import { useMessageMenu } from "./hooks/useMessageMenu";
@@ -581,6 +581,7 @@ const Bubble = memo(function Bubble({
         isStarred={isStarred}
         canDeleteForEveryone={canDeleteForEveryone}
         canEdit={canEdit}
+        canForward={!isInternalNoteEditTipo(msg)}
         reactionExpanded={reactionExpanded}
         reactionBusy={reactionBusy}
         localReaction={localReaction}

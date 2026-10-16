@@ -42,6 +42,20 @@ export function pickHigherStatus(a, b) {
 }
 
 /**
+ * Status que deve ficar no CARD da lista ao aplicar um evento sobre a última mensagem (F6 do
+ * doc 33). O card não tinha guarda nenhuma: fora da janela de 75ms da fila, um evento fora de
+ * ordem rebaixava o tique ali (✓✓ azul voltando a ✓✓) enquanto a bolha da thread, que passa
+ * por `pickHigherStatus` no conversaStore, mantinha o certo — as duas telas discordavam.
+ *
+ * `status_mensagem` tem precedência sobre `status` na leitura do que já está no card: é o campo
+ * de progresso (a mesma ordem usada por `resolveOutgoingTick` e pelo conversaStore).
+ */
+export function resolveCardStatusFromMsg(msg, statusRecebido) {
+  const atual = msg?.status_mensagem ?? msg?.status;
+  return pickHigherStatus(atual, statusRecebido) ?? statusRecebido ?? null;
+}
+
+/**
  * Normaliza payload do socket (mesma regra do handler legado).
  * @returns {null | { mensagem_id, conversa_id, status, whatsapp_id }}
  */
@@ -83,11 +97,19 @@ export function normalizeStatusMensagemFromPayload(payload) {
             ? "played"
             : raw || null;
 
+  // Horário de entrega/leitura (F9 do doc 33): o backend manda só no ACK que acabou de gravar.
+  // Sem carregar aqui, o normalizador descartava e o modal "Dados da mensagem" só veria o
+  // horário depois de um refetch da thread.
+  const entregue_em = p.entregue_em ?? payload?.entregue_em ?? null;
+  const lida_em = p.lida_em ?? payload?.lida_em ?? null;
+
   return {
     mensagem_id: mensagem_id ?? null,
     conversa_id: conversa_id ?? null,
     status: s,
     whatsapp_id: whatsapp_id ?? null,
+    ...(entregue_em ? { entregue_em } : {}),
+    ...(lida_em ? { lida_em } : {}),
   };
 }
 
@@ -104,11 +126,17 @@ function getQueueKey(evt) {
 
 function mergeQueuedEvents(prev, next) {
   const mergedStatus = pickHigherStatus(prev.status, next.status);
+  // Marcos de horário: o PRIMEIRO que apareceu vence (o backend só grava uma vez; se os dois
+  // ACKs caírem na mesma janela de 75ms, o mais antigo é o correto).
+  const entregue_em = prev.entregue_em ?? next.entregue_em ?? null;
+  const lida_em = prev.lida_em ?? next.lida_em ?? null;
   return {
     mensagem_id: next.mensagem_id ?? prev.mensagem_id ?? null,
     conversa_id: next.conversa_id ?? prev.conversa_id ?? null,
     whatsapp_id: next.whatsapp_id ?? prev.whatsapp_id ?? null,
     status: mergedStatus ?? next.status ?? prev.status ?? null,
+    ...(entregue_em ? { entregue_em } : {}),
+    ...(lida_em ? { lida_em } : {}),
   };
 }
 

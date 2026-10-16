@@ -3,8 +3,43 @@ import { formatDia, formatHora, safeString } from "../utils/conversaViewHelpers"
 import { snippetFromMsg } from "../utils/conversaMessageDisplay";
 import { IconClose } from "../conversaViewIcons";
 
+/** Rótulo em português do status cru da coluna (a tela mostrava "delivered"/"read"). */
+const STATUS_LABEL = {
+  pending: "Enviando",
+  sending: "Enviando",
+  enviando: "Enviando",
+  sent: "Enviada",
+  enviada: "Enviada",
+  enviado: "Enviada",
+  server: "Enviada",
+  delivered: "Entregue",
+  device: "Entregue",
+  entregue: "Entregue",
+  received: "Entregue",
+  read: "Visualizada",
+  lida: "Visualizada",
+  seen: "Visualizada",
+  visualizada: "Visualizada",
+  played: "Ouvida",
+  erro: "Não enviada",
+  failed: "Não enviada",
+  status_indefinido: "Verificando",
+  aguardando_conexao: "Aguardando conexão",
+};
+
+function statusLegivel(msg) {
+  const cru = safeString(msg?.status_mensagem || msg?.status).toLowerCase().trim();
+  if (!cru) return "Enviada";
+  return STATUS_LABEL[cru] || cru;
+}
+
 export default function MsgInfoModal({ open, msgInfo, onClose }) {
   if (!open || !msgInfo) return null;
+
+  // F9 do doc 33: horário de entrega/leitura (colunas entregue_em/lida_em, preenchidas pelo
+  // ACK). Nulo = sem informação — a linha nem aparece, em vez de mostrar "—" como se fosse dado.
+  const entregueEm = msgInfo?.entregue_em || msgInfo?.entregueEm || null;
+  const lidaEm = msgInfo?.lida_em || msgInfo?.lidaEm || null;
 
   return createPortal(
     <div
@@ -34,10 +69,24 @@ export default function MsgInfoModal({ open, msgInfo, onClose }) {
           </div>
           <div className="wa-modal-row">
             <span className="wa-modal-label">Status</span>
-            <span className="wa-modal-value">
-              {safeString(msgInfo?.status_mensagem || msgInfo?.status) || "enviada"}
-            </span>
+            <span className="wa-modal-value">{statusLegivel(msgInfo)}</span>
           </div>
+          {entregueEm ? (
+            <div className="wa-modal-row">
+              <span className="wa-modal-label">Entregue</span>
+              <span className="wa-modal-value">
+                {formatDia(entregueEm)} {formatHora(entregueEm)}
+              </span>
+            </div>
+          ) : null}
+          {lidaEm ? (
+            <div className="wa-modal-row">
+              <span className="wa-modal-label">Visualizada</span>
+              <span className="wa-modal-value">
+                {formatDia(lidaEm)} {formatHora(lidaEm)}
+              </span>
+            </div>
+          ) : null}
           {safeString(msgInfo?.whatsapp_id) ? (
             <div className="wa-modal-row">
               <span className="wa-modal-label">ID WhatsApp</span>

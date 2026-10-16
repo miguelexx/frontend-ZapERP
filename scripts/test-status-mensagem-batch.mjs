@@ -10,6 +10,7 @@ import {
   enqueueStatusMensagemEvent,
   flushStatusMensagemBatch,
   resetStatusMensagemBatch,
+  resolveCardStatusFromMsg,
 } from "../src/socket/statusMensagemBatch.js";
 
 let passed = 0;
@@ -114,6 +115,71 @@ assert(pickHigherStatus("sent", null) === "sent", "outro null → mantém");
     { conversa_id: 5, status: "read", whatsapp_id: "wamid-X" },
   ]);
   assert(out.length === 1 && out[0].status === "read", "dedup por whatsapp_id + status mais alto");
+}
+
+// 10) F6 (doc 33) — o CARD da lista nao pode rebaixar o tique.
+//     O socket aplica resolveCardStatusFromMsg sobre a ultima_mensagem do card; antes gravava o
+//     status do evento direto e um evento fora de ordem fazia o azul voltar a cinza.
+{
+  assert(
+    resolveCardStatusFromMsg({ status_mensagem: "read", status: "read" }, "delivered") === "read",
+    "evento atrasado delivered nao pode rebaixar card em read"
+  );
+  assert(
+    resolveCardStatusFromMsg({ status_mensagem: "sent", status: "sent" }, "read") === "read",
+    "evento que avanca precisa atualizar o card"
+  );
+  assert(
+    resolveCardStatusFromMsg({ status_mensagem: "played" }, "read") === "played",
+    "played e terminal no card"
+  );
+  // status_mensagem tem precedencia na LEITURA (campo de progresso), igual ao conversaStore.
+  assert(
+    resolveCardStatusFromMsg({ status_mensagem: "read", status: "pending" }, "delivered") === "read",
+    "status_mensagem manda na leitura do que ja esta no card"
+  );
+  // Erro: vence pendente, perde para confirmacao real (mesma regra do statusRank do modulo).
+  assert(
+    resolveCardStatusFromMsg({ status_mensagem: "pending" }, "erro") === "erro",
+    "erro vence pending no card"
+  );
+  assert(
+    resolveCardStatusFromMsg({ status_mensagem: "erro" }, "delivered") === "delivered",
+    "confirmacao real cura erro no card"
+  );
+  // Card ainda sem status (primeiro evento) aplica o recebido.
+  assert(resolveCardStatusFromMsg({}, "sent") === "sent", "card sem status aplica o recebido");
+  assert(resolveCardStatusFromMsg(null, "sent") === "sent", "msg nula nao quebra");
+  assert(resolveCardStatusFromMsg({ status_mensagem: "read" }, null) === "read", "evento sem status mantem o card");
+}
+
+// 11) F9 (doc 33) — horario de entrega/leitura atravessa o normalizador e o merge da fila.
+//     O backend manda entregue_em/lida_em SO no ACK que acabou de gravar; se o normalizador
+//     descartasse, o modal "Dados da mensagem" so veria o horario depois de um refetch.
+{
+  const n = normalizeStatusMensagemFromPayload({
+    conversa_id: 5, mensagem_id: 9, status: "delivered", entregue_em: "2026-10-16T10:00:00",
+  });
+  assert(n.entregue_em === "2026-10-16T10:00:00", "normalizador precisa carregar entregue_em");
+  assert(!("lida_em" in n), "campo ausente nao deve virar null no evento");
+
+  const dentroDeData = normalizeStatusMensagemFromPayload({
+    data: { conversa_id: 5, mensagem_id: 9, status: "read", lida_em: "2026-10-16T10:05:00" },
+  });
+  assert(dentroDeData.lida_em === "2026-10-16T10:05:00", "payload aninhado em data tambem carrega");
+
+  // Na mesma janela de 75ms: o PRIMEIRO horario vence (o backend grava uma vez so).
+  const out = drain([
+    { conversa_id: 5, mensagem_id: 9, status: "delivered", entregue_em: "2026-10-16T10:00:00" },
+    { conversa_id: 5, mensagem_id: 9, status: "read", lida_em: "2026-10-16T10:05:00" },
+  ]);
+  assert(out.length === 1, "mesma mensagem colapsa num evento");
+  assert(out[0].status === "read", "status final e o mais avancado");
+  assert(out[0].entregue_em === "2026-10-16T10:00:00", "merge preserva entregue_em do 1o evento");
+  assert(out[0].lida_em === "2026-10-16T10:05:00", "merge preserva lida_em do 2o evento");
+
+  const semHorario = drain([{ conversa_id: 5, mensagem_id: 9, status: "sent" }]);
+  assert(!("entregue_em" in semHorario[0]), "ACK sem horario nao inventa campo");
 }
 
 console.log(`OK - regressao de batching de status_mensagem passou (${passed} asserts).`);

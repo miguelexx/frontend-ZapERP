@@ -16,6 +16,7 @@ export default function MessageMenu({
   isStarred,
   canDeleteForEveryone,
   canEdit,
+  canForward = true,
   reactionExpanded,
   reactionBusy,
   localReaction,
@@ -86,11 +87,13 @@ export default function MessageMenu({
         <button type="button" className="wa-msgMenuItem" onClick={() => onAction("copy")} role="menuitem">
           <Copy aria-hidden="true" /> Copiar
         </button>
+        {!apagadaParaTodos && canForward ? (
+          <button type="button" className="wa-msgMenuItem" onClick={() => onAction("forward")} role="menuitem">
+            <Forward aria-hidden="true" /> Encaminhar
+          </button>
+        ) : null}
         {!apagadaParaTodos ? (
           <>
-            <button type="button" className="wa-msgMenuItem" onClick={() => onAction("forward")} role="menuitem">
-              <Forward aria-hidden="true" /> Encaminhar
-            </button>
             <button type="button" className="wa-msgMenuItem" onClick={() => onAction("pin")} role="menuitem">
               <Pin aria-hidden="true" /> {isPinned ? "Desafixar" : "Fixar"}
             </button>
