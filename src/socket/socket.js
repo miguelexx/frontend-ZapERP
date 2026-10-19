@@ -183,6 +183,17 @@ function handleConversaRemovidaOuMesclada(payload = {}) {
     mensagens: [],
     tags: [],
   })
+
+  /* A thread aberta sumiu sem o atendente ter feito nada: foi apagada no WhatsApp (celular).
+     Sem este aviso a tela parece ter dado erro. Só para quem estava com ela aberta. */
+  const origem = String(payload?.origem || "")
+  if (origem === "whatsapp" || origem === "reconciliacao") {
+    useNotificationStore.getState().showToast?.({
+      type: "info",
+      title: "Conversa apagada no WhatsApp",
+      message: "Esta conversa foi apagada no WhatsApp e saiu da lista.",
+    })
+  }
 }
 
 /**
