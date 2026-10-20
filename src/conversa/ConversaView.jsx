@@ -464,6 +464,13 @@ function ConversaViewBody() {
   /** Enquanto o utilizador arrasta o thread (touch), bloqueia reancoragem programática. */
   const userScrollLockRef = useRef(false);
   const userScrollUnlockTimerRef = useRef(0);
+  /**
+   * Salto programático (busca na conversa / resposta). Enquanto verdadeiro, o snap
+   * ao fim não pode reancorar: o clique parte do fundo e, sem isto, a vista vai
+   * até a mensagem e volta ao final.
+   */
+  const jumpHoldRef = useRef(false);
+  const jumpHoldTimerRef = useRef(0);
   const userInterruptedOpenSnapRef = useRef(false);
   const cancelOpenSnapPendingRef = useRef(null);
   const messagesScrollPreserveSnapRef = useRef(null);
@@ -812,7 +819,7 @@ function ConversaViewBody() {
   /** Só reancora ao fundo se o utilizador ainda está colado ao fim (evita “puxar” ao meio ao ler histórico). */
   const snapIfStickBottom = useCallback(() => {
     const c = messagesContainerRef.current;
-    if (!c || loadingMore || userScrollLockRef.current) return;
+    if (!c || loadingMore || userScrollLockRef.current || jumpHoldRef.current) return;
     /* Abertura: o snap é só do useAutoScroll. ResizeObserver a competir = pulo ao revelar. */
     if (threadOpeningRef.current) return;
     if (!shouldStickToBottomRef.current) return;
@@ -1411,8 +1418,10 @@ function ConversaViewBody() {
   }, []);
 
   const scheduleUserScrollUnlock = useCallback((delayMs = 160) => {
+    if (jumpHoldRef.current) return;
     window.clearTimeout(userScrollUnlockTimerRef.current);
     userScrollUnlockTimerRef.current = window.setTimeout(() => {
+      if (jumpHoldRef.current) return;
       userScrollLockRef.current = false;
       const el = messagesContainerRef.current;
       if (el) {
@@ -1432,17 +1441,44 @@ function ConversaViewBody() {
     }
   }, []);
 
+  /**
+   * Impede o snap ao fim durante o posicionamento numa mensagem antiga.
+   * Cada chamada renova a janela: paginar o histórico pode levar mais do que
+   * um frame, e o ajuste de altura do virtualizer acontece depois do scroll.
+   */
+  const armThreadJump = useCallback(() => {
+    jumpHoldRef.current = true;
+    shouldStickToBottomRef.current = false;
+    userScrollLockRef.current = true;
+    window.clearTimeout(userScrollUnlockTimerRef.current);
+    window.clearTimeout(jumpHoldTimerRef.current);
+    jumpHoldTimerRef.current = window.setTimeout(() => {
+      jumpHoldRef.current = false;
+      userScrollLockRef.current = false;
+      const el = messagesContainerRef.current;
+      if (el) shouldStickToBottomRef.current = isNearBottom(el, 120);
+      syncScrollToRecentVisibility();
+    }, 900);
+  }, [syncScrollToRecentVisibility]);
+
+  const cancelThreadJump = useCallback(() => {
+    if (!jumpHoldRef.current) return;
+    jumpHoldRef.current = false;
+    window.clearTimeout(jumpHoldTimerRef.current);
+  }, []);
+
   const handleScrollToRecent = useCallback(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
     // Ação deliberada do utilizador: reancora ao fim e desbloqueia o snap automático.
+    cancelThreadJump();
     userScrollLockRef.current = false;
     window.clearTimeout(userScrollUnlockTimerRef.current);
     shouldStickToBottomRef.current = true;
     snapThreadToBottom(el, virtualThreadRef, { min: true });
     scrollToRecentVisibleRef.current = false;
     setShowScrollToRecent(false);
-  }, []);
+  }, [cancelThreadJump]);
 
   /**
    * Ao iniciar/parar a gravação, a barra do composer troca de altura (linha de digitação <->
@@ -1503,12 +1539,12 @@ function ConversaViewBody() {
      */
     if (top < prevTop - 1 && userScrollLockRef.current) {
       shouldStickToBottomRef.current = false;
-      cancelOpenSnapPendingRef.current?.();
-      scheduleUserScrollUnlock(headerCompact ? 320 : 240);
-    } else {
-      if (isNearBottom(el, 120)) {
-        shouldStickToBottomRef.current = true;
+      if (!jumpHoldRef.current) {
+        cancelOpenSnapPendingRef.current?.();
+        scheduleUserScrollUnlock(headerCompact ? 320 : 240);
       }
+    } else if (!jumpHoldRef.current && isNearBottom(el, 120)) {
+      shouldStickToBottomRef.current = true;
     }
     messagesLastScrollTopRef.current = top;
     syncScrollToRecentVisibility();
@@ -1523,11 +1559,17 @@ function ConversaViewBody() {
   useLayoutEffect(() => {
     messagesLastScrollTopRef.current = 0;
     userScrollLockRef.current = false;
+    jumpHoldRef.current = false;
     userInterruptedOpenSnapRef.current = false;
     window.clearTimeout(userScrollUnlockTimerRef.current);
+    window.clearTimeout(jumpHoldTimerRef.current);
     // Ao trocar de conversa, esconde o botão de recentes (abre sempre ancorado ao fim).
     scrollToRecentVisibleRef.current = false;
     setShowScrollToRecent(false);
+    return () => {
+      jumpHoldRef.current = false;
+      window.clearTimeout(jumpHoldTimerRef.current);
+    };
   }, [scrollThreadId]);
 
   useEffect(() => {
@@ -1557,6 +1599,7 @@ function ConversaViewBody() {
       touchActive = true;
       userInterruptedOpenSnapRef.current = true;
       touchStartY = e.touches?.[0]?.clientY ?? 0;
+      cancelThreadJump();
       lockUserScroll();
       releaseStickToBottom();
       cancelOpenSnapPendingRef.current?.();
@@ -1578,6 +1621,7 @@ function ConversaViewBody() {
     const onWheel = (e) => {
       if (e.deltaY < 0) {
         userInterruptedOpenSnapRef.current = true;
+        cancelThreadJump();
         lockUserScroll();
         releaseStickToBottom();
         cancelOpenSnapPendingRef.current?.();
@@ -1589,6 +1633,7 @@ function ConversaViewBody() {
       const isScrollbarPointer = e.pointerType === "mouse" && e.target === el;
       if (!isTouchPointer && !isScrollbarPointer) return;
       userInterruptedOpenSnapRef.current = true;
+      cancelThreadJump();
       lockUserScroll();
       releaseStickToBottom();
       cancelOpenSnapPendingRef.current?.();
@@ -1609,7 +1654,7 @@ function ConversaViewBody() {
       el.removeEventListener("wheel", onWheel);
       window.clearTimeout(userScrollUnlockTimerRef.current);
     };
-  }, [scrollThreadId, releaseStickToBottom, lockUserScroll, scheduleUserScrollUnlock]);
+  }, [scrollThreadId, releaseStickToBottom, lockUserScroll, scheduleUserScrollUnlock, cancelThreadJump]);
 
   /*
    * Reancoragem após carregar histórico antigo. Corre em `useLayoutEffect` e sem esperar
@@ -2486,24 +2531,43 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     window.setTimeout(() => el.classList.remove("highlight-reply"), 1700);
   }, []);
 
-  const scrollToMsg = useCallback((msgId) => {
+  const scrollToMsg = useCallback((msgId, options = {}) => {
     if (!msgId) return;
-    const scrollBehavior = headerCompact ? "auto" : "smooth";
-    const list = mensagensComSeparadoresRef.current;
-    const idx = list.findIndex((it) => it && it.__type === "msg" && String(it.id) === String(msgId));
-    if (idx >= 0 && virtualThreadRef.current?.scrollToIndex) {
-      virtualThreadRef.current.scrollToIndex(idx, { align: "center", behavior: scrollBehavior });
-      window.setTimeout(() => flashMessageById(msgId), 260);
-      return;
-    }
-    const escaped =
-      typeof CSS !== "undefined" && CSS.escape
-        ? CSS.escape(String(msgId))
-        : String(msgId).replace(/"/g, '\\"');
-    const el = document.querySelector(`[data-msg-id="${escaped}"]`);
-    el?.scrollIntoView?.({ behavior: scrollBehavior, block: "center" });
-    window.setTimeout(() => flashMessageById(msgId), 260);
-  }, [flashMessageById, headerCompact]);
+    const scrollBehavior = options.behavior || (headerCompact ? "auto" : "smooth");
+    armThreadJump();
+
+    const alignAndFlash = (attempt) => {
+      const list = mensagensComSeparadoresRef.current;
+      const idx = list.findIndex((it) => it && it.__type === "msg" && String(it.id) === String(msgId));
+      if (idx >= 0 && virtualThreadRef.current?.scrollToIndex) {
+        virtualThreadRef.current.scrollToIndex(idx, { align: "center", behavior: scrollBehavior });
+        /*
+         * O virtualizer ainda estima linhas fora da tela. Um segundo salto no frame
+         * seguinte corrige o offset depois que o lote novo entra na lista — sem isso
+         * o primeiro cálculo cai no topo e o snap devolve ao fim.
+         */
+        if (scrollBehavior === "auto" && attempt < 1) {
+          requestAnimationFrame(() => alignAndFlash(attempt + 1));
+          return;
+        }
+        window.setTimeout(() => flashMessageById(msgId), scrollBehavior === "auto" ? 60 : 260);
+        return;
+      }
+      const escaped =
+        typeof CSS !== "undefined" && CSS.escape
+          ? CSS.escape(String(msgId))
+          : String(msgId).replace(/"/g, '\\"');
+      const el = document.querySelector(`[data-msg-id="${escaped}"]`);
+      if (el) {
+        el.scrollIntoView?.({ behavior: scrollBehavior, block: "center" });
+        window.setTimeout(() => flashMessageById(msgId), scrollBehavior === "auto" ? 60 : 260);
+        return;
+      }
+      if (attempt < 8) requestAnimationFrame(() => alignAndFlash(attempt + 1));
+    };
+
+    alignAndFlash(0);
+  }, [armThreadJump, flashMessageById, headerCompact]);
 
   const {
     messageSearchOpen,
@@ -2511,7 +2575,14 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     openMessageSearch,
     closeMessageSearch,
     handleSelectMessageSearchResult,
-  } = useConversationSearch({ conversaId, headerCompact, scrollToMsg, showToast });
+  } = useConversationSearch({
+    conversaId,
+    headerCompact,
+    scrollToMsg,
+    showToast,
+    armThreadJump,
+    prepareLoadOlder: captureLoadMoreAnchor,
+  });
 
   const jumpToReply = useCallback((replyToId) => {
     const rid = safeString(replyToId);
