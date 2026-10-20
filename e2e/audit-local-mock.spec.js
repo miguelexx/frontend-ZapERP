@@ -285,19 +285,35 @@ test("composer mantém teclado, carregamento lazy, pickers e cancelamento de ane
   await page.getByRole("option", { name: /Boas-vindas/ }).click();
   await expect(composer).toHaveValue("Linha um\nlinha doisOlá, como posso ajudar?");
 
+  /*
+   * Emoji e figurinha vivem no MESMO painel com abas desde a unificação do composer
+   * (um único botão "Emojis e figurinhas"). O roteiro antigo abria dois painéis separados
+   * ("Selecionar emoji" / "Figurinhas") e falhava: o painel abre na aba de emoji, então o
+   * botão "Criar figurinha" só existe depois de trocar de aba.
+   */
+  const mediaPanelBtn = page.getByRole("button", { name: "Emojis e figurinhas" });
+  await mediaPanelBtn.click();
+  const mediaPanel = page.getByRole("dialog", { name: "Emojis e figurinhas" });
+  await expect(mediaPanel).toBeVisible();
+
   if (!testInfo.project.name.includes("mobile")) {
-    await page.getByRole("button", { name: "Emojis" }).click();
-    await expect(page.getByRole("dialog", { name: "Selecionar emoji" })).toBeVisible();
     await page.getByRole("listitem", { name: "Emoji 😀" }).click();
     await expect(composer).toHaveValue(/😀/);
   }
 
-  await page.getByRole("button", { name: "Figurinhas" }).click();
-  await expect(page.getByRole("dialog", { name: "Figurinhas" })).toBeVisible();
+  await mediaPanel.getByRole("tab", { name: "Figurinhas" }).click();
   await expect(page.getByRole("button", { name: "Criar figurinha" })).toBeVisible();
-  await page.getByRole("button", { name: "Figurinhas" }).click();
+  await mediaPanelBtn.click();
+  await expect(mediaPanel).toBeHidden();
 
-  const previewInput = page.locator('input[accept^=".pdf,.doc,.docx,image"]');
+  /*
+   * Input genérico de anexo (o único que aceita imagem, áudio E vídeo). Seletor por
+   * capacidade em vez do prefixo literal do `accept`: a lista de extensões cresce a cada
+   * formato novo (.cdr/.ai/.eps/.psd entraram depois) e o prefixo antigo deixou de casar.
+   */
+  const previewInput = page.locator(
+    'input[type="file"][accept*="image/*"][accept*="audio/*"][accept*="video/*"]'
+  );
   await previewInput.setInputFiles({
     name: "auditoria.png",
     mimeType: "image/png",
@@ -1039,4 +1055,130 @@ test("historico com muitas midias abre e envia sem saltos tardios", async ({ pag
   console.log(
     `[metricas:midia:${testInfo.project.name}] framesAbertura=${openingSamples.length} deslocados=${openingSamples.filter((sample) => sample.gap > 6).length} gapMax=${Math.max(...openingSamples.map((sample) => sample.gap))} gapFinal=${openingSamples.at(-1)?.gap ?? null} ancoraDelta=${historyProbe.delta} bolhasRenderizadas=${renderedCount} gapPosEnvio=${finalMediaGap}`
   );
+});
+
+/**
+ * Auditoria de mídia (2026-10-20): salvar foto/vídeo/áudio/figurinha.
+ *
+ * O menu nativo do navegador não alcança a mídia da bolha — `.wa-bubble-img` tem
+ * `pointer-events: none` e a bolha desliga `-webkit-touch-callout` para o long-press abrir o
+ * menu do app. Logo, "Salvar como…" no menu da mensagem e no visualizador em tela cheia é a
+ * ÚNICA forma de baixar. Este teste prova que a ação existe e entrega o arquivo com nome e
+ * extensão corretos.
+ */
+test("mídia recebida pode ser salva pelo menu e pelo visualizador", async ({ page }, testInfo) => {
+  await installAuditSession(page);
+
+  const imagemSvg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320">' +
+    '<rect width="100%" height="100%" fill="#d9ece6"/><circle cx="240" cy="150" r="80" fill="#79b8a5"/></svg>';
+  const mensagens = [
+    {
+      id: 90_001,
+      conversa_id: 1,
+      direcao: "in",
+      tipo: "imagem",
+      url: "/uploads/audit-save-image.svg",
+      criado_em: "2026-07-25T12:00:00.000Z",
+      status: "lido",
+    },
+  ];
+  const downloadsPedidos = [];
+
+  await page.route(`${API}/**`, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+
+    if (path.startsWith("/socket.io")) {
+      await route.abort();
+      return;
+    }
+    if (path === "/uploads/audit-save-image.svg") {
+      if (url.searchParams.get("disposition") === "attachment") {
+        downloadsPedidos.push(url.searchParams.get("filename") || "");
+      }
+      await route.fulfill({ status: 200, contentType: "image/svg+xml", body: imagemSvg });
+      return;
+    }
+    if (path === "/usuarios/me") {
+      await route.fulfill({ json: { id: 1, perfil: "admin", role: "admin" } });
+      return;
+    }
+    if (path === "/usuarios/me/permissoes") {
+      await route.fulfill({ json: { permissoes: [] } });
+      return;
+    }
+    if (path === "/config/empresa") {
+      await route.fulfill({ json: { id: 1, nome: "ZapERP Auditoria" } });
+      return;
+    }
+    if (path === "/chats/whatsapp-instances") {
+      await route.fulfill({ json: { instances: [], active_count: 0 } });
+      return;
+    }
+    if (path === "/tags" || path === "/dashboard/departamentos") {
+      await route.fulfill({ json: [] });
+      return;
+    }
+    if (path === "/chats/counts") {
+      await route.fulfill({ json: { todas: 2, minha_fila: 2, em_atendimento: 2 } });
+      return;
+    }
+    if (path === "/chats" && request.method() === "GET") {
+      await route.fulfill({ json: chats });
+      return;
+    }
+    if (path === "/chats/1" && request.method() === "GET") {
+      await route.fulfill({
+        json: {
+          conversa: { ...chats[0], cliente_nome: chats[0].contato_nome, mensagens_bloqueadas: false },
+          mensagens,
+          next_cursor: null,
+          tags: [],
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: {} });
+  });
+
+  await page.goto("/atendimento");
+  const firstRow = page.locator(".chat-list-row").filter({ hasText: "Contato Auditoria" });
+  await expect(firstRow).toBeVisible();
+  if (testInfo.project.name.includes("mobile")) {
+    await firstRow.tap();
+  } else {
+    await firstRow.click();
+  }
+
+  const bolhaImagem = page.locator(".wa-bubble.image-message").first();
+  await expect(bolhaImagem).toBeVisible();
+
+  // Desktop: menu da mensagem (⋯). No mobile o menu sai por long-press, coberto pelos testes
+  // de gesto; aqui o caminho garantido no toque é o visualizador.
+  if (!testInfo.project.name.includes("mobile")) {
+    await bolhaImagem.hover();
+    await bolhaImagem.getByRole("button", { name: "Abrir opções da mensagem" }).click();
+    const menu = page.getByRole("menu", { name: "Opções da mensagem" });
+    await expect(menu).toBeVisible();
+    const salvar = menu.getByRole("menuitem", { name: /Salvar como/ });
+    await expect(salvar).toBeVisible();
+    const [downloadMenu] = await Promise.all([page.waitForEvent("download"), salvar.click()]);
+    expect(downloadMenu.suggestedFilename()).toMatch(/^IMG-\d{8}-\d{6}\.svg$/);
+  }
+
+  // Visualizador em tela cheia: botão "Salvar como…" ao lado de imprimir/encaminhar.
+  await bolhaImagem.locator(".wa-bubble-imgLink").click();
+  const botaoSalvarViewer = page.locator(".wa-mediaViewer-download");
+  await expect(botaoSalvarViewer).toBeVisible();
+  const [downloadViewer] = await Promise.all([
+    page.waitForEvent("download"),
+    botaoSalvarViewer.click(),
+  ]);
+  expect(downloadViewer.suggestedFilename()).toMatch(/^IMG-\d{8}-\d{6}\.svg$/);
+
+  // O download sai pelo caminho autenticado, com nome real e attachment.
+  expect(downloadsPedidos.length).toBeGreaterThan(0);
+  expect(downloadsPedidos.every((nome) => /^IMG-\d{8}-\d{6}\.svg$/.test(nome))).toBe(true);
 });

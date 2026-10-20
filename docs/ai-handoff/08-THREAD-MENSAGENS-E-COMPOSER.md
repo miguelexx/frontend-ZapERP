@@ -218,6 +218,25 @@ Não substitua isso por “espera o POST e só então pinta a bolha”.
 
 Composer, `PendingMediaPreview`, `ImageSendPreviewMobile` (editor unificado no envio de foto, **desktop e mobile**). Áudios em fila FIFO no `ConversaView`. **Drop de arquivos (CONFIRMADO 2026-09-17):** `useConversationFileDrop` no `.wa-shell` (não na lista de mensagens). Overlay `.wa-dropOverlay` permanece montado, some com `visibility`/`opacity` e `pointer-events: none` — não captura `dragleave` das bolhas (flicker antigo). Só reage a `dataTransfer.types` com `Files`. Viewer: `MediaViewerOverlay` — em fotos/figurinhas (e arquivos-imagem) há zoom no lightbox: roda do mouse (frente = ampliar), arrastar para pan quando ampliado, duplo clique (1× ↔ 2,5×), pinch no touch; badge de %; reset ao trocar URL. Vídeo/PDF sem zoom. Mic: `media/micStreamService.js` + `audioRecordingLifecycle.js` (stop idempotente). Drop fica desligado enquanto o lightbox está aberto.
 
+**Salvar mídia — "Salvar como…" (CONFIRMADO 2026-10-20):** o menu nativo do navegador **não
+alcança** a mídia da bolha e isso é de propósito: `.wa-bubble-img` tem `pointer-events: none` (o
+toque precisa cair no `<button>` pai), `.wa-messages .wa-bubble *` tem `-webkit-touch-callout: none`
+(long-press abre o menu do app, não o do iOS) e `.wa-mediaViewer-img--zoomable` também desliga
+`pointer-events` (zoom/pan no stage). Logo, **a ação explícita é a única forma de baixar** — antes
+desta data só documento tinha download e foto/vídeo/áudio/figurinha não tinham nenhuma. Agora:
+item "Salvar como…" no `MessageMenu` (gate `podeBaixarMidiaDaMensagem`, alimentado pela
+classificação canônica da bolha) e botão no `MediaViewerOverlay` (`.wa-mediaViewer-download`,
+`handleMediaViewerDownload` no `useMediaViewer`). O caminho está em `conversa/mediaDownload.js`:
+binário com header `Authorization` (nunca token na URL) → `reprocessar-midia` quando o link do
+provedor expirou → gravação. **iOS:** `<a download>` com `blob:` não grava nada no Safari do
+iPhone/iPad, então lá vai pela folha nativa (`navigator.share` com `files`); `AbortError` = usuário
+fechou a folha e **não** é erro. Nome do arquivo em `conversa/mediaSaveName.js` (módulo puro):
+nome real do cliente ganha a extensão que falta, e sem nome real gera
+`IMG-/VID-/AUD-/STK-AAAAMMDD-HHMMSS.ext`; Content-Type que contradiz o `tipo` da mensagem é
+descartado (o `/media/proxy` já anunciou vídeo sem extensão como `audio/mp4`). `DocumentMessage`
+usa o mesmo gravador. Regressão: `scripts/test-media-download.mjs` + e2e `mídia recebida pode ser
+salva pelo menu e pelo visualizador`. Backend correlato: `backend/docs/ai-handoff/35-AUDITORIA-MIDIA-SALVAR-COMO.md`.
+
 **Editor de foto no envio / print (CONFIRMADO 2026-09-14):** ao colar um print ou anexar JPG/PNG/WebP, `PendingMediaPreview` abre o editor (`ImageSendPreviewMobile`) também no desktop — não só em `headerCompact`. Ferramentas: **Cortar** (quadro `react-image-crop`), **Editar** (caneta com cores), **Filtro** (Vívido/Quente/Frio/P&B/Contraste/Suave), girar 90°, redefinir e enviar original. Exporta em `exportEditedImageFile` (`imageCropExport.js`) a partir do blob já girado (`imageSrc`), com filtro + traços + recorte. GIF/SVG continuam sem editor (`isEditableImageForSend`). Vídeo/arquivo seguem o preview estático. Teste: `scripts/test-image-send-edit.mjs`.
 
 Tipos de bolha (CONFIRMADO 2026-08-27): texto, imagem, vídeo, áudio/ptt/voice, documento, sticker, location, vcard/contato, call, **poll/enquete** (`PollMessage`; meta em `reply_meta.poll`). Renderers em `bubble/components/*`; classificação em `classifyBubbleMessage`. **Nota interna** e movimentação interna continuam em `ThreadRow.jsx` (não passam pela Bubble). Player de áudio: `useAudioPlayback` (`el.load()` ao trocar src; um elemento ativo; pause no unmount). Status visual: `resolveOutgoingTick`. Retry de envio: `getRetryUiState` — reusa o `id` existente, não cria bolha nova.
@@ -345,6 +364,8 @@ DEFINITIVA (4xx/recusa no corpo) cai no fallback — que agora manda `client_tem
 (`fwd-…`) para o dedupe do backend cobrir double-submit.
 
 **Encaminhar (2026-10-16):** nota interna não aparece em "Encaminhar" e, na seleção múltipla, é ignorada antes do POST — uma nota no lote fazia o backend recusar o encaminhamento inteiro. A lista "Conversas recentes" do modal assina o store só enquanto o modal está aberto (antes lia `getState()` num `useMemo` e ficava congelada). No backend, o SELECT de `encaminharMensagem` inclui `whatsapp_id` e `whatsapp_instance_id`; sem isso o encaminhamento nativo do Whapi nunca disparava e caía sempre na cópia.
+
+**Encaminhar para grupos (2026-10-20):** a seção Grupos do modal não recebia `forwardGrupos` em `ConversaViewOverlays` — a lista mostrava só contatos e conversas individuais. O modal agora repassa essa prop e, ao abrir, carrega `GET /chats/grupos` (não depende da aba da lista). Admin vê os grupos da empresa; os outros perfis veem grupos do próprio setor e grupos sem setor. A trava de número WhatsApp continua valendo.
 
 ### Reenvio automático estilo WhatsApp Web (2026-10-06)
 

@@ -10,7 +10,7 @@ import {
   canReprocessInboundMedia,
   requestInboundMediaReprocess,
 } from "../bubble/utils/inboundMediaReprocess";
-import { IconClose, IconForward, IconPrint } from "../conversaViewIcons";
+import { IconClose, IconDownload, IconForward, IconPrint } from "../conversaViewIcons";
 
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
@@ -316,10 +316,12 @@ export default function MediaViewerOverlay({
   mediaPdfLoading,
   mediaPdfError,
   mediaPrintLoading,
+  mediaDownloadLoading,
   mediaViewerImgRef,
   mediaViewerVideoRef,
   onClose,
   onPrint,
+  onDownload,
   onForward,
 }) {
   useEffect(() => {
@@ -360,6 +362,24 @@ export default function MediaViewerOverlay({
               aria-label="Encaminhar"
             >
               <IconForward />
+            </button>
+          ) : null}
+          {/*
+            * Botão direito / long-press não alcançam a imagem do lightbox
+            * (`.wa-mediaViewer-img--zoomable` tem `pointer-events: none` por causa do
+            * zoom/pan), então salvar a mídia só existe por aqui.
+            */}
+          {typeof onDownload === "function" ? (
+            <button
+              type="button"
+              className="wa-mediaViewer-download"
+              onClick={onDownload}
+              disabled={mediaDownloadLoading}
+              title="Salvar como…"
+              aria-label="Salvar como"
+              aria-busy={mediaDownloadLoading ? "true" : undefined}
+            >
+              <IconDownload />
             </button>
           ) : null}
           {mediaViewerSupportsPrint(mediaViewer.type, mediaViewer.fileName) ? (

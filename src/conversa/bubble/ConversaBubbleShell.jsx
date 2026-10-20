@@ -26,6 +26,7 @@ import BubbleTypedContent from "./components/BubbleTypedContent";
 import { ReactionPicker, ReactionButton, ReactionBadge } from "./components/MessageReactions";
 import { useOfflineAudioSource } from "./hooks/useOfflineAudioSource";
 import { useOnlineStatus } from "../../utils/useOnlineStatus";
+import { podeBaixarMidiaDaMensagem, salvarMidiaComFeedback } from "../mediaDownload";
 
 const Bubble = memo(function Bubble({
   msg,
@@ -280,6 +281,37 @@ const Bubble = memo(function Bubble({
     onCopy?.(ok);
   }, [msg, mediaUrl, onCopy]);
 
+  /*
+   * "Salvar como…" da mídia. Sem isto não existe NENHUMA forma de salvar foto/vídeo/áudio/
+   * figurinha: o menu nativo do navegador não alcança a mídia (`pointer-events: none` na
+   * imagem e `-webkit-touch-callout: none` na bolha existem para o gesto cair neste menu).
+   * O guard por ref evita um segundo download enquanto o primeiro está em voo — o menu fecha
+   * no clique, então não há estado visual para barrar o toque repetido.
+   */
+  const downloadInFlightRef = useRef(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const ehBolhaDeMidia = isImg || isSticker || isVideo || isAudioOrVoice || isFile;
+  const canDownload = useMemo(
+    () => podeBaixarMidiaDaMensagem(msg, { mediaUrl, out, ehMidia: ehBolhaDeMidia }),
+    [msg, mediaUrl, out, ehBolhaDeMidia]
+  );
+  const handleDownloadAction = useCallback(async () => {
+    if (downloadInFlightRef.current) return;
+    downloadInFlightRef.current = true;
+    setDownloadBusy(true);
+    try {
+      await salvarMidiaComFeedback({
+        msg,
+        url: mediaUrl,
+        tipo: msg?.tipo,
+        fileName: msg?.nome_arquivo || undefined,
+      });
+    } finally {
+      downloadInFlightRef.current = false;
+      setDownloadBusy(false);
+    }
+  }, [msg, mediaUrl]);
+
   const runAction = useCallback(
     async (action) => {
       setMenuOpen(false);
@@ -287,6 +319,7 @@ const Bubble = memo(function Bubble({
       if (action === "reply") onReply?.(msg);
       if (action === "copy") await doCopy();
       if (action === "forward") onForward?.(msg);
+      if (action === "download") await handleDownloadAction();
       if (action === "pin") onTogglePin?.(msg);
       if (action === "star") onToggleStar?.(msg);
       if (action === "select") onStartSelect?.(msg);
@@ -294,7 +327,7 @@ const Bubble = memo(function Bubble({
       if (action === "deleteForEveryone") onDeleteForEveryone?.(msg);
       if (action === "edit") onEdit?.(msg);
     },
-    [msg, onInfo, onReply, doCopy, onForward, onTogglePin, onToggleStar, onStartSelect, onDeleteForMe, onDeleteForEveryone, onEdit, setMenuOpen]
+    [msg, onInfo, onReply, doCopy, onForward, handleDownloadAction, onTogglePin, onToggleStar, onStartSelect, onDeleteForMe, onDeleteForEveryone, onEdit, setMenuOpen]
   );
 
   const typedProps = {
@@ -582,6 +615,8 @@ const Bubble = memo(function Bubble({
         canDeleteForEveryone={canDeleteForEveryone}
         canEdit={canEdit}
         canForward={!isInternalNoteEditTipo(msg)}
+        canDownload={canDownload}
+        downloadBusy={downloadBusy}
         reactionExpanded={reactionExpanded}
         reactionBusy={reactionBusy}
         localReaction={localReaction}

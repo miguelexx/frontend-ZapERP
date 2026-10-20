@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChatStore } from "../../chats/chatsStore";
 import { scheduleAfterInitialPaint } from "../../chats/scheduleAfterInitialPaint";
-import { abrirConversaCliente, fetchChats } from "../../chats/chatService";
+import { abrirConversaCliente, fetchGruposEncaminhar } from "../../chats/chatService";
 import { isGroupConversation } from "../../utils/conversaUtils";
 import {
   getForwardColaboradoresCache,
@@ -27,6 +27,17 @@ import {
   pushOptimisticForwardToDest,
   reconcileForwardOptimisticTemps,
 } from "../conversaOptimisticMessage";
+
+const FORWARD_GRUPOS_FETCH_LIMIT = 400;
+
+function grupoMatchesForwardQuery(grupo, queryLower) {
+  if (!queryLower) return true;
+  const n = safeString(
+    grupo?.nome_grupo || grupo?.contato_nome || grupo?.nome_contato_cache || grupo?.nome || grupo?.telefone
+  ).toLowerCase();
+  const tel = safeString(grupo?.telefone).toLowerCase();
+  return n.includes(queryLower) || tel.includes(queryLower);
+}
 
 function isForwardGroupDestination(meta) {
   if (!meta) return false;
@@ -112,8 +123,9 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
   const [forwardColaboradoresLoading, setForwardColaboradoresLoading] = useState(false);
   const [forwardSelectedConversaIds, setForwardSelectedConversaIds] = useState([]);
   const [forwardSelectedClienteIds, setForwardSelectedClienteIds] = useState([]);
-  /** Grupos encontrados via GET /chats na busca (para achar grupo fora da lista carregada). */
+  /** Grupos carregados em GET /chats/grupos (independente da aba da lista). */
   const [forwardGruposFetched, setForwardGruposFetched] = useState([]);
+  const [forwardGruposLoading, setForwardGruposLoading] = useState(false);
   const [forwardMax10Msg, setForwardMax10Msg] = useState("");
   const [forwardMultiProgress, setForwardMultiProgress] = useState(null);
   /** Snapshot da lista enquanto o modal está aberto. getState() dentro de useMemo não assina o store. */
@@ -121,6 +133,8 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
   const forwardMax10TimerRef = useRef(null);
   /** Cache da lista completa de contatos (carregada ao abrir, sem busca). */
   const forwardAllContatosRef = useRef(null);
+  /** Cache dos grupos que o usuário pode encaminhar (carregada ao abrir o modal). */
+  const forwardAllGruposRef = useRef(null);
   /** Mapa id->cliente dos contatos marcados, para resolver no envio. */
   const forwardClientesByIdRef = useRef(new Map());
   /** Mapa id->conversa de grupos vindos da busca (não estão no store) para resolver meta no envio. */
@@ -191,15 +205,22 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
       });
   }, [forwardChatSnap, forwardQuery, conversaId]);
 
-  // Lista final de grupos: os do store + os encontrados na busca (dedup por id).
+  // Lista final de grupos: os do store + os carregados para encaminhar (dedup por id).
   const forwardGrupos = useMemo(() => {
+    const q = safeString(forwardQuery).toLowerCase();
     const map = new Map();
-    for (const g of forwardGruposStore) map.set(String(g.id), g);
-    for (const g of Array.isArray(forwardGruposFetched) ? forwardGruposFetched : []) {
-      if (g?.id != null && !map.has(String(g.id))) map.set(String(g.id), g);
+    const accept = (g) =>
+      g?.id != null &&
+      String(g.id) !== String(conversaId) &&
+      grupoMatchesForwardQuery(g, q);
+    for (const g of forwardGruposStore) {
+      if (accept(g)) map.set(String(g.id), g);
     }
-    return Array.from(map.values()).slice(0, 80);
-  }, [forwardGruposStore, forwardGruposFetched]);
+    for (const g of Array.isArray(forwardGruposFetched) ? forwardGruposFetched : []) {
+      if (accept(g) && !map.has(String(g.id))) map.set(String(g.id), g);
+    }
+    return Array.from(map.values()).slice(0, 200);
+  }, [forwardGruposStore, forwardGruposFetched, forwardQuery, conversaId]);
 
   const forwardColaboradoresFiltered = useMemo(() => {
     const list = Array.isArray(forwardColaboradores) ? forwardColaboradores : [];
@@ -330,29 +351,57 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     };
   }, [forwardOpen, forwardQuery, conversa?.cliente_id]);
 
-  // Busca de GRUPOS via GET /chats (acha grupo que não está na lista carregada no store).
+  // Grupos para encaminhar: carga própria, sem depender da aba atual da lista.
   useEffect(() => {
     if (!forwardOpen) {
       setForwardGruposFetched([]);
-      return;
+      setForwardGruposLoading(false);
+      forwardAllGruposRef.current = null;
+      return undefined;
     }
-    const q = safeString(forwardQuery).trim();
-    if (q.length < 2) return; // sem busca: usa só os grupos já presentes no store
+
+    const q = safeString(forwardQuery).trim().toLowerCase();
+    const publish = (arr) => {
+      const list = (Array.isArray(arr) ? arr : []).filter(
+        (c) => c?.id != null && String(c.id) !== String(conversaId) && grupoMatchesForwardQuery(c, q)
+      );
+      list.forEach((g) => forwardGruposByIdRef.current.set(String(g.id), g));
+      setForwardGruposFetched(list);
+    };
+
+    const cached = forwardAllGruposRef.current;
+    const cacheCoversSearch =
+      Array.isArray(cached) && (q.length < 2 || cached.length < FORWARD_GRUPOS_FETCH_LIMIT);
+    if (cacheCoversSearch) {
+      publish(cached);
+      setForwardGruposLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
+    setForwardGruposLoading(true);
     const timer = setTimeout(async () => {
       if (cancelled) return;
       try {
-        const list = await fetchChats({ palavra: q, limit: 60 }, { silent: true });
-        if (cancelled) return;
-        const arr = (Array.isArray(list) ? list : []).filter(
-          (c) => c?.id != null && isGroupConversation(c) && String(c.id) !== String(conversaId)
+        const list = await fetchGruposEncaminhar(
+          {
+            limit: FORWARD_GRUPOS_FETCH_LIMIT,
+            ...(q.length >= 2 ? { palavra: safeString(forwardQuery).trim() } : {}),
+          },
+          { silent: true }
         );
+        if (cancelled) return;
+        const arr = Array.isArray(list) ? list : [];
         arr.forEach((g) => forwardGruposByIdRef.current.set(String(g.id), g));
-        setForwardGruposFetched(arr);
+        if (q.length < 2) forwardAllGruposRef.current = arr;
+        publish(arr);
       } catch (_) {
         if (!cancelled) setForwardGruposFetched([]);
+      } finally {
+        if (!cancelled) setForwardGruposLoading(false);
       }
-    }, 260);
+    }, q.length >= 2 ? 260 : 0);
+
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -383,6 +432,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     forwardClientesByIdRef.current = new Map();
     forwardGruposByIdRef.current = new Map();
     setForwardGruposFetched([]);
+    forwardAllGruposRef.current = null;
     forwardAllContatosRef.current = null;
     setForwardMax10Msg("");
     setForwardMultiProgress(null);
@@ -1047,6 +1097,7 @@ export function useForwardFlow({ conversa, conversaId, user, showToast, exitSele
     forwardSending,
     forwardCandidates,
     forwardGrupos,
+    forwardGruposLoading,
     forwardClientes,
     forwardClientesLoading,
     forwardColaboradoresFiltered,

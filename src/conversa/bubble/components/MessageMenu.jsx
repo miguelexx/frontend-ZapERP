@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { ReactionPicker } from "./MessageReactions";
 import useMotionPresence from "../../../components/ui/useMotionPresence";
-import { Info, Reply, Copy, Forward, Pin, Star, CheckSquare, Pencil, Trash2 } from "lucide-react";
+import { Info, Reply, Copy, Forward, Download, Pin, Star, CheckSquare, Pencil, Trash2 } from "lucide-react";
 
 export default function MessageMenu({
   menuOpen,
@@ -17,6 +17,8 @@ export default function MessageMenu({
   canDeleteForEveryone,
   canEdit,
   canForward = true,
+  canDownload = false,
+  downloadBusy = false,
   reactionExpanded,
   reactionBusy,
   localReaction,
@@ -90,6 +92,23 @@ export default function MessageMenu({
         {!apagadaParaTodos && canForward ? (
           <button type="button" className="wa-msgMenuItem" onClick={() => onAction("forward")} role="menuitem">
             <Forward aria-hidden="true" /> Encaminhar
+          </button>
+        ) : null}
+        {/*
+         * Única forma de salvar foto/vídeo/áudio/figurinha: o menu nativo do navegador não
+         * alcança a mídia (pointer-events/touch-callout desligados de propósito para o
+         * long-press abrir este menu). Ver conversa/mediaDownload.js.
+         */}
+        {!apagadaParaTodos && canDownload ? (
+          <button
+            type="button"
+            className="wa-msgMenuItem"
+            onClick={() => onAction("download")}
+            role="menuitem"
+            disabled={downloadBusy}
+            aria-busy={downloadBusy ? "true" : undefined}
+          >
+            <Download aria-hidden="true" /> {downloadBusy ? "Salvando…" : "Salvar como…"}
           </button>
         ) : null}
         {!apagadaParaTodos ? (

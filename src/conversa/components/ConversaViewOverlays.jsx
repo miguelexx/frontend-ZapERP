@@ -7,6 +7,12 @@ import ConversaMessageSearchPanel from "./ConversaMessageSearchPanel";
 import { ChatToast } from "../conversaViewIcons";
 
 const ProdutoConsultaPanel = lazy(() => import("../ProdutoConsultaPanel"));
+/**
+ * Orçamento WM (doc 36, D8): componente próprio, irmão do painel de produtos. `lazy` pelo mesmo
+ * motivo dos vizinhos — é um fluxo que a maioria dos atendimentos não abre, e o chunk só desce
+ * quando o módulo está ligado e alguém clica.
+ */
+const OrcamentoDrawer = lazy(() => import("../orcamento/OrcamentoDrawer"));
 const SidebarCliente = lazy(() => import("../SidebarCliente"));
 const ForwardModal = lazy(() => import("./ForwardModal"));
 const ShareContactModal = lazy(() => import("./ShareContactModal"));
@@ -72,6 +78,8 @@ function ConversaViewOverlays({
   forwardColaboradoresLoading,
   forwardColaboradoresFiltered,
   forwardCandidates,
+  forwardGrupos,
+  forwardGruposLoading,
   forwardClientesLoading,
   forwardClientes,
   closeForward,
@@ -103,10 +111,12 @@ function ConversaViewOverlays({
   mediaPdfLoading,
   mediaPdfError,
   mediaPrintLoading,
+  mediaDownloadLoading,
   mediaViewerImgRef,
   mediaViewerVideoRef,
   closeMediaViewer,
   handleMediaViewerPrint,
+  handleMediaViewerDownload,
   onForwardMedia,
   shareContactOpen,
   shareContactQuery,
@@ -146,6 +156,12 @@ function ConversaViewOverlays({
   showProdutosPanel,
   canConsultarProdutos,
   setShowProdutosPanel,
+  showOrcamentoDrawer,
+  canCriarOrcamentoWm,
+  setShowOrcamentoDrawer,
+  orcamentoCompanyId,
+  orcamentoUserId,
+  orcamentoClienteNomeSugerido,
   canVerSyncProdutos,
   canSincronizarProdutos,
   showToast,
@@ -243,6 +259,8 @@ function ConversaViewOverlays({
             forwardColaboradoresLoading={forwardColaboradoresLoading}
             forwardColaboradoresFiltered={forwardColaboradoresFiltered}
             forwardCandidates={forwardCandidates}
+            forwardGrupos={forwardGrupos}
+            forwardGruposLoading={forwardGruposLoading}
             forwardClientesLoading={forwardClientesLoading}
             forwardClientes={forwardClientes}
             onClose={closeForward}
@@ -285,10 +303,12 @@ function ConversaViewOverlays({
             mediaPdfLoading={mediaPdfLoading}
             mediaPdfError={mediaPdfError}
             mediaPrintLoading={mediaPrintLoading}
+            mediaDownloadLoading={mediaDownloadLoading}
             mediaViewerImgRef={mediaViewerImgRef}
             mediaViewerVideoRef={mediaViewerVideoRef}
             onClose={closeMediaViewer}
             onPrint={handleMediaViewerPrint}
+            onDownload={handleMediaViewerDownload}
             onForward={onForwardMedia}
           />
         </Suspense>
@@ -355,6 +375,26 @@ function ConversaViewOverlays({
             canTriggerManualSync={canSincronizarProdutos}
             showToast={showToast}
             onEnviarParaConversa={(template) => queueComposerAppend(template)}
+          />
+        </Suspense>
+      ) : null}
+      {/*
+        Montado DEPOIS do painel de produtos de propósito: os dois são portais com o mesmo
+        `wa-modalOverlay`, então o último no DOM empilha por cima — e é essa ordem que a cadeia
+        de Escape reflete (`orcamentoDrawer` antes de `produtosPanel` em
+        `utils/conversationEscapeOrder.js`). Guardas repetidos aqui porque montar um overlay é
+        a última chance de barrar: `conversaId` (o backend revalida a conversa), `!isGroup`
+        (orçamento tem UM comprador) e o gate de módulo+permissão.
+      */}
+      {showOrcamentoDrawer && conversaId && !isGroup && canCriarOrcamentoWm ? (
+        <Suspense fallback={null}>
+          <OrcamentoDrawer
+            open
+            onClose={() => setShowOrcamentoDrawer(false)}
+            conversaId={conversaId}
+            companyId={orcamentoCompanyId}
+            userId={orcamentoUserId}
+            clienteNomeSugerido={orcamentoClienteNomeSugerido}
           />
         </Suspense>
       ) : null}

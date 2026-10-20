@@ -18,34 +18,13 @@ import {
   requestInboundMediaReprocess,
 } from "../utils/inboundMediaReprocess";
 import { useNotificationStore } from "../../../notifications/notificationStore";
+import { salvarMidiaComFeedback, saveBlobAs } from "../../mediaDownload";
 
 function toast(payload) {
   try {
     useNotificationStore?.getState()?.showToast?.(payload);
   } catch {
     /* toast é best-effort; nunca deve derrubar o clique */
-  }
-}
-
-/** Dispara o "salvar como" a partir de bytes já em memória (blob), com o nome real do arquivo. */
-function triggerBlobDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename || "arquivo";
-    a.rel = "noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } finally {
-    setTimeout(() => {
-      try {
-        URL.revokeObjectURL(url);
-      } catch {
-        /* ignore */
-      }
-    }, 60000);
   }
 }
 
@@ -158,7 +137,7 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
         win.location.replace(url);
       } else {
         // Pop-up bloqueado de vez: baixa o arquivo para o usuário não ficar sem nada.
-        triggerBlobDownload(blob, nome);
+        saveBlobAs(blob, nome);
       }
       setTimeout(() => {
         try {
@@ -181,33 +160,31 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
     }
   }, [selectMode, busy, openHref, recuperarHrefs, nome]);
 
+  /*
+   * Salvar passa pelo salvador compartilhado (conversa/mediaDownload.js): mesma busca
+   * autenticada + recuperação da cópia que já existia aqui, mais a folha nativa do iOS —
+   * no iPhone/iPad o Safari ignora `<a download>` em `blob:` e o clique não gravava nada.
+   */
   const handleDownload = useCallback(async () => {
     if (selectMode || busy) return;
     setBusy(true);
     try {
-      let blob = null;
-      if (downloadHref) {
-        try {
-          blob = await fetchMediaBinaryAuthenticated(downloadHref);
-        } catch {
-          blob = null;
-        }
-      }
-      if (!blob) {
-        const fresh = await recuperarHrefs();
-        blob = await fetchMediaBinaryAuthenticated(fresh.downloadHref);
-      }
-      triggerBlobDownload(blob, nome);
-    } catch (err) {
-      toast(
-        err?.code === "expired"
-          ? TOAST_EXPIRADO
-          : { ...TOAST_FALHA, title: "Não foi possível salvar" }
-      );
+      await salvarMidiaComFeedback({
+        msg,
+        url: mediaUrl,
+        fileName: nome,
+        tipo: "arquivo",
+        hrefs: downloadHref ? [downloadHref] : [],
+        showToast: toast,
+        toasts: {
+          expirado: TOAST_EXPIRADO,
+          falha: { ...TOAST_FALHA, title: "Não foi possível salvar" },
+        },
+      });
     } finally {
       setBusy(false);
     }
-  }, [selectMode, busy, downloadHref, recuperarHrefs, nome]);
+  }, [selectMode, busy, downloadHref, msg, mediaUrl, nome]);
 
   const abrirLabel = busy ? "Abrindo…" : "Abrir";
   const salvarLabel = busy ? "Salvando…" : "Salvar como...";

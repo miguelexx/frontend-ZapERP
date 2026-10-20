@@ -1,0 +1,383 @@
+/* ==========================================================================
+   ORÇAMENTO WM — drawer do orçamento manual na conversa
+   Doc: backend/docs/ai-handoff/36-ORCAMENTO-WM-INTEGRACAO.md (Sessão 5)
+
+   Convenções desta folha, e por quê:
+
+   · Usa os MESMOS tokens do resto da conversa (`--wa-panel`, `--wa-panel-border`,
+     `--wa-text-muted`, `--wa-green`) definidos em `conversa.css`. Com isso o tema escuro
+     (`[data-theme="dark"]`) funciona sem uma única regra duplicada aqui: quem muda é o token.
+   · Nenhuma regra toca `.wa-selectBar`, `.wa-pinBar`, a lista virtualizada, o composer ou
+     qualquer coisa do sistema de scroll/teclado. O drawer é um portal irmão, e o scroll dele é
+     interno (`overflow-y` no corpo) — não existe `position: sticky` nesta folha, de propósito:
+     barra sticky empurra a virtual list e é zona de perigo registrada no CLAUDE.md.
+   · Nenhum `font-size` abaixo de 16px em campo de formulário com `!important`: a guarda de
+     zoom do iOS vive em `src/styles/app.css` sob `@media (pointer: coarse)` e precisa poder
+     vencer (ela usa `font-size: max(16px, 1em) !important`).
+   ========================================================================== */
+
+.wa-orcDrawer {
+  margin-left: auto;
+  height: 100%;
+  width: min(560px, 100vw);
+  background: var(--wa-panel);
+  border-left: 1px solid var(--wa-panel-border);
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 12px;
+  min-height: 0;
+}
+
+.wa-orcDrawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.wa-orcDrawer-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.wa-orcDrawer-subtitle {
+  margin: 4px 0 0;
+  color: var(--wa-text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Corpo rolável + rodapé fora do scroll: "carrinho e total sempre visíveis". */
+.wa-orc-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wa-orc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wa-orc-sectionTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.wa-orc-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.wa-orc-input {
+  width: 100%;
+}
+
+.wa-orc-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-hint--aviso {
+  color: var(--wa-action-amber, #b45309);
+}
+
+/* Origem do dado (tempo real × cache). Nunca rotular cache como "atual". */
+.wa-orc-origem {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wa-text-muted);
+  border-left: 2px solid var(--wa-panel-border);
+  padding-left: 8px;
+}
+
+.wa-orc-alert {
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wa-orc-alert--erro {
+  border: 1px solid var(--wa-action-red, #dc2626);
+  background: var(--wa-action-red-soft, rgba(220, 38, 38, 0.1));
+  color: var(--wa-action-red, #b91c1c);
+}
+
+.wa-orc-alert--aviso {
+  border: 1px solid var(--wa-action-amber, #d97706);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
+  color: var(--wa-action-amber, #b45309);
+}
+
+/* ---- Candidatos (produto, cliente, vendedor) ---- */
+
+.wa-orc-resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wa-orc-candidato {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  width: 100%;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+  background: transparent;
+  color: var(--wa-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.wa-orc-candidato:hover:not(:disabled) {
+  border-color: var(--wa-green);
+}
+
+.wa-orc-candidato:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wa-orc-candidato-titulo {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.wa-orc-candidato-meta {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+/* Código ERP é área secundária: o caminho principal é concluir por nome. */
+.wa-orc-candidato-codigo,
+.wa-orc-item-codigo {
+  font-size: 11px;
+  color: var(--wa-text-muted);
+  opacity: 0.8;
+}
+
+.wa-orc-paginacao {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+/* ---- Cliente/vendedor já resolvidos ---- */
+
+.wa-orc-escolhido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.wa-orc-escolhido > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wa-orc-escolhido strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Itens ---- */
+
+.wa-orc-itens {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wa-orc-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.wa-orc-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wa-orc-item-titulo {
+  font-weight: 600;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.wa-orc-item-meta {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-item-erro {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--wa-action-red, #b91c1c);
+}
+
+.wa-orc-qtd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wa-orc-qtdBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--wa-panel-border);
+  background: transparent;
+  color: var(--wa-text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wa-orc-qtdBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wa-orc-qtdInput {
+  width: 64px;
+  text-align: center;
+}
+
+/* ---- Rodapé: total + ação principal ---- */
+
+.wa-orc-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wa-panel-border);
+}
+
+.wa-orc-totalBox {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wa-orc-totalLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-totalValor {
+  font-size: 15px;
+}
+
+/* O botão principal não muda de posição ao entrar em "Calculando…". */
+.wa-orc-btnPrincipal {
+  min-width: 132px;
+  justify-content: center;
+}
+
+.wa-orc-btnSm {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.wa-orc-acoes {
+  display: flex;
+  gap: 8px;
+}
+
+.wa-orc-rodapeSecundario {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wa-orc-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.wa-orc-resumo-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.wa-orc-resumo-linha span {
+  color: var(--wa-text-muted);
+}
+
+/* ---- Telas estreitas: o drawer ocupa a tela toda ---- */
+@media (max-width: 600px) {
+  .wa-orcDrawer {
+    width: 100vw;
+    border-left: none;
+    padding: 12px;
+  }
+
+  .wa-orc-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wa-orc-item .wa-orc-qtd,
+  .wa-orc-item > .wa-btn {
+    justify-self: start;
+  }
+
+  .wa-orc-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wa-orc-btnPrincipal {
+    width: 100%;
+  }
+}

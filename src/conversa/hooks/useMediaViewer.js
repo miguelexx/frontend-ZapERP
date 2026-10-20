@@ -10,6 +10,7 @@ import {
   getMediaPlaybackUrl,
   mediaViewerSupportsPrint,
 } from "../utils/conversaViewHelpers";
+import { salvarMidiaComFeedback } from "../mediaDownload";
 
 /**
  * Normaliza aliases de tipo apenas para o visualizador.
@@ -47,6 +48,7 @@ export function useMediaViewer({ showToast }) {
   const [mediaPdfLoading, setMediaPdfLoading] = useState(false);
   const [mediaPdfError, setMediaPdfError] = useState(null);
   const [mediaPrintLoading, setMediaPrintLoading] = useState(false);
+  const [mediaDownloadLoading, setMediaDownloadLoading] = useState(false);
   const mediaViewerImgRef = useRef(null);
   const mediaViewerVideoRef = useRef(null);
   const mediaPdfBlobUrlRef = useRef(null);
@@ -73,12 +75,37 @@ export function useMediaViewer({ showToast }) {
       fileName: fileName || sourceMsg?.nome_arquivo || null,
       originalType: type || null,
       sourceMsg: canForward ? sourceMsg : null,
+      /*
+       * Salvar não depende de poder encaminhar: bolha otimista (ainda sem id do banco) e foto
+       * de perfil (sem mensagem nenhuma) também baixam. Só mídia revogada fica de fora.
+       */
+      downloadMsg: sourceMsg && !sourceMsg?.apagada_para_todos ? sourceMsg : null,
     });
   }, []);
 
   const closeMediaViewer = useCallback(() => {
     setMediaViewer(null);
   }, []);
+
+  /**
+   * "Salvar como…" do lightbox. Mesmo caminho do menu da bolha (binário autenticado +
+   * recuperação da cópia quando o link do provedor expirou).
+   */
+  const handleMediaViewerDownload = useCallback(async () => {
+    if (!mediaViewer?.url || mediaDownloadLoading) return;
+    setMediaDownloadLoading(true);
+    try {
+      await salvarMidiaComFeedback({
+        msg: mediaViewer.downloadMsg || null,
+        url: mediaViewer.url,
+        fileName: mediaViewer.fileName || undefined,
+        tipo: mediaViewer.downloadMsg?.tipo || mediaViewer.originalType || mediaViewer.type,
+        showToast,
+      });
+    } finally {
+      setMediaDownloadLoading(false);
+    }
+  }, [mediaViewer, mediaDownloadLoading, showToast]);
 
   const handleMediaViewerPrint = useCallback(async () => {
     if (!mediaViewer?.url || mediaPrintLoading) return;
@@ -224,10 +251,12 @@ export function useMediaViewer({ showToast }) {
     mediaPdfLoading,
     mediaPdfError,
     mediaPrintLoading,
+    mediaDownloadLoading,
     mediaViewerImgRef,
     mediaViewerVideoRef,
     openMediaViewer,
     closeMediaViewer,
     handleMediaViewerPrint,
+    handleMediaViewerDownload,
   };
 }

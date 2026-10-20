@@ -172,6 +172,22 @@ export async function fetchChats(params = {}, options = {}) {
   return attachChatsPageMeta(list, meta);
 }
 
+/** Grupos que o usuário pode encaminhar, independente da aba atual da lista. */
+export async function fetchGruposEncaminhar(params = {}, options = {}) {
+  const q = new URLSearchParams();
+  if (params.palavra && String(params.palavra).trim()) q.set("palavra", String(params.palavra).trim());
+  if (params.limit != null && params.limit !== "") q.set("limit", String(params.limit));
+  const query = q.toString();
+  const response = await api.get(`/chats/grupos${query ? `?${query}` : ""}`, {
+    signal: options.signal,
+    silent: options.silent === true,
+  });
+  const data = response.data;
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.grupos)) return data.grupos;
+  return [];
+}
+
 /** Limite máximo por página no backend (CHAT_LIST_MAX_LIMIT). */
 const CHAT_LIST_MINHA_FILA_PAGE_LIMIT = 250;
 /** Teto absoluto de páginas em qualquer fetch multi-página (evita loop infinito). */

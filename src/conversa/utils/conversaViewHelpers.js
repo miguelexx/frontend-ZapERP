@@ -889,7 +889,10 @@ const KNOWN_EXT_RE = /\.[a-z0-9]{2,8}(\?|#|$)/i;
 function filenameFromUrl(urlStr) {
   if (!urlStr) return "";
   try {
-    const u = new URL(String(urlStr), window.location.href);
+    // `window.location.href` só como base de path relativo. Lê-lo direto fazia a função
+    // inteira cair no catch fora do browser (testes de regressão em node), devolvendo "".
+    const base = typeof window !== "undefined" && window.location ? window.location.href : undefined;
+    const u = new URL(String(urlStr), base);
     // Se é proxy, extrai da URL interna
     let pathname = u.pathname;
     if (pathname.includes("/proxy")) {
@@ -920,6 +923,17 @@ export function resolveDownloadFilename(nomeArquivo, mediaUrl) {
   if (nome && nome !== "Arquivo" && KNOWN_EXT_RE.test(nome)) return nome;
 
   const fromUrl = filenameFromUrl(mediaUrl);
+
+  /*
+   * Nome real SEM extensão (ex.: "Contrato Social" vindo do nome_arquivo/texto): antes o
+   * nome técnico do disco vencia e o atendente salvava "inbound-c1-m844-7f3a.pdf", perdendo
+   * o nome que o cliente mandou. O nome real continua; só a extensão vem do arquivo.
+   */
+  if (nome && nome !== "Arquivo" && fromUrl) {
+    const m = fromUrl.match(/\.([a-z0-9]{2,8})$/i);
+    if (m) return `${nome}.${m[1].toLowerCase()}`;
+  }
+
   if (fromUrl) return fromUrl;
 
   // Mantém nome original mesmo sem extensão (melhor que "Arquivo")

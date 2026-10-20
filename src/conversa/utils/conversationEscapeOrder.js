@@ -22,6 +22,14 @@ export const ESCAPE_PANEL_ORDER = [
   "pixModal",
   "msgInfo",
   "transferirSetor",
+  // Orçamento WM: painel lateral, irmão do de produtos (doc 36, D8 — são componentes
+  // separados de propósito). Fica ACIMA do `produtosPanel` na cadeia porque é montado depois
+  // dele em ConversaViewOverlays e portanto empilha por cima: o Escape precisa fechar o que
+  // está visualmente na frente. Fica ABAIXO dos modais (mediaViewer…transferirSetor) porque
+  // esses são renderizados sobre o drawer e precisam sair primeiro. E fica acima de
+  // `clienteSide`/`timeline` pelo mesmo motivo de empilhamento. Colocá-lo no fim da cadeia
+  // faria o Escape fechar a conversa inteira com o rascunho do orçamento aberto na frente.
+  "orcamentoDrawer",
   "produtosPanel",
   "clienteSide",
   "timeline",
@@ -50,6 +58,7 @@ export function buildEscapeEntries(state, actions) {
     { name: "pixModal", active: !!state.pixModalOpen, run: actions.closePixModal },
     { name: "msgInfo", active: !!state.msgInfoOpen, run: actions.closeMsgInfo },
     { name: "transferirSetor", active: !!state.showTransferirSetor, run: actions.closeTransferirSetor },
+    { name: "orcamentoDrawer", active: !!state.showOrcamentoDrawer, run: actions.closeOrcamentoDrawer },
     { name: "produtosPanel", active: !!state.showProdutosPanel, run: actions.closeProdutosPanel },
     { name: "clienteSide", active: !!state.showClienteSide, run: actions.closeClienteSide },
     { name: "timeline", active: !!state.showTimeline, run: actions.closeTimeline },

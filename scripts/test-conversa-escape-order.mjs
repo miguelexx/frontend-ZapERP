@@ -27,6 +27,7 @@ function makeActions(log) {
     "closePixModal",
     "closeMsgInfo",
     "closeTransferirSetor",
+    "closeOrcamentoDrawer",
     "closeProdutosPanel",
     "closeClienteSide",
     "closeTimeline",
@@ -51,6 +52,7 @@ const NAME_TO_STATE = {
   pixModal: "pixModalOpen",
   msgInfo: "msgInfoOpen",
   transferirSetor: "showTransferirSetor",
+  orcamentoDrawer: "showOrcamentoDrawer",
   produtosPanel: "showProdutosPanel",
   clienteSide: "showClienteSide",
   timeline: "showTimeline",
@@ -71,6 +73,7 @@ const NAME_TO_ACTION = {
   pixModal: "closePixModal",
   msgInfo: "closeMsgInfo",
   transferirSetor: "closeTransferirSetor",
+  orcamentoDrawer: "closeOrcamentoDrawer",
   produtosPanel: "closeProdutosPanel",
   clienteSide: "closeClienteSide",
   timeline: "closeTimeline",
@@ -134,6 +137,28 @@ for (const name of ESCAPE_PANEL_ORDER) {
     buildEscapeEntries({ tagsOpen: true, messageSearchOpen: true }, makeActions(log))
   );
   assert(handled === "tags", `par tags/search: esperado tags, veio ${handled}`);
+  passed += 1;
+}
+
+// 5b) Orçamento WM (doc 36): o drawer é irmão do painel de produtos e empilha por cima dele,
+// então vence o Escape. E, com só o drawer aberto, o Escape NÃO cai para "fechar a conversa"
+// — o rascunho do orçamento não pode ficar órfão atrás da conversa fechada.
+{
+  const log = [];
+  const handled = runFirstActiveEscape(
+    buildEscapeEntries({ showOrcamentoDrawer: true, showProdutosPanel: true }, makeActions(log))
+  );
+  assert(handled === "orcamentoDrawer", `par orçamento/produtos: esperado orcamentoDrawer, veio ${handled}`);
+  assert(log.length === 1 && log[0] === "closeOrcamentoDrawer", `ação errada: ${log.join(",")}`);
+  passed += 1;
+}
+{
+  // Um modal aberto sobre o drawer sai primeiro (é o que o usuário vê na frente).
+  const log = [];
+  const handled = runFirstActiveEscape(
+    buildEscapeEntries({ showOrcamentoDrawer: true, msgInfoOpen: true }, makeActions(log))
+  );
+  assert(handled === "msgInfo", `modal sobre o drawer: esperado msgInfo, veio ${handled}`);
   passed += 1;
 }
 

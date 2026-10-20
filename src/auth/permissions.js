@@ -116,6 +116,53 @@ export function canNotaInterna(user) {
   return ["admin", "supervisor", "atendente"].includes(role(user));
 }
 
+/* ------------------------------------------------------------------ *
+ * Orçamento WM (ERP Icthus) — doc 36, D2 e D7
+ *
+ * Dois gates independentes, e os DOIS têm de valer:
+ *
+ *   1. `user.orcamento_wm_habilitado` — flag por empresa que vem no payload do login e do
+ *      `GET /usuarios/me`, calculada no backend como `WM_ORCAMENTOS_ENABLED` (env, global) E
+ *      `wm_orcamento_integracoes.ativo` da empresa. Mesmo padrão de
+ *      `user.modulo_campanhas_ativo` em `canAcessarDisparo`, logo abaixo.
+ *   2. A permissão do catálogo, lida do mapa de `GET /usuarios/me/permissoes`.
+ *
+ * ⚠️ OS CÓDIGOS SÃO PONTILHADOS (`orcamentos.ver`, não `orcamentos_ver`), e isso não é
+ * estilo: o mapa devolvido pela API é chaveado pelos `codigo` do catálogo do backend, que são
+ * pontilhados. Um código com underscore não existe no mapa, cai no fallback por role e o gate
+ * real desaparece em silêncio — é exatamente o bug que `dashboard_acessar` / `config_acessar` /
+ * `usuarios_acessar` têm hoje (registrado em
+ * `backend/docs/ai-handoff/13-PROBLEMAS-CONHECIDOS-E-DIVIDA-TECNICA.md`). Não repetir.
+ *
+ * Nenhum dos dois substitui o backend: as rotas são fail-closed (`requireOrcamentoWm` +
+ * `requirePermissao`). Isto aqui só evita oferecer um botão que responderia 403.
+ * ------------------------------------------------------------------ */
+
+/** Lê a permissão pontilhada do mapa da API; sem mapa, cai no padrão do catálogo por role. */
+function canPermissaoPontilhada(codigo, user, rolesPadrao) {
+  if (role(user) === "admin" || role(user) === "administrador") return true;
+  const permissoes = usePermissoesStore.getState().permissoes;
+  if (permissoes != null && Object.prototype.hasOwnProperty.call(permissoes, codigo)) {
+    return !!permissoes[codigo];
+  }
+  return rolesPadrao.includes(role(user));
+}
+
+/** Ver/montar orçamento: módulo ligado na empresa + `orcamentos.ver`. */
+export function canAcessarOrcamento(user) {
+  if (user?.orcamento_wm_habilitado !== true) return false;
+  return canPermissaoPontilhada("orcamentos.ver", user, ["supervisor", "atendente"]);
+}
+
+/**
+ * Gravar o orçamento no ERP: módulo ligado + `orcamentos.criar`.
+ * Exige também `orcamentos.ver`: quem não pode ver não tem como montar o que criaria.
+ */
+export function canCriarOrcamento(user) {
+  if (!canAcessarOrcamento(user)) return false;
+  return canPermissaoPontilhada("orcamentos.criar", user, ["supervisor", "atendente"]);
+}
+
 /** Apenas admin pode acessar o módulo Disparo de Mensagens, e só se a empresa ativou Campanhas. */
 export function canAcessarDisparo(user) {
   if (user?.modulo_campanhas_ativo !== true) return false;

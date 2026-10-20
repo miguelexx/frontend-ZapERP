@@ -58,6 +58,9 @@ function ConversaHeader({
   canConsultarProdutos,
   showProdutosPanel,
   onOpenProdutosPanel,
+  /** Orçamento WM: gate de módulo+permissão já resolvido pelo coordenador (doc 36, D2/D7). */
+  canCriarOrcamentoWm = false,
+  onOpenOrcamentoDrawer,
   onOpenClienteSide,
   onOpenMessageSearch,
   whatsappInstanceLabel,
@@ -146,13 +149,33 @@ function ConversaHeader({
             }}
           />
         ) : null}
+        {/*
+          Orçamento WM (doc 36, D8): ação SEPARADA da de produtos, e só aqui no cabeçalho da
+          conversa. O painel de produtos também abre pela lista de conversas, sem `conversa_id`
+          e sem guarda de grupo — por isso o orçamento não é aba dele. O guarda é o mesmo do
+          produtos (`!isGroup && conversaId`, porque um orçamento tem UM comprador e o backend
+          revalida a conversa) MAIS o gate do módulo+permissão, que já vem resolvido em
+          `canCriarOrcamentoWm`.
+        */}
+        {!isGroup && conversaId && canCriarOrcamentoWm ? (
+          <HeaderOverflowSheetBtn
+            icon={<span aria-hidden="true">🧾</span>}
+            label="Novo orçamento"
+            onClick={() => {
+              onOpenOrcamentoDrawer?.();
+              close();
+            }}
+          />
+        ) : null}
       </>
     ),
     [
       canConsultarProdutos,
+      canCriarOrcamentoWm,
       conversaId,
       isGroup,
       onOpenAtendentes,
+      onOpenOrcamentoDrawer,
       onOpenProdutosPanel,
       onToggleTagPanel,
       onToggleTimeline,

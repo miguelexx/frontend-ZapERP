@@ -110,6 +110,7 @@ export default function ForwardModal({
   forwardColaboradoresFiltered,
   forwardCandidates,
   forwardGrupos,
+  forwardGruposLoading,
   forwardClientesLoading,
   forwardClientes,
   onClose,
@@ -216,7 +217,14 @@ export default function ForwardModal({
           ) : null}
 
           {/* Grupos */}
-          {grupos.length > 0 ? (
+          {forwardGruposLoading && grupos.length === 0 ? (
+            <div className="wa-forwardSection">
+              <div className="wa-forwardSectionTitle">
+                <IconUsers size={12} strokeWidth={2} aria-hidden="true" /> Grupos
+              </div>
+              <div className="wa-muted wa-forwardEmpty">Carregando grupos…</div>
+            </div>
+          ) : grupos.length > 0 ? (
             <div className="wa-forwardSection">
               <div className="wa-forwardSectionTitle">
                 <IconUsers size={12} strokeWidth={2} aria-hidden="true" /> Grupos
@@ -242,6 +250,13 @@ export default function ForwardModal({
                   );
                 })}
               </div>
+            </div>
+          ) : hasQuery ? (
+            <div className="wa-forwardSection">
+              <div className="wa-forwardSectionTitle">
+                <IconUsers size={12} strokeWidth={2} aria-hidden="true" /> Grupos
+              </div>
+              <div className="wa-muted wa-forwardEmpty">Nenhum grupo encontrado.</div>
             </div>
           ) : null}
 

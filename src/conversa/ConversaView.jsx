@@ -31,7 +31,7 @@ import {
 } from "./offlineOutbox";
 import { pokeOutboxAutoFlush, scheduleOutboxAutoFlush } from "./outboxAutoFlush";
 import { useAuthStore } from "../auth/authStore";
-import { canAssumir, canNotaInterna, canReabrir, canTag, canTransferirSetorConversa } from "../auth/permissions";
+import { canAssumir, canCriarOrcamento, canNotaInterna, canReabrir, canTag, canTransferirSetorConversa } from "../auth/permissions";
 import "../atendimento/atendentes.css";
 import { criarNotaInterna } from "./conversaService";
 import {
@@ -476,9 +476,20 @@ function ConversaViewBody() {
   const messagesScrollPreserveSnapRef = useRef(null);
   const [showClienteSide, setShowClienteSide] = useState(false);
   const [showProdutosPanel, setShowProdutosPanel] = useState(false);
+  /**
+   * Orçamento WM (doc 36, D8): drawer PRÓPRIO, irmão do painel de produtos — nunca uma aba
+   * dele, porque aquele painel também abre pela lista de conversas, sem `conversa_id`.
+   */
+  const [showOrcamentoDrawer, setShowOrcamentoDrawer] = useState(false);
 
   const userRole = String(user?.role || user?.perfil || "").toLowerCase();
   const canConsultarProdutos = ["admin", "supervisor", "atendente"].includes(userRole);
+  /**
+   * Gate do orçamento: flag da empresa (`user.orcamento_wm_habilitado`, vinda do login/`/me`)
+   * E a permissão pontilhada do catálogo. Resolve-se aqui, uma vez, e desce resolvido para o
+   * cabeçalho e para o overlay — o backend continua fail-closed de qualquer maneira.
+   */
+  const canCriarOrcamentoWm = canCriarOrcamento(user);
   const canVerSyncProdutos = ["admin", "supervisor"].includes(userRole);
   const canSincronizarProdutos = userRole === "admin";
 
@@ -1198,11 +1209,13 @@ function ConversaViewBody() {
     mediaPdfLoading,
     mediaPdfError,
     mediaPrintLoading,
+    mediaDownloadLoading,
     mediaViewerImgRef,
     mediaViewerVideoRef,
     openMediaViewer,
     closeMediaViewer,
     handleMediaViewerPrint,
+    handleMediaViewerDownload,
   } = useMediaViewer({ showToast });
 
   const {
@@ -1374,6 +1387,10 @@ function ConversaViewBody() {
 
   const handleOpenProdutosPanel = useCallback(() => {
     setShowProdutosPanel(true);
+  }, []);
+
+  const handleOpenOrcamentoDrawer = useCallback(() => {
+    setShowOrcamentoDrawer(true);
   }, []);
 
   const handleOpenClienteSide = useCallback(() => {
@@ -2140,6 +2157,7 @@ function ConversaViewBody() {
     forwardSending,
     forwardCandidates,
     forwardGrupos,
+    forwardGruposLoading,
     forwardClientes,
     forwardClientesLoading,
     forwardColaboradoresFiltered,
@@ -2631,6 +2649,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           pixModalOpen,
           msgInfoOpen,
           showTransferirSetor,
+          showOrcamentoDrawer,
           showProdutosPanel,
           showClienteSide,
           showTimeline,
@@ -2653,6 +2672,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             setMsgInfo(null);
           },
           closeTransferirSetor: () => setShowTransferirSetor(false),
+          closeOrcamentoDrawer: () => setShowOrcamentoDrawer(false),
           closeProdutosPanel: () => setShowProdutosPanel(false),
           closeClienteSide: () => setShowClienteSide(false),
           closeTimeline: () => setShowTimeline(false),
@@ -2681,6 +2701,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     pixModalOpen,
     msgInfoOpen,
     showTransferirSetor,
+    showOrcamentoDrawer,
     showProdutosPanel,
     showClienteSide,
     showTimeline,
@@ -3105,6 +3126,8 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           canConsultarProdutos={canConsultarProdutos}
           showProdutosPanel={showProdutosPanel}
           onOpenProdutosPanel={handleOpenProdutosPanel}
+          canCriarOrcamentoWm={canCriarOrcamentoWm}
+          onOpenOrcamentoDrawer={handleOpenOrcamentoDrawer}
           onOpenClienteSide={handleOpenClienteSide}
           onOpenMessageSearch={openMessageSearch}
           whatsappInstanceLabel={whatsappInstanceLabel}
@@ -3161,6 +3184,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           forwardColaboradoresFiltered={forwardColaboradoresFiltered}
           forwardCandidates={forwardCandidates}
           forwardGrupos={forwardGrupos}
+          forwardGruposLoading={forwardGruposLoading}
           forwardClientesLoading={forwardClientesLoading}
           forwardClientes={forwardClientes}
           closeForward={closeForward}
@@ -3192,10 +3216,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           mediaPdfLoading={mediaPdfLoading}
           mediaPdfError={mediaPdfError}
           mediaPrintLoading={mediaPrintLoading}
+          mediaDownloadLoading={mediaDownloadLoading}
           mediaViewerImgRef={mediaViewerImgRef}
           mediaViewerVideoRef={mediaViewerVideoRef}
           closeMediaViewer={closeMediaViewer}
           handleMediaViewerPrint={handleMediaViewerPrint}
+          handleMediaViewerDownload={handleMediaViewerDownload}
           onForwardMedia={handleForwardFromMediaViewer}
           shareContactOpen={shareContactOpen}
           shareContactQuery={shareContactQuery}
@@ -3235,6 +3261,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           showProdutosPanel={showProdutosPanel}
           canConsultarProdutos={canConsultarProdutos}
           setShowProdutosPanel={setShowProdutosPanel}
+          showOrcamentoDrawer={showOrcamentoDrawer}
+          canCriarOrcamentoWm={canCriarOrcamentoWm}
+          setShowOrcamentoDrawer={setShowOrcamentoDrawer}
+          orcamentoCompanyId={user?.company_id}
+          orcamentoUserId={user?.id}
+          orcamentoClienteNomeSugerido={nome}
           canVerSyncProdutos={canVerSyncProdutos}
           canSincronizarProdutos={canSincronizarProdutos}
           showToast={showToast}

@@ -1,0 +1,295 @@
+/**
+ * Rascunho do orçamento em `sessionStorage`.
+ *
+ * Plano: `backend/docs/ai-handoff/36-ORCAMENTO-WM-INTEGRACAO.md` (Sessão 5 — "o rascunho
+ * sobrevive a erro e a fechamento acidental").
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * O QUE ENTRA E, SOBRETUDO, O QUE NÃO ENTRA
+ * ────────────────────────────────────────────────────────────────────────────
+ * Entra só a ESCOLHA do atendente: o texto que ele digitou para cliente e vendedor, o código
+ * ERP que ele selecionou numa ambiguidade, os itens com descrição e quantidade.
+ *
+ * Não entra, nunca:
+ *   · token, telefone (nem o da conversa, nem o autorizado da integração);
+ *   · preço, subtotal ou total — preço oficial é do snapshot server-side e tem validade curta.
+ *     Um preço guardado aqui voltaria "vivo" depois de expirar e alguém o leria como atual;
+ *   · `preparacao_id`, `comando_id` ou qualquer estado de operação. Preparação expira em
+ *     minutos no servidor; ressuscitar um id daqui só produziria erro confuso. Depois de um
+ *     F5, a tela volta ao formulário e recalcula — é mais lento e é correto;
+ *   · CPF/CNPJ/IE de candidatos. Eles vão à tela para distinguir homônimos e param ali (o
+ *     backend também não os persiste).
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * ESCOPO DA CHAVE E LIMPEZA
+ * ────────────────────────────────────────────────────────────────────────────
+ * A chave é `empresa + usuário + conversa`. Com isso, trocar de usuário no mesmo navegador
+ * nunca lê o rascunho de outro — não por política, por construção: a chave não bate.
+ *
+ * Como reforço, toda montagem faz uma varredura que remove as chaves deste módulo que (a) são
+ * de outro escopo de empresa+usuário ou (b) passaram do prazo. Isso cobre o logout e a sessão
+ * que caiu por 401 sem o drawer saber, já que `sessionStorage` sobrevive ao `location.href`
+ * do logout. (O gancho explícito em `authStore.clearSession` ficaria melhor ainda, mas
+ * `authStore.js` não é ponto de registro desta sessão — fica anotado no relato.)
+ *
+ * Prazo curto de propósito: um rascunho de ontem tem preço e estoque de ontem na cabeça de
+ * quem o abandonou.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * TODA LEITURA E ESCRITA EM try/catch
+ * ────────────────────────────────────────────────────────────────────────────
+ * Em janela privada, com storage bloqueado por política, ou com a cota cheia, o simples
+ * ACESSO a `sessionStorage` lança. O orçamento não pode ficar inutilizável por causa do
+ * rascunho: qualquer falha aqui é silenciosa e o módulo segue funcionando sem persistência.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const PREFIXO = "zap_orc_draft";
+/** 45 min: mais que um atendimento interrompido, menos que um turno. */
+export const RASCUNHO_TTL_MS = 45 * 60 * 1000;
+/** Teto defensivo de tamanho (itens são poucos; isto só barra corrupção). */
+const MAX_BYTES = 24 * 1024;
+const MAX_ITENS = 50;
+
+/** `null` quando não há como escrever (SSR, storage bloqueado). */
+function storage() {
+  try {
+    if (typeof sessionStorage === "undefined") return null;
+    return sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Pedaço de chave seguro: sem `:` para não embaralhar o escopo. */
+function parte(valor) {
+  return String(valor ?? "").replace(/[^A-Za-z0-9_-]/g, "") || "0";
+}
+
+export function escopoRascunho({ companyId, userId }) {
+  return `${parte(companyId)}:${parte(userId)}`;
+}
+
+export function chaveRascunho({ companyId, userId, conversaId }) {
+  return `${PREFIXO}:${escopoRascunho({ companyId, userId })}:${parte(conversaId)}`;
+}
+
+/**
+ * Remove chaves deste módulo fora do escopo atual ou vencidas.
+ * @returns {number} quantas removeu (usado em teste)
+ */
+export function limparRascunhosForaDeEscopo({ companyId, userId, agora = Date.now() } = {}) {
+  const s = storage();
+  if (!s) return 0;
+  const prefixoEscopo = `${PREFIXO}:${escopoRascunho({ companyId, userId })}:`;
+  let removidas = 0;
+  try {
+    const chaves = [];
+    for (let i = 0; i < s.length; i++) {
+      const k = s.key(i);
+      if (typeof k === "string" && k.startsWith(`${PREFIXO}:`)) chaves.push(k);
+    }
+    for (const k of chaves) {
+      let remover = !k.startsWith(prefixoEscopo);
+      if (!remover) {
+        try {
+          const salvo = JSON.parse(s.getItem(k) || "null");
+          remover = !salvo || !(Number(salvo.expiraEm) > agora);
+        } catch {
+          remover = true;
+        }
+      }
+      if (remover) {
+        try {
+          s.removeItem(k);
+          removidas += 1;
+        } catch {
+          /* storage pode recusar a escrita; segue */
+        }
+      }
+    }
+  } catch {
+    /* enumerar o storage pode lançar; a limpeza é best-effort */
+  }
+  return removidas;
+}
+
+export const RASCUNHO_VAZIO = Object.freeze({
+  clienteBusca: "",
+  clienteCodigoErp: "",
+  clienteNome: "",
+  vendedorBusca: "",
+  vendedorCodigoErp: "",
+  vendedorNome: "",
+  itens: [],
+});
+
+/** Item do carrinho: identidade do produto + quantidade. Nunca preço. */
+function sanearItem(bruto) {
+  if (!bruto || typeof bruto !== "object") return null;
+  const codigo = typeof bruto.codigo_produto_erp === "string" ? bruto.codigo_produto_erp.trim() : "";
+  const busca = typeof bruto.busca === "string" ? bruto.busca.trim() : "";
+  if (!codigo && !busca) return null;
+  const quantidade = typeof bruto.quantidade === "string" ? bruto.quantidade.trim() : "1";
+  return {
+    codigo_produto_erp: codigo.slice(0, 7),
+    busca: codigo ? "" : busca.slice(0, 100),
+    descricao: typeof bruto.descricao === "string" ? bruto.descricao.slice(0, 200) : "",
+    unidade: typeof bruto.unidade === "string" ? bruto.unidade.slice(0, 20) : "",
+    marca: typeof bruto.marca === "string" ? bruto.marca.slice(0, 80) : "",
+    quantidade: quantidade || "1",
+  };
+}
+
+/**
+ * Lista branca na leitura: o que não está aqui não volta do storage, mesmo que alguém tenha
+ * escrito na chave. É o que impede um rascunho adulterado de injetar preço ou id de operação.
+ */
+function sanearRascunho(bruto) {
+  if (!bruto || typeof bruto !== "object") return { ...RASCUNHO_VAZIO };
+  const texto = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  const itens = Array.isArray(bruto.itens)
+    ? bruto.itens.map(sanearItem).filter(Boolean).slice(0, MAX_ITENS)
+    : [];
+  return {
+    clienteBusca: texto(bruto.clienteBusca, 100),
+    clienteCodigoErp: texto(bruto.clienteCodigoErp, 20).trim(),
+    clienteNome: texto(bruto.clienteNome, 200),
+    vendedorBusca: texto(bruto.vendedorBusca, 100),
+    vendedorCodigoErp: texto(bruto.vendedorCodigoErp, 20).trim(),
+    vendedorNome: texto(bruto.vendedorNome, 200),
+    itens,
+  };
+}
+
+/** Rascunho "em branco" não merece uma chave no storage. */
+function temConteudo(r) {
+  if (!r) return false;
+  return Boolean(
+    r.clienteBusca?.trim() ||
+      r.clienteCodigoErp ||
+      r.vendedorBusca?.trim() ||
+      r.vendedorCodigoErp ||
+      (Array.isArray(r.itens) && r.itens.length > 0)
+  );
+}
+
+export function lerRascunho(chave, { agora = Date.now() } = {}) {
+  const s = storage();
+  if (!s || !chave) return null;
+  try {
+    const raw = s.getItem(chave);
+    if (!raw || raw.length > MAX_BYTES) return null;
+    const salvo = JSON.parse(raw);
+    if (!salvo || typeof salvo !== "object") return null;
+    if (!(Number(salvo.expiraEm) > agora)) {
+      try {
+        s.removeItem(chave);
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
+    return sanearRascunho(salvo.rascunho);
+  } catch {
+    return null;
+  }
+}
+
+export function gravarRascunho(chave, rascunho, { agora = Date.now() } = {}) {
+  const s = storage();
+  if (!s || !chave) return false;
+  try {
+    if (!temConteudo(rascunho)) {
+      s.removeItem(chave);
+      return true;
+    }
+    const corpo = JSON.stringify({
+      v: 1,
+      expiraEm: agora + RASCUNHO_TTL_MS,
+      rascunho: sanearRascunho(rascunho),
+    });
+    if (corpo.length > MAX_BYTES) return false;
+    s.setItem(chave, corpo);
+    return true;
+  } catch {
+    // Cota cheia / modo privado: o drawer segue funcionando sem rascunho persistido.
+    return false;
+  }
+}
+
+export function apagarRascunho(chave) {
+  const s = storage();
+  if (!s || !chave) return;
+  try {
+    s.removeItem(chave);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Hook do rascunho. Devolve o estado e um `patch` que já persiste.
+ *
+ * @param {{companyId: any, userId: any, conversaId: any, ativo?: boolean,
+ *          clienteNomeSugerido?: string}} params
+ *   `clienteNomeSugerido` é o nome da conversa: entra como SUGESTÃO EDITÁVEL no campo de busca
+ *   de cliente quando não há rascunho. Nunca vira seleção canônica — só a WM resolve o
+ *   `codigo_cliente_erp`, e por isso o nome da conversa nunca preenche `clienteCodigoErp`.
+ */
+export default function useOrcamentoDraft({
+  companyId,
+  userId,
+  conversaId,
+  ativo = true,
+  clienteNomeSugerido = "",
+} = {}) {
+  const chave = useMemo(
+    () => (conversaId ? chaveRascunho({ companyId, userId, conversaId }) : ""),
+    [companyId, userId, conversaId]
+  );
+
+  const [rascunho, setRascunho] = useState(() => ({ ...RASCUNHO_VAZIO }));
+  const [carregado, setCarregado] = useState(false);
+  const chaveRef = useRef(chave);
+
+  // Carrega (e varre o storage) ao abrir ou ao trocar de conversa/usuário.
+  useEffect(() => {
+    chaveRef.current = chave;
+    if (!ativo || !chave) {
+      setCarregado(false);
+      return;
+    }
+    limparRascunhosForaDeEscopo({ companyId, userId });
+    const salvo = lerRascunho(chave);
+    if (salvo) {
+      setRascunho(salvo);
+    } else {
+      const sugestao = String(clienteNomeSugerido || "").trim().slice(0, 100);
+      setRascunho({ ...RASCUNHO_VAZIO, clienteBusca: sugestao });
+    }
+    setCarregado(true);
+    // `clienteNomeSugerido` fora das deps de propósito: a sugestão só vale na abertura; se o
+    // nome da conversa mudar no meio da digitação, não se sobrescreve o que o usuário escreveu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ativo, chave, companyId, userId]);
+
+  /** Aplica um patch (objeto ou função) e persiste no mesmo passo. */
+  const patch = useCallback((mudanca) => {
+    setRascunho((atual) => {
+      const proximo =
+        typeof mudanca === "function" ? { ...atual, ...mudanca(atual) } : { ...atual, ...mudanca };
+      const limpo = sanearRascunho(proximo);
+      gravarRascunho(chaveRef.current, limpo);
+      return limpo;
+    });
+  }, []);
+
+  const limpar = useCallback(() => {
+    apagarRascunho(chaveRef.current);
+    setRascunho({ ...RASCUNHO_VAZIO });
+  }, []);
+
+  return { rascunho, patch, limpar, carregado, chave };
+}
