@@ -24,6 +24,11 @@ function buildUsuarioMePatch(me) {
   if (me.modulo_campanhas_ativo !== undefined) {
     patch.modulo_campanhas_ativo = me.modulo_campanhas_ativo === true
   }
+  // Orçamento WM: sem esta linha a flag só chegava na resposta do login, e ligar o módulo
+  // no servidor exigia que cada atendente saísse e entrasse de novo — F5 não bastava.
+  if (me.orcamento_wm_habilitado !== undefined) {
+    patch.orcamento_wm_habilitado = me.orcamento_wm_habilitado === true
+  }
   return Object.keys(patch).length > 0 ? patch : null
 }
 
