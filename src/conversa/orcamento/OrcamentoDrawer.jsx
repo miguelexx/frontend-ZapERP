@@ -40,12 +40,24 @@
  * O QUE ESTE DRAWER NÃO FAZ
  * ────────────────────────────────────────────────────────────────────────────
  * Não escuta Socket.IO (o MVP é request/response + leitura de estado após F5, por custo), não
- * toca no scroll/teclado da conversa, não mexe no composer e não envia mensagem.
+ * toca no scroll/teclado da conversa, não mexe no composer e **não envia mensagem**.
  *
- * O **despacho** da criação é Sessão 6 e ainda não existe. A tela de revisão
- * (`OrcamentoPreview`) e a de sucesso (`OrcamentoResultado`) estão implementadas contra o shape
- * real do backend, e o botão "Confirmar e criar no ERP" aparece desabilitado com frase honesta
- * enquanto `onConfirmar` não for passado — ver o comentário no ponto de ligação, no JSX.
+ * ────────────────────────────────────────────────────────────────────────────
+ * CRIAR E ENVIAR SÃO DUAS DECISÕES (Sessão 6)
+ * ────────────────────────────────────────────────────────────────────────────
+ * "Confirmar e criar no ERP" grava o orçamento e **para aí**. O envio ao cliente é outro
+ * clique, em outra tela, e nem ele manda mensagem: entrega o texto ao composer da conversa,
+ * onde o atendente revisa e aperta enviar como em qualquer outra mensagem. Nenhum `useEffect`
+ * envia nada, e falhar no envio do WhatsApp não encosta no orçamento — ele já está criado, e
+ * o texto continua disponível.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * INCERTO TRAVA A TELA (D10)
+ * ────────────────────────────────────────────────────────────────────────────
+ * Quando a resposta vem `INCERTO`, a criação pode ter acontecido no ERP. A tela não oferece
+ * "tentar de novo" — oferecer seria produzir um `comando_id` novo e, com ele, o segundo
+ * orçamento. Ela trava a confirmação e manda procurar o suporte, que tem o caminho de
+ * reconciliação (reenvio do MESMO comando, nunca por aqui, nunca automático).
  *
  * ────────────────────────────────────────────────────────────────────────────
  * MEMÓRIA DO VENDEDOR
@@ -57,7 +69,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { prepararOrcamento, extrairErroOrcamento } from "../../api/wmOrcamentosService";
+import {
+  prepararOrcamento,
+  confirmarOrcamento,
+  extrairErroOrcamento,
+} from "../../api/wmOrcamentosService";
 import useOrcamentoDraft from "./useOrcamentoDraft";
 import { normalizarQuantidadeParaEnvio } from "./orcamentoFormat";
 import { assinaturaDoBody, assinaturaDoRascunho } from "./orcamentoViewModel";
@@ -79,13 +95,21 @@ const ETAPA = Object.freeze({
   FORM: "form",
   AMBIGUIDADE: "ambiguidade",
   PREVIA: "previa",
-  /** Sessão 6: só é alcançada depois que o despacho da criação existir (ver `confirmar`). */
   RESULTADO: "resultado",
+  /** Beco sem saída de propósito: a criação pode ter acontecido e ninguém tenta de novo. */
+  INCERTO: "incerto",
 });
 
 /** Frase única para resposta que não bate com nenhum status conhecido. */
 const MENSAGEM_RESPOSTA_ESTRANHA =
   "Não foi possível calcular o orçamento agora. Tente de novo em instantes.";
+
+/** Frase de último recurso do incerto — a do backend vem pronta e é a preferida. */
+const MENSAGEM_INCERTO =
+  "Não foi possível confirmar se este orçamento foi criado no sistema da empresa. Não crie outro — procure o suporte.";
+
+/** `estado` do envelope do backend que significa "pode ter gravado no ERP". */
+const ESTADO_INCERTO = "INCERTO";
 
 /**
  * Monta o corpo de `POST /api/orcamentos/preparar` a partir do rascunho da tela.
@@ -181,17 +205,20 @@ export default function OrcamentoDrawer({
   companyId,
   userId,
   clienteNomeSugerido = "",
-  vendedorNomeSugerido = "",
+  onEnviarAoCliente,
 }) {
   const [etapa, setEtapa] = useState(ETAPA.FORM);
   const [ambiguidade, setAmbiguidade] = useState(null);
   const [preparacao, setPreparacao] = useState(null);
   /**
-   * Sessão 6. `{ resultado, jaEstavaCriado }` — e `jaEstavaCriado` sai do NOSSO estado da
-   * operação antes da chamada, nunca da resposta da WM (§11.1 proíbe inferir pela resposta).
+   * `{ resultado, previa, jaEstavaCriado }` — e `jaEstavaCriado` sai do NOSSO estado da
+   * operação (o backend devolve `ja_criado`), nunca de um campo da resposta da WM: §11.1
+   * proíbe inferir "criado agora" × "resultado idempotente" pelo corpo dela.
    */
   const [resultadoOperacao, setResultadoOperacao] = useState(null);
   const [calculando, setCalculando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [mensagemIncerto, setMensagemIncerto] = useState("");
   const [erro, setErro] = useState("");
   const [avisoCampo, setAvisoCampo] = useState("");
 
@@ -204,7 +231,6 @@ export default function OrcamentoDrawer({
     conversaId,
     ativo: open,
     clienteNomeSugerido,
-    vendedorNomeSugerido,
   });
 
   // Trocar de conversa com o drawer aberto reinicia o fluxo: a preparação do servidor está
@@ -214,6 +240,8 @@ export default function OrcamentoDrawer({
     setAmbiguidade(null);
     setPreparacao(null);
     setResultadoOperacao(null);
+    setConfirmando(false);
+    setMensagemIncerto("");
     setErro("");
     setAvisoCampo("");
   }, [conversaId, open]);
@@ -350,6 +378,70 @@ export default function OrcamentoDrawer({
     [ambiguidade, preparar]
   );
 
+  /**
+   * "Confirmar e criar no ERP" — a única ação desta tela que escreve em sistema de terceiro.
+   *
+   * Uma chamada por clique, e o botão fica desabilitado enquanto ela corre (`confirmando`), o
+   * que fecha a porta do duplo clique no navegador. A porta que importa, porém, é a do
+   * servidor: o `comando_id` nasce e é persistido lá, pela transição atômica, e um segundo
+   * POST da mesma preparação não vira segundo orçamento. Por isso aqui não há timer, não há
+   * retentativa e não há `verificarOrcamento` — nada automático toca a criação.
+   *
+   * A resposta de erro NÃO é tratada toda igual: `INCERTO` não é "falhou", é "pode ter dado
+   * certo". Esse ramo leva à tela travada, não a uma mensagem de erro com o botão de volta.
+   */
+  const confirmar = useCallback(async () => {
+    const preparacaoId = preparacao?.preparacao_id;
+    if (!preparacaoId || confirmando) return;
+    setConfirmando(true);
+    setErro("");
+    try {
+      const data = await confirmarOrcamento(preparacaoId);
+      setResultadoOperacao({
+        resultado: data?.resultado ?? null,
+        // Os itens do resumo saem da prévia que acabou de ser confirmada — o `200` da criação
+        // não os traz (§10). É o mesmo conjunto que virou `payload_hash` no servidor.
+        previa: preparacao?.previa ?? null,
+        // Afirmação sobre a NOSSA operação, vinda do backend, nunca lida da resposta da WM.
+        jaEstavaCriado: data?.ja_criado === true,
+      });
+      setEtapa(ETAPA.RESULTADO);
+      // O rascunho morre com a criação. Deixá-lo vivo faria o drawer reabrir com o orçamento
+      // inteiro preenchido e um "Calcular" à mão — que é o caminho curto para um segundo
+      // orçamento no Icthus sem ninguém ter decidido isso. O que foi criado continua na tela.
+      limpar();
+    } catch (err) {
+      const { mensagem, cancelado, estado } = extrairErroOrcamento(err);
+      if (cancelado) return;
+      if (estado === ESTADO_INCERTO) {
+        setMensagemIncerto(mensagem || MENSAGEM_INCERTO);
+        setEtapa(ETAPA.INCERTO);
+        return;
+      }
+      // Falha segura: nada foi gravado. Fica na prévia, com o erro à vista — recalcular ou
+      // voltar e editar são as saídas, e as duas passam por uma preparação nova.
+      setErro(mensagem);
+    } finally {
+      setConfirmando(false);
+    }
+  }, [preparacao, confirmando, limpar]);
+
+  /**
+   * "Enviar ao cliente" — ação separada, explícita e posterior à criação.
+   *
+   * Não envia: entrega o texto ao composer da conversa (o mesmo caminho do painel de
+   * produtos), onde o atendente revisa e envia. Se o WhatsApp falhar depois disso, o problema
+   * é de envio de mensagem — o orçamento já existe no ERP e nada aqui o recria.
+   */
+  const enviarAoCliente = useCallback(
+    (texto) => {
+      if (typeof onEnviarAoCliente !== "function" || !texto) return;
+      onEnviarAoCliente(texto);
+      onClose?.();
+    },
+    [onEnviarAoCliente, onClose]
+  );
+
   const voltarAoFormulario = useCallback(() => {
     setEtapa(ETAPA.FORM);
     setAmbiguidade(null);
@@ -417,42 +509,43 @@ export default function OrcamentoDrawer({
             ocupado={calculando}
             itemDescricao={descricaoItemAmbiguo}
           />
+        ) : etapa === ETAPA.INCERTO ? (
+          /*
+            Tela terminal do incerto. Um único botão, e ele fecha — não existe aqui nenhum
+            caminho que crie outro orçamento, porque este pode já ter sido criado.
+          */
+          <div className="wa-orc-body">
+            <section className="wa-orc-section" aria-label="Resultado não confirmado">
+              <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
+                <span>{mensagemIncerto || MENSAGEM_INCERTO}</span>
+              </div>
+              <p className="wa-orc-hint">
+                O suporte consegue conferir no sistema da empresa se este orçamento foi gravado.
+                Enquanto isso, não monte o mesmo orçamento de novo.
+              </p>
+            </section>
+            <footer className="wa-orc-foot">
+              <button type="button" className="wa-btn wa-btn-primary wa-orc-btnPrincipal" onClick={onClose}>
+                Fechar
+              </button>
+            </footer>
+          </div>
         ) : etapa === ETAPA.RESULTADO ? (
           <OrcamentoResultado
             resultado={resultadoOperacao?.resultado}
+            previa={resultadoOperacao?.previa}
             jaEstavaCriado={resultadoOperacao?.jaEstavaCriado === true}
+            onEnviarAoCliente={typeof onEnviarAoCliente === "function" ? enviarAoCliente : undefined}
             onFechar={onClose}
-            /*
-              Sessão 6 liga `onEnviarAoCliente={(texto) => ...}` ao envio normal da conversa
-              (composer com texto revisável). Sem ele o botão fica desabilitado e a tela oferece
-              "Copiar resumo" — nunca envia nada sozinha.
-            */
           />
         ) : etapa === ETAPA.PREVIA ? (
           <OrcamentoPreview
             preparacao={preparacao}
             onVoltar={voltarAoFormulario}
             previaDesatualizada={previaDesatualizada}
-            /*
-              ────────────────────────────────────────────────────────────────────────
-              AQUI É O PONTO DE LIGAÇÃO DA SESSÃO 6
-              ────────────────────────────────────────────────────────────────────────
-              Falta passar `onConfirmar` e `confirmando`. O que a Sessão 6 tem de fazer:
-
-                1. `onConfirmar`: ler se a operação JÁ ESTAVA `CRIADO` (estado local, antes da
-                   chamada) e então `await confirmarOrcamento(preparacao.preparacao_id)`;
-                2. com o `resultado` sanitizado da resposta:
-                   `setResultadoOperacao({ resultado, jaEstavaCriado })` e
-                   `setEtapa(ETAPA.RESULTADO)`;
-                3. `confirmando`: o booleano do envio em curso — o botão já se desabilita e não
-                   muda de posição com ele;
-                4. erro: `extrairErroOrcamento(err)` e `setErro(mensagem)`, como em `preparar`.
-                   `RESULTADO_INCERTO` não vira "falhou": é "não crie outro".
-
-              Enquanto `onConfirmar` não vier, o botão aparece desabilitado com frase honesta
-              (ver `OrcamentoPreview`), e NÃO se chama `verificarOrcamento` em laço nem em
-              `useEffect` — verificar duplica orçamento se feito com UUID novo.
-            */
+            onConfirmar={confirmar}
+            confirmando={confirmando}
+            erro={erro}
           />
         ) : (
           <OrcamentoForm

@@ -75,7 +75,6 @@ export const ORCAMENTO_CODIGOS = Object.freeze({
   PREPARACAO_EXPIRADA: "ORCAMENTO_PREPARACAO_EXPIRADA",
   JA_CRIADO: "ORCAMENTO_JA_CRIADO",
   EM_ANDAMENTO: "ORCAMENTO_EM_ANDAMENTO",
-  DESPACHO_NAO_LIBERADO: "ORCAMENTO_DESPACHO_NAO_LIBERADO",
   MODULO_DESLIGADO: "ORCAMENTO_WM_OFF",
   /** Só nosso: a requisição não chegou a ter resposta com envelope. */
   SEM_RESPOSTA: "ORCAMENTO_SEM_RESPOSTA_LOCAL",
@@ -217,8 +216,15 @@ export async function prepararOrcamento(rascunho, { signal } = {}) {
  * Preço e códigos canônicos vivem no snapshot server-side; se viessem daqui, dariam para
  * adulterar no DevTools. O backend recusa nominalmente `preco_confirmado` e `comando_id`.
  *
- * Nesta versão o backend ainda **não despacha** para o ERP (`despachado: false`): faz a
- * transição atômica, persiste o `comando_id` e para. O despacho é a Sessão 6.
+ * **Esta chamada CRIA o orçamento no ERP.** Ela é o único ponto do frontend que escreve em
+ * sistema de terceiro, e por isso não é chamada em `useEffect`, não é repetida por timer e não
+ * entra em nenhum retry: um `comando_id` novo significaria um segundo orçamento. Chamá-la de
+ * novo para a MESMA preparação é seguro (o servidor devolve o estado em vez de redespachar),
+ * mas quem recebe `estado: "INCERTO"` não deve oferecer "tentar de novo" ao usuário.
+ *
+ * Sucesso devolve `{ estado: "CRIADO", resultado: {...}, despachado: true, ja_criado }`, onde
+ * `ja_criado` é a afirmação do SERVIDOR sobre o estado anterior da operação — a resposta da WM
+ * não distingue "criado agora" de "resultado idempotente" (§11.1), e nada aqui tenta inferir.
  */
 export async function confirmarOrcamento(preparacaoId) {
   const url = `${BASE}/${encodeURIComponent(preparacaoId)}/confirmar`;
@@ -232,6 +238,11 @@ export async function confirmarOrcamento(preparacaoId) {
  * Verificar é reenviar o payload byte a byte idêntico com o MESMO `comando_id`. Só por ação
  * explícita do usuário: **nunca** automático, **nunca** em laço, **nunca** com UUID novo (isso
  * duplicaria orçamento no ERP). Nenhuma tela deve chamar isto num `useEffect` nem num retry.
+ *
+ * Hoje **nenhuma tela do atendente chama esta função**: reconciliar um incerto é operação de
+ * suporte (runbook da Sessão 6 no doc 36). O cliente HTTP existe para quando houver uma tela
+ * de suporte; a do atendente trava e manda procurar ajuda, justamente para que ninguém
+ * transforme um incerto num segundo orçamento por impaciência.
  */
 export async function verificarOrcamento(operacaoId) {
   const url = `${BASE}/${encodeURIComponent(operacaoId)}/verificar`;

@@ -31,14 +31,12 @@
  * (`montarResumoOrcamento`) para o caminho normal de envio da conversa, onde o atendente ainda
  * revisa antes de sair. Não há `useEffect` que envie, não há envio no sucesso.
  *
- * ⚠️ **Sessão 6**: o despacho da criação ainda não existe, então esta tela ainda não é
- * alcançável pelo fluxo. O que falta ligar:
- *   · chamar `confirmarOrcamento(preparacaoId)` e, com o resultado, montar
- *     `{ resultado, jaEstavaCriado }` e renderizar esta tela (ver `OrcamentoDrawer`,
- *     `ETAPA.RESULTADO`);
- *   · passar `onEnviarAoCliente(texto)` apontando para o envio normal da conversa (composer
- *     com texto revisável), que NÃO é responsabilidade deste módulo.
- * Enquanto `onEnviarAoCliente` não vier, o botão aparece desabilitado com frase honesta.
+ * O que `onEnviarAoCliente(texto)` recebe é o TEXTO pronto; o que ele faz com isso é do
+ * chamador — hoje, colocá-lo no composer da conversa. Sem esse callback o botão aparece
+ * desabilitado com frase honesta, e "Copiar resumo" continua valendo.
+ *
+ * Falha no envio do WhatsApp **não** recria orçamento: esta tela não conhece a criação, e o
+ * texto fica disponível para tentar de novo quantas vezes for preciso.
  *
  * ⚠️ Nunca exibir aqui: `comando_id`, `operacao_id`, `preparacao_id`, `RESULTADO_INCERTO`,
  * `requestId` ou status HTTP.
@@ -50,6 +48,7 @@ import { SEM_VALOR } from "./orcamentoFormat";
 
 export default function OrcamentoResultado({
   resultado,
+  previa = null,
   jaEstavaCriado = false,
   onEnviarAoCliente,
   onFechar,
@@ -59,7 +58,9 @@ export default function OrcamentoResultado({
     () => montarResultadoView(resultado, { jaEstavaCriado }),
     [resultado, jaEstavaCriado]
   );
-  const resumo = useMemo(() => montarResumoOrcamento(resultado), [resultado]);
+  // A prévia entra só para o resumo ganhar as linhas de item: o `200` da criação traz número,
+  // cliente, vendedor e total, nunca os itens (§10). Sem ela o resumo cai para a forma curta.
+  const resumo = useMemo(() => montarResumoOrcamento(resultado, { previa }), [resultado, previa]);
 
   const [copiado, setCopiado] = useState(false);
   const timerRef = useRef(null);

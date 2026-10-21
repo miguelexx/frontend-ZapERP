@@ -3267,12 +3267,6 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           orcamentoCompanyId={user?.company_id}
           orcamentoUserId={user?.id}
           orcamentoClienteNomeSugerido={nome}
-          /*
-            Ponto de partida EDITÁVEL para o campo de vendedor quando o usuário ainda não tem
-            vendedor lembrado. Não é mapeamento usuário ZapERP → vendedor ERP (fora do MVP de
-            propósito, doc 36 §6.2): quem resolve o `codigo_vendedor_erp` é a WM.
-          */
-          orcamentoUsuarioNome={user?.nome ?? user?.name ?? ""}
           canVerSyncProdutos={canVerSyncProdutos}
           canSincronizarProdutos={canSincronizarProdutos}
           showToast={showToast}

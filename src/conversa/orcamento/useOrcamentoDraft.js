@@ -144,16 +144,24 @@ export const RASCUNHO_VAZIO = Object.freeze({
  * como código **marcado como memória**, e nunca como seleção canônica. A WM revalida esse
  * código em `preparar` e pode recusá-lo; até lá ele é palpite informado, não fato.
  *
- * Sem memória, o palpite é o `user.nome` do ZapERP — como TEXTO DE BUSCA editável, que é o
- * máximo que se pode afirmar sem o ERP. Não é mapeamento: ninguém promete que o nome do
- * atendente existe como vendedor no Icthus.
+ * ────────────────────────────────────────────────────────────────────────────
+ * O `user.nome` DO ZapERP NÃO ENTRA AQUI — MEDIDO CONTRA O ERP REAL
+ * ────────────────────────────────────────────────────────────────────────────
+ * Até a Sessão 6 este campo nascia com o nome do usuário logado como texto de busca. A
+ * conferência contra o Icthus da empresa piloto derrubou a ideia: os vendedores cadastrados
+ * são `FINANCEIRO`, `MARKONY`, `RAFAEL LUIZ SILVA`, `ROBSON DO NASCIMENTO LOURES` e `SAMUEL`
+ * (`total: 5`, sem outras páginas) — nome de atendente não está entre eles. O palpite,
+ * portanto, não era neutro: ele garantia um `VENDEDOR_NAO_ENCONTRADO` na primeira tentativa de
+ * todo atendente novo, gastando uma chamada e começando o fluxo com um erro.
  *
- * @param {{clienteNomeSugerido?: string, vendedorNomeSugerido?: string,
+ * O que ficou é a parte que funciona: a memória do último vendedor que a WM **confirmou**
+ * (`vendedorLembrado.js`). Sem memória, o campo nasce vazio — e vazio é honesto.
+ *
+ * @param {{clienteNomeSugerido?: string,
  *          vendedorLembrado?: {codigo: string, nome: string}|null}} args
  */
 export function prefillRascunho({
   clienteNomeSugerido = "",
-  vendedorNomeSugerido = "",
   vendedorLembrado = null,
 } = {}) {
   const prefill = {
@@ -171,7 +179,7 @@ export function prefillRascunho({
     return prefill;
   }
 
-  prefill.vendedorBusca = String(vendedorNomeSugerido || "").trim().slice(0, 100);
+  // Sem memória confirmada pela WM, o campo nasce vazio (ver o cabeçalho desta função).
   return prefill;
 }
 
@@ -287,14 +295,14 @@ export function apagarRascunho(chave) {
  * Hook do rascunho. Devolve o estado e um `patch` que já persiste.
  *
  * @param {{companyId: any, userId: any, conversaId: any, ativo?: boolean,
- *          clienteNomeSugerido?: string, vendedorNomeSugerido?: string}} params
+ *          clienteNomeSugerido?: string}} params
  *   `clienteNomeSugerido` é o nome da conversa: entra como SUGESTÃO EDITÁVEL no campo de busca
  *   de cliente quando não há rascunho — e só quando é nome de verdade (título que é telefone
  *   não sugere nada). Nunca vira seleção canônica: só a WM resolve o `codigo_cliente_erp`, e
  *   por isso o nome da conversa nunca preenche `clienteCodigoErp`.
  *
- *   `vendedorNomeSugerido` é o `user.nome` do ZapERP, usado apenas quando NÃO há vendedor
- *   lembrado — e também apenas como texto de busca. Ver `prefillRascunho`.
+ *   O vendedor não tem sugestão equivalente: o único ponto de partida é a memória do último
+ *   vendedor confirmado pela WM. Ver `prefillRascunho`.
  */
 export default function useOrcamentoDraft({
   companyId,
@@ -302,7 +310,6 @@ export default function useOrcamentoDraft({
   conversaId,
   ativo = true,
   clienteNomeSugerido = "",
-  vendedorNomeSugerido = "",
 } = {}) {
   const chave = useMemo(
     () => (conversaId ? chaveRascunho({ companyId, userId, conversaId }) : ""),
@@ -328,7 +335,6 @@ export default function useOrcamentoDraft({
       setRascunho(
         prefillRascunho({
           clienteNomeSugerido,
-          vendedorNomeSugerido,
           // Lido só agora, na abertura: a memória é ponto de partida, e reler depois
           // sobrescreveria o que o atendente já escolheu nesta tela.
           vendedorLembrado: lerVendedorLembrado({ companyId, userId }),

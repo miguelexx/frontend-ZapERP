@@ -227,21 +227,96 @@ export function montarResultadoView(resultado, { jaEstavaCriado = false } = {}) 
 }
 
 /**
- * Texto do resumo que o atendente copia ou envia ao cliente.
+ * Quantidade no texto que vai para o CLIENTE.
  *
- * Template FIXO com os dados oficiais da WM. Não inclui código ERP de cliente/vendedor (jargão
- * interno), não inclui carimbo de tempo (`meta.criado_em` não tem fuso no contrato, e uma hora
- * errada no bolso do cliente é pior que nenhuma) e não soma nada: o total é o da WM.
+ * A WM manda `"2.000"` e a prévia mostra isso tal e qual, porque ali o atendente está
+ * conferindo o dado do ERP. Numa mensagem de WhatsApp, "2,000 × Mouse" só confunde. Aqui as
+ * casas decimais vazias saem — `"2.000"` → `"2"`, `"1.500"` → `"1,5"` — e isso é recorte de
+ * texto, não conta: nenhum dígito significativo é tocado, e o valor exato continua na prévia
+ * e no que foi gravado no ERP.
+ */
+function quantidadeParaCliente(bruta) {
+  const texto = formatQuantidadeOrcamento(bruta);
+  if (texto === SEM_VALOR) return SEM_VALOR;
+  if (!texto.includes(",")) return texto;
+  return texto.replace(/,?0+$/, "") || texto;
+}
+
+/**
+ * Linhas de item do resumo, a partir da PRÉVIA que foi confirmada.
  *
+ * Os itens não vêm no `200` da criação (§10 só devolve número, documento, cliente, vendedor,
+ * total e proteção) — eles vêm da prévia, que é exatamente o conjunto que virou `payload_hash`
+ * e foi despachado byte a byte. Ou seja: continuam sendo dado oficial da WM, não reconstrução.
+ *
+ * Preço por unidade, como no template da Sessão 6 do doc 36 ("1 × Notebook — R$ 3.500,00"):
+ * nada aqui multiplica, soma ou deriva valor.
+ */
+function linhasDeItem(previa) {
+  const itens = previa && typeof previa === "object" && Array.isArray(previa.itens) ? previa.itens : [];
+  const linhas = [];
+  for (const bruto of itens) {
+    const item = bruto && typeof bruto === "object" ? bruto : {};
+    const descricao = textoOuSemValor(item.descricao);
+    const quantidade = quantidadeParaCliente(item.quantidade);
+    const preco = formatMoedaOrcamento(item.preco_unitario);
+    // Linha sem descrição ou sem preço não vira "— × — — —" na mensagem do cliente: some.
+    if (descricao === SEM_VALOR || quantidade === SEM_VALOR || preco === SEM_VALOR) continue;
+    linhas.push(`${quantidade} × ${descricao} — ${preco}`);
+  }
+  return linhas;
+}
+
+/**
+ * Texto do resumo que o atendente revisa e envia ao cliente.
+ *
+ * Template FIXO com os dados oficiais da WM — **ele formata, não calcula**. Não inclui código
+ * ERP de cliente/vendedor (jargão interno) e não inclui carimbo de tempo (`meta.criado_em` não
+ * tem fuso no contrato, e uma hora errada no bolso do cliente é pior que nenhuma).
+ *
+ * Com a prévia em mãos sai o template da Sessão 6 do doc 36:
+ *
+ *   Olá, Maria Souza! Segue seu orçamento:
+ *
+ *   1 × Notebook Lenovo IdeaPad — R$ 3.500,00
+ *   2 × Mouse sem fio — R$ 120,00
+ *
+ *   Total: R$ 3.740,00
+ *   Orçamento: 12345
+ *
+ * O nome do cliente vai INTEIRO, como a WM o devolveu. Abreviar para o primeiro nome ficaria
+ * simpático com "João da Silva" e esquisito com razão social ("Olá, COMERCIAL!") — e o nome
+ * de um cliente não é lugar para adivinhação.
+ *
+ * Sem prévia (por exemplo depois de um F5, quando só há a operação lida do servidor) o resumo
+ * cai para a forma curta, com número, cliente e total. Melhor um resumo curto e verdadeiro do
+ * que uma lista de itens reconstruída de algum lugar.
+ *
+ * @param {object|null|undefined} resultado `operacao.resultado` (resultado sanitizado)
+ * @param {{previa?: object|null}} [opcoes] prévia confirmada, para a lista de itens
  * @returns {string} vazio quando não há resultado utilizável
  */
-export function montarResumoOrcamento(resultado) {
+export function montarResumoOrcamento(resultado, { previa = null } = {}) {
   const view = montarResultadoView(resultado);
   if (!view) return "";
-  const linhas = [`Orçamento: ${view.numero}`];
-  if (view.cliente.nome !== SEM_VALOR) linhas.push(`Cliente: ${view.cliente.nome}`);
+
+  const itens = linhasDeItem(previa);
+  if (!itens.length) {
+    const linhas = [`Orçamento: ${view.numero}`];
+    if (view.cliente.nome !== SEM_VALOR) linhas.push(`Cliente: ${view.cliente.nome}`);
+    if (view.valorTotal !== SEM_VALOR) linhas.push(`Total: ${view.valorTotal}`);
+    if (view.vendedor.nome !== SEM_VALOR) linhas.push(`Vendedor: ${view.vendedor.nome}`);
+    return linhas.join("\n");
+  }
+
+  const abertura =
+    view.cliente.nome === SEM_VALOR
+      ? "Segue seu orçamento:"
+      : `Olá, ${view.cliente.nome}! Segue seu orçamento:`;
+
+  const linhas = [abertura, "", ...itens, ""];
   if (view.valorTotal !== SEM_VALOR) linhas.push(`Total: ${view.valorTotal}`);
-  if (view.vendedor.nome !== SEM_VALOR) linhas.push(`Vendedor: ${view.vendedor.nome}`);
+  linhas.push(`Orçamento: ${view.numero}`);
   return linhas.join("\n");
 }
 

@@ -551,6 +551,57 @@ for (const semNumero of [
   assert(resumo === "Orçamento: 77", `resumo: linha sem dado é omitida — veio "${resumo}"`);
 }
 
+/* ---- Resumo COM a prévia: o template da Sessão 6 (formata, não calcula) ---- */
+{
+  const previa = {
+    itens: [
+      { descricao: "Notebook Lenovo IdeaPad", quantidade: "1.000", preco_unitario: "3500.00" },
+      { descricao: "Mouse sem fio", quantidade: "2.000", preco_unitario: "120.00" },
+    ],
+  };
+  const resumo = montarResumoOrcamento(RESULTADO_WM, { previa });
+
+  assert(resumo.startsWith("Olá, Maria Souza! Segue seu orçamento:"), `resumo: abertura do template — veio "${resumo.split("\n")[0]}"`);
+  assert(
+    resumo.includes(`1 × Notebook Lenovo IdeaPad — ${formatMoedaOrcamento("3500.00")}`),
+    "resumo: item com quantidade e preço unitário, no formato do doc 36"
+  );
+  assert(
+    resumo.includes(`2 × Mouse sem fio — ${formatMoedaOrcamento("120.00")}`),
+    "resumo: quantidade sem casas vazias — '2,000 ×' confundiria o cliente"
+  );
+  assert(resumo.includes(`Total: ${formatMoedaOrcamento("3500.00")}`), "resumo: o total é o do RESULTADO da WM");
+  assert(resumo.trim().endsWith("Orçamento: 123456"), "resumo: o número fecha a mensagem");
+
+  // A regra que não pode cair: nada é somado nem multiplicado. O total do resultado (3500,00)
+  // é incoerente com os itens de propósito — 3500 + 2×120 daria 3740.
+  assert(!resumo.includes("3.740"), "resumo: o total NÃO pode ser a soma dos itens feita na tela");
+  assert(!resumo.includes("C123") && !resumo.includes("V9"), "resumo: código ERP continua fora da mensagem do cliente");
+  assert(!/criado_em|2026-10-20/.test(resumo), "resumo: carimbo sem fuso continua fora");
+}
+{
+  // Quantidade fracionária real continua legível, e item sem preço não vira linha quebrada.
+  const previa = {
+    itens: [
+      { descricao: "Cabo", quantidade: "1.500", preco_unitario: "10.00" },
+      { descricao: "Sem preço", quantidade: "1", preco_unitario: null },
+      { descricao: null, quantidade: "1", preco_unitario: "5.00" },
+    ],
+  };
+  const resumo = montarResumoOrcamento(RESULTADO_WM, { previa });
+  assert(resumo.includes("1,5 × Cabo"), `resumo: 1.500 vira "1,5" — veio "${resumo}"`);
+  assert(!resumo.includes("Sem preço"), "resumo: item sem preço some em vez de virar '— '");
+  assert(!resumo.includes("— × "), "resumo: item sem descrição some em vez de virar linha vazia");
+}
+{
+  // Sem prévia (F5, leitura da operação) o resumo cai para a forma curta — e continua honesto.
+  const curto = montarResumoOrcamento(RESULTADO_WM, { previa: null });
+  assert(curto.startsWith("Orçamento: 123456"), "resumo: sem prévia, forma curta");
+  assert(!curto.includes("×"), "resumo: sem prévia não se inventa lista de itens");
+  const semItens = montarResumoOrcamento(RESULTADO_WM, { previa: { itens: [] } });
+  assert(semItens === curto, "resumo: prévia sem itens cai para a mesma forma curta");
+}
+
 /* ------------------------------------------------------------------ *
  * 7. Assinatura — a prévia é de UM conjunto de dados
  * ------------------------------------------------------------------ */
@@ -666,7 +717,6 @@ const { prefillRascunho } = draft;
 {
   const comMemoria = prefillRascunho({
     clienteNomeSugerido: "Maria Souza",
-    vendedorNomeSugerido: "Ana Atendente",
     vendedorLembrado: { codigo: "V9", nome: "Carlos Lima" },
   });
   assert(comMemoria.vendedorCodigoErp === "V9", "vendedor lembrado: o código é pré-preenchido");
@@ -675,30 +725,39 @@ const { prefillRascunho } = draft;
     comMemoria.vendedorDeMemoria === true,
     "vendedor lembrado: a origem é MARCADA — lembrança não tem a mesma cara de confirmação da WM"
   );
-  assert(
-    comMemoria.vendedorBusca === "",
-    "vendedor lembrado: com memória, `user.nome` não entra como busca (seriam dois palpites)"
-  );
+  assert(comMemoria.vendedorBusca === "", "vendedor lembrado: a memória entra como código, não como texto de busca");
   assert(comMemoria.clienteBusca === "Maria Souza", "vendedor lembrado: a sugestão de cliente é independente");
 }
 
-/* ---- Sem memória: `user.nome` entra como BUSCA, nunca como código ---- */
+/* ----------------------------------------------------------------------- *
+ * Sem memória o campo nasce VAZIO — o `user.nome` não é mais palpite
+ * ----------------------------------------------------------------------- *
+ * Medido contra o Icthus da empresa piloto: os vendedores cadastrados são FINANCEIRO,
+ * MARKONY, RAFAEL LUIZ SILVA, ROBSON DO NASCIMENTO LOURES e SAMUEL (total: 5, sem outras
+ * páginas). Nome de atendente não está lá — então pré-preencher com ele garantia um
+ * `VENDEDOR_NAO_ENCONTRADO` na primeira tentativa de todo atendente novo.
+ */
 {
-  const semMemoria = prefillRascunho({ vendedorNomeSugerido: "Ana Atendente", vendedorLembrado: null });
-  assert(semMemoria.vendedorBusca === "Ana Atendente", "vendedor: sem memória, `user.nome` é ponto de partida editável");
-  assert(
-    semMemoria.vendedorCodigoErp === "",
-    "vendedor: `user.nome` NUNCA vira código — mapeamento usuário ZapERP → vendedor ERP está fora do MVP (§6.2)"
-  );
-  assert(semMemoria.vendedorDeMemoria === false, "vendedor: busca por nome não é memória");
+  const semMemoria = prefillRascunho({ vendedorLembrado: null });
+  assert(semMemoria.vendedorBusca === "", "vendedor: sem memória o campo nasce VAZIO (nada de `user.nome`)");
+  assert(semMemoria.vendedorCodigoErp === "", "vendedor: nunca há código sem a WM ter resolvido");
+  assert(semMemoria.vendedorDeMemoria === false, "vendedor: campo vazio não é memória");
   assert(semMemoria.vendedorNome === "", "vendedor: sem confirmação da WM não há nome canônico");
+
+  // Mesmo que alguém volte a passar um nome de usuário, ele é ignorado: a assinatura não o
+  // aceita mais, e um prefill com chave extra não pode reintroduzir o palpite por acidente.
+  const comChaveExtra = prefillRascunho({ vendedorNomeSugerido: "Ana Atendente", vendedorLembrado: null });
+  assert(
+    comChaveExtra.vendedorBusca === "",
+    "vendedor: `vendedorNomeSugerido` não é mais lido — o prefill por nome de usuário saiu de vez"
+  );
 }
 
 /* ---- Memória só vale com código: nome sem código não pré-seleciona nada ---- */
 {
-  const soNome = prefillRascunho({ vendedorNomeSugerido: "Ana", vendedorLembrado: { codigo: "", nome: "Carlos" } });
+  const soNome = prefillRascunho({ vendedorLembrado: { codigo: "", nome: "Carlos" } });
   assert(soNome.vendedorCodigoErp === "", "vendedor lembrado: sem código não há pré-seleção");
-  assert(soNome.vendedorBusca === "Ana", "vendedor lembrado: sem código cai para a busca por nome");
+  assert(soNome.vendedorBusca === "", "vendedor lembrado: sem código o campo fica vazio");
   assert(soNome.vendedorDeMemoria === false, "vendedor lembrado: sem código não é memória");
 }
 {
@@ -993,6 +1052,118 @@ const { prefillRascunho } = draft;
       "render resultado: sem número não se oferece enviar ao cliente"
     );
     assert(/não crie outro/i.test(htmlSemNumero), "render resultado: sem número, a instrução é não duplicar");
+
+    /* ---- Sessão 6: o envio ao cliente ligado ---- */
+    const htmlComEnvio = render(Componentes.Resultado, {
+      resultado: RESULTADO_WM,
+      previa: { itens: [{ descricao: "Notebook", quantidade: "1.000", preco_unitario: "3500.00" }] },
+      onEnviarAoCliente: () => {},
+    });
+    assert(
+      /Enviar ao cliente<\/button>/.test(htmlComEnvio) &&
+        !/wa-orc-btnPrincipal"[^>]*disabled[^>]*>\s*Enviar ao cliente/.test(htmlComEnvio),
+      "render resultado: com `onEnviarAoCliente` o botão habilita"
+    );
+    assert(
+      /1 × Notebook/.test(htmlComEnvio),
+      "render resultado: com a prévia, o resumo exibido já é o template com itens"
+    );
+    assert(
+      /revisa o texto no campo de mensagem/i.test(htmlComEnvio),
+      "render resultado: a tela diz que o atendente ainda revisa antes de enviar"
+    );
+    // Durante um envio em curso o botão não some nem muda de lugar.
+    const htmlEnviandoCliente = render(Componentes.Resultado, {
+      resultado: RESULTADO_WM,
+      onEnviarAoCliente: () => {},
+      enviando: true,
+    });
+    assert(
+      /wa-orc-btnPrincipal"[^>]*disabled/.test(htmlEnviandoCliente),
+      "render resultado: durante o envio o botão principal fica desabilitado"
+    );
+
+    /* ---- Sessão 6: erro de falha segura na prévia ---- */
+    const htmlErro = render(Componentes.Preview, {
+      preparacao: { previa: PREVIA_WM },
+      onConfirmar: () => {},
+      erro: "O ERP está indisponível no momento.",
+    });
+    assert(
+      htmlErro.includes("O ERP está indisponível no momento."),
+      "render prévia: erro de falha segura aparece com a frase do backend"
+    );
+    assert(
+      htmlErro.includes("Confirmar e criar no ERP"),
+      "render prévia: depois de uma falha segura o atendente ainda vê o que ia criar"
+    );
+    assert(
+      /nada foi criado/i.test(htmlErro),
+      "render prévia: a falha segura diz, em letras, que o ERP não gravou nada"
+    );
+    assert(
+      /wa-orc-btnConfirmar"[^>]*disabled/.test(htmlErro),
+      "render prévia: depois da falha segura o confirmar trava — a preparação morreu no servidor"
+    );
+    assert(
+      htmlErro.includes("Voltar e editar"),
+      "render prévia: a saída de uma falha segura é voltar e calcular de novo"
+    );
+    assert(
+      !/RESULTADO_INCERTO|FALHA_SEGURA|409|502|504/.test(htmlErro),
+      "render prévia: o erro na tela não carrega código nem status"
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 11. Sessão 6 — o que o CÓDIGO não pode fazer
+ * ------------------------------------------------------------------ *
+ * Estas asserções olham o fonte porque o que elas proíbem não é um valor de saída, é um
+ * caminho de execução: uma chamada de criação dentro de um `useEffect`, de um retry ou do
+ * envio ao cliente. Nenhuma delas apareceria num `renderToStaticMarkup`, e todas custariam um
+ * orçamento duplicado no ERP de um cliente real.
+ */
+{
+  const { readFileSync } = await import("node:fs");
+  const ler = (rel) => readFileSync(new URL(`../src/conversa/orcamento/${rel}`, import.meta.url), "utf8");
+  const drawer = ler("OrcamentoDrawer.jsx");
+  const resultadoSrc = ler("OrcamentoResultado.jsx");
+  const previewSrc = ler("OrcamentoPreview.jsx");
+
+  const chamadasConfirmar = drawer.split("\n").filter((l) => /\bconfirmarOrcamento\(/.test(l));
+  assert(
+    chamadasConfirmar.length === 1,
+    `drawer: a criação é chamada de UM lugar só — achei ${chamadasConfirmar.length}`
+  );
+  assert(
+    !/useEffect\([^)]*confirmarOrcamento/s.test(drawer),
+    "drawer: nenhuma criação dentro de `useEffect` — criar é sempre um clique"
+  );
+  assert(
+    !/\bverificarOrcamento\(/.test(drawer),
+    "drawer: `verificarOrcamento` não é CHAMADO pela tela do atendente (reconciliação é do suporte, D10)"
+  );
+  assert(
+    !/\bverificarOrcamento\b/.test(drawer.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\*.*$/gm, "")),
+    "drawer: fora de comentário, `verificarOrcamento` não é sequer importado"
+  );
+  assert(
+    !/setTimeout[\s\S]{0,200}confirmarOrcamento/.test(drawer),
+    "drawer: nenhum retry agendado sobre a criação"
+  );
+  // O envio ao cliente não pode tocar na criação: a função que envia só repassa texto.
+  const envio = drawer.match(/const enviarAoCliente = useCallback\([\s\S]*?\n  \);/);
+  assert(envio !== null, "drawer: `enviarAoCliente` existe");
+  assert(
+    !/confirmarOrcamento|prepararOrcamento/.test(envio[0]),
+    "drawer: falha no envio ao cliente não pode recriar orçamento — o envio não conhece a criação"
+  );
+  for (const [nome, src] of [["resultado", resultadoSrc], ["prévia", previewSrc]]) {
+    assert(
+      !/confirmarOrcamento|verificarOrcamento|prepararOrcamento/.test(src),
+      `${nome}: componente de tela não chama a API de orçamento — quem orquestra é o drawer`
+    );
   }
 }
 

@@ -162,7 +162,6 @@ function ConversaViewOverlays({
   orcamentoCompanyId,
   orcamentoUserId,
   orcamentoClienteNomeSugerido,
-  orcamentoUsuarioNome,
   canVerSyncProdutos,
   canSincronizarProdutos,
   showToast,
@@ -396,7 +395,12 @@ function ConversaViewOverlays({
             companyId={orcamentoCompanyId}
             userId={orcamentoUserId}
             clienteNomeSugerido={orcamentoClienteNomeSugerido}
-            vendedorNomeSugerido={orcamentoUsuarioNome}
+            /*
+              "Enviar ao cliente" usa o MESMO caminho do painel de produtos: o texto vai para o
+              composer e o atendente envia como qualquer mensagem. O drawer nunca chama a API
+              de envio — e, por isso, falha de envio não tem como mexer no orçamento criado.
+            */
+            onEnviarAoCliente={(texto) => queueComposerAppend(texto)}
           />
         </Suspense>
       ) : null}

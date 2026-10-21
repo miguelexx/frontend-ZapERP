@@ -84,6 +84,7 @@ export default function OrcamentoPreview({
   onConfirmar,
   confirmando = false,
   previaDesatualizada = false,
+  erro = "",
 }) {
   const view = useMemo(() => montarPreviaView(preparacao?.previa), [preparacao]);
 
@@ -110,10 +111,27 @@ export default function OrcamentoPreview({
   }
 
   const despachoIndisponivel = typeof onConfirmar !== "function";
-  const podeConfirmar = !despachoIndisponivel && !confirmando && !previaDesatualizada;
+  // `erro` aqui só chega de uma confirmação que FALHOU EM SEGURANÇA — e falha segura é estado
+  // terminal da preparação no servidor. Confirmar de novo levaria um 409 e nada mais, então o
+  // botão trava e a saída honesta é voltar e calcular outra vez. (O incerto nem passa por
+  // aqui: ele troca a tela inteira, no drawer.)
+  const podeConfirmar = !despachoIndisponivel && !confirmando && !previaDesatualizada && !erro;
 
   return (
     <div className="wa-orc-body">
+      {/*
+        Erro de uma confirmação que NÃO gravou nada (falha segura). Fica aqui, acima da
+        revisão, porque o atendente precisa continuar vendo o que ia criar. O incerto nunca
+        chega a este ponto: ele troca a tela inteira, no drawer.
+      */}
+      {erro ? (
+        <div className="wa-orc-alert wa-orc-alert--erro" role="alert">
+          <span>
+            {erro} Nada foi criado no sistema da empresa — volte e calcule de novo para tentar.
+          </span>
+        </div>
+      ) : null}
+
       {previaDesatualizada ? (
         <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
           <span>
