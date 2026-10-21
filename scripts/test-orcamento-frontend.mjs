@@ -1,12 +1,23 @@
 /**
- * Guardas do frontend do orçamento WM (doc 36, Sessão 5).
+ * Guardas do frontend do orçamento WM (doc 36, Sessões 5 e 5B).
  *
  * Cobre o que quebraria em silêncio e com consequência real:
  *   1. o formatador de moeda PRÓPRIO — "—" para valor inválido, nunca "R$ 0,00" (lacuna 3);
  *   2. a quantidade que sai para o backend — `trim()` obrigatório e zero recusado;
  *   3. o timeout por URL — `confirmar` acima do teto do backend (lacuna 2);
  *   4. o rascunho em `sessionStorage` — escopo por empresa+usuário, prazo, varredura e a
- *      lista branca que impede preço/id de operação de voltar do storage.
+ *      lista branca que impede preço/id de operação de voltar do storage;
+ *   5. a prévia — valores exibidos COMO VIERAM, nada recalculado, `cache_cloud` nunca rotulado
+ *      como "atual" e a assinatura que invalida a prévia quando os dados mudam;
+ *   6. o resultado — o número é `codigo_pedido_erp`, e "já estava criado" nunca é inferido da
+ *      resposta da WM (§11.1 proíbe);
+ *   7. o vendedor lembrado — pré-preenche mas NÃO seleciona sozinho, é por empresa+usuário e
+ *      some no logout;
+ *   8. a sugestão de cliente — título de conversa que é só telefone não pré-preenche nada;
+ *   9. o HTML de verdade das duas telas, renderizado com React (ver "render real" no fim).
+ *
+ * Nenhuma asserção faz rede: o render roda `renderToStaticMarkup` em memória e os componentes
+ * não chamam serviço nenhum na montagem.
  *
  * Executar: node scripts/test-orcamento-frontend.mjs
  */
@@ -17,8 +28,21 @@ import {
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
+  sugestaoDeBuscaCliente,
   SEM_VALOR,
 } from "../src/conversa/orcamento/orcamentoFormat.js";
+
+import {
+  rotuloFonte,
+  textoBloqueio,
+  textoBloqueado,
+  precoExatoTexto,
+  montarPreviaView,
+  montarResultadoView,
+  montarResumoOrcamento,
+  assinaturaDoRascunho,
+  assinaturaDoBody,
+} from "../src/conversa/orcamento/orcamentoViewModel.js";
 
 import {
   resolveOrcamentoTimeoutMs,
@@ -281,6 +305,695 @@ assert(gravarRascunho(chaveA, RASCUNHO), "rascunho: gravação simples funciona"
     explodiu = true;
   }
   assert(!explodiu, "rascunho: ausência de sessionStorage não pode lançar");
+}
+
+/* ------------------------------------------------------------------ *
+ * 5. Prévia — valores COMO VIERAM, nada recalculado
+ * ------------------------------------------------------------------ */
+
+/**
+ * Fixture com uma armadilha de propósito: `valor_total` do orçamento (`"1.00"`) é
+ * DELIBERADAMENTE incoerente com os itens. Se a tela somasse itens em vez de usar o número da
+ * WM, o total exibido não seria R$ 1,00 — e é esse o erro que o teste caça.
+ */
+const PREVIA_WM = {
+  cliente: { codigo_cliente_erp: "C123", nome: "Maria Souza" },
+  vendedor: { codigo_vendedor_erp: "V9", nome: "Carlos Lima" },
+  itens: [
+    {
+      codigo_produto_erp: "ABC1234",
+      descricao: "Notebook",
+      quantidade: "2.000",
+      preco_unitario: "33.038",
+      estoque_previsto: "-2.125",
+      valor_total: "66.076",
+    },
+    {
+      codigo_produto_erp: "ZZZ9",
+      descricao: "Mouse",
+      unidade: "UN",
+      quantidade: "1.000",
+      // Preço ausente E valor do item ausente: tem de virar "—" nos dois, nunca "R$ 0,00".
+      preco_unitario: null,
+      estoque_previsto: null,
+      valor_total: null,
+    },
+  ],
+  valor_produtos: "91.076",
+  valor_total: "1.00",
+  bloquear_apos_criar: true,
+  meta: { fonte: "cache_cloud", tempo_real: false },
+};
+
+{
+  const view = montarPreviaView(PREVIA_WM);
+  assert(view !== null, "prévia: fixture do contrato tem de produzir view");
+  assert(view.quantidadeItens === 2, "prévia: conta os itens que a WM mandou");
+
+  // O total é o da WM, não uma soma da tela.
+  assert(
+    view.valorTotal === formatMoedaOrcamento("1.00"),
+    "prévia: o total é o `valor_total` da WM — somar itens no cliente é proibido (§8.1)"
+  );
+  assert(
+    view.valorProdutos === formatMoedaOrcamento("91.076"),
+    "prévia: `valor_produtos` sai como veio"
+  );
+
+  const [item1, item2] = view.itens;
+  assert(item1.quantidade === "2,000", 'prévia: quantidade preserva as casas da WM ("2.000")');
+  assert(item1.precoUnitario === formatMoedaOrcamento("33.038"), "prévia: preço unitário é o da WM");
+  assert(item1.precoExato === "33,038", "prévia: a 3ª casa do preço aparece exata nos detalhes");
+  assert(item1.valorTotal === formatMoedaOrcamento("66.076"), "prévia: valor do item é o da WM");
+  assert(item1.estoque === "-2,125", "prévia: estoque negativo é exibido, não escondido");
+
+  // A regra mais importante: preço AUSENTE não é derivado de `valor_total / quantidade`.
+  assert(item2.precoUnitario === SEM_VALOR, 'prévia: preço ausente vira "—"');
+  assert(item2.valorTotal === SEM_VALOR, 'prévia: valor do item ausente vira "—"');
+  assert(item2.precoExato === null, "prévia: sem preço não há valor exato a mostrar");
+  assert(item2.estoque === SEM_VALOR, 'prévia: estoque ausente vira "—"');
+  assert(item2.unidade === "UN", "prévia: unidade é exibida quando a WM a manda");
+  assert(item1.unidade === null, "prévia: unidade ausente é omitida, não vira — em toda linha");
+}
+
+// Preço derivável: se alguém algum dia dividir, este caso acusa.
+{
+  const view = montarPreviaView({
+    ...PREVIA_WM,
+    itens: [{ codigo_produto_erp: "A1", descricao: "X", quantidade: "2.000", preco_unitario: null, valor_total: "100.00" }],
+  });
+  assert(
+    view.itens[0].precoUnitario === SEM_VALOR,
+    "prévia: com `valor_total` 100 e quantidade 2, o preço NÃO pode aparecer como R$ 50,00"
+  );
+  assert(
+    view.itens[0].valorTotal === formatMoedaOrcamento("100.00"),
+    "prévia: o valor do item continua sendo o da WM"
+  );
+}
+
+// Cliente/vendedor sem nome canônico: "—", nunca o código no lugar do nome.
+{
+  const view = montarPreviaView({
+    ...PREVIA_WM,
+    cliente: { codigo_cliente_erp: "C9", nome: null },
+    vendedor: null,
+  });
+  assert(view.cliente.nome === SEM_VALOR, 'prévia: cliente sem nome vira "—"');
+  assert(view.cliente.codigo === "C9", "prévia: o código continua disponível para os detalhes");
+  assert(view.vendedor.nome === SEM_VALOR, 'prévia: vendedor ausente vira "—"');
+  assert(view.vendedor.codigo === SEM_VALOR, 'prévia: código de vendedor ausente vira "—"');
+}
+
+assert(montarPreviaView(null) === null, "prévia: sem prévia não se inventa tela");
+assert(montarPreviaView("x") === null, "prévia: prévia que não é objeto não produz view");
+assert(montarPreviaView({ cliente: {}, vendedor: {} }).quantidadeItens === 0, "prévia: sem itens, zero itens");
+
+/* ---- Origem do dado: cache NUNCA é "atual" ---- */
+const PROIBIDO_EM_CACHE = /\batual|\bagora\b|tempo\s*real/i;
+{
+  const cache = rotuloFonte({ fonte: "cache_cloud", tempo_real: false });
+  assert(cache !== null, "fonte: `cache_cloud` tem frase própria");
+  assert(cache.tempoReal === false, "fonte: `cache_cloud` não é tempo real");
+  assert(
+    !PROIBIDO_EM_CACHE.test(cache.texto),
+    `fonte: cópia não pode ser chamada de atual/agora/tempo real — veio "${cache.texto}"`
+  );
+  assert(/cópia/i.test(cache.texto), "fonte: a frase de cache precisa dizer que é cópia");
+}
+{
+  const real = rotuloFonte({ fonte: "tempo_real", tempo_real: true });
+  assert(real?.tempoReal === true, "fonte: tempo real comprovado é tempo real");
+  assert(/agora/i.test(real.texto), 'fonte: com prova de tempo real pode dizer "agora"');
+}
+// Fonte desconhecida vira cópia, não "atual": o enum não é fechado no contrato.
+{
+  const outra = rotuloFonte({ fonte: "fonte_nova_qualquer" });
+  assert(outra !== null && outra.tempoReal === false, "fonte: valor desconhecido é tratado como cópia");
+  assert(!PROIBIDO_EM_CACHE.test(outra.texto), "fonte: valor desconhecido também não pode virar atual");
+}
+for (const semFonte of [null, undefined, {}, { fonte: "" }, { fonte: 42 }, "x"]) {
+  assert(
+    rotuloFonte(semFonte) === null,
+    `fonte: ${JSON.stringify(semFonte)} não tem procedência — a tela não escreve nada`
+  );
+}
+// `tempo_real` só conta como `true` literal (o backend o deriva de prova explícita).
+assert(rotuloFonte({ fonte: "cache_cloud", tempo_real: "true" })?.tempoReal === false, "fonte: string 'true' não vale como prova");
+
+/* ---- Bloqueio em linguagem de negócio ---- */
+{
+  const sim = textoBloqueio(true);
+  const nao = textoBloqueio(false);
+  assert(typeof sim === "string" && sim.length > 0, "bloqueio: política `true` tem frase");
+  assert(typeof nao === "string" && nao.length > 0, "bloqueio: política `false` tem frase");
+  assert(sim !== nao, "bloqueio: as duas políticas não podem dizer a mesma coisa");
+  for (const frase of [sim, nao, textoBloqueado(true), textoBloqueado(false)]) {
+    assert(!/bloquear_apos_criar|bloqueado|flag/i.test(frase), `bloqueio: nome técnico vazou em "${frase}"`);
+  }
+}
+for (const naoBooleano of [null, undefined, "true", 1, {}]) {
+  assert(
+    textoBloqueio(naoBooleano) === null,
+    `bloqueio: ${JSON.stringify(naoBooleano)} não autoriza afirmar nada sobre proteção`
+  );
+  assert(textoBloqueado(naoBooleano) === null, "bloqueio: estado não booleano também cala");
+}
+
+/* ---- Preço exato só quando há casa além da segunda ---- */
+assert(precoExatoTexto("33.038") === "33,038", "preço exato: 3 casas aparecem");
+assert(precoExatoTexto("25.00") === null, "preço exato: 2 casas não precisam de repetição");
+assert(precoExatoTexto("25") === null, "preço exato: inteiro não precisa de repetição");
+assert(precoExatoTexto(null) === null, "preço exato: ausente não produz texto");
+assert(precoExatoTexto(33.038) === null, "preço exato: número (não string) não é tratado como decimal da WM");
+
+/* ------------------------------------------------------------------ *
+ * 6. Resultado da criação — o número é `codigo_pedido_erp`
+ * ------------------------------------------------------------------ */
+
+const RESULTADO_WM = {
+  codigo_pedido_erp: "123456",
+  documento_venda: "2 - Orçamento",
+  cliente: { codigo_cliente_erp: "C123", nome: "Maria Souza" },
+  vendedor: { codigo_vendedor_erp: "V9", nome: "Carlos Lima" },
+  valor_total: "3500.00",
+  bloqueado: true,
+  meta: { fonte: "tempo_real", tempo_real: true, criado_em: "2026-10-20T15:40:00" },
+};
+
+{
+  const view = montarResultadoView(RESULTADO_WM);
+  assert(view?.numero === "123456", "resultado: o número do orçamento é `codigo_pedido_erp`");
+  assert(view.valorTotal === formatMoedaOrcamento("3500.00"), "resultado: total sai como veio");
+  assert(view.documento === "2 - Orçamento", "resultado: `documento_venda` é rótulo de exibição");
+  assert(view.cliente.nome === "Maria Souza", "resultado: cliente por nome");
+  assert(typeof view.protecao === "string" && view.protecao.length > 0, "resultado: proteção tem frase");
+}
+
+// Sem `codigo_pedido_erp` não há resultado: nada de id interno parecendo número de orçamento.
+for (const semNumero of [
+  { ...RESULTADO_WM, codigo_pedido_erp: undefined },
+  { ...RESULTADO_WM, codigo_pedido_erp: "" },
+  { ...RESULTADO_WM, codigo_pedido_erp: "   " },
+  { ...RESULTADO_WM, codigo_pedido_erp: 123456 },
+  null,
+]) {
+  assert(
+    montarResultadoView(semNumero) === null,
+    "resultado: sem `codigo_pedido_erp` string não se monta tela de sucesso"
+  );
+}
+
+/* ---- "Já estava criado" vem do NOSSO estado, nunca da resposta (§11.1) ---- */
+{
+  const agora = montarResultadoView(RESULTADO_WM, { jaEstavaCriado: false });
+  const antes = montarResultadoView(RESULTADO_WM, { jaEstavaCriado: true });
+  assert(agora.jaEstavaCriado === false, "resultado: default é 'criado agora'");
+  assert(antes.jaEstavaCriado === true, "resultado: estado local pode dizer 'já estava criado'");
+  assert(agora.titulo !== antes.titulo, "resultado: os dois casos têm títulos diferentes");
+  assert(/já estava/i.test(antes.titulo), "resultado: o título idempotente é explícito");
+
+  // Trocar SÓ `meta.criado_em` não pode mudar nada: inferir por ele é proibido.
+  const outroCarimbo = montarResultadoView(
+    { ...RESULTADO_WM, meta: { ...RESULTADO_WM.meta, criado_em: "2001-01-01T00:00:00" } },
+    { jaEstavaCriado: false }
+  );
+  assert(
+    outroCarimbo.titulo === agora.titulo,
+    "resultado: `meta.criado_em` NÃO pode influenciar 'criado agora' × 'já estava criado' (§11.1)"
+  );
+  const semCarimbo = montarResultadoView({ ...RESULTADO_WM, meta: { fonte: "tempo_real", tempo_real: true } });
+  assert(semCarimbo.titulo === agora.titulo, "resultado: ausência de carimbo também não muda o título");
+  assert(
+    !JSON.stringify(agora).includes("criado_em"),
+    "resultado: `criado_em` não atravessa para a view (nada o lê para decidir)"
+  );
+  assert(
+    !/criado_agora|reaproveitado|idempotente/.test(JSON.stringify(Object.keys(agora))),
+    "resultado: nenhum campo de saída nomeia o que a WM não distingue"
+  );
+}
+
+/* ---- Resumo para o cliente ---- */
+{
+  const resumo = montarResumoOrcamento(RESULTADO_WM);
+  assert(resumo.includes("123456"), "resumo: tem de carregar o número do orçamento");
+  assert(resumo.includes("Maria Souza"), "resumo: tem o nome do cliente");
+  assert(resumo.includes(formatMoedaOrcamento("3500.00")), "resumo: tem o total da WM");
+  assert(!resumo.includes("C123") && !resumo.includes("V9"), "resumo: código ERP é jargão interno, não vai ao cliente");
+  assert(!/criado_em|2026-10-20/.test(resumo), "resumo: carimbo sem fuso não vai ao cliente");
+  assert(montarResumoOrcamento(null) === "", "resumo: sem resultado, texto vazio");
+  assert(montarResumoOrcamento({ codigo_pedido_erp: "" }) === "", "resumo: sem número, texto vazio");
+}
+{
+  // Campos ausentes somem do resumo em vez de virar linha "Cliente: —".
+  const resumo = montarResumoOrcamento({ codigo_pedido_erp: "77", cliente: null, valor_total: null });
+  assert(resumo === "Orçamento: 77", `resumo: linha sem dado é omitida — veio "${resumo}"`);
+}
+
+/* ------------------------------------------------------------------ *
+ * 7. Assinatura — a prévia é de UM conjunto de dados
+ * ------------------------------------------------------------------ */
+{
+  const rascunhoBase = {
+    clienteBusca: "Maria",
+    clienteCodigoErp: "",
+    vendedorCodigoErp: "V9",
+    vendedorBusca: "",
+    itens: [{ codigo_produto_erp: "ABC1234", busca: "", quantidade: "  2  " }],
+  };
+  const bodyBase = {
+    conversa_id: 77,
+    cliente_busca: "Maria",
+    vendedor_codigo_erp: "V9",
+    itens: [{ codigo_produto_erp: "ABC1234", quantidade: "2" }],
+  };
+  assert(
+    assinaturaDoRascunho(rascunhoBase) === assinaturaDoBody(bodyBase),
+    "assinatura: rascunho e corpo enviado têm de coincidir (inclusive com o trim da quantidade)"
+  );
+
+  const mudaQuantidade = { ...rascunhoBase, itens: [{ ...rascunhoBase.itens[0], quantidade: "3" }] };
+  assert(
+    assinaturaDoRascunho(mudaQuantidade) !== assinaturaDoBody(bodyBase),
+    "assinatura: mudar quantidade invalida a prévia"
+  );
+  assert(
+    assinaturaDoRascunho({ ...rascunhoBase, clienteBusca: "Maria S" }) !== assinaturaDoBody(bodyBase),
+    "assinatura: mudar cliente invalida a prévia"
+  );
+  assert(
+    assinaturaDoRascunho({ ...rascunhoBase, vendedorCodigoErp: "V10" }) !== assinaturaDoBody(bodyBase),
+    "assinatura: mudar vendedor invalida a prévia"
+  );
+  assert(
+    assinaturaDoRascunho({ ...rascunhoBase, itens: [] }) !== assinaturaDoBody(bodyBase),
+    "assinatura: remover item invalida a prévia"
+  );
+  assert(
+    assinaturaDoRascunho({
+      ...rascunhoBase,
+      itens: [...rascunhoBase.itens, { codigo_produto_erp: "ZZZ9", quantidade: "1" }],
+    }) !== assinaturaDoBody(bodyBase),
+    "assinatura: adicionar item invalida a prévia"
+  );
+
+  // Página de ambiguidade é navegação: não pode invalidar a prévia.
+  assert(
+    assinaturaDoBody({ ...bodyBase, cliente_pagina: 2 }) === assinaturaDoBody(bodyBase),
+    "assinatura: página de ambiguidade não faz parte do conteúdo do orçamento"
+  );
+  assert(
+    assinaturaDoBody({ ...bodyBase, conversa_id: 999 }) === assinaturaDoBody(bodyBase),
+    "assinatura: a conversa não entra (o drawer já reinicia ao trocar de conversa)"
+  );
+  // Quantidade inválida não pode colidir com uma válida.
+  assert(
+    assinaturaDoRascunho({ ...rascunhoBase, itens: [{ codigo_produto_erp: "ABC1234", quantidade: "x" }] }) !==
+      assinaturaDoBody(bodyBase),
+    "assinatura: quantidade inválida não pode assinar igual a uma válida"
+  );
+  assert(assinaturaDoRascunho(null) === "", "assinatura: sem rascunho, assinatura vazia");
+  assert(assinaturaDoBody(null) === "", "assinatura: sem corpo, assinatura vazia");
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. Sugestão de cliente — título que é telefone não pré-preenche
+ * ------------------------------------------------------------------ */
+for (const telefone of [
+  "5511999999999",
+  "11999999999",
+  "(11) 99999-9999",
+  "+55 11 99999-9999",
+  "  11 99999 9999  ",
+  "11.99999.9999",
+  "+5511999999999",
+]) {
+  assert(
+    sugestaoDeBuscaCliente(telefone) === "",
+    `sugestão: título "${telefone}" é telefone — pré-preencher faria a busca por NOME falhar`
+  );
+}
+assert(sugestaoDeBuscaCliente("Maria Souza") === "Maria Souza", "sugestão: nome de verdade passa");
+assert(sugestaoDeBuscaCliente("  Maria Souza  ") === "Maria Souza", "sugestão: nome é aparado");
+assert(sugestaoDeBuscaCliente("Posto 3 Irmãos") === "Posto 3 Irmãos", "sugestão: número no meio do nome não é telefone");
+assert(sugestaoDeBuscaCliente("Loja 2") === "Loja 2", "sugestão: nome curto com número continua nome");
+for (const vazio of ["", "   ", null, undefined, 42, {}]) {
+  assert(sugestaoDeBuscaCliente(vazio) === "", `sugestão: ${JSON.stringify(vazio)} não sugere nada`);
+}
+assert(sugestaoDeBuscaCliente("N".repeat(300)).length === 100, "sugestão: nome gigante é cortado em 100");
+
+/* ------------------------------------------------------------------ *
+ * 9. Vendedor lembrado — sugestão, nunca mapeamento automático
+ * ------------------------------------------------------------------ */
+
+globalThis.localStorage = new StorageFake();
+globalThis.sessionStorage = new StorageFake();
+
+const vend = await import("../src/conversa/orcamento/vendedorLembrado.js");
+const {
+  chaveVendedorLembrado,
+  lerVendedorLembrado,
+  gravarVendedorLembrado,
+  esquecerVendedorLembrado,
+  limparVendedoresLembrados,
+  VENDEDOR_TTL_MS,
+} = vend;
+
+const { prefillRascunho } = draft;
+
+/* ---- Pré-preenche, mas a origem fica marcada ---- */
+{
+  const comMemoria = prefillRascunho({
+    clienteNomeSugerido: "Maria Souza",
+    vendedorNomeSugerido: "Ana Atendente",
+    vendedorLembrado: { codigo: "V9", nome: "Carlos Lima" },
+  });
+  assert(comMemoria.vendedorCodigoErp === "V9", "vendedor lembrado: o código é pré-preenchido");
+  assert(comMemoria.vendedorNome === "Carlos Lima", "vendedor lembrado: o nome aparece ao atendente");
+  assert(
+    comMemoria.vendedorDeMemoria === true,
+    "vendedor lembrado: a origem é MARCADA — lembrança não tem a mesma cara de confirmação da WM"
+  );
+  assert(
+    comMemoria.vendedorBusca === "",
+    "vendedor lembrado: com memória, `user.nome` não entra como busca (seriam dois palpites)"
+  );
+  assert(comMemoria.clienteBusca === "Maria Souza", "vendedor lembrado: a sugestão de cliente é independente");
+}
+
+/* ---- Sem memória: `user.nome` entra como BUSCA, nunca como código ---- */
+{
+  const semMemoria = prefillRascunho({ vendedorNomeSugerido: "Ana Atendente", vendedorLembrado: null });
+  assert(semMemoria.vendedorBusca === "Ana Atendente", "vendedor: sem memória, `user.nome` é ponto de partida editável");
+  assert(
+    semMemoria.vendedorCodigoErp === "",
+    "vendedor: `user.nome` NUNCA vira código — mapeamento usuário ZapERP → vendedor ERP está fora do MVP (§6.2)"
+  );
+  assert(semMemoria.vendedorDeMemoria === false, "vendedor: busca por nome não é memória");
+  assert(semMemoria.vendedorNome === "", "vendedor: sem confirmação da WM não há nome canônico");
+}
+
+/* ---- Memória só vale com código: nome sem código não pré-seleciona nada ---- */
+{
+  const soNome = prefillRascunho({ vendedorNomeSugerido: "Ana", vendedorLembrado: { codigo: "", nome: "Carlos" } });
+  assert(soNome.vendedorCodigoErp === "", "vendedor lembrado: sem código não há pré-seleção");
+  assert(soNome.vendedorBusca === "Ana", "vendedor lembrado: sem código cai para a busca por nome");
+  assert(soNome.vendedorDeMemoria === false, "vendedor lembrado: sem código não é memória");
+}
+{
+  const nada = prefillRascunho();
+  assert(nada.vendedorCodigoErp === "" && nada.vendedorBusca === "", "vendedor: sem nada, campo nasce vazio (como antes)");
+  assert(nada.clienteBusca === "", "cliente: sem nada, campo nasce vazio");
+}
+
+/* ---- Escopo: empresa + usuário ---- */
+{
+  const A = { companyId: 1, userId: 10 };
+  const B = { companyId: 2, userId: 20 };
+  const C = { companyId: 1, userId: 11 };
+  assert(chaveVendedorLembrado(A) !== chaveVendedorLembrado(B), "memória: empresas diferentes não compartilham chave");
+  assert(chaveVendedorLembrado(A) !== chaveVendedorLembrado(C), "memória: usuários diferentes não compartilham chave");
+  assert(
+    chaveVendedorLembrado({ companyId: "1:10", userId: "" }) !== chaveVendedorLembrado({ companyId: "1", userId: "10" }),
+    "memória: escopo não pode ser forjado por separador na chave"
+  );
+
+  assert(gravarVendedorLembrado({ ...A, codigo: "V9", nome: "Carlos Lima" }), "memória: gravação funciona");
+  assert(lerVendedorLembrado(A)?.codigo === "V9", "memória: volta no mesmo escopo");
+  assert(lerVendedorLembrado(A)?.nome === "Carlos Lima", "memória: o nome volta junto");
+  assert(lerVendedorLembrado(B) === null, "memória: outra empresa NÃO lê o vendedor do escopo A");
+  assert(lerVendedorLembrado(C) === null, "memória: outro usuário da mesma empresa NÃO lê o vendedor do escopo A");
+
+  // Nada de guardar o que a WM não confirmou.
+  assert(!gravarVendedorLembrado({ ...A, codigo: "", nome: "Alguém" }), "memória: sem código não grava");
+  assert(!gravarVendedorLembrado({ ...A, codigo: null, nome: "Alguém" }), "memória: código nulo não grava");
+
+  // Prazo: memória velha não ressuscita.
+  gravarVendedorLembrado({ ...A, codigo: "V9", nome: "Carlos", agora: Date.now() - VENDEDOR_TTL_MS - 1000 });
+  assert(lerVendedorLembrado(A) === null, "memória: vencida não é lida");
+  assert(globalThis.localStorage.getItem(chaveVendedorLembrado(A)) === null, "memória: vencida é removida na leitura");
+
+  // "Trocar" esquece só o escopo atual.
+  gravarVendedorLembrado({ ...A, codigo: "V9", nome: "Carlos" });
+  gravarVendedorLembrado({ ...B, codigo: "V1", nome: "Outro" });
+  esquecerVendedorLembrado(A);
+  assert(lerVendedorLembrado(A) === null, "memória: esquecer apaga o escopo pedido");
+  assert(lerVendedorLembrado(B)?.codigo === "V1", "memória: esquecer não toca em outro escopo");
+}
+
+/* ---- Logout: a memória some, e só ela ---- */
+{
+  gravarVendedorLembrado({ companyId: 1, userId: 10, codigo: "V9", nome: "Carlos" });
+  gravarVendedorLembrado({ companyId: 2, userId: 20, codigo: "V1", nome: "Outro" });
+  globalThis.localStorage.setItem("zap_erp_auth", "preservar");
+  globalThis.localStorage.setItem("zap_erp_last_email", "preservar");
+
+  const removidas = limparVendedoresLembrados();
+  assert(removidas === 2, `logout: as duas memórias têm de sair — saíram ${removidas}`);
+  assert(lerVendedorLembrado({ companyId: 1, userId: 10 }) === null, "logout: memória do escopo logado some");
+  assert(
+    lerVendedorLembrado({ companyId: 2, userId: 20 }) === null,
+    "logout: memória de OUTRO escopo também some (navegador de balcão)"
+  );
+  assert(
+    globalThis.localStorage.getItem("zap_erp_auth") === "preservar",
+    "logout: a limpeza não pode tocar em chaves de outros módulos"
+  );
+}
+
+/* ---- A marca de memória sobrevive ao F5 pelo rascunho, e só `true` literal passa ---- */
+{
+  const chaveF5 = chaveRascunho({ companyId: 1, userId: 10, conversaId: 77 });
+  gravarRascunho(chaveF5, {
+    vendedorCodigoErp: "V9",
+    vendedorNome: "Carlos Lima",
+    vendedorDeMemoria: true,
+    itens: [],
+  });
+  assert(lerRascunho(chaveF5)?.vendedorDeMemoria === true, "rascunho: a marca de memória sobrevive ao F5");
+
+  gravarRascunho(chaveF5, { vendedorCodigoErp: "V9", vendedorDeMemoria: "sim", itens: [] });
+  assert(
+    lerRascunho(chaveF5)?.vendedorDeMemoria === false,
+    "rascunho: só `true` literal conta como memória (valor estranho no storage não vale)"
+  );
+}
+
+/* ---- Storage bloqueado (janela privada) não pode derrubar o orçamento ---- */
+{
+  globalThis.localStorage = new StorageFake({ lancar: true });
+  let explodiu = false;
+  try {
+    gravarVendedorLembrado({ companyId: 1, userId: 10, codigo: "V9", nome: "Carlos" });
+    lerVendedorLembrado({ companyId: 1, userId: 10 });
+    esquecerVendedorLembrado({ companyId: 1, userId: 10 });
+    limparVendedoresLembrados();
+  } catch {
+    explodiu = true;
+  }
+  assert(!explodiu, "memória: storage bloqueado não pode lançar");
+  assert(lerVendedorLembrado({ companyId: 1, userId: 10 }) === null, "memória: storage bloqueado lê como ausente");
+}
+{
+  delete globalThis.localStorage;
+  let explodiu = false;
+  try {
+    gravarVendedorLembrado({ companyId: 1, userId: 10, codigo: "V9" });
+    lerVendedorLembrado({ companyId: 1, userId: 10 });
+    limparVendedoresLembrados();
+  } catch {
+    explodiu = true;
+  }
+  assert(!explodiu, "memória: ausência de localStorage não pode lançar");
+}
+
+/* ------------------------------------------------------------------ *
+ * 10. Render real das duas telas (React → HTML, em memória)
+ * ------------------------------------------------------------------ *
+ * Os testes acima provam as REGRAS; este prova que os componentes de fato imprimem o que o
+ * modelo decidiu, em vez de montar número por conta própria. `esbuild` (já presente por causa
+ * do Vite) empacota os dois componentes com o React num módulo autocontido, carregado de um
+ * `data:` URL — sem arquivo temporário, sem servidor, sem rede.
+ */
+{
+  let bundle = null;
+  try {
+    const { Buffer } = await import("node:buffer");
+    const esbuild = await import("esbuild");
+    const dirOrcamento = new URL("../src/conversa/orcamento/", import.meta.url);
+    const saida = await esbuild.build({
+      stdin: {
+        contents: [
+          'import { createElement } from "react";',
+          'import { renderToStaticMarkup } from "react-dom/server.browser";',
+          'import Preview from "./OrcamentoPreview.jsx";',
+          'import Resultado from "./OrcamentoResultado.jsx";',
+          "export const Componentes = { Preview, Resultado };",
+          "export const render = (C, p) => renderToStaticMarkup(createElement(C, p));",
+        ].join("\n"),
+        resolveDir: new URL(".", dirOrcamento).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
+        loader: "js",
+      },
+      bundle: true,
+      format: "esm",
+      platform: "browser",
+      jsx: "automatic",
+      write: false,
+      logLevel: "silent",
+      define: { "process.env.NODE_ENV": '"production"' },
+    });
+    const codigo = saida.outputFiles[0].text;
+    bundle = await import(`data:text/javascript;base64,${Buffer.from(codigo, "utf8").toString("base64")}`);
+  } catch (err) {
+    // `esbuild` é dependência transitiva do Vite: se um dia sair, as regras continuam provadas
+    // pelas seções anteriores e a suíte não fica vermelha por um motivo que não é do produto.
+    console.warn(`AVISO: render real pulado (${err?.message || err}).`);
+  }
+
+  if (bundle) {
+    const { render, Componentes } = bundle;
+
+    /* ---- Prévia ---- */
+    const htmlPrevia = render(Componentes.Preview, { preparacao: { previa: PREVIA_WM } });
+
+    assert(htmlPrevia.includes("Maria Souza"), "render prévia: mostra o cliente por nome");
+    assert(htmlPrevia.includes("Carlos Lima"), "render prévia: mostra o vendedor por nome");
+    assert(htmlPrevia.includes("Notebook") && htmlPrevia.includes("Mouse"), "render prévia: lista os itens");
+    assert(htmlPrevia.includes("2,000"), "render prévia: imprime a quantidade com as casas da WM");
+    assert(htmlPrevia.includes(formatMoedaOrcamento("33.038")), "render prévia: imprime o preço unitário da WM");
+    assert(htmlPrevia.includes("33,038"), "render prévia: a 3ª casa aparece exata nos detalhes");
+    assert(htmlPrevia.includes("-2,125"), "render prévia: estoque negativo chega à tela");
+    assert(htmlPrevia.includes(formatMoedaOrcamento("1.00")), "render prévia: o total impresso é o da WM, não uma soma");
+    assert(htmlPrevia.includes(SEM_VALOR), 'render prévia: campo ausente chega à tela como "—"');
+    assert(!/R\$&nbsp;0,00|R\$ 0,00/.test(htmlPrevia), 'render prévia: "R$ 0,00" não pode aparecer para campo ausente');
+
+    // O bloco de totais só pode conter os números da WM. A soma dos itens desta fixture daria
+    // R$ 66,08 (66.076 + item sem valor) — e é justamente o que não pode estar ali.
+    {
+      const totais = htmlPrevia.match(/<div class="wa-orc-totais">([\s\S]*?)<\/div>\s*<\/div>/);
+      assert(totais !== null, "render prévia: o bloco de totais é renderizado");
+      assert(
+        totais[1].includes(formatMoedaOrcamento("1.00")),
+        "render prévia: o total do bloco é o `valor_total` da WM"
+      );
+      assert(
+        !totais[1].includes(formatMoedaOrcamento("66.076")),
+        "render prévia: o bloco de totais NÃO pode trazer a soma dos itens feita na tela"
+      );
+    }
+
+    // Procedência: cópia nunca rotulada como atual.
+    assert(/cópia/i.test(htmlPrevia), "render prévia: a procedência de cache aparece");
+    {
+      const origem = htmlPrevia.match(/<p class="wa-orc-origem">([^<]*)<\/p>/);
+      assert(origem !== null, "render prévia: a linha de procedência é renderizada");
+      assert(
+        !PROIBIDO_EM_CACHE.test(origem[1]),
+        `render prévia: cache rotulado como atual — "${origem?.[1]}"`
+      );
+    }
+
+    // Botão principal: existe, é o rótulo certo, e desabilitado sem o despacho da Sessão 6.
+    assert(htmlPrevia.includes("Confirmar e criar no ERP"), "render prévia: o botão principal tem o rótulo do plano");
+    assert(htmlPrevia.includes("Voltar e editar"), "render prévia: 'Voltar e editar' fica ao lado");
+    assert(
+      /wa-orc-btnConfirmar"[^>]*disabled/.test(htmlPrevia),
+      "render prévia: sem `onConfirmar` (Sessão 6) o botão principal fica desabilitado"
+    );
+    assert(!/bloquear_apos_criar/.test(htmlPrevia), "render prévia: nome técnico da política não vaza para a tela");
+    assert(
+      !/comando_id|preparacao_id|requestId|RESULTADO_INCERTO|cache_cloud|tempo_real/.test(htmlPrevia),
+      "render prévia: nenhum identificador interno nem rótulo bruto de fonte na tela"
+    );
+
+    // Sem prévia utilizável: não se inventa tela.
+    const htmlSemPrevia = render(Componentes.Preview, { preparacao: null });
+    assert(
+      !htmlSemPrevia.includes("Confirmar e criar no ERP"),
+      "render prévia: sem prévia não se oferece criar no ERP"
+    );
+
+    // Fonte ausente: nenhuma linha de procedência inventada.
+    const htmlSemFonte = render(Componentes.Preview, {
+      preparacao: { previa: { ...PREVIA_WM, meta: null } },
+    });
+    assert(
+      !htmlSemFonte.includes("wa-orc-origem"),
+      "render prévia: sem `meta.fonte` a tela não escreve nada sobre procedência"
+    );
+
+    // Prévia desatualizada: o botão trava.
+    const htmlDesatualizada = render(Componentes.Preview, {
+      preparacao: { previa: PREVIA_WM },
+      previaDesatualizada: true,
+      onConfirmar: () => {},
+    });
+    assert(
+      /wa-orc-btnConfirmar"[^>]*disabled/.test(htmlDesatualizada),
+      "render prévia: dados mudados depois do cálculo desabilitam o confirmar"
+    );
+    assert(/calcule de novo/i.test(htmlDesatualizada), "render prévia: a tela pede novo cálculo");
+
+    // Com despacho ligado (futuro) o botão habilita; durante o envio, desabilita e não vira outro botão.
+    const htmlPronta = render(Componentes.Preview, { preparacao: { previa: PREVIA_WM }, onConfirmar: () => {} });
+    assert(
+      !/wa-orc-btnConfirmar"[^>]*disabled/.test(htmlPronta),
+      "render prévia: com `onConfirmar` o botão principal habilita"
+    );
+    const htmlEnviando = render(Componentes.Preview, {
+      preparacao: { previa: PREVIA_WM },
+      onConfirmar: () => {},
+      confirmando: true,
+    });
+    assert(
+      /wa-orc-btnConfirmar"[^>]*disabled/.test(htmlEnviando),
+      "render prévia: durante o envio o botão fica desabilitado (anti-duplo-clique)"
+    );
+    assert(
+      /wa-orc-btnConfirmar/.test(htmlEnviando) && !htmlEnviando.includes("Confirmar e criar no ERP"),
+      "render prévia: o botão em envio é o MESMO botão, com rótulo de progresso"
+    );
+
+    /* ---- Resultado ---- */
+    const htmlResultado = render(Componentes.Resultado, { resultado: RESULTADO_WM });
+    assert(htmlResultado.includes("123456"), "render resultado: o número do orçamento aparece");
+    assert(
+      htmlResultado.includes(formatMoedaOrcamento("3500.00")),
+      "render resultado: o total é o da WM"
+    );
+    assert(htmlResultado.includes("Enviar ao cliente"), "render resultado: a ação principal é enviar ao cliente");
+    assert(htmlResultado.includes("Copiar resumo"), "render resultado: dá para copiar o resumo");
+    assert(htmlResultado.includes("Fechar"), "render resultado: dá para fechar");
+    assert(/Orçamento: 123456/.test(htmlResultado), "render resultado: o resumo mostra o número ao atendente");
+    assert(
+      !/criado_em|2026-10-20T15:40/.test(htmlResultado),
+      "render resultado: carimbo sem fuso não vai para a tela"
+    );
+    assert(
+      !/comando_id|operacao_id|preparacao_id|requestId|RESULTADO_INCERTO/.test(htmlResultado),
+      "render resultado: nenhum identificador interno na tela"
+    );
+    // Sem `onEnviarAoCliente` o envio não é oferecido como disponível — e nunca é automático.
+    assert(
+      /Enviar ao cliente<\/button>/.test(htmlResultado) && /disabled/.test(htmlResultado),
+      "render resultado: sem o envio da Sessão 6, o botão fica desabilitado"
+    );
+
+    const htmlIdempotente = render(Componentes.Resultado, { resultado: RESULTADO_WM, jaEstavaCriado: true });
+    assert(/já estava criado/i.test(htmlIdempotente), "render resultado: estado local pode dizer 'já estava criado'");
+    assert(
+      !/já estava criado/i.test(htmlResultado),
+      "render resultado: sem o estado local, a tela NÃO afirma que já estava criado (§11.1)"
+    );
+
+    const htmlSemNumero = render(Componentes.Resultado, { resultado: { ...RESULTADO_WM, codigo_pedido_erp: "" } });
+    assert(
+      !htmlSemNumero.includes("Enviar ao cliente"),
+      "render resultado: sem número não se oferece enviar ao cliente"
+    );
+    assert(/não crie outro/i.test(htmlSemNumero), "render resultado: sem número, a instrução é não duplicar");
+  }
 }
 
 if (falhas.length) {

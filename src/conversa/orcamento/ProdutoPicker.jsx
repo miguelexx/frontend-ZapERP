@@ -36,6 +36,8 @@ import { textoOuSemValor } from "./orcamentoFormat";
 
 const MIN_CARACTERES = 3;
 const DEBOUNCE_MS = 800;
+/** Código do envelope quando a WM não acha o termo (`404 PRODUTO_NAO_ENCONTRADO` mapeado). */
+const CODIGO_PRODUTO_NAO_ENCONTRADO = "WM_PRODUTO_NAO_ENCONTRADO";
 
 export default function ProdutoPicker({ onAdicionar, disabled = false, autoFocusRef = null }) {
   const [termo, setTermo] = useState("");
@@ -94,12 +96,17 @@ export default function ProdutoPicker({ onAdicionar, disabled = false, autoFocus
         setBuscou(true);
       } catch (err) {
         if (geracao !== geracaoRef.current) return;
-        const { mensagem, cancelado } = extrairErroOrcamento(err);
+        const { codigo, mensagem, cancelado } = extrairErroOrcamento(err);
         if (cancelado) return;
         setProdutos([]);
         setPaginacao(null);
         setBuscou(true);
-        setErro(mensagem);
+        // Busca que não acha nada NÃO é erro: é resultado vazio. A WM responde `404
+        // PRODUTO_NAO_ENCONTRADO`, e a mensagem do envelope ("Um dos produtos do orçamento não
+        // foi encontrado no ERP") foi escrita para o momento do cálculo — no campo de busca ela
+        // confunde, e o alerta vermelho com "Tentar de novo" sugere falha onde houve resposta.
+        // Cai no estado vazio que já existe logo abaixo.
+        setErro(codigo === CODIGO_PRODUTO_NAO_ENCONTRADO ? "" : mensagem);
       } finally {
         if (geracao === geracaoRef.current) setBuscando(false);
       }

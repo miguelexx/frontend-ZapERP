@@ -1,80 +1,215 @@
 /**
- * PLACEHOLDER DELIBERADO — a prévia do orçamento aguarda o schema da WM.
+ * Prévia do orçamento — a tela de revisão antes de gravar no ERP.
  *
- * Ver `backend/docs/ai-handoff/36-ORCAMENTO-WM-INTEGRACAO.md`, seção 10, **pendência 1**
- * ("Schema de `pronto_para_confirmacao`", ABERTA):
+ * Plano: `backend/docs/ai-handoff/36-ORCAMENTO-WM-INTEGRACAO.md` (seção 6.5).
+ * Contrato: `backend/docs/wm/Integracao-ZapERP-API-WM-Atualizacao-2026-10-20` §8 e §8.1.
  *
- *   `PrepararOrcamentoResposta.dados` modela apenas `status`, `indice_item`, `paginacao` e
- *   `candidatos`. A prévia **não está no contrato**: não há itens canônicos, preço unitário,
- *   subtotal nem total especificados. Não se sabe de qual campo sai cada `preco_confirmado`.
+ * ────────────────────────────────────────────────────────────────────────────
+ * AS QUATRO PERGUNTAS (seção 6.5)
+ * ────────────────────────────────────────────────────────────────────────────
+ * A ordem das seções aqui não é estética; é a ordem em que o atendente precisa responder:
+ *   1. **Para quem é?** cliente e vendedor canônicos, por NOME. O código ERP existe, mas vive
+ *      na área de detalhes — ninguém confere um orçamento por `codigo_cliente_erp`.
+ *   2. **Quais produtos e quantidades?** uma linha por item, com quantidade, preço unitário e
+ *      valor do item.
+ *   3. **Qual o total?** `valor_produtos` e `valor_total`, lado a lado.
+ *   4. **O que acontece ao confirmar?** uma frase que diz que o orçamento será CRIADO no
+ *      sistema da empresa, e o que a política de bloqueio faz com ele depois.
  *
- * POR QUE ESTA TELA NÃO ADIVINHA OS CAMPOS
+ * ────────────────────────────────────────────────────────────────────────────
+ * ESTE COMPONENTE NÃO FAZ CONTA
+ * ────────────────────────────────────────────────────────────────────────────
+ * Não há aritmética nenhuma neste arquivo. Todo número vem formatado de
+ * `montarPreviaView` (`orcamentoViewModel.js`), que também não faz conta: os valores são as
+ * STRINGS decimais da WM. §8.1 proíbe derivar preço de `valor_total / quantidade`, e somar os
+ * itens no cliente seria pior ainda — um total que a tela calculou, mas que o ERP não vai
+ * gravar. Campo ausente aparece como "—", nunca "R$ 0,00".
  *
- * O backend não aceita prévia fora do formato esperado: `extrairPayloadCriacaoDaPrevia`
- * (`backend/services/wm/wmOrcamentoService.js`) FALHA ALTO de propósito quando preço não vem
- * como string decimal (`previa_preco_invalido` → `WM_RESPOSTA_INVALIDA`), em vez de converter
- * ou arredondar. Desenhar a tela em cima de nomes de campo inventados produziria uma prévia
- * bonita que ou nunca aparece (porque o backend recusou antes) ou — pior — mostra número de um
- * campo que não é o preço que será gravado no ERP.
+ * Preço com três casas (`"33.038"`) é exibido como moeda em duas (`R$ 33,04`) e o valor exato
+ * aparece ao lado nos detalhes do item, para nada ficar escondido atrás do arredondamento de
+ * exibição.
  *
- * Então mostramos a verdade: a preparação foi registrada no servidor e a revisão de valores
- * ainda não pode ser exibida. O que ESTÁ garantido pelo backend hoje
- * (`previa_sanitizada.cliente`, `.vendedor`, e a marca `previa_schema_provisorio: true`) é
- * exibido; valores monetários, não.
+ * ────────────────────────────────────────────────────────────────────────────
+ * A PRÉVIA É DE UM CONJUNTO DE DADOS, NÃO DA TELA
+ * ────────────────────────────────────────────────────────────────────────────
+ * `previaDesatualizada` chega `true` quando cliente, vendedor, produto ou quantidade mudou
+ * depois do cálculo (comparação de assinatura, feita no drawer). Nesse caso o botão de
+ * confirmar fica desabilitado e a tela pede um novo cálculo, em vez de gravar no ERP um preço
+ * que já não corresponde ao que está na tela.
  *
- * O QUE A SESSÃO QUE FECHAR ISSO TEM DE FAZER
+ * ────────────────────────────────────────────────────────────────────────────
+ * O BOTÃO PRINCIPAL
+ * ────────────────────────────────────────────────────────────────────────────
+ * "Confirmar e criar no ERP" não muda de posição nem de largura ao entrar em envio
+ * (`.wa-orc-btnPrincipal` tem `min-width`) e fica desabilitado enquanto envia — é o que impede
+ * o duplo clique, que aqui significaria duas chamadas de criação.
  *
- * 1. preencher `CAMINHOS_PROVISORIOS` em `extrairPayloadCriacaoDaPrevia` com os caminhos reais;
- * 2. trocar `backend/tests/fixtures/wmPreviaProvisoria.js` pelas fixtures sanitizadas da WM;
- * 3. só então substituir este componente pela revisão real — itens, quantidade, preço
- *    unitário, subtotal, total e **indicação de origem** do dado (`tempo_real` × `cache_cloud`;
- *    cache nunca rotulado como "atual") — e ligar o botão "Confirmar e criar no ERP", que é
- *    Sessão 6 e depende também da pendência 2.
+ * ⚠️ **Sessão 6**: o despacho da criação ainda não existe. Enquanto `onConfirmar` não vier, o
+ * botão aparece desabilitado com uma frase honesta, em vez de sumir sem explicação. A Sessão 6
+ * só precisa passar `onConfirmar` e `confirmando` daqui para baixo — o resto desta tela não
+ * muda.
  */
 
-import { textoOuSemValor } from "./orcamentoFormat";
+import { useMemo } from "react";
+import { montarPreviaView } from "./orcamentoViewModel";
+import { SEM_VALOR } from "./orcamentoFormat";
 
-export default function OrcamentoPreview({ preparacao, onVoltar }) {
-  const previa = preparacao?.previa || null;
+function ItemPrevia({ item }) {
+  return (
+    <li className="wa-orc-previaItem">
+      <div className="wa-orc-item-info">
+        <span className="wa-orc-item-titulo">{item.descricao}</span>
+        <span className="wa-orc-item-meta">
+          {item.quantidade}
+          {item.unidade ? ` ${item.unidade}` : ""} × {item.precoUnitario}
+        </span>
+      </div>
+      <strong className="wa-orc-previaItem-valor">{item.valorTotal}</strong>
+      <div className="wa-orc-previaItem-detalhes">
+        <span className="wa-orc-item-codigo">Cód. ERP {item.codigo}</span>
+        {item.precoExato ? (
+          <span className="wa-orc-item-codigo">Preço exato do sistema: {item.precoExato}</span>
+        ) : null}
+        {item.estoque !== SEM_VALOR ? (
+          <span className="wa-orc-item-codigo">Estoque previsto: {item.estoque}</span>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+export default function OrcamentoPreview({
+  preparacao,
+  onVoltar,
+  onConfirmar,
+  confirmando = false,
+  previaDesatualizada = false,
+}) {
+  const view = useMemo(() => montarPreviaView(preparacao?.previa), [preparacao]);
+
+  // Sem prévia utilizável não se inventa tela: o backend recusa prévia fora do formato antes de
+  // chegar aqui (`previa_preco_invalido` → `WM_RESPOSTA_INVALIDA`), então isto é rede de
+  // segurança, não caminho esperado.
+  if (!view) {
+    return (
+      <div className="wa-orc-body">
+        <section className="wa-orc-section" aria-label="Orçamento calculado">
+          <div className="wa-orc-alert wa-orc-alert--aviso" role="status">
+            <span>
+              Não foi possível montar a revisão deste orçamento. Volte e calcule de novo.
+            </span>
+          </div>
+        </section>
+        <footer className="wa-orc-foot">
+          <button type="button" className="wa-btn wa-btn-ghost" onClick={onVoltar}>
+            Voltar e editar
+          </button>
+        </footer>
+      </div>
+    );
+  }
+
+  const despachoIndisponivel = typeof onConfirmar !== "function";
+  const podeConfirmar = !despachoIndisponivel && !confirmando && !previaDesatualizada;
 
   return (
     <div className="wa-orc-body">
-      <section className="wa-orc-section" aria-label="Orçamento calculado">
-        <h4 className="wa-orc-sectionTitle">Orçamento calculado</h4>
-
-        <div className="wa-orc-alert wa-orc-alert--aviso" role="status">
+      {previaDesatualizada ? (
+        <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
           <span>
-            A revisão de valores ainda não está disponível: o fornecedor do ERP não publicou o
-            formato da prévia. Para não mostrar número errado, nada de preço aparece aqui.
+            Os dados do orçamento mudaram depois deste cálculo. Calcule de novo para ver os
+            valores certos antes de criar.
           </span>
         </div>
+      ) : null}
 
-        {previa ? (
-          <div className="wa-orc-resumo">
-            <div className="wa-orc-resumo-linha">
-              <span>Cliente</span>
-              <strong>{textoOuSemValor(previa?.cliente?.nome)}</strong>
-            </div>
-            <div className="wa-orc-resumo-linha">
-              <span>Vendedor</span>
-              <strong>{textoOuSemValor(previa?.vendedor?.nome)}</strong>
-            </div>
-            <div className="wa-orc-resumo-linha">
-              <span>Itens</span>
-              <strong>{Array.isArray(previa?.itens) ? previa.itens.length : "—"}</strong>
-            </div>
+      {/* 1. Para quem é */}
+      <section className="wa-orc-section" aria-label="Cliente e vendedor do orçamento">
+        <h4 className="wa-orc-sectionTitle">Orçamento para</h4>
+        <div className="wa-orc-resumo">
+          <div className="wa-orc-resumo-linha">
+            <span>Cliente</span>
+            <strong>{view.cliente.nome}</strong>
           </div>
+          <div className="wa-orc-resumo-linha">
+            <span>Vendedor</span>
+            <strong>{view.vendedor.nome}</strong>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. Quais produtos e quantidades */}
+      <section className="wa-orc-section" aria-label="Itens do orçamento">
+        <h4 className="wa-orc-sectionTitle">Itens ({view.quantidadeItens})</h4>
+        <ul className="wa-orc-itens">
+          {view.itens.map((item) => (
+            <ItemPrevia key={item.chave} item={item} />
+          ))}
+        </ul>
+      </section>
+
+      {/* 3. Qual o total — números da WM, nenhum somado aqui */}
+      <section className="wa-orc-section" aria-label="Valores do orçamento">
+        <div className="wa-orc-totais">
+          <div className="wa-orc-resumo-linha">
+            <span>Produtos</span>
+            <strong>{view.valorProdutos}</strong>
+          </div>
+          <div className="wa-orc-resumo-linha wa-orc-resumo-linha--forte">
+            <span>Total</span>
+            <strong>{view.valorTotal}</strong>
+          </div>
+        </div>
+        {/* Procedência: omitida quando a WM não informa. Cópia nunca é chamada de "atual". */}
+        {view.fonte ? <p className="wa-orc-origem">{view.fonte.texto}</p> : null}
+      </section>
+
+      {/* 4. O que acontece ao confirmar */}
+      <section className="wa-orc-section" aria-label="O que acontece ao confirmar">
+        <h4 className="wa-orc-sectionTitle">Ao confirmar</h4>
+        {/*
+          O valor só entra na frase quando existe. Com `valor_total` ausente, "no valor de —"
+          seria uma frase quebrada falando de dinheiro — e é exatamente nessa hora que o
+          atendente precisa perceber que o total não veio.
+        */}
+        <p className="wa-orc-hint">
+          O orçamento é criado no sistema da empresa para {view.cliente.nome}
+          {view.valorTotal === SEM_VALOR ? "" : `, no valor de ${view.valorTotal}`}. Nada é
+          enviado ao cliente neste passo.
+        </p>
+        {view.bloqueio ? <p className="wa-orc-hint">{view.bloqueio}</p> : null}
+        {despachoIndisponivel ? (
+          <p className="wa-orc-hint wa-orc-hint--aviso">
+            A criação no sistema da empresa será liberada na próxima atualização. Até lá este
+            cálculo serve para conferência e para passar os valores ao cliente.
+          </p>
         ) : null}
 
-        <p className="wa-orc-hint">
-          O cálculo ficou registrado neste atendimento. A gravação no ERP será liberada quando a
-          revisão de valores puder ser exibida.
-        </p>
+        <details className="wa-orc-detalhes">
+          <summary>Códigos do sistema da empresa</summary>
+          <div className="wa-orc-detalhes-corpo">
+            <span className="wa-orc-item-codigo">Cliente — cód. ERP {view.cliente.codigo}</span>
+            <span className="wa-orc-item-codigo">Vendedor — cód. ERP {view.vendedor.codigo}</span>
+          </div>
+        </details>
       </section>
 
       <footer className="wa-orc-foot">
-        <button type="button" className="wa-btn wa-btn-ghost" onClick={onVoltar}>
+        <button
+          type="button"
+          className="wa-btn wa-btn-ghost"
+          disabled={confirmando}
+          onClick={onVoltar}
+        >
           Voltar e editar
+        </button>
+        <button
+          type="button"
+          className="wa-btn wa-btn-primary wa-orc-btnPrincipal wa-orc-btnConfirmar"
+          disabled={!podeConfirmar}
+          onClick={onConfirmar}
+        >
+          {confirmando ? "Criando…" : "Confirmar e criar no ERP"}
         </button>
       </footer>
     </div>

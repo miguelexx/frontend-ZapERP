@@ -40,9 +40,19 @@
  * O QUE ESTE DRAWER NÃO FAZ
  * ────────────────────────────────────────────────────────────────────────────
  * Não escuta Socket.IO (o MVP é request/response + leitura de estado após F5, por custo), não
- * toca no scroll/teclado da conversa, não mexe no composer e não envia mensagem. A gravação no
- * ERP ("Confirmar e criar no ERP") é Sessão 6 e está bloqueada nas pendências 1 e 2 — o botão
- * não existe aqui de propósito, em vez de existir desabilitado sem explicação.
+ * toca no scroll/teclado da conversa, não mexe no composer e não envia mensagem.
+ *
+ * O **despacho** da criação é Sessão 6 e ainda não existe. A tela de revisão
+ * (`OrcamentoPreview`) e a de sucesso (`OrcamentoResultado`) estão implementadas contra o shape
+ * real do backend, e o botão "Confirmar e criar no ERP" aparece desabilitado com frase honesta
+ * enquanto `onConfirmar` não for passado — ver o comentário no ponto de ligação, no JSX.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * MEMÓRIA DO VENDEDOR
+ * ────────────────────────────────────────────────────────────────────────────
+ * Este é o único lugar que GRAVA a memória de vendedor, e só com o vendedor que a WM resolveu
+ * numa prévia `pronto_para_confirmacao`. Pré-preencher é sugestão; mapear usuário ZapERP →
+ * vendedor ERP continua fora do MVP de propósito (doc 36 §6.2). Ver `vendedorLembrado.js`.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,9 +60,12 @@ import { createPortal } from "react-dom";
 import { prepararOrcamento, extrairErroOrcamento } from "../../api/wmOrcamentosService";
 import useOrcamentoDraft from "./useOrcamentoDraft";
 import { normalizarQuantidadeParaEnvio } from "./orcamentoFormat";
+import { assinaturaDoBody, assinaturaDoRascunho } from "./orcamentoViewModel";
+import { gravarVendedorLembrado } from "./vendedorLembrado";
 import OrcamentoForm from "./OrcamentoForm";
 import AmbiguidadePicker from "./AmbiguidadePicker";
 import OrcamentoPreview from "./OrcamentoPreview";
+import OrcamentoResultado from "./OrcamentoResultado";
 import "./orcamento.css";
 
 const STATUS_AMBIGUIDADE = Object.freeze({
@@ -66,6 +79,8 @@ const ETAPA = Object.freeze({
   FORM: "form",
   AMBIGUIDADE: "ambiguidade",
   PREVIA: "previa",
+  /** Sessão 6: só é alcançada depois que o despacho da criação existir (ver `confirmar`). */
+  RESULTADO: "resultado",
 });
 
 /** Frase única para resposta que não bate com nenhum status conhecido. */
@@ -166,10 +181,16 @@ export default function OrcamentoDrawer({
   companyId,
   userId,
   clienteNomeSugerido = "",
+  vendedorNomeSugerido = "",
 }) {
   const [etapa, setEtapa] = useState(ETAPA.FORM);
   const [ambiguidade, setAmbiguidade] = useState(null);
   const [preparacao, setPreparacao] = useState(null);
+  /**
+   * Sessão 6. `{ resultado, jaEstavaCriado }` — e `jaEstavaCriado` sai do NOSSO estado da
+   * operação antes da chamada, nunca da resposta da WM (§11.1 proíbe inferir pela resposta).
+   */
+  const [resultadoOperacao, setResultadoOperacao] = useState(null);
   const [calculando, setCalculando] = useState(false);
   const [erro, setErro] = useState("");
   const [avisoCampo, setAvisoCampo] = useState("");
@@ -183,6 +204,7 @@ export default function OrcamentoDrawer({
     conversaId,
     ativo: open,
     clienteNomeSugerido,
+    vendedorNomeSugerido,
   });
 
   // Trocar de conversa com o drawer aberto reinicia o fluxo: a preparação do servidor está
@@ -191,6 +213,7 @@ export default function OrcamentoDrawer({
     setEtapa(ETAPA.FORM);
     setAmbiguidade(null);
     setPreparacao(null);
+    setResultadoOperacao(null);
     setErro("");
     setAvisoCampo("");
   }, [conversaId, open]);
@@ -220,9 +243,26 @@ export default function OrcamentoDrawer({
     try {
       const data = await prepararOrcamento(body, { signal: controller?.signal });
       if (data?.status === STATUS_PRONTO) {
-        setPreparacao(data);
+        // A prévia vale para ESTE conjunto de dados. Guardar a assinatura do corpo enviado é o
+        // que permite, depois, barrar o "Confirmar" se cliente, vendedor, produto ou quantidade
+        // mudar — em vez de gravar no ERP um preço que já não é o da tela.
+        setPreparacao({ ...data, assinatura: assinaturaDoBody(body) });
         setAmbiguidade(null);
         setEtapa(ETAPA.PREVIA);
+
+        // Único lugar que alimenta a memória de vendedor: o vendedor que a WM RESOLVEU. Nunca
+        // um candidato de lista, nunca `user.nome` (doc 36 §6.2 — vendedor mexe com comissão).
+        const vendedor = data?.previa?.vendedor;
+        if (typeof vendedor?.codigo_vendedor_erp === "string" && vendedor.codigo_vendedor_erp) {
+          gravarVendedorLembrado({
+            companyId,
+            userId,
+            codigo: vendedor.codigo_vendedor_erp,
+            nome: vendedor.nome || "",
+          });
+          // Confirmado agora: deixa de ser lembrança e a tela pode mostrá-lo como canônico.
+          patch({ vendedorDeMemoria: false });
+        }
         return;
       }
       const status = data?.status;
@@ -248,7 +288,7 @@ export default function OrcamentoDrawer({
     } finally {
       setCalculando(false);
     }
-  }, []);
+  }, [companyId, userId, patch]);
 
   const calcular = useCallback(() => {
     const montado = montarBodyPreparar({ rascunho, conversaId });
@@ -273,6 +313,8 @@ export default function OrcamentoDrawer({
         patch({
           vendedorCodigoErp: escolha.candidato.codigo_vendedor_erp,
           vendedorNome: escolha.candidato.nome || "",
+          // Escolha explícita do atendente numa lista da WM: não é mais a lembrança.
+          vendedorDeMemoria: false,
         });
       } else if (escolha.status === STATUS_AMBIGUIDADE.PRODUTO) {
         const idx = escolha.indice_item;
@@ -311,8 +353,26 @@ export default function OrcamentoDrawer({
   const voltarAoFormulario = useCallback(() => {
     setEtapa(ETAPA.FORM);
     setAmbiguidade(null);
+    // A prévia morre junto: voltar para editar é, por definição, abrir mão dos valores que a WM
+    // calculou para o conjunto anterior. Só um novo "Calcular" traz prévia de volta.
+    setPreparacao(null);
     setErro("");
   }, []);
+
+  /**
+   * A prévia na tela ainda corresponde ao que está no rascunho?
+   *
+   * Hoje o formulário e a prévia não convivem (são etapas distintas, e `voltarAoFormulario`
+   * descarta a preparação), então na prática isto é `false`. Existe porque o acoplamento
+   * inverso é o perigoso: no dia em que algo patchar o rascunho com a prévia aberta — a Sessão
+   * 6, um eco de ambiguidade, uma restauração de rascunho — o botão "Confirmar e criar no ERP"
+   * criaria no ERP um orçamento diferente do que o atendente leu. Com a assinatura, ele
+   * desabilita e pede novo cálculo.
+   */
+  const previaDesatualizada = useMemo(() => {
+    if (!preparacao?.assinatura) return false;
+    return preparacao.assinatura !== assinaturaDoRascunho(rascunho);
+  }, [preparacao, rascunho]);
 
   const descricaoItemAmbiguo = useMemo(() => {
     if (ambiguidade?.status !== STATUS_AMBIGUIDADE.PRODUTO) return "";
@@ -357,8 +417,43 @@ export default function OrcamentoDrawer({
             ocupado={calculando}
             itemDescricao={descricaoItemAmbiguo}
           />
+        ) : etapa === ETAPA.RESULTADO ? (
+          <OrcamentoResultado
+            resultado={resultadoOperacao?.resultado}
+            jaEstavaCriado={resultadoOperacao?.jaEstavaCriado === true}
+            onFechar={onClose}
+            /*
+              Sessão 6 liga `onEnviarAoCliente={(texto) => ...}` ao envio normal da conversa
+              (composer com texto revisável). Sem ele o botão fica desabilitado e a tela oferece
+              "Copiar resumo" — nunca envia nada sozinha.
+            */
+          />
         ) : etapa === ETAPA.PREVIA ? (
-          <OrcamentoPreview preparacao={preparacao} onVoltar={voltarAoFormulario} />
+          <OrcamentoPreview
+            preparacao={preparacao}
+            onVoltar={voltarAoFormulario}
+            previaDesatualizada={previaDesatualizada}
+            /*
+              ────────────────────────────────────────────────────────────────────────
+              AQUI É O PONTO DE LIGAÇÃO DA SESSÃO 6
+              ────────────────────────────────────────────────────────────────────────
+              Falta passar `onConfirmar` e `confirmando`. O que a Sessão 6 tem de fazer:
+
+                1. `onConfirmar`: ler se a operação JÁ ESTAVA `CRIADO` (estado local, antes da
+                   chamada) e então `await confirmarOrcamento(preparacao.preparacao_id)`;
+                2. com o `resultado` sanitizado da resposta:
+                   `setResultadoOperacao({ resultado, jaEstavaCriado })` e
+                   `setEtapa(ETAPA.RESULTADO)`;
+                3. `confirmando`: o booleano do envio em curso — o botão já se desabilita e não
+                   muda de posição com ele;
+                4. erro: `extrairErroOrcamento(err)` e `setErro(mensagem)`, como em `preparar`.
+                   `RESULTADO_INCERTO` não vira "falhou": é "não crie outro".
+
+              Enquanto `onConfirmar` não vier, o botão aparece desabilitado com frase honesta
+              (ver `OrcamentoPreview`), e NÃO se chama `verificarOrcamento` em laço nem em
+              `useEffect` — verificar duplica orçamento se feito com UUID novo.
+            */
+          />
         ) : (
           <OrcamentoForm
             rascunho={rascunho}

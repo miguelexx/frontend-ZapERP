@@ -44,6 +44,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { sugestaoDeBuscaCliente } from "./orcamentoFormat.js";
+import { lerVendedorLembrado } from "./vendedorLembrado.js";
 
 const PREFIXO = "zap_orc_draft";
 /** 45 min: mais que um atendimento interrompido, menos que um turno. */
@@ -122,8 +124,56 @@ export const RASCUNHO_VAZIO = Object.freeze({
   vendedorBusca: "",
   vendedorCodigoErp: "",
   vendedorNome: "",
+  /**
+   * `true` enquanto o vendedor do rascunho vier da MEMÓRIA do usuário e ainda não tiver sido
+   * confirmado pela WM nesta preparação. Existe para a tela não pintar uma lembrança com a
+   * mesma cara de um vendedor que a WM acabou de resolver — a diferença é exatamente a que o
+   * doc 36 §6.2 preserva, porque vendedor mexe com comissão.
+   *
+   * Vive no rascunho (e não só no componente) para sobreviver ao F5: depois de recarregar, o
+   * código voltaria do storage e, sem esta marca, apareceria como confirmado.
+   */
+  vendedorDeMemoria: false,
   itens: [],
 });
+
+/**
+ * Pré-preenchimento de um rascunho NOVO (não há nada salvo para esta conversa).
+ *
+ * Função pura e exportada porque é aqui que mora a decisão delicada: o vendedor lembrado entra
+ * como código **marcado como memória**, e nunca como seleção canônica. A WM revalida esse
+ * código em `preparar` e pode recusá-lo; até lá ele é palpite informado, não fato.
+ *
+ * Sem memória, o palpite é o `user.nome` do ZapERP — como TEXTO DE BUSCA editável, que é o
+ * máximo que se pode afirmar sem o ERP. Não é mapeamento: ninguém promete que o nome do
+ * atendente existe como vendedor no Icthus.
+ *
+ * @param {{clienteNomeSugerido?: string, vendedorNomeSugerido?: string,
+ *          vendedorLembrado?: {codigo: string, nome: string}|null}} args
+ */
+export function prefillRascunho({
+  clienteNomeSugerido = "",
+  vendedorNomeSugerido = "",
+  vendedorLembrado = null,
+} = {}) {
+  const prefill = {
+    ...RASCUNHO_VAZIO,
+    // Título que é só telefone não vira sugestão: a busca da WM é por nome (ver
+    // `sugestaoDeBuscaCliente`).
+    clienteBusca: sugestaoDeBuscaCliente(clienteNomeSugerido),
+  };
+
+  const codigo = typeof vendedorLembrado?.codigo === "string" ? vendedorLembrado.codigo.trim() : "";
+  if (codigo) {
+    prefill.vendedorCodigoErp = codigo;
+    prefill.vendedorNome = typeof vendedorLembrado?.nome === "string" ? vendedorLembrado.nome : "";
+    prefill.vendedorDeMemoria = true;
+    return prefill;
+  }
+
+  prefill.vendedorBusca = String(vendedorNomeSugerido || "").trim().slice(0, 100);
+  return prefill;
+}
 
 /** Item do carrinho: identidade do produto + quantidade. Nunca preço. */
 function sanearItem(bruto) {
@@ -159,6 +209,10 @@ function sanearRascunho(bruto) {
     vendedorBusca: texto(bruto.vendedorBusca, 100),
     vendedorCodigoErp: texto(bruto.vendedorCodigoErp, 20).trim(),
     vendedorNome: texto(bruto.vendedorNome, 200),
+    // Só `true` literal passa. Ausente vira `false`, e isso está certo para o rascunho escrito
+    // pela versão anterior deste módulo: lá o código de vendedor só podia vir de uma escolha de
+    // ambiguidade, ou seja, já era confirmado pela WM.
+    vendedorDeMemoria: bruto.vendedorDeMemoria === true,
     itens,
   };
 }
@@ -233,10 +287,14 @@ export function apagarRascunho(chave) {
  * Hook do rascunho. Devolve o estado e um `patch` que já persiste.
  *
  * @param {{companyId: any, userId: any, conversaId: any, ativo?: boolean,
- *          clienteNomeSugerido?: string}} params
+ *          clienteNomeSugerido?: string, vendedorNomeSugerido?: string}} params
  *   `clienteNomeSugerido` é o nome da conversa: entra como SUGESTÃO EDITÁVEL no campo de busca
- *   de cliente quando não há rascunho. Nunca vira seleção canônica — só a WM resolve o
- *   `codigo_cliente_erp`, e por isso o nome da conversa nunca preenche `clienteCodigoErp`.
+ *   de cliente quando não há rascunho — e só quando é nome de verdade (título que é telefone
+ *   não sugere nada). Nunca vira seleção canônica: só a WM resolve o `codigo_cliente_erp`, e
+ *   por isso o nome da conversa nunca preenche `clienteCodigoErp`.
+ *
+ *   `vendedorNomeSugerido` é o `user.nome` do ZapERP, usado apenas quando NÃO há vendedor
+ *   lembrado — e também apenas como texto de busca. Ver `prefillRascunho`.
  */
 export default function useOrcamentoDraft({
   companyId,
@@ -244,6 +302,7 @@ export default function useOrcamentoDraft({
   conversaId,
   ativo = true,
   clienteNomeSugerido = "",
+  vendedorNomeSugerido = "",
 } = {}) {
   const chave = useMemo(
     () => (conversaId ? chaveRascunho({ companyId, userId, conversaId }) : ""),
@@ -266,12 +325,19 @@ export default function useOrcamentoDraft({
     if (salvo) {
       setRascunho(salvo);
     } else {
-      const sugestao = String(clienteNomeSugerido || "").trim().slice(0, 100);
-      setRascunho({ ...RASCUNHO_VAZIO, clienteBusca: sugestao });
+      setRascunho(
+        prefillRascunho({
+          clienteNomeSugerido,
+          vendedorNomeSugerido,
+          // Lido só agora, na abertura: a memória é ponto de partida, e reler depois
+          // sobrescreveria o que o atendente já escolheu nesta tela.
+          vendedorLembrado: lerVendedorLembrado({ companyId, userId }),
+        })
+      );
     }
     setCarregado(true);
-    // `clienteNomeSugerido` fora das deps de propósito: a sugestão só vale na abertura; se o
-    // nome da conversa mudar no meio da digitação, não se sobrescreve o que o usuário escreveu.
+    // As sugestões ficam fora das deps de propósito: elas só valem na abertura; se o nome da
+    // conversa mudar no meio da digitação, não se sobrescreve o que o usuário escreveu.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ativo, chave, companyId, userId]);
 

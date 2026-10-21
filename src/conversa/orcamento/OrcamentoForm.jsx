@@ -14,7 +14,14 @@
  * devolve a ambiguidade com os candidatos já elegíveis. Menos chamadas e nenhum beco.
  *
  * O nome da conversa entra como SUGESTÃO EDITÁVEL no campo de cliente (vem do rascunho), e
- * nunca como seleção canônica: só a WM transforma nome em `codigo_cliente_erp`.
+ * nunca como seleção canônica: só a WM transforma nome em `codigo_cliente_erp`. Título que é só
+ * telefone não sugere nada (`sugestaoDeBuscaCliente`) — a busca da WM é por nome e um número
+ * ali só produziria "nenhum cliente encontrado".
+ *
+ * O vendedor nasce pré-preenchido com o último que a WM confirmou para este usuário (ou com o
+ * `user.nome` como texto de busca, quando não há memória). Lembrança **não é** confirmação: a
+ * linha do código abaixo diz "usado da última vez" em vez de exibi-la como canônica, porque a
+ * WM ainda vai revalidar e vendedor tem efeito de comissão (doc 36 §6.2).
  *
  * ────────────────────────────────────────────────────────────────────────────
  * TOTAL
@@ -214,13 +221,25 @@ export default function OrcamentoForm({
           <div className="wa-orc-escolhido">
             <div>
               <strong>{textoOuSemValor(rascunho.vendedorNome)}</strong>
-              <span className="wa-orc-item-codigo">Cód. ERP {rascunho.vendedorCodigoErp}</span>
+              {/*
+                Vendedor vindo da MEMÓRIA não ganha a mesma cara de um confirmado pela WM: ele
+                ainda vai ser revalidado em `preparar` e pode ser recusado (inativo, trocado de
+                carteira). Dizer "usado da última vez" é o que há de verdadeiro aqui — e
+                vendedor mexe com comissão, então a diferença importa (doc 36 §6.2).
+              */}
+              <span className="wa-orc-item-codigo">
+                {rascunho?.vendedorDeMemoria
+                  ? `Usado da última vez · cód. ERP ${rascunho.vendedorCodigoErp}`
+                  : `Cód. ERP ${rascunho.vendedorCodigoErp}`}
+              </span>
             </div>
             <button
               type="button"
               className="wa-btn wa-btn-ghost wa-orc-btnSm"
               disabled={disabled}
-              onClick={() => onPatch({ vendedorCodigoErp: "", vendedorNome: "" })}
+              onClick={() =>
+                onPatch({ vendedorCodigoErp: "", vendedorNome: "", vendedorDeMemoria: false })
+              }
             >
               Trocar
             </button>

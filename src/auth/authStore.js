@@ -122,6 +122,13 @@ export const useAuthStore = create((set, get) => ({
       void import("../conversa/offlineSnapshots").then((m) => m.limparSnapshotsOffline()).catch(() => {})
       void import("../conversa/mediaOutbox").then((m) => m.limparMediaOutboxLocal()).catch(() => {})
       void import("../conversa/offlineOutbox").then((m) => m.limparOutboxTextoLocal()).catch(() => {})
+      // Memória do último vendedor confirmado do orçamento WM: vive em `localStorage` (precisa
+      // atravessar abas e dias), então não morre sozinha no logout. Remove TODAS as chaves do
+      // módulo, não só as do escopo que estava logado — num navegador de balcão, o vendedor de
+      // quem saiu não pode pré-preencher o orçamento de quem entrar.
+      void import("../conversa/orcamento/vendedorLembrado")
+        .then((m) => m.limparVendedoresLembrados())
+        .catch(() => {})
     } catch (_) {}
     set({ user: null, token: null })
     if (redirect && typeof window !== "undefined") {

@@ -128,6 +128,40 @@ export function passoQuantidade(atual, delta) {
   return casas > 0 ? proximo.toFixed(Math.min(casas, 6)) : String(Math.round(proximo));
 }
 
+/* ------------------------------------------------------------------ *
+ * Sugestões de preenchimento
+ * ------------------------------------------------------------------ */
+
+/**
+ * Pontuação que humanos põem em telefone e que não muda a natureza do texto.
+ * Fora `+`, `(`, `)`, espaço, `-` e `.`, qualquer outro caractere já indica nome.
+ */
+const PONTUACAO_TELEFONE = /[\s()+.-]/g;
+
+/**
+ * O título da conversa serve como sugestão de busca de cliente **só quando é nome de verdade**.
+ *
+ * Conversa sem contato cadastrado nasce com o telefone no título (`"5511999999999"`,
+ * `"(11) 99999-9999"`). Jogar isso no campo de cliente não é neutro: a busca da WM é por NOME,
+ * então a sugestão viraria uma consulta condenada a não achar nada — e o atendente leria o
+ * "nenhum cliente encontrado" como "este cliente não existe no ERP", quando o que não existe é
+ * um cliente chamado "5511999999999".
+ *
+ * Então: se o texto, tirada a pontuação de telefone, for só dígitos, não há sugestão. Nome de
+ * verdade (inclusive com número no meio, como "Posto 3 Irmãos") continua passando.
+ *
+ * @param {string|null|undefined} titulo nome exibido da conversa
+ * @returns {string} sugestão aparada, ou `""` quando não se deve sugerir nada
+ */
+export function sugestaoDeBuscaCliente(titulo) {
+  if (typeof titulo !== "string") return "";
+  const texto = titulo.trim();
+  if (!texto) return "";
+  const semPontuacao = texto.replace(PONTUACAO_TELEFONE, "");
+  if (semPontuacao.length > 0 && /^\d+$/.test(semPontuacao)) return "";
+  return texto.slice(0, 100);
+}
+
 export default {
   SEM_VALOR,
   formatMoedaOrcamento,
@@ -135,5 +169,6 @@ export default {
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
+  sugestaoDeBuscaCliente,
   PADRAO_QUANTIDADE,
 };

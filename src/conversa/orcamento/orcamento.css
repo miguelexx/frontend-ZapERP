@@ -355,6 +355,99 @@
   color: var(--wa-text-muted);
 }
 
+/* ---- Prévia: itens, totais, número do orçamento ---- */
+
+/* Mesma caixa dos itens do carrinho, com uma faixa de detalhes por baixo. */
+.wa-orc-previaItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.wa-orc-previaItem-valor {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.wa-orc-previaItem-detalhes {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.wa-orc-totais {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.wa-orc-resumo-linha--forte {
+  font-size: 15px;
+  padding-top: 6px;
+  border-top: 1px solid var(--wa-panel-border);
+}
+
+/* `details` nativo: código ERP é área secundária e começa fechada. */
+.wa-orc-detalhes {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-detalhes > summary {
+  cursor: pointer;
+}
+
+.wa-orc-detalhes-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0 0 2px;
+}
+
+/* ---- Resultado: o número é o que o cliente leva ---- */
+
+.wa-orc-numeroBox {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--wa-green);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.wa-orc-numero {
+  font-size: 24px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+/* Resumo copiável: `pre` para preservar as quebras do template, mas com a fonte da interface. */
+.wa-orc-resumoTexto {
+  margin: 0;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: 10px;
+  padding: 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--wa-text);
+}
+
+/* "Confirmar e criar no ERP" → "Criando…": a largura é a do rótulo longo, de propósito. */
+.wa-orc-btnConfirmar {
+  min-width: 208px;
+}
+
 /* ---- Telas estreitas: o drawer ocupa a tela toda ---- */
 @media (max-width: 600px) {
   .wa-orcDrawer {
@@ -379,5 +472,15 @@
 
   .wa-orc-btnPrincipal {
     width: 100%;
+  }
+
+  /* Em tela estreita o botão ocupa a largura toda: o `min-width` do rótulo longo passaria do
+     viewport de 390px e empurraria o rodapé. */
+  .wa-orc-btnConfirmar {
+    min-width: 0;
+  }
+
+  .wa-orc-acoes {
+    justify-content: space-between;
   }
 }

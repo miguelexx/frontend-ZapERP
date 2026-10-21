@@ -162,6 +162,7 @@ function ConversaViewOverlays({
   orcamentoCompanyId,
   orcamentoUserId,
   orcamentoClienteNomeSugerido,
+  orcamentoUsuarioNome,
   canVerSyncProdutos,
   canSincronizarProdutos,
   showToast,
@@ -395,6 +396,7 @@ function ConversaViewOverlays({
             companyId={orcamentoCompanyId}
             userId={orcamentoUserId}
             clienteNomeSugerido={orcamentoClienteNomeSugerido}
+            vendedorNomeSugerido={orcamentoUsuarioNome}
           />
         </Suspense>
       ) : null}
