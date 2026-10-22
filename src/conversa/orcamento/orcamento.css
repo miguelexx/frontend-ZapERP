@@ -172,6 +172,53 @@
   color: var(--wa-text-muted);
 }
 
+/* Correspondência exata revelando os irmãos: destaque discreto, nunca um banner. */
+.wa-orc-candidato--exato {
+  border-color: var(--wa-green);
+}
+
+.wa-orc-candidato-tag {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--wa-green);
+  background: var(--wa-green-soft, rgba(37, 211, 102, 0.12));
+}
+
+/* Preço e estoque do produto resolvido. Só aparecem quando a WM os mandou. */
+.wa-orc-candidato-valores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-candidato-preco {
+  font-size: 14px;
+  color: var(--wa-text);
+}
+
+.wa-orc-candidato-inativo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-action-amber, #b45309);
+}
+
+/* Título do grupo "Outros com essa palavra": separa sem parecer outro cabeçalho de seção. */
+.wa-orc-grupoTitulo {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
 /* Código ERP é área secundária: o caminho principal é concluir por nome. */
 .wa-orc-candidato-codigo,
 .wa-orc-item-codigo {

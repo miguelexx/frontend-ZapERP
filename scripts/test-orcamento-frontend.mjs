@@ -33,6 +33,9 @@ import {
 } from "../src/conversa/orcamento/orcamentoFormat.js";
 
 import {
+  agruparCandidatosProduto,
+  mensagemBuscaSemResultado,
+  dicaClienteNaoEncontrado,
   rotuloFonte,
   textoBloqueio,
   textoBloqueado,
@@ -1165,6 +1168,155 @@ const { prefillRascunho } = draft;
       `${nome}: componente de tela não chama a API de orçamento — quem orquestra é o drawer`
     );
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * 12. Busca de produto: os dois grupos e os dois estados vazios
+ * ------------------------------------------------------------------ *
+ * Medido no ERP real da empresa 20 em 22/10:
+ *   `filtro` → 1 produto  ·  `filtr` → 468      (existe um produto chamado "FILTRO")
+ *   `parafuso` → 1        ·  `parafus` → 285
+ *   `piso` → 1            ·  `pis` → 42         (aqui o único é único de verdade)
+ *   `filtro oleo` acha    ·  `oleo filtro` NÃO  (a WM procura o trecho literal)
+ *
+ * O backend revela os escondidos e marca qual é a correspondência exata; estas asserções
+ * provam a tradução disso para a tela, e que o estado vazio ensina a ordem das palavras.
+ */
+{
+  const EXATO = { codigo_produto_erp: "EXATO", descricao: "FILTRO", preco_unitario: "0.010", estoque_previsto: "0.000", ativo: true };
+  const OUTRO_A = { codigo_produto_erp: "A1", descricao: "FILTRO DE OLEO" };
+  const OUTRO_B = { codigo_produto_erp: "A2", descricao: "FILTRO DE AR" };
+
+  /* ---- dois grupos ---- */
+  {
+    const g = agruparCandidatosProduto({
+      status: "multiplos_produtos",
+      produtos: [EXATO, OUTRO_A, OUTRO_B],
+      correspondencia_exata: EXATO,
+      correspondencia_exata_meta: { fonte: "tempo_real" },
+      outros_com_a_palavra: [OUTRO_A, OUTRO_B],
+      paginacao: { pagina: 1, tamanho_pagina: 30, total: 468, tem_mais: true, tem_anterior: false },
+    });
+    assert(g.exato?.codigo_produto_erp === "EXATO", "agrupar: a correspondência exata é identificada");
+    assert(g.lista[0].codigo_produto_erp === "EXATO", "agrupar: o exato vem em PRIMEIRO na lista única");
+    assert(
+      g.outros.map((p) => p.codigo_produto_erp).join(",") === "A1,A2",
+      "agrupar: os irmãos revelados ficam no segundo grupo"
+    );
+    assert(
+      !g.outros.some((p) => p.codigo_produto_erp === "EXATO"),
+      "agrupar: o exato não se repete dentro de 'outros' (apareceria duas vezes na tela)"
+    );
+    assert(g.paginacao?.total === 468, "agrupar: a paginação dos escondidos atravessa");
+    assert(g.metaDoPrecificado?.fonte === "tempo_real", "agrupar: a procedência do preço é a do exato");
+  }
+
+  /* ---- produto resolvido sozinho: uma lista só, sem rótulo ---- */
+  {
+    const g = agruparCandidatosProduto({ status: "produto", produto: EXATO, meta: { fonte: "cache_cloud" } });
+    assert(g.exato === null, "agrupar: produto único não é rotulado como 'exato' (não há com quem contrastar)");
+    assert(g.lista.length === 1 && g.lista[0].codigo_produto_erp === "EXATO", "agrupar: produto único vira lista de um");
+    assert(g.paginacao === null, "agrupar: ramo resolvido não tem paginação");
+    assert(g.metaDoPrecificado?.fonte === "cache_cloud", "agrupar: a procedência do resolvido vem do meta dele");
+  }
+
+  /* ---- lista comum, sem exato: segue como antes ---- */
+  {
+    const g = agruparCandidatosProduto({ status: "multiplos_produtos", produtos: [OUTRO_A, OUTRO_B] });
+    assert(g.exato === null && g.lista.length === 2, "agrupar: lista sem correspondência exata não ganha grupo");
+    assert(g.metaDoPrecificado === null, "agrupar: lista sem preço não afirma procedência de valor");
+  }
+
+  /* ---- exato marcado mas sem irmãos: volta a ser lista simples ---- */
+  {
+    const g = agruparCandidatosProduto({
+      status: "multiplos_produtos",
+      produtos: [EXATO],
+      correspondencia_exata: EXATO,
+      outros_com_a_palavra: [EXATO],
+    });
+    assert(g.exato === null && g.lista.length === 1, "agrupar: exato sem irmãos não vira dois grupos vazios");
+  }
+
+  /* ---- entradas degeneradas não quebram ---- */
+  for (const ruim of [null, undefined, "", 42, [], {}, { status: "produto" }, { produtos: "x" }]) {
+    const g = agruparCandidatosProduto(ruim);
+    assert(Array.isArray(g.lista), `agrupar: entrada ${JSON.stringify(ruim)} devolve lista utilizável`);
+  }
+  assert(
+    agruparCandidatosProduto({ status: "multiplos_produtos", produtos: [{ descricao: "sem codigo" }] }).lista.length === 0,
+    "agrupar: candidato sem código não entra na lista (não dá para selecionar)"
+  );
+
+  /* ---- estado vazio: uma palavra × duas palavras ---- */
+  assert(
+    mensagemBuscaSemResultado("filtro") === "Nenhum produto encontrado com esse nome.",
+    "vazio: com UMA palavra a mensagem antiga é mantida"
+  );
+  assert(
+    mensagemBuscaSemResultado("  filtro  ") === "Nenhum produto encontrado com esse nome.",
+    "vazio: espaço em volta não transforma uma palavra em duas"
+  );
+  {
+    const msg = mensagemBuscaSemResultado("oleo filtro");
+    assert(/oleo filtro/.test(msg), "vazio: a mensagem cita o que a pessoa digitou");
+    assert(/ordem/i.test(msg), "vazio: a mensagem explica que a ordem das palavras importa");
+    assert(/"oleo"/.test(msg), "vazio: a mensagem sugere a PRIMEIRA palavra do que foi digitado");
+    assert(!/trecho literal|substring|LIKE|ocorrência/i.test(msg), "vazio: nada de jargão técnico na tela");
+  }
+  assert(
+    /"oleo"/.test(mensagemBuscaSemResultado("oleo   filtro   motor")),
+    "vazio: três palavras também sugerem a primeira"
+  );
+
+  /* ---- cliente: busca por PREFIXO ---- */
+  {
+    const dica = dicaClienteNaoEncontrado("WM_NAO_ENCONTRADO", "Diniz");
+    assert(/Diniz/.test(dica), "cliente: a dica cita o nome digitado");
+    assert(/começo do nome/i.test(dica), "cliente: a dica diz que a busca é pelo começo do nome");
+    assert(/CPF\/CNPJ/.test(dica), "cliente: a dica oferece a saída que funciona por igualdade");
+    assert(
+      dicaClienteNaoEncontrado("WM_PRODUTO_NAO_ENCONTRADO", "Diniz") === "",
+      "cliente: erro de PRODUTO não vira conselho sobre cliente"
+    );
+    assert(dicaClienteNaoEncontrado("WM_NAO_ENCONTRADO", "   ") === "", "cliente: sem nome digitado, nada a dizer");
+    assert(dicaClienteNaoEncontrado(null, "Diniz") === "", "cliente: sem código de erro, nada a dizer");
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 13. O que o PICKER não pode fazer
+ * ------------------------------------------------------------------ *
+ * Olha o fonte porque o que se proíbe aqui é caminho de execução e aritmética sobre dinheiro,
+ * não valor de saída: uma busca alternativa disparada sozinha custa chamada à WM num termo que
+ * o atendente não pediu, e um preço derivado na tela é um preço inventado.
+ */
+{
+  const { readFileSync } = await import("node:fs");
+  const picker = readFileSync(new URL("../src/conversa/orcamento/ProdutoPicker.jsx", import.meta.url), "utf8");
+
+  const chamadas = picker.split("\n").filter((l) => /consultarProdutosOrcamento\(/.test(l));
+  assert(chamadas.length === 1, `picker: a WM é consultada de UM lugar só — achei ${chamadas.length}`);
+  assert(/const DEBOUNCE_MS = 800;/.test(picker), "picker: o debounce de 800 ms continua de pé");
+  assert(/const MIN_CARACTERES = 3;/.test(picker), "picker: o mínimo de 3 caracteres continua de pé");
+  assert(
+    !/setTimeout[\s\S]{0,200}buscar\(termo\.trim\(\)\.split/.test(picker),
+    "picker: o estado vazio NÃO dispara busca alternativa por conta própria"
+  );
+  const semComentario = picker.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+  assert(
+    !/(preco|valor)[A-Za-z_]*\s*[*/+]\s*/.test(semComentario),
+    "picker: nenhuma aritmética sobre preço na tela — o número é o da WM"
+  );
+  assert(
+    !/R\$ 0,00|"0,00"/.test(semComentario),
+    "picker: nenhum zero monetário literal — ausência é '—', nunca 'de graça'"
+  );
+  // Paginação sem clamp: página além da última é erro do contrato, não algo a corrigir.
+  assert(
+    /tem_mais/.test(picker) && /tem_anterior/.test(picker),
+    "picker: os botões de página continuam presos ao que a WM autoriza"
+  );
 }
 
 if (falhas.length) {

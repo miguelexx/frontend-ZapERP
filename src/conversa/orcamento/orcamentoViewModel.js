@@ -121,6 +121,130 @@ export function precoExatoTexto(valor) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Candidatos de produto — correspondência exata × "outros com essa palavra"
+ * ------------------------------------------------------------------ *
+ * A WM resolve a busca direto num único produto quando o termo digitado é IGUAL à descrição
+ * normalizada de algum item do catálogo — e nesse caso ela NÃO lista os outros que contêm a
+ * palavra. Medido ao vivo na empresa 20: `filtro` devolvia 1 (existe um produto chamado
+ * literalmente "FILTRO") enquanto `filtr` devolvia 468. Para a atendente, parecia que o
+ * sistema não puxava todos os produtos.
+ *
+ * O backend passou a revelar os escondidos (doc 36, seção 10, pendência 15) e marca na
+ * resposta o que é a correspondência exata e o que são os demais. Esta função é a tradução
+ * disso para a tela — e é pura de propósito: o agrupamento é regra, não JSX.
+ *
+ * Quando não há dois grupos (produto resolvido sozinho, ou lista comum), `exato` é `null` e a
+ * tela imprime uma lista só, exatamente como antes. Rotular um item como "exato" sem haver
+ * outros com que contrastar seria ruído.
+ */
+
+/**
+ * @param {object|null|undefined} data corpo de `POST /api/orcamentos/produtos/consultar`
+ * @returns {{ exato: object|null, outros: object[], lista: object[], paginacao: object|null,
+ *            metaDoPrecificado: object|null }}
+ */
+export function agruparCandidatosProduto(data) {
+  const vazio = { exato: null, outros: [], lista: [], paginacao: null, metaDoPrecificado: null };
+  if (!data || typeof data !== "object") return vazio;
+
+  const paginacao = data.paginacao && typeof data.paginacao === "object" ? data.paginacao : null;
+
+  // Procedência dos valores do produto que TEM preço. Nos dois ramos ela vem de lugares
+  // diferentes, e trocá-las rotularia o preço com a fonte errada.
+  const metaDoPrecificado =
+    data.status === "produto" ? data.meta ?? null : data.correspondencia_exata_meta ?? null;
+
+  // Produto resolvido sem irmãos revelados: uma linha só, sem rótulo e sem paginação (a WM não
+  // manda paginação no ramo resolvido). Ele traz preço e estoque, e o card os mostra.
+  if (data.status === "produto" && data.produto) {
+    return {
+      exato: null,
+      outros: [],
+      lista: [data.produto],
+      paginacao: null,
+      metaDoPrecificado,
+    };
+  }
+
+  const comCodigo = (p) => Boolean(p && typeof p === "object" && p.codigo_produto_erp);
+  const produtos = Array.isArray(data.produtos) ? data.produtos.filter(comCodigo) : [];
+
+  const exato = comCodigo(data.correspondencia_exata) ? data.correspondencia_exata : null;
+  if (!exato) return { exato: null, outros: [], lista: produtos, paginacao, metaDoPrecificado: null };
+
+  const brutos = Array.isArray(data.outros_com_a_palavra) ? data.outros_com_a_palavra : produtos;
+  const outros = brutos.filter(
+    (p) => comCodigo(p) && p.codigo_produto_erp !== exato.codigo_produto_erp
+  );
+
+  // Marcado como exato mas sem ninguém para contrastar: volta a ser uma lista simples.
+  if (!outros.length) return { exato: null, outros: [], lista: [exato], paginacao, metaDoPrecificado };
+
+  return { exato, outros, lista: [exato, ...outros], paginacao, metaDoPrecificado };
+}
+
+/**
+ * Texto do estado vazio da busca de produto.
+ *
+ * A busca da WM casa descrição/marca **por ocorrência do trecho** (`docs/wm/04-contratos-api.md`),
+ * então a ORDEM das palavras importa: medido na empresa 20, `filtro oleo` acha e `oleo filtro`
+ * devolve `PRODUTO_NAO_ENCONTRADO`. Quem digitou duas palavras e não achou nada precisa saber
+ * disso — senão conclui que o produto não existe no sistema.
+ *
+ * Isto é só texto: nenhuma busca alternativa é disparada por conta própria (cada chamada à WM
+ * pode custar dinheiro — seção 11 do doc 36).
+ *
+ * @param {string} termo o que a pessoa digitou
+ * @returns {string}
+ */
+export function mensagemBuscaSemResultado(termo) {
+  const limpo = String(termo ?? "").trim().replace(/\s+/g, " ");
+  const palavras = limpo.length ? limpo.split(" ") : [];
+  if (palavras.length < 2) return "Nenhum produto encontrado com esse nome.";
+  return (
+    `Nenhum produto encontrado com "${limpo}". A pesquisa procura as palavras juntas, ` +
+    `na ordem digitada. Tente só uma palavra — por exemplo, "${palavras[0]}".`
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Cliente: a busca é por PREFIXO, e produto é por trecho
+ * ------------------------------------------------------------------ *
+ * `docs/wm/04-contratos-api.md`: *"O Worker consulta dbo.Clientes, nome por prefixo com
+ * `Latin1_General_CI_AI`, CPF/CNPJ/código por igualdade"*. Produto casa por OCORRÊNCIA, cliente
+ * casa pelo COMEÇO do nome — regras diferentes no mesmo formulário.
+ *
+ * Medido no ERP real da empresa 20 (22/10): `DINIZ` e `SILVA` (sobrenomes) não acham nada,
+ * `MARIA APARECIDA AMADEI` acha 3. Quem digita o sobrenome conclui que o cliente não existe.
+ *
+ * A saída existe e é boa: documento e código batem por IGUALDADE, então colar o CPF/CNPJ
+ * funciona sempre. É isso que a mensagem oferece — sem disparar consulta nenhuma.
+ */
+
+/** Códigos de "não achei" que, no campo de cliente, merecem a explicação do prefixo. */
+const CODIGOS_CLIENTE_NAO_ACHADO = Object.freeze([
+  "WM_NAO_ENCONTRADO",
+  "WM_CLIENTE_NAO_ENCONTRADO",
+]);
+
+/**
+ * Explicação para quando a preparação não acha o cliente digitado.
+ *
+ * @param {string|null|undefined} codigo código do envelope de erro
+ * @param {string|null|undefined} clienteBusca o que a pessoa digitou no campo de cliente
+ * @returns {string} vazio quando não se aplica (e aí a mensagem do envelope fica sozinha)
+ */
+export function dicaClienteNaoEncontrado(codigo, clienteBusca) {
+  if (!CODIGOS_CLIENTE_NAO_ACHADO.includes(String(codigo || ""))) return "";
+  const digitado = String(clienteBusca ?? "").trim().replace(/\s+/g, " ");
+  if (!digitado) return "";
+  return (
+    `Nenhum cliente começando com "${digitado}". A busca de cliente é pelo começo do nome — ` +
+    "tente o primeiro nome, ou cole o CPF/CNPJ."
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Cliente/vendedor canônicos
  * ------------------------------------------------------------------ */
 
@@ -383,6 +507,9 @@ export function assinaturaDoBody(body) {
 
 export default {
   FONTE_CACHE,
+  agruparCandidatosProduto,
+  mensagemBuscaSemResultado,
+  dicaClienteNaoEncontrado,
   rotuloFonte,
   textoBloqueio,
   textoBloqueado,

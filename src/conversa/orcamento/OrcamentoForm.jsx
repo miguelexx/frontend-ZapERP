@@ -102,6 +102,7 @@ export default function OrcamentoForm({
   calculando = false,
   erro = "",
   avisoCampo = "",
+  dicaCliente = "",
   produtoFocusRef = null,
 }) {
   const disabled = calculando;
@@ -180,6 +181,7 @@ export default function OrcamentoForm({
         </div>
       ) : null}
       {avisoCampo ? <p className="wa-orc-hint wa-orc-hint--aviso">{avisoCampo}</p> : null}
+      {dicaCliente ? <p className="wa-orc-hint wa-orc-hint--aviso">{dicaCliente}</p> : null}
 
       <section className="wa-orc-section" aria-label="Cliente e vendedor">
         <label className="wa-orc-label" htmlFor="wa-orc-cliente">
@@ -213,6 +215,14 @@ export default function OrcamentoForm({
             onChange={(e) => onPatch({ clienteBusca: e.target.value })}
           />
         )}
+        {/*
+          Produto casa por TRECHO; cliente casa por PREFIXO — regras diferentes no mesmo
+          formulário, e a de cliente é a que surpreende. Medido no ERP real: "DINIZ" (sobrenome)
+          não acha nada. Dizer isso aqui evita o atendente concluir que o cliente não existe.
+        */}
+        {!rascunho?.clienteCodigoErp ? (
+          <p className="wa-orc-hint">Pelo começo do nome, ou pelo CPF/CNPJ.</p>
+        ) : null}
 
         <label className="wa-orc-label" htmlFor="wa-orc-vendedor">
           Vendedor

@@ -76,7 +76,11 @@ import {
 } from "../../api/wmOrcamentosService";
 import useOrcamentoDraft from "./useOrcamentoDraft";
 import { normalizarQuantidadeParaEnvio } from "./orcamentoFormat";
-import { assinaturaDoBody, assinaturaDoRascunho } from "./orcamentoViewModel";
+import {
+  assinaturaDoBody,
+  assinaturaDoRascunho,
+  dicaClienteNaoEncontrado,
+} from "./orcamentoViewModel";
 import { gravarVendedorLembrado } from "./vendedorLembrado";
 import OrcamentoForm from "./OrcamentoForm";
 import AmbiguidadePicker from "./AmbiguidadePicker";
@@ -221,6 +225,8 @@ export default function OrcamentoDrawer({
   const [mensagemIncerto, setMensagemIncerto] = useState("");
   const [erro, setErro] = useState("");
   const [avisoCampo, setAvisoCampo] = useState("");
+  /** Explicação do "busca por prefixo" quando a WM não acha o cliente digitado. */
+  const [dicaCliente, setDicaCliente] = useState("");
 
   const abortRef = useRef(null);
   const produtoFocusRef = useRef(null);
@@ -244,6 +250,7 @@ export default function OrcamentoDrawer({
     setMensagemIncerto("");
     setErro("");
     setAvisoCampo("");
+    setDicaCliente("");
   }, [conversaId, open]);
 
   useEffect(
@@ -268,6 +275,7 @@ export default function OrcamentoDrawer({
     setCalculando(true);
     setErro("");
     setAvisoCampo("");
+    setDicaCliente("");
     try {
       const data = await prepararOrcamento(body, { signal: controller?.signal });
       if (data?.status === STATUS_PRONTO) {
@@ -308,11 +316,14 @@ export default function OrcamentoDrawer({
       setEtapa(ETAPA.FORM);
       setErro(MENSAGEM_RESPOSTA_ESTRANHA);
     } catch (err) {
-      const { mensagem, cancelado, campo } = extrairErroOrcamento(err);
+      const { mensagem, cancelado, campo, codigo } = extrairErroOrcamento(err);
       if (cancelado) return;
       setEtapa(ETAPA.FORM);
       setErro(mensagem);
       if (campo) setAvisoCampo("Revise os dados informados e calcule de novo.");
+      // "Não encontrado" com nome de cliente digitado quase sempre é o prefixo: a WM casa
+      // cliente pelo COMEÇO do nome, então sobrenome não acha. É texto, não consulta nova.
+      setDicaCliente(dicaClienteNaoEncontrado(codigo, body?.cliente_busca));
     } finally {
       setCalculando(false);
     }
@@ -555,6 +566,7 @@ export default function OrcamentoDrawer({
             calculando={calculando}
             erro={erro}
             avisoCampo={avisoCampo}
+            dicaCliente={dicaCliente}
             produtoFocusRef={produtoFocusRef}
           />
         )}
