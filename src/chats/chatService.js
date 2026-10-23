@@ -389,33 +389,57 @@ export async function fetchMinhaFilaChatsCompleto(params = {}, options = {}) {
 /**
  * Calcula o máximo de páginas necessárias com base no count do badge.
  * Evita buscar 50 páginas quando o badge já diz que a fila é pequena.
+ *
+ * A 1ª página pode ter limite PRÓPRIO (menor, para o boot pintar antes — ver
+ * `primeiraPaginaLimit`), então a conta não é um simples `ceil(badge / limite)`:
+ * seria o mesmo que dizer que 250 conversas cabem numa página de 40 e TRUNCAR a fila.
+ * A aba força `hasMore: false` (contrato "lista completa, sem Carregar mais"), logo
+ * uma página a menos aqui = conversas inalcançáveis na UI.
+ *
+ * Com `primeiraPaginaLimit === paginaLimit` o resultado é idêntico ao da conta antiga.
  */
-function getMinhaFilaMaxPages(badgeCount) {
+function getMinhaFilaMaxPages(badgeCount, primeiraPaginaLimit, paginaLimit) {
   if (badgeCount == null || !Number.isFinite(badgeCount) || badgeCount <= 0) {
     return MINHA_FILA_MAX_AUTO_PAGES;
   }
+  if (badgeCount <= primeiraPaginaLimit) return 1;
+  const restante = badgeCount - primeiraPaginaLimit;
   return Math.max(
-    1,
-    Math.min(
-      MINHA_FILA_MAX_AUTO_PAGES,
-      Math.ceil(badgeCount / CHAT_LIST_MINHA_FILA_PAGE_LIMIT)
-    )
+    2,
+    Math.min(MINHA_FILA_MAX_AUTO_PAGES, 1 + Math.ceil(restante / paginaLimit))
   );
 }
 
+/**
+ * @param {Record<string, unknown>} params
+ * @param {{ signal?: AbortSignal, silent?: boolean, primeiraPaginaLimit?: number }} [options]
+ *   `primeiraPaginaLimit`: limite SÓ da 1ª página. Serve ao boot (ver
+ *   `prefetchDefaultChatList`), onde 250 linhas gordas atrasam o primeiro pixel da lista
+ *   para mostrar ~8. As páginas seguintes continuam em 250, em segundo plano.
+ * @param {(primeiraPagina: any[]) => void} [onFirstPage]
+ * @param {number} [badgeCount]
+ */
 export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, onFirstPage, badgeCount) {
   if (String(params.palavra || "").trim()) {
     const { minha_fila: _minhaFila, ...searchParams } = params;
     return fetchChats(searchParams, options);
   }
-  const maxPages = getMinhaFilaMaxPages(badgeCount);
+  const primeiraPaginaLimit = Math.min(
+    CHAT_LIST_MINHA_FILA_PAGE_LIMIT,
+    Math.max(1, Number(options.primeiraPaginaLimit) || CHAT_LIST_MINHA_FILA_PAGE_LIMIT)
+  );
+  const maxPages = getMinhaFilaMaxPages(
+    badgeCount,
+    primeiraPaginaLimit,
+    CHAT_LIST_MINHA_FILA_PAGE_LIMIT
+  );
   const base = { ...params, minha_fila: "1", limit: CHAT_LIST_MINHA_FILA_PAGE_LIMIT };
   delete base.cursor;
   delete base.cursorId;
   delete base.cursor_id;
 
   // 1ª página — retorno rápido
-  const firstData = await fetchChats(base, options);
+  const firstData = await fetchChats({ ...base, limit: primeiraPaginaLimit }, options);
   const firstList = Array.isArray(firstData) ? firstData : [];
   const firstMeta = getChatsPageMeta(firstData);
 

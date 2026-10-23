@@ -5,6 +5,7 @@ import { useAuthStore } from "../auth/authStore";
 import { usePermissoesStore } from "../auth/permissoesStore";
 import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
 import ProtectedRoute from "./ProtectedRoute";
+import { preloadChunksAtendimento } from "./preloadAtendimento";
 
 import Login from "../pages/Login";
 import NotFound from "../pages/NotFound";
@@ -81,12 +82,11 @@ export default function AppRoutes() {
   // chatList/ConversaView = 3+ viagens de rede em série): com sessão ativa, os chunks
   // do atendimento baixam em PARALELO já no primeiro render. O import() é deduplicado
   // pelo runtime do Vite com o das rotas lazy.
+  // O ConversaView é a exceção: no celular sem conversa no boot ele espera a lista
+  // pintar (ver `preloadAtendimento.js` para o porquê e os números).
   useEffect(() => {
-    if (!token) return;
-    void import("../layouts/MainLayout").catch(() => {});
-    void import("../pages/Atendimento").catch(() => {});
-    void import("../chats/chatList").catch(() => {});
-    void import("../conversa/ConversaView").catch(() => {});
+    if (!token) return undefined;
+    return preloadChunksAtendimento();
   }, [token]);
   // Subscrição reativa: can() lê o store via getState(); sem isto, as rotas protegidas
   // não reavaliam quando GET /usuarios/me/permissoes resolve após login/F5.

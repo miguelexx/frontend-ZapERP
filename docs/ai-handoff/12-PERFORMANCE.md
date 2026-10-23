@@ -2,6 +2,160 @@
 
 > 2026-08-23 · caminho quente = atendimento. Skill: `.cursor/skills/zaperp-performance/SKILL.md`. Estabilidade e `company_id` > micro-otimização.
 
+## Boot mobile 2026-10-23 — auditoria medida + 4 primeiros itens aplicados
+
+Relatório completo: [`docs/audits/boot-mobile-2026-10-23.md`](../audits/boot-mobile-2026-10-23.md).
+Parte de servidor: [`docs/audits/nginx-boot-mobile-2026-10-23.md`](../audits/nginx-boot-mobile-2026-10-23.md).
+
+**Boot medido (dist em produção):** ~459 kB gzip / **1,82 MB brutos** para chegar em
+`/atendimento`. Os 1,82 MB são o custo de CPU no celular (descomprimir + parsear +
+executar) e não aparecem no "tamanho do bundle".
+
+**Causa-raiz do chunk de entrada (381 kB):** o fecho estático de `main.jsx` tem 80
+módulos / 845 kB de fonte, e **729 kB (86%) são `conversa/` + `chats/` + `socket/`** —
+puxados por exatamente **3 arestas**, não só pelo `authStore`:
+
+1. `api/http.js` → `socket/socket.js` (só para `disconnectSocket()` no 401) e → `conversa/conversaStore.js`
+2. `push/swBridge.js` → `conversa/conversaStore.js`
+3. `auth/authStore.js` → socket + conversaStore + chatsStore + prefetch + push
+
+É por isso que a tentativa anterior (só o `authStore`) rendeu **3%**: o `http.js` é
+importado por tudo e reentrega o motor pelo outro caminho. Cortando as três: 80 → 26
+módulos, 845 → 116 kB (**-86%**). `conversa/conversaOutboundMediaMerge.js` sozinho são
+101 kB de lógica de ENVIO de mídia parseados antes da tela de login.
+
+**Aplicado nesta sessão (só `index.html`, nenhum JS tocado):**
+
+- **Esqueleto de boot inline** dentro do `#root`. Antes o `#root` vinha vazio e o celular
+  ficava branco do HTML até o React montar. Sai sozinho — `createRoot().render()` limpa
+  os filhos do container. Custo: +2,3 kB gzip no HTML, zero request. Geometria espelha o
+  shell real (rail 64px / barra 44px, lista `clamp(320px,28vw,380px)`, header
+  `clamp(62px,7vh,72px)`, linha 60px como o `.chat-list-skel-row`).
+- **Tema aplicado antes do primeiro pixel** (script inline). Era obrigatório: sem ele o
+  esqueleto piscaria claro antes de o `applyTheme()` do `main.jsx` rodar. **A regra é a
+  mesma do `main.jsx`** (`localStorage "theme"` → `prefers-color-scheme`) — se mudar lá,
+  mude aqui.
+- **`data-boot`** (`app` / `anon`, lido de `zap_erp_auth`) escolhe entre esqueleto de
+  lista e de login. Sem JS/storage cai em `anon`.
+- **Rede de segurança de 20 s**: se o bundle nunca chegar, o esqueleto vira mensagem +
+  "Tentar de novo". Um esqueleto animado eterno mente mais que a tela branca de antes.
+- **`preconnect` para a API** via `%VITE_API_URL%` (substituído pelo Vite no build;
+  verificado: vira `https://zapapi.wmsistemas.inf.br`). A 1ª chamada é para outra origem
+  e pagava DNS+TCP+TLS do zero — **~340 ms medidos**.
+
+**Pré-carga do ConversaView adiada no celular** (`routes/preloadAtendimento.js`, novo;
+`AppRoutes.jsx` agora só chama `preloadChunksAtendimento()`):
+
+- MainLayout / Atendimento / chatList continuam **sempre** em paralelo — é o caminho da lista.
+- O ConversaView (183 kB gzip = ~40% dos bytes do boot) espera o chunk da lista chegar
+  **e** uma janela ociosa, mas **só** em `(max-width: 640px)` sem conversa no boot — é o
+  único caso em que o painel renderiza `null` (ver `Atendimento.jsx`). **O breakpoint é
+  duplicado nos dois arquivos: se mudar num, mude no outro.**
+- Nunca adia quando o boot já aponta para uma conversa: `?conversa=` (notificação/deep
+  link) ou `openConversaId` em `history.state.usr` (react-router 6 guarda `location.state`
+  ali — verificado na 6.30.4), que sobrevive a um F5.
+- Sem `matchMedia` confiável, cai no comportamento antigo (paralelo) em vez de adiar às cegas.
+- Adiar é seguro: tocar numa conversa antes da janela ociosa cai no `React.lazy` da rota
+  com o `ConversaPanelFallback` que já existe.
+
+Medido no dev server com sessão e viewport reais (ver tabela abaixo). Custo: +1,4 kB
+brutos / +0,35 kB gzip no chunk de entrada.
+
+| cenário | chatList | ConversaView | |
+|---|---|---|---|
+| celular sem conversa | 307 ms | 2556 ms | adiado (+2249 ms) |
+| desktop 1200px | 274 ms | 274 ms | paralelo, como antes |
+| celular `?conversa=123` | 268 ms | 268 ms | imediato |
+
+Teste: `scripts/test-preload-conversa-view.mjs` (18 asserts, no `test:node`). Validado com
+3 mutações — nunca adiar, adiar sempre, e não esperar o chunk da lista — todas pegas.
+
+**1ª página do boot menor e entregue na hora** (`chats/prefetchDefaultChatList.js`,
+`chats/chatService.js`, `chats/chatList.jsx`):
+
+- O prefetch do boot chamava `fetchMinhaFilaChatsProgressivo` **sem `onFirstPage` e sem
+  `badgeCount`** → `limit=250`, `maxPages=50`, e só resolvia no fim do laço. A lista não
+  pintava enquanto a fila inteira não chegasse.
+- Agora a **1ª página do boot é 40** (`PREFETCH_BOOT_PRIMEIRA_PAGINA_LIMIT`); as seguintes
+  continuam em 250, em segundo plano. `fetchMinhaFilaChatsProgressivo` ganhou
+  `options.primeiraPaginaLimit` — **sem ele o comportamento é byte a byte o de antes**,
+  então `load()` (troca de aba, resync) não mudou.
+- `takePrefetchedDefaultChatListPrimeiraPagina()` expõe a 1ª página; o `load()` pinta com
+  ela e **continua a esperar a lista COMPLETA** para o `data`.
+
+**⚠️ A armadilha deste item, se alguém for mexer:** a aba "Minha fila" não tem "Carregar
+mais" (força `hasMore: false`). Duas coisas nunca podem acontecer:
+1. a página parcial virar o resultado final — some com conversas de vez;
+2. `getMinhaFilaMaxPages` calcular páginas com `ceil(badge / 250)` tendo 1ª página de 40
+   — com badge 250 daria **1 página = 210 conversas perdidas**. A conta agora é
+   `1 + ceil((badge - primeiraPagina) / 250)`, idêntica à antiga quando os dois limites
+   são iguais.
+Só a lista **completa** vai para o cache de sessão — gravar a parcial faria o boot
+seguinte hidratar uma fila truncada e sair cedo por `fromCache`.
+
+Medido no browser com mock de API (300 conversas, custo proporcional ao tamanho da página):
+
+| | 1ª requisição | lista pinta |
+|---|---|---|
+| antes | `limit=250` @1235 ms | 1559 ms |
+| depois | `limit=40` @407 ms | **477 ms** |
+
+**−1082 ms para a lista aparecer.** Sequência do boot confirmada: `limit=40` (sem cursor)
+→ `limit=250` (com cursor) → `limit=250`, e a fila completa chega na mesma.
+
+Teste: `scripts/test-boot-primeira-pagina.mjs` (no `test:node`), validado com 3 mutações
+— conta de páginas antiga (pega a perda de 210 conversas), prefetch sem entrega da 1ª
+página, e cache de sessão com a lista parcial.
+
+**Permissões e empresa em paralelo com o `/usuarios/me`** (`auth/authStore.js`, só o
+`restore()` — o `login()` não foi tocado):
+
+- Eram 2 idas e voltas em série antes de o menu lateral e os gates de rota assentarem.
+  Nenhuma das duas depende da RESPOSTA do `/me`, só do token.
+- As flags do utilizador (`applyUsuarioMeFlags` / `syncUsuarioMe`) **continuam** depois
+  do `/me` — essas sim dependem dele.
+- **Por que não é menos seguro:** a ordem em série parecia um portão ("só busca mais se a
+  sessão for válida"), mas não era — o `prefetchDefaultChatList` logo acima já dispara
+  `GET /chats` sem portão. Token morto cai no interceptor global de 401 (`api/http.js`),
+  que limpa a sessão e faz `location.href = "/login"`: recarga inteira, idempotente para
+  vários 401 concorrentes. `fetchEmpresa` tem guarda `loaded`, então não duplica.
+- Ganho real e limitado: **não acelera a lista** (ela não depende de permissões e
+  `/atendimento` não é rota protegida). Encurta a janela em que o menu pode mudar sozinho
+  — enquanto `permissoes` é `null`, `can()` cai num palpite por cargo
+  (`CODIGO_TO_ROLE_CHECK`), então um item podia aparecer/sumir ~1 s depois de entrar.
+  Para **admin** não muda nada (`can()` devolve `true` por cargo, de imediato).
+- Verificado no browser: `/usuarios/me/permissoes` @564 ms e `/config/empresa` @568 ms
+  chegam junto com `/usuarios/me` @571 ms.
+- Teste: `scripts/test-boot-permissoes-paralelas.mjs` (7 asserts), validado com mutação.
+
+**⚠️ Como medir isto em dev sem se enganar:** o instante em que a lista pinta é limitado
+por **quando o `chatList` monta**, não pela rede. Em dev (módulos sem bundle + StrictMode)
+ele monta ~1,3 s depois do boot, então a 1ª página fica pronta na rede (~0,8 s) e espera
+o componente. Instrumentado em 23/10: `load()` às 1309 ms → 1ª página pintada às 1326 ms
+(17 ms depois), enquanto as páginas de 250 só chegam às 1902/1962 ms. **Comparar números
+absolutos entre execuções não vale**; só A/B na mesma sessão, logo em seguida.
+
+**Não aplicado (é servidor, não tem nginx versionado no repo):** brotli (~60 kB a menos
+no boot, medido) e `Cache-Control: no-cache` no `index.html` (hoje o nginx não manda
+header nenhum — só `ETag`; o `<meta http-equiv>` do HTML é ignorado pelo browser).
+
+**Flakes conhecidos do `test:e2e:mock` nesta máquina (NÃO são regressão):**
+`composer mantém teclado…` (chromium-desktop) e `historico com muitas midias…`
+(chromium-mobile, assert por amostragem de scroll). Confirmado revertendo as mudanças e
+rodando a suíte: falham igual. Baseline atual = 11 passed / 2 failed / 1 skipped.
+
+**Backend, achado com evidência:** a lista ordena `ultima_atividade DESC NULLS LAST`,
+mas `idx_conversas_company_atividade_id` é `DESC` (= NULLS FIRST) → **índice não
+elegível, Postgres ordena o conjunto filtrado inteiro em cada página**. Já estava no doc
+29 do backend, mas o índice NULLS LAST **nunca virou migration** (verificado: 0 arquivos
+em `supabase/migrations/`).
+
+**Outros, por ordem de ganho:** no celular o `ConversaView` (183 kB gzip / 784 kB brutos)
+é pré-carregado no boot e o `Atendimento` renderiza `null` no painel — 40% dos bytes do
+boot para não mostrar nada; o `GET /chats` do boot pede `limit=250` com `maxPages=50` e
+**sem `onFirstPage`**, então não entrega a 1ª página antes de terminar o laço;
+`/usuarios/me` → `/usuarios/me/permissoes` são seriais; `react-easy-crop` é dep morta.
+
 ## Auditoria de performance 2026-09-29 (CONFIRMADO por leitura/testes; runtime PENDENTE DE VALIDAÇÃO)
 
 Otimizações aplicadas nesta sessão — não reverter sem medir:
@@ -68,3 +222,13 @@ React Profiler no `Atendimento` + `ChatListBody` + `ConversaThread`. Performance
 ## Backend
 
 Lista lenta também pode ser `/chats` + counts. Não “otimize” o FE mascarando N+1 no servidor. Handoff backend [13](../../../backend/docs/ai-handoff/13-PROBLEMAS-CONHECIDOS-E-DIVIDA-TECNICA.md).
+
+### Armadilha ao escrever teste novo em `scripts/`
+
+Teste que chama `initSocket` (direta ou indiretamente, ex.: `authStore.restore()`) **não
+sai sozinho**: o socket.io deixa timers de reconexão vivos e o `test-node-suite` trava
+para sempre. Rodar com `timeout 120 node ...` **mascara** o problema — imprime OK e é
+morto depois. Confira o **exit code**: `124` = travou.
+
+Solução usada em `test-boot-permissoes-paralelas.mjs`: `disconnectSocket()` no `finally`
+e `process.exit(0)` depois do try/finally (falha continua a derrubar com 1, verificado).

@@ -15,7 +15,10 @@ import {
   abrirConversaPorTelefone,
   postFinalizacaoAusenciaLote,
 } from "./chatService";
-import { takePrefetchedDefaultChatList } from "./prefetchDefaultChatList";
+import {
+  takePrefetchedDefaultChatList,
+  takePrefetchedDefaultChatListPrimeiraPagina,
+} from "./prefetchDefaultChatList";
 import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
@@ -782,6 +785,24 @@ export default function ChatList() {
       const prefetchedMinhaFila = minhaFilaTab
         ? takePrefetchedDefaultChatList(user, filterRequestKey)
         : null;
+      // Pinta a 1ª página do GET do boot sem esperar a fila inteira. O `data` abaixo
+      // continua a ser a lista COMPLETA: a aba não tem "Carregar mais", então o que
+      // sobrar do laço tem de chegar na mesma. `applyMinhaFilaFirstPage` já ignora
+      // resultado de `load()` antigo (requestId), e a lista completa repinta por cima.
+      if (prefetchedMinhaFila) {
+        const primeiraPaginaPrefetch = takePrefetchedDefaultChatListPrimeiraPagina(
+          user,
+          filterRequestKey
+        );
+        if (primeiraPaginaPrefetch) {
+          void primeiraPaginaPrefetch
+            .then((primeira) => {
+              if (!Array.isArray(primeira) || primeira.length === 0) return;
+              applyMinhaFilaFirstPage(primeira);
+            })
+            .catch(() => {});
+        }
+      }
       const queueBadgeCount = progressiveQueueTab
         ? progressiveQueueTabCount(tab, chatFilterCounts, {
             emAtendimento: emAtendimentoBadgeCount,

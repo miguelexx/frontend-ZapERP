@@ -222,17 +222,33 @@ export const useAuthStore = create((set, get) => ({
       prefetchDefaultChatList(userNormalizado).catch(() => {})
 
       queueMicrotask(() => {
+        // Permissões e empresa saem JUNTO com o GET /usuarios/me, não depois dele.
+        //
+        // Esperar o /me era 2 idas e voltas em série (~490 ms cada, medido em 23/10/2026)
+        // antes de o menu lateral e os gates de rota assentarem. E enquanto `permissoes`
+        // é null, `can()` cai num palpite por cargo (`CODIGO_TO_ROLE_CHECK`): quem não é
+        // admin podia ver um item do menu aparecer OU sumir ~1 s depois de entrar.
+        // Nenhuma das duas depende da RESPOSTA do /me — só do token, que já está em mão.
+        //
+        // A ordem em série parecia um portão ("só busca mais se a sessão for válida"),
+        // mas não era: o `prefetchDefaultChatList` acima já dispara GET /chats sem portão.
+        // E token morto é tratado no interceptor global de 401 (`api/http.js`), que limpa
+        // a sessão e faz `location.href = "/login"` — recarga inteira, idempotente para
+        // vários 401 concorrentes. Logo, paralelizar não cria caso novo de erro.
+        usePermissoesStore.getState().fetchPermissoes().catch(() => {})
+        useEmpresaStore.getState().fetchEmpresa().catch(() => {})
+
         get()
           .validateSession()
           .then((session) => {
             if (!session) return
-            usePermissoesStore.getState().fetchPermissoes().catch(() => {})
+            // As flags do utilizador continuam a depender do /me: ou vêm na própria
+            // resposta, ou num GET extra quando `validateSession` só confirmou a sessão.
             if (typeof session === "object") {
               get().applyUsuarioMeFlags(session)
             } else {
               get().syncUsuarioMe?.().catch(() => {})
             }
-            useEmpresaStore.getState().fetchEmpresa().catch(() => {})
           })
           .catch(() => {})
       })

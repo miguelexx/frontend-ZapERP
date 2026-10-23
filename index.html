@@ -16,12 +16,396 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" href="/brand/pwa-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
+
+    <!--
+      Tema + estado de sessao ANTES do primeiro pixel. O `applyTheme()` do main.jsx so
+      roda depois de baixar e executar o bundle de entrada: no celular isso e' meio
+      segundo de fundo claro antes de virar escuro. Aqui a regra e' a MESMA do main.jsx
+      (localStorage "theme", senao prefers-color-scheme) — se mudar la', mude aqui.
+      `data-boot` escolhe qual esqueleto pintar (app com sessao x login).
+    -->
+    <script>
+      (function () {
+        var el = document.documentElement;
+        var tema = "light";
+        var boot = "anon";
+        try {
+          tema =
+            localStorage.getItem("theme") ||
+            (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light");
+          boot = localStorage.getItem("zap_erp_auth") ? "app" : "anon";
+        } catch (e) {
+          /* modo privado / storage bloqueado: cai no padrao claro + login */
+        }
+        el.setAttribute("data-theme", tema);
+        el.setAttribute("data-boot", boot);
+      })();
+    </script>
+
+    <!--
+      preconnect da API. A primeira chamada (`GET /chats` dentro do restore()) e' para
+      OUTRA origem, entao pagava DNS + TCP + TLS do zero antes do primeiro byte sair
+      (~340 ms medidos em 2026-10-23). `%VITE_API_URL%` e' substituido pelo Vite no build.
+    -->
+    <link rel="preconnect" href="%VITE_API_URL%" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!--
+      ESQUELETO DE BOOT — inline de proposito (sem request extra, pinta junto com o HTML).
+      Antes disto o `#root` vinha vazio e o celular ficava BRANCO desde o HTML ate' o
+      React montar (CSS 90 kB + JS ~720 kB brutos: baixar, parsear, executar).
+      Vive dentro do `#root`: o `createRoot().render()` do React limpa os filhos do
+      container no primeiro render, portanto o esqueleto sai sozinho, sem JS de remocao.
+      Nao depende de theme.css nem de app.css — cores e geometria estao duplicadas aqui
+      de proposito, porque este bloco precisa funcionar ANTES deles.
+      Geometria espelha o shell real: rail de 64px (desktop) / barra de 44px (mobile),
+      coluna da lista clamp(320px, 28vw, 380px), header clamp(62px, 7vh, 72px),
+      linha de 60px — igual ao .chat-list-skel-row do SkeletonChatList.
+    -->
+    <style>
+      html {
+        background: #e8eff6;
+      }
+      html[data-theme="dark"] {
+        background: #0b141a;
+      }
+
+      .zapboot {
+        --zb-app: #e8eff6;
+        --zb-surface: #ffffff;
+        --zb-surface-2: #f2f6fb;
+        --zb-border: #c3d2e1;
+        --zb-block: #dfe8f2;
+        --zb-shine: #eef4fb;
+        --zb-text: #65809a;
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--zb-app);
+        font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+        overflow: hidden;
+        z-index: 1;
+      }
+      html[data-theme="dark"] .zapboot {
+        --zb-app: #0b141a;
+        --zb-surface: #111b21;
+        --zb-surface-2: #1a2332;
+        --zb-border: rgba(255, 255, 255, 0.08);
+        --zb-block: #20303c;
+        --zb-shine: #2a3c4a;
+        --zb-text: #667781;
+      }
+
+      /* Peca cinza animada. Mesmo desenho do .ds-skeleton para a troca nao "piscar". */
+      .zb-blk {
+        display: block;
+        border-radius: 6px;
+        height: 13px;
+        background: linear-gradient(
+          90deg,
+          var(--zb-block) 0%,
+          var(--zb-shine) 50%,
+          var(--zb-block) 100%
+        );
+        background-size: 200% 100%;
+        animation: zb-shimmer 1.5s ease-in-out infinite;
+      }
+      .zb-circle {
+        flex: 0 0 auto;
+        width: 48px;
+        height: 48px;
+        border-radius: 9999px;
+      }
+      @keyframes zb-shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .zb-blk {
+          animation: none;
+        }
+      }
+
+      /* ---- barra de navegacao: rodape no celular, rail vertical no desktop ---- */
+      .zapboot__rail {
+        order: 2;
+        flex: 0 0 auto;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        gap: 10px;
+        padding: 0 18px;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        background: var(--zb-surface-2);
+        border-top: 1px solid var(--zb-border);
+        box-sizing: content-box;
+      }
+      .zapboot__rail .zb-blk {
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+      }
+
+      /* ---- coluna da lista de conversas ---- */
+      .zapboot__list {
+        order: 1;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--zb-surface-2);
+        overflow: hidden;
+      }
+      .zapboot__header {
+        flex: 0 0 auto;
+        min-height: clamp(62px, 7vh, 72px);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 12px 16px;
+        background: var(--zb-surface);
+        border-bottom: 1px solid var(--zb-border);
+        box-sizing: border-box;
+      }
+      .zapboot__header .zb-title {
+        width: 118px;
+        height: 17px;
+      }
+      .zapboot__header .zb-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 9999px;
+      }
+      .zapboot__search {
+        flex: 0 0 auto;
+        padding: 10px 14px 6px;
+      }
+      .zapboot__search .zb-blk {
+        height: 38px;
+        border-radius: 19px;
+      }
+      .zapboot__rows {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 6px 8px;
+        overflow: hidden;
+      }
+      .zapboot__row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 60px;
+        padding: 8px 14px;
+        margin-bottom: 6px;
+        border: 1px solid var(--zb-border);
+        border-radius: 12px;
+        background: var(--zb-surface);
+        box-sizing: border-box;
+      }
+      .zapboot__row .zb-lines {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+
+      /* ---- painel da conversa: so' no desktop (no celular o app renderiza null) ---- */
+      .zapboot__pane {
+        display: none;
+      }
+
+      /* ---- tela de login ---- */
+      .zapboot__login {
+        order: 1;
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .zapboot__card {
+        width: 100%;
+        max-width: 340px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 26px 22px;
+        border: 1px solid var(--zb-border);
+        border-radius: 16px;
+        background: var(--zb-surface);
+        box-sizing: border-box;
+      }
+      .zapboot__card .zb-h {
+        width: 60%;
+        height: 20px;
+        margin-bottom: 6px;
+      }
+      .zapboot__card .zb-field {
+        height: 42px;
+        border-radius: 10px;
+      }
+      .zapboot__card .zb-btn {
+        height: 44px;
+        border-radius: 10px;
+        margin-top: 6px;
+      }
+
+      /* `data-boot` decide o que aparece; sem JS fica o login (padrao do atributo). */
+      html[data-boot="app"] .zapboot__login {
+        display: none;
+      }
+      html[data-boot="anon"] .zapboot__list,
+      html[data-boot="anon"] .zapboot__rail,
+      html[data-boot="anon"] .zapboot__pane {
+        display: none;
+      }
+
+      /* Mensagem de resgate: se o bundle nunca chegar, o esqueleto nao pode mentir
+         "carregando" para sempre. Trocado pelo script no fim do body. */
+      .zapboot__falha {
+        order: 1;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 24px;
+        text-align: center;
+        color: var(--zb-text);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .zapboot__falha button {
+        font: inherit;
+        font-weight: 600;
+        color: #fff;
+        background: #0d6efd;
+        border: 0;
+        border-radius: 10px;
+        padding: 11px 22px;
+        cursor: pointer;
+      }
+      .zapboot--falhou .zapboot__list,
+      .zapboot--falhou .zapboot__rail,
+      .zapboot--falhou .zapboot__pane,
+      .zapboot--falhou .zapboot__login {
+        display: none !important;
+      }
+
+      @media (min-width: 769px) {
+        .zapboot {
+          flex-direction: row;
+        }
+        .zapboot__rail {
+          order: 0;
+          width: 64px;
+          height: auto;
+          flex-direction: column;
+          justify-content: flex-start;
+          gap: 20px;
+          padding: 20px 0 0;
+          border-top: 0;
+          border-right: 1px solid var(--zb-border);
+        }
+        .zapboot__list {
+          order: 1;
+          flex: 0 0 clamp(320px, 28vw, 380px);
+          border-right: 1px solid var(--zb-border);
+        }
+        .zapboot__pane {
+          display: block;
+          order: 2;
+          flex: 1 1 auto;
+          background: var(--zb-app);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="zapboot" role="status" aria-live="polite" aria-label="Carregando o ZapERP">
+        <div class="zapboot__rail" aria-hidden="true">
+          <span class="zb-blk"></span>
+          <span class="zb-blk"></span>
+          <span class="zb-blk"></span>
+          <span class="zb-blk"></span>
+          <span class="zb-blk"></span>
+        </div>
+
+        <div class="zapboot__list" aria-hidden="true">
+          <div class="zapboot__header">
+            <span class="zb-blk zb-title"></span>
+            <span class="zb-blk zb-avatar"></span>
+          </div>
+          <div class="zapboot__search"><span class="zb-blk"></span></div>
+          <div class="zapboot__rows">
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 46%"></span><span class="zb-blk" style="width: 78%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 58%"></span><span class="zb-blk" style="width: 66%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 40%"></span><span class="zb-blk" style="width: 84%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 52%"></span><span class="zb-blk" style="width: 71%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 44%"></span><span class="zb-blk" style="width: 80%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 61%"></span><span class="zb-blk" style="width: 59%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 48%"></span><span class="zb-blk" style="width: 74%"></span></span></div>
+            <div class="zapboot__row"><span class="zb-blk zb-circle"></span><span class="zb-lines"><span class="zb-blk" style="width: 55%"></span><span class="zb-blk" style="width: 68%"></span></span></div>
+          </div>
+        </div>
+
+        <div class="zapboot__pane" aria-hidden="true"></div>
+
+        <div class="zapboot__login" aria-hidden="true">
+          <div class="zapboot__card">
+            <span class="zb-blk zb-h"></span>
+            <span class="zb-blk" style="width: 30%"></span>
+            <span class="zb-blk zb-field"></span>
+            <span class="zb-blk" style="width: 26%"></span>
+            <span class="zb-blk zb-field"></span>
+            <span class="zb-blk zb-btn"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      /*
+        O esqueleto some sozinho quando o React renderiza (createRoot limpa o #root).
+        Se o bundle NUNCA chegar (4G ruim, chunk 404 pos-deploy), um esqueleto animado
+        para sempre e' pior que a tela branca de antes: mente que esta' carregando.
+        Aqui, passados 20 s com o esqueleto ainda no DOM, ele vira mensagem + recarregar.
+      */
+      (function () {
+        var TETO_MS = 20000;
+        setTimeout(function () {
+          var el = document.querySelector(".zapboot");
+          if (!el || !el.isConnected) return;
+          el.classList.add("zapboot--falhou");
+          var box = document.createElement("div");
+          box.className = "zapboot__falha";
+          var txt = document.createElement("div");
+          txt.textContent = "Nao foi possivel carregar o ZapERP. Verifique a conexao.";
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = "Tentar de novo";
+          btn.addEventListener("click", function () {
+            window.location.reload();
+          });
+          box.appendChild(txt);
+          box.appendChild(btn);
+          el.appendChild(box);
+        }, TETO_MS);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
