@@ -93,20 +93,22 @@ export default function OrcamentoPreview({
   // segurança, não caminho esperado.
   if (!view) {
     return (
-      <div className="wa-orc-body">
-        <section className="wa-orc-section" aria-label="Orçamento calculado">
-          <div className="wa-orc-alert wa-orc-alert--aviso" role="status">
-            <span>
-              Não foi possível montar a revisão deste orçamento. Volte e calcule de novo.
-            </span>
-          </div>
-        </section>
+      <>
+        <div className="wa-orc-body">
+          <section className="wa-orc-section" aria-label="Orçamento calculado">
+            <div className="wa-orc-alert wa-orc-alert--aviso" role="status">
+              <span>
+                Não foi possível montar a revisão deste orçamento. Volte e calcule de novo.
+              </span>
+            </div>
+          </section>
+        </div>
         <footer className="wa-orc-foot">
           <button type="button" className="wa-btn wa-btn-ghost" onClick={onVoltar}>
             Voltar e editar
           </button>
         </footer>
-      </div>
+      </>
     );
   }
 
@@ -118,100 +120,101 @@ export default function OrcamentoPreview({
   const podeConfirmar = !despachoIndisponivel && !confirmando && !previaDesatualizada && !erro;
 
   return (
-    <div className="wa-orc-body">
-      {/*
-        Erro de uma confirmação que NÃO gravou nada (falha segura). Fica aqui, acima da
-        revisão, porque o atendente precisa continuar vendo o que ia criar. O incerto nunca
-        chega a este ponto: ele troca a tela inteira, no drawer.
-      */}
-      {erro ? (
-        <div className="wa-orc-alert wa-orc-alert--erro" role="alert">
-          <span>
-            {erro} Nada foi criado no sistema da empresa — volte e calcule de novo para tentar.
-          </span>
-        </div>
-      ) : null}
-
-      {previaDesatualizada ? (
-        <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
-          <span>
-            Os dados do orçamento mudaram depois deste cálculo. Calcule de novo para ver os
-            valores certos antes de criar.
-          </span>
-        </div>
-      ) : null}
-
-      {/* 1. Para quem é */}
-      <section className="wa-orc-section" aria-label="Cliente e vendedor do orçamento">
-        <h4 className="wa-orc-sectionTitle">Orçamento para</h4>
-        <div className="wa-orc-resumo">
-          <div className="wa-orc-resumo-linha">
-            <span>Cliente</span>
-            <strong>{view.cliente.nome}</strong>
-          </div>
-          <div className="wa-orc-resumo-linha">
-            <span>Vendedor</span>
-            <strong>{view.vendedor.nome}</strong>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. Quais produtos e quantidades */}
-      <section className="wa-orc-section" aria-label="Itens do orçamento">
-        <h4 className="wa-orc-sectionTitle">Itens ({view.quantidadeItens})</h4>
-        <ul className="wa-orc-itens">
-          {view.itens.map((item) => (
-            <ItemPrevia key={item.chave} item={item} />
-          ))}
-        </ul>
-      </section>
-
-      {/* 3. Qual o total — números da WM, nenhum somado aqui */}
-      <section className="wa-orc-section" aria-label="Valores do orçamento">
-        <div className="wa-orc-totais">
-          <div className="wa-orc-resumo-linha">
-            <span>Produtos</span>
-            <strong>{view.valorProdutos}</strong>
-          </div>
-          <div className="wa-orc-resumo-linha wa-orc-resumo-linha--forte">
-            <span>Total</span>
-            <strong>{view.valorTotal}</strong>
-          </div>
-        </div>
-        {/* Procedência: omitida quando a WM não informa. Cópia nunca é chamada de "atual". */}
-        {view.fonte ? <p className="wa-orc-origem">{view.fonte.texto}</p> : null}
-      </section>
-
-      {/* 4. O que acontece ao confirmar */}
-      <section className="wa-orc-section" aria-label="O que acontece ao confirmar">
-        <h4 className="wa-orc-sectionTitle">Ao confirmar</h4>
+    <>
+      <div className="wa-orc-body">
         {/*
-          O valor só entra na frase quando existe. Com `valor_total` ausente, "no valor de —"
-          seria uma frase quebrada falando de dinheiro — e é exatamente nessa hora que o
-          atendente precisa perceber que o total não veio.
+          Erro de uma confirmação que NÃO gravou nada (falha segura). Fica aqui, acima da
+          revisão, porque o atendente precisa continuar vendo o que ia criar. O incerto nunca
+          chega a este ponto: ele troca a tela inteira, no drawer.
         */}
-        <p className="wa-orc-hint">
-          O orçamento é criado no sistema da empresa para {view.cliente.nome}
-          {view.valorTotal === SEM_VALOR ? "" : `, no valor de ${view.valorTotal}`}. Nada é
-          enviado ao cliente neste passo.
-        </p>
-        {view.bloqueio ? <p className="wa-orc-hint">{view.bloqueio}</p> : null}
-        {despachoIndisponivel ? (
-          <p className="wa-orc-hint wa-orc-hint--aviso">
-            A criação no sistema da empresa será liberada na próxima atualização. Até lá este
-            cálculo serve para conferência e para passar os valores ao cliente.
-          </p>
+        {erro ? (
+          <div className="wa-orc-alert wa-orc-alert--erro" role="alert">
+            <span>
+              {erro} Nada foi criado no sistema da empresa — volte e calcule de novo para tentar.
+            </span>
+          </div>
         ) : null}
 
-        <details className="wa-orc-detalhes">
-          <summary>Códigos do sistema da empresa</summary>
-          <div className="wa-orc-detalhes-corpo">
-            <span className="wa-orc-item-codigo">Cliente — cód. ERP {view.cliente.codigo}</span>
-            <span className="wa-orc-item-codigo">Vendedor — cód. ERP {view.vendedor.codigo}</span>
+        {previaDesatualizada ? (
+          <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
+            <span>
+              Os dados do orçamento mudaram depois deste cálculo. Calcule de novo para ver os
+              valores certos antes de criar.
+            </span>
           </div>
-        </details>
-      </section>
+        ) : null}
 
+        {/* 1. Para quem é */}
+        <section className="wa-orc-section" aria-label="Cliente e vendedor do orçamento">
+          <h4 className="wa-orc-sectionTitle">Orçamento para</h4>
+          <div className="wa-orc-resumo">
+            <div className="wa-orc-resumo-linha">
+              <span>Cliente</span>
+              <strong>{view.cliente.nome}</strong>
+            </div>
+            <div className="wa-orc-resumo-linha">
+              <span>Vendedor</span>
+              <strong>{view.vendedor.nome}</strong>
+            </div>
+          </div>
+        </section>
+
+        {/* 2. Quais produtos e quantidades */}
+        <section className="wa-orc-section" aria-label="Itens do orçamento">
+          <h4 className="wa-orc-sectionTitle">Itens ({view.quantidadeItens})</h4>
+          <ul className="wa-orc-itens">
+            {view.itens.map((item) => (
+              <ItemPrevia key={item.chave} item={item} />
+            ))}
+          </ul>
+        </section>
+
+        {/* 3. Qual o total — números da WM, nenhum somado aqui */}
+        <section className="wa-orc-section" aria-label="Valores do orçamento">
+          <div className="wa-orc-totais">
+            <div className="wa-orc-resumo-linha">
+              <span>Produtos</span>
+              <strong>{view.valorProdutos}</strong>
+            </div>
+            <div className="wa-orc-resumo-linha wa-orc-resumo-linha--forte">
+              <span>Total</span>
+              <strong>{view.valorTotal}</strong>
+            </div>
+          </div>
+          {/* Procedência: omitida quando a WM não informa. Cópia nunca é chamada de "atual". */}
+          {view.fonte ? <p className="wa-orc-origem">{view.fonte.texto}</p> : null}
+        </section>
+
+        {/* 4. O que acontece ao confirmar */}
+        <section className="wa-orc-section" aria-label="O que acontece ao confirmar">
+          <h4 className="wa-orc-sectionTitle">Ao confirmar</h4>
+          {/*
+            O valor só entra na frase quando existe. Com `valor_total` ausente, "no valor de —"
+            seria uma frase quebrada falando de dinheiro — e é exatamente nessa hora que o
+            atendente precisa perceber que o total não veio.
+          */}
+          <p className="wa-orc-hint">
+            O orçamento é criado no sistema da empresa para {view.cliente.nome}
+            {view.valorTotal === SEM_VALOR ? "" : `, no valor de ${view.valorTotal}`}. Nada é
+            enviado ao cliente neste passo.
+          </p>
+          {view.bloqueio ? <p className="wa-orc-hint">{view.bloqueio}</p> : null}
+          {despachoIndisponivel ? (
+            <p className="wa-orc-hint wa-orc-hint--aviso">
+              A criação no sistema da empresa será liberada na próxima atualização. Até lá este
+              cálculo serve para conferência e para passar os valores ao cliente.
+            </p>
+          ) : null}
+
+          <details className="wa-orc-detalhes">
+            <summary>Códigos do sistema da empresa</summary>
+            <div className="wa-orc-detalhes-corpo">
+              <span className="wa-orc-item-codigo">Cliente — cód. ERP {view.cliente.codigo}</span>
+              <span className="wa-orc-item-codigo">Vendedor — cód. ERP {view.vendedor.codigo}</span>
+            </div>
+          </details>
+        </section>
+      </div>
       <footer className="wa-orc-foot">
         <button
           type="button"
@@ -230,6 +233,6 @@ export default function OrcamentoPreview({
           {confirmando ? "Criando…" : "Confirmar e criar no ERP"}
         </button>
       </footer>
-    </div>
+    </>
   );
 }

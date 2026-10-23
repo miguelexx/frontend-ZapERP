@@ -70,10 +70,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  consultarProdutosOrcamento,
   prepararOrcamento,
   confirmarOrcamento,
   extrairErroOrcamento,
 } from "../../api/wmOrcamentosService";
+import {
+  ESTADO_PRECO,
+  extrairValoresDoProduto,
+  precisaConsultarPreco,
+  produtoJaTemPreco,
+  valoresDaRespostaPorCodigo,
+} from "./precoItemCache";
 import useOrcamentoDraft from "./useOrcamentoDraft";
 import { normalizarQuantidadeParaEnvio } from "./orcamentoFormat";
 import {
@@ -228,8 +236,23 @@ export default function OrcamentoDrawer({
   /** Explicação do "busca por prefixo" quando a WM não acha o cliente digitado. */
   const [dicaCliente, setDicaCliente] = useState("");
 
+  /**
+   * Preço e estoque por código, só em memória (ver `precoItemCache.js`). Preço não entra no
+   * rascunho de `sessionStorage`: um valor velho voltando do storage pareceria atual.
+   */
+  const [precos, setPrecos] = useState({});
+  /**
+   * Espelho SÍNCRONO de `precos`. Ele existe porque a decisão "vale gastar uma chamada?" não
+   * pode sair de dentro de um atualizador de estado: o atualizador roda quando o React quer, e
+   * ler o resultado dele na linha seguinte ora funcionava, ora deixava o item preso em
+   * "Consultando preço…" para sempre (visto ao vivo). O ref decide; o estado só pinta.
+   */
+  const precosRef = useRef({});
+
   const abortRef = useRef(null);
   const produtoFocusRef = useRef(null);
+  /** Consultas de preço em voo, por código — abortadas ao fechar o drawer. */
+  const precoAbortsRef = useRef(new Map());
 
   const { rascunho, patch, limpar, carregado } = useOrcamentoDraft({
     companyId,
@@ -251,6 +274,8 @@ export default function OrcamentoDrawer({
     setErro("");
     setAvisoCampo("");
     setDicaCliente("");
+    precosRef.current = {};
+    setPrecos({});
   }, [conversaId, open]);
 
   useEffect(
@@ -260,8 +285,77 @@ export default function OrcamentoDrawer({
       } catch {
         /* ignore */
       }
+      for (const controller of precoAbortsRef.current.values()) {
+        try {
+          controller?.abort();
+        } catch {
+          /* ignore */
+        }
+      }
+      precoAbortsRef.current.clear();
     },
     []
+  );
+
+  /**
+   * Preço do item que a atendente ACABOU de escolher — uma consulta, por código.
+   *
+   * Por que aqui e não na lista: a lista de candidatos da WM não traz preço, e buscá-lo para os
+   * 30 da página seriam 30 consultas em tempo real no SQL Server da loja a cada busca (seção
+   * 11). No toque é uma só, e é o instante em que o valor importa — ela está decidindo.
+   *
+   * Regras que não se negociam aqui:
+   *   · produto que já veio com preço não gasta chamada; o valor é copiado como veio;
+   *   · um código só é consultado uma vez por abertura do drawer, mesmo que tenha falhado
+   *     (repetir sozinho queimaria chamada no servidor do cliente);
+   *   · falhar NUNCA bloqueia: a linha fica sem preço e o "Calcular" resolve no servidor;
+   *   · nenhum erro aqui vira alerta na tela — o atendente não pediu esta consulta, e um
+   *     vermelho sobre ela faria parecer que o orçamento está impedido.
+   */
+  const anotarPreco = useCallback((codigo, entrada) => {
+    precosRef.current = { ...precosRef.current, [codigo]: entrada };
+    setPrecos(precosRef.current);
+  }, []);
+
+  const consultarPrecoDoItem = useCallback(
+    async (produto, meta) => {
+      const codigo = produto?.codigo_produto_erp;
+      if (typeof codigo !== "string" || !codigo) return;
+
+      // Ramo resolvido: o preço já está na mão, com a procedência que veio com ele.
+      if (produtoJaTemPreco(produto)) {
+        const valores = extrairValoresDoProduto(produto);
+        if (valores) anotarPreco(codigo, { estado: ESTADO_PRECO.OK, valores, meta: meta ?? null });
+        return;
+      }
+
+      if (!precisaConsultarPreco(precosRef.current, produto)) return;
+      anotarPreco(codigo, { estado: ESTADO_PRECO.CARREGANDO, valores: null, meta: null });
+
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      precoAbortsRef.current.set(codigo, controller);
+      try {
+        const data = await consultarProdutosOrcamento({
+          codigo_produto_erp: codigo,
+          signal: controller?.signal,
+        });
+        const achado = valoresDaRespostaPorCodigo(data, codigo);
+        anotarPreco(
+          codigo,
+          achado
+            ? { estado: ESTADO_PRECO.OK, valores: achado.valores, meta: achado.meta }
+            : { estado: ESTADO_PRECO.FALHOU, valores: null, meta: null }
+        );
+      } catch (err) {
+        const { cancelado } = extrairErroOrcamento(err);
+        // Cancelado é o drawer fechando: a entrada fica como está e morre com o cache.
+        if (cancelado) return;
+        anotarPreco(codigo, { estado: ESTADO_PRECO.FALHOU, valores: null, meta: null });
+      } finally {
+        precoAbortsRef.current.delete(codigo);
+      }
+    },
+    [anotarPreco]
   );
 
   const preparar = useCallback(async (body) => {
@@ -390,6 +484,17 @@ export default function OrcamentoDrawer({
   );
 
   /**
+   * "Limpar rascunho" e a limpeza pós-criação levam o cache de preço junto: rascunho zerado é
+   * começo de outro orçamento, e preço guardado de um item que não está mais na tela não tem
+   * por que sobreviver a ele.
+   */
+  const limparTudo = useCallback(() => {
+    limpar();
+    precosRef.current = {};
+    setPrecos({});
+  }, [limpar]);
+
+  /**
    * "Confirmar e criar no ERP" — a única ação desta tela que escreve em sistema de terceiro.
    *
    * Uma chamada por clique, e o botão fica desabilitado enquanto ela corre (`confirmando`), o
@@ -420,7 +525,7 @@ export default function OrcamentoDrawer({
       // O rascunho morre com a criação. Deixá-lo vivo faria o drawer reabrir com o orçamento
       // inteiro preenchido e um "Calcular" à mão — que é o caminho curto para um segundo
       // orçamento no Icthus sem ninguém ter decidido isso. O que foi criado continua na tela.
-      limpar();
+      limparTudo();
     } catch (err) {
       const { mensagem, cancelado, estado } = extrairErroOrcamento(err);
       if (cancelado) return;
@@ -435,7 +540,7 @@ export default function OrcamentoDrawer({
     } finally {
       setConfirmando(false);
     }
-  }, [preparacao, confirmando, limpar]);
+  }, [preparacao, confirmando, limparTudo]);
 
   /**
    * "Enviar ao cliente" — ação separada, explícita e posterior à criação.
@@ -488,7 +593,7 @@ export default function OrcamentoDrawer({
 
   return createPortal(
     <div
-      className="wa-modalOverlay"
+      className="wa-modalOverlay wa-orcOverlay"
       role="dialog"
       aria-modal="true"
       aria-label="Novo orçamento"
@@ -525,22 +630,28 @@ export default function OrcamentoDrawer({
             Tela terminal do incerto. Um único botão, e ele fecha — não existe aqui nenhum
             caminho que crie outro orçamento, porque este pode já ter sido criado.
           */
-          <div className="wa-orc-body">
-            <section className="wa-orc-section" aria-label="Resultado não confirmado">
-              <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
-                <span>{mensagemIncerto || MENSAGEM_INCERTO}</span>
-              </div>
-              <p className="wa-orc-hint">
-                O suporte consegue conferir no sistema da empresa se este orçamento foi gravado.
-                Enquanto isso, não monte o mesmo orçamento de novo.
-              </p>
-            </section>
-            <footer className="wa-orc-foot">
-              <button type="button" className="wa-btn wa-btn-primary wa-orc-btnPrincipal" onClick={onClose}>
+          <>
+            <div className="wa-orc-body">
+              <section className="wa-orc-section" aria-label="Resultado não confirmado">
+                <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
+                  <span>{mensagemIncerto || MENSAGEM_INCERTO}</span>
+                </div>
+                <p className="wa-orc-hint">
+                  O suporte consegue conferir no sistema da empresa se este orçamento foi
+                  gravado. Enquanto isso, não monte o mesmo orçamento de novo.
+                </p>
+              </section>
+            </div>
+            <footer className="wa-orc-foot wa-orc-foot--unico">
+              <button
+                type="button"
+                className="wa-btn wa-btn-primary wa-orc-btnPrincipal"
+                onClick={onClose}
+              >
                 Fechar
               </button>
             </footer>
-          </div>
+          </>
         ) : etapa === ETAPA.RESULTADO ? (
           <OrcamentoResultado
             resultado={resultadoOperacao?.resultado}
@@ -568,12 +679,14 @@ export default function OrcamentoDrawer({
             avisoCampo={avisoCampo}
             dicaCliente={dicaCliente}
             produtoFocusRef={produtoFocusRef}
+            precos={precos}
+            onProdutoEscolhido={consultarPrecoDoItem}
           />
         )}
 
         {etapa === ETAPA.FORM && !calculando ? (
           <div className="wa-orc-rodapeSecundario">
-            <button type="button" className="wa-btn wa-btn-ghost wa-orc-btnSm" onClick={limpar}>
+            <button type="button" className="wa-btn wa-btn-ghost wa-orc-btnSm" onClick={limparTudo}>
               Limpar rascunho
             </button>
           </div>

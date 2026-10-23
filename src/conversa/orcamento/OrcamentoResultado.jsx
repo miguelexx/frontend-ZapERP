@@ -88,71 +88,74 @@ export default function OrcamentoResultado({
 
   if (!view) {
     return (
-      <div className="wa-orc-body">
-        <section className="wa-orc-section" aria-label="Resultado do orçamento">
-          <div className="wa-orc-alert wa-orc-alert--aviso" role="status">
-            <span>
-              Não deu para confirmar o número deste orçamento. Não crie outro: procure o suporte
-              para conferir se ele foi gravado no sistema da empresa.
-            </span>
-          </div>
-        </section>
+      <>
+        <div className="wa-orc-body">
+          <section className="wa-orc-section" aria-label="Resultado do orçamento">
+            <div className="wa-orc-alert wa-orc-alert--aviso" role="status">
+              <span>
+                Não deu para confirmar o número deste orçamento. Não crie outro: procure o suporte
+                para conferir se ele foi gravado no sistema da empresa.
+              </span>
+            </div>
+          </section>
+        </div>
         <footer className="wa-orc-foot">
           <button type="button" className="wa-btn wa-btn-primary wa-orc-btnPrincipal" onClick={onFechar}>
             Fechar
           </button>
         </footer>
-      </div>
+      </>
     );
   }
 
   const envioIndisponivel = typeof onEnviarAoCliente !== "function";
 
   return (
-    <div className="wa-orc-body">
-      <section className="wa-orc-section" aria-label="Resultado do orçamento">
-        <h4 className="wa-orc-sectionTitle">{view.titulo}</h4>
+    <>
+      <div className="wa-orc-body">
+        <section className="wa-orc-section" aria-label="Resultado do orçamento">
+          <h4 className="wa-orc-sectionTitle">{view.titulo}</h4>
 
-        <div className="wa-orc-numeroBox">
-          <span className="wa-orc-totalLabel">Número do orçamento</span>
-          <strong className="wa-orc-numero">{view.numero}</strong>
-          {view.documento ? <span className="wa-orc-item-codigo">{view.documento}</span> : null}
-        </div>
-
-        <div className="wa-orc-resumo">
-          <div className="wa-orc-resumo-linha">
-            <span>Cliente</span>
-            <strong>{view.cliente.nome}</strong>
+          <div className="wa-orc-numeroBox">
+            <span className="wa-orc-totalLabel">Número do orçamento</span>
+            <strong className="wa-orc-numero">{view.numero}</strong>
+            {view.documento ? <span className="wa-orc-item-codigo">{view.documento}</span> : null}
           </div>
-          {view.vendedor.nome !== SEM_VALOR ? (
+
+          <div className="wa-orc-resumo">
             <div className="wa-orc-resumo-linha">
-              <span>Vendedor</span>
-              <strong>{view.vendedor.nome}</strong>
+              <span>Cliente</span>
+              <strong>{view.cliente.nome}</strong>
             </div>
-          ) : null}
-          <div className="wa-orc-resumo-linha wa-orc-resumo-linha--forte">
-            <span>Total</span>
-            <strong>{view.valorTotal}</strong>
+            {view.vendedor.nome !== SEM_VALOR ? (
+              <div className="wa-orc-resumo-linha">
+                <span>Vendedor</span>
+                <strong>{view.vendedor.nome}</strong>
+              </div>
+            ) : null}
+            <div className="wa-orc-resumo-linha wa-orc-resumo-linha--forte">
+              <span>Total</span>
+              <strong>{view.valorTotal}</strong>
+            </div>
           </div>
-        </div>
 
-        {view.protecao ? <p className="wa-orc-hint">{view.protecao}</p> : null}
-        {view.fonte ? <p className="wa-orc-origem">{view.fonte.texto}</p> : null}
+          {view.protecao ? <p className="wa-orc-hint">{view.protecao}</p> : null}
+          {view.fonte ? <p className="wa-orc-origem">{view.fonte.texto}</p> : null}
 
-        <h4 className="wa-orc-sectionTitle">Resumo para o cliente</h4>
-        <pre className="wa-orc-resumoTexto">{resumo}</pre>
-        {envioIndisponivel ? (
-          <p className="wa-orc-hint wa-orc-hint--aviso">
-            O envio direto pela conversa será liberado na próxima atualização. Você pode copiar o
-            resumo e enviar pelo campo de mensagem.
-          </p>
-        ) : (
-          <p className="wa-orc-hint">
-            Você revisa o texto no campo de mensagem antes de ele sair.
-          </p>
-        )}
-      </section>
-
+          <h4 className="wa-orc-sectionTitle">Resumo para o cliente</h4>
+          <pre className="wa-orc-resumoTexto">{resumo}</pre>
+          {envioIndisponivel ? (
+            <p className="wa-orc-hint wa-orc-hint--aviso">
+              O envio direto pela conversa será liberado na próxima atualização. Você pode copiar o
+              resumo e enviar pelo campo de mensagem.
+            </p>
+          ) : (
+            <p className="wa-orc-hint">
+              Você revisa o texto no campo de mensagem antes de ele sair.
+            </p>
+          )}
+        </section>
+      </div>
       <footer className="wa-orc-foot">
         <div className="wa-orc-acoes">
           <button
@@ -176,6 +179,6 @@ export default function OrcamentoResultado({
           {enviando ? "Enviando…" : "Enviar ao cliente"}
         </button>
       </footer>
-    </div>
+    </>
   );
 }

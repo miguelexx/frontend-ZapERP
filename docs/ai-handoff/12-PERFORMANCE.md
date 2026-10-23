@@ -135,6 +135,31 @@ o componente. Instrumentado em 23/10: `load()` às 1309 ms → 1ª página pinta
 (17 ms depois), enquanto as páginas de 250 só chegam às 1902/1962 ms. **Comparar números
 absolutos entre execuções não vale**; só A/B na mesma sessão, logo em seguida.
 
+**Inter auto-hospedada (2026-10-23, pós-deploy)** — `src/styles/theme.css` +
+`src/styles/fonts/inter-latin.woff2`; o `<link>` e os 2 preconnects do Google saíram do
+`index.html`.
+
+- O motivo não é só velocidade: folha de estilo no `<head>` é **render-blocking**, então o
+  primeiro pixel — **incluindo o esqueleto de boot inline** — dependia de
+  `fonts.googleapis.com` responder. CDN de terceiros lento/bloqueado = app sem desenhar.
+- No Windows a Inter nem chegava a ser baixada (`"Segoe UI"` vence no `body`) — medi zero
+  pedidos a `fonts.gstatic.com`. No **celular** não há Segoe UI, então era folha
+  bloqueante numa origem + woff2 **noutra**, cada uma com DNS+TCP+TLS.
+- É **fonte variável**: 1 ficheiro (47 kB) cobre os 5 pesos. Confirmado extraindo os 35
+  blocos `@font-face` da CSS real do Google — os 5 do subset `latin` apontam ao mesmo URL.
+- Os 5 `@font-face` são cópia **fiel** das declarações do Google (mesmo `unicode-range`,
+  mesmo `font-display: swap`), geradas por script para não haver erro de transcrição.
+  Subset `latin` basta: todo o português cabe em U+0000-00FF (verificado caractere a
+  caractere).
+- Entra em `/assets` com hash → herda `immutable` + cache-first do SW, e **funciona
+  offline**. Custo: `index.css` +0,21 kB gzip.
+- Verificado: `document.fonts.check('600 16px Inter')` true, peso 600 `loaded`, largura de
+  texto 396 px com Inter vs 350 px no fallback (não é fallback silencioso), 0 pedidos ao
+  Google.
+
+**Se alguém for recolocar o Google Fonts:** não recoloque. O ganho principal é não
+depender de origem externa para o app desenhar.
+
 **Não aplicado (é servidor, não tem nginx versionado no repo):** brotli (~60 kB a menos
 no boot, medido) e `Cache-Control: no-cache` no `index.html` (hoje o nginx não manda
 header nenhum — só `ETag`; o `<meta http-equiv>` do HTML é ignorado pelo browser).

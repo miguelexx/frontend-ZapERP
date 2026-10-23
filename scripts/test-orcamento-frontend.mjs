@@ -29,6 +29,7 @@ import {
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
   sugestaoDeBuscaCliente,
+  estoqueSemSaldo,
   SEM_VALOR,
 } from "../src/conversa/orcamento/orcamentoFormat.js";
 
@@ -46,6 +47,16 @@ import {
   assinaturaDoRascunho,
   assinaturaDoBody,
 } from "../src/conversa/orcamento/orcamentoViewModel.js";
+
+import {
+  ESTADO_PRECO,
+  valorPresente,
+  extrairValoresDoProduto,
+  produtoJaTemPreco,
+  valoresDaRespostaPorCodigo,
+  precisaConsultarPreco,
+  procedenciaDosValores,
+} from "../src/conversa/orcamento/precoItemCache.js";
 
 import {
   resolveOrcamentoTimeoutMs,
@@ -891,7 +902,8 @@ const { prefillRascunho } = draft;
           'import { renderToStaticMarkup } from "react-dom/server.browser";',
           'import Preview from "./OrcamentoPreview.jsx";',
           'import Resultado from "./OrcamentoResultado.jsx";',
-          "export const Componentes = { Preview, Resultado };",
+          'import Form from "./OrcamentoForm.jsx";',
+          "export const Componentes = { Preview, Resultado, Form };",
           "export const render = (C, p) => renderToStaticMarkup(createElement(C, p));",
         ].join("\n"),
         resolveDir: new URL(".", dirOrcamento).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
@@ -903,7 +915,12 @@ const { prefillRascunho } = draft;
       jsx: "automatic",
       write: false,
       logLevel: "silent",
-      define: { "process.env.NODE_ENV": '"production"' },
+      define: {
+        "process.env.NODE_ENV": '"production"',
+        // `OrcamentoForm` arrasta o `ProdutoPicker` e, com ele, o cliente HTTP, que lê
+        // `import.meta.env` ao ser carregado. O valor não é usado: nenhum render faz rede.
+        "import.meta.env": '{"VITE_API_URL":"http://localhost","MODE":"test"}',
+      },
     });
     const codigo = saida.outputFiles[0].text;
     bundle = await import(`data:text/javascript;base64,${Buffer.from(codigo, "utf8").toString("base64")}`);
@@ -1117,6 +1134,183 @@ const { prefillRascunho } = draft;
       "render prévia: o erro na tela não carrega código nem status"
     );
   }
+
+  /* ---- Formulário: unidade junto da quantidade, preço da linha, estado de carga ---- */
+  if (bundle) {
+    const { render, Componentes } = bundle;
+    const ITEM_M2 = {
+      codigo_produto_erp: "7001",
+      descricao: "PISO PORCELANATO ACETINADO 60X60",
+      unidade: "M2",
+      marca: "PORTOBELLO",
+      quantidade: "2",
+    };
+    const formular = (props) =>
+      render(Componentes.Form, {
+        rascunho: { clienteBusca: "Maria", vendedorBusca: "Carlos", itens: [ITEM_M2] },
+        ...props,
+      });
+
+    /* ---- a unidade anda com a quantidade (item 4 do refino) ---- */
+    {
+      const html = formular({});
+      assert(
+        /wa-orc-qtdUnidade[^>]*>M2</.test(html),
+        "render form: a unidade do ERP aparece colada na quantidade"
+      );
+      assert(
+        /aria-label="Quantidade de PISO PORCELANATO ACETINADO 60X60 em M2"/.test(html),
+        "render form: o nome acessível do campo de quantidade também diz a unidade"
+      );
+      assert(
+        html.includes('value="2"'),
+        "render form: a quantidade continua sendo o texto cru do rascunho"
+      );
+    }
+
+    /* ---- preço e estoque da linha vêm do cache, impressos como vieram ---- */
+    {
+      const html = formular({
+        precos: {
+          7001: {
+            estado: "ok",
+            valores: { preco_unitario: "33.038", estoque_previsto: "-2.125", unidade: "M2" },
+            // O backend deriva `tempo_real` de `fonte` e manda os dois (wmOrcamentoService).
+            meta: { fonte: "tempo_real", tempo_real: true },
+          },
+        },
+      });
+      assert(
+        html.includes(formatMoedaOrcamento("33.038")),
+        "render form: o preço consultado aparece na linha do carrinho"
+      );
+      assert(
+        html.includes("-2,125"),
+        "render form: estoque negativo chega à linha (o contrato permite, e não bloqueia venda)"
+      );
+      assert(
+        /wa-orc-candidato-estoque--zerado/.test(html),
+        "render form: estoque sem saldo é destacado, e o número continua sendo a informação"
+      );
+      assert(
+        !/R\$&nbsp;0,00|R\$ 0,00/.test(html),
+        'render form: nunca "R$ 0,00" numa linha do carrinho'
+      );
+      assert(
+        /Valores consultados agora/.test(html),
+        "render form: valor de tempo real pode ser apresentado como atual"
+      );
+    }
+
+    /* ---- cache_cloud NUNCA é "atual", nem misturado com tempo real ---- */
+    {
+      const html = formular({
+        precos: {
+          7001: {
+            estado: "ok",
+            valores: { preco_unitario: "33.038" },
+            meta: { fonte: "cache_cloud" },
+          },
+        },
+      });
+      assert(
+        /cópia do sistema da empresa/.test(html),
+        "render form: valor de cópia é apresentado como cópia"
+      );
+      assert(
+        !/consultados agora|atual|tempo real/i.test(html),
+        'render form: cópia nunca ganha a palavra "agora", "atual" ou "tempo real"'
+      );
+    }
+
+    /* ---- consulta em voo: a linha diz, e não inventa valor ---- */
+    {
+      const html = formular({
+        precos: { 7001: { estado: "carregando", valores: null, meta: null } },
+      });
+      assert(
+        html.includes("Consultando preço…"),
+        "render form: enquanto a consulta corre, a linha diz que o preço está vindo"
+      );
+      assert(
+        !/R\$/.test(html),
+        "render form: carregando não imprime nenhum valor monetário"
+      );
+      assert(
+        /wa-orc-btnPrincipal"[^>]*disabled/.test(html) === false,
+        "render form: consulta de preço em voo NÃO bloqueia o Calcular"
+      );
+    }
+
+    /* ---- consulta que FALHOU: linha sem preço, nenhum alarme, Calcular livre ---- */
+    {
+      const html = formular({
+        precos: { 7001: { estado: "falhou", valores: null, meta: null } },
+      });
+      assert(
+        !/R\$/.test(html) && !/Consultando/.test(html),
+        "render form: falha na consulta deixa a linha sem preço, sem inventar nada"
+      );
+      assert(
+        !/wa-orc-alert--erro/.test(html),
+        "render form: falha ao buscar preço não vira alerta vermelho (ninguém pediu a consulta)"
+      );
+      assert(
+        /Calcular</.test(html) && !/wa-orc-btnPrincipal"[^>]*disabled/.test(html),
+        "render form: falhar no preço nunca impede montar o orçamento — o Calcular resolve"
+      );
+      assert(
+        !/procedência|cópia do sistema|consultados agora/i.test(html),
+        "render form: sem nenhum valor na tela, não se fala de procedência"
+      );
+    }
+
+    /* ---- o rodapé é IRMÃO do corpo rolável, em todas as etapas ---- */
+    {
+      const html = formular({});
+      assert(
+        /<\/div><footer class="wa-orc-foot"/.test(html),
+        "render form: o rodapé fecha FORA do corpo rolável (senão o Calcular rola para fora)"
+      );
+      const previa = render(Componentes.Preview, { preparacao: { previa: PREVIA_WM } });
+      assert(
+        /<\/div><footer class="wa-orc-foot"/.test(previa),
+        "render prévia: o rodapé do Confirmar também fica fora do corpo rolável"
+      );
+      const resultado = render(Componentes.Resultado, { resultado: RESULTADO_WM });
+      assert(
+        /<\/div><footer class="wa-orc-foot"/.test(resultado),
+        "render resultado: mesmo rodapé fora do scroll — a régua é a mesma nas três etapas"
+      );
+    }
+
+    /* ---- as três seções do formulário têm título de mesmo nível ---- */
+    {
+      const html = formular({});
+      const titulos = html.match(/class="wa-orc-sectionTitle"/g) || [];
+      assert(
+        titulos.length >= 3,
+        `form: os três blocos (cliente/vendedor, busca, itens) têm título — achei ${titulos.length}`
+      );
+      assert(
+        /<label for="wa-orc-produtoBusca">Pesquisar produto<\/label>/.test(html),
+        "form: o título da busca continua sendo o rótulo do campo (um só para olho e leitor)"
+      );
+    }
+
+    /* ---- carrinho vazio: nada de total inventado ---- */
+    {
+      const vazio = render(Componentes.Form, { rascunho: { itens: [] } });
+      assert(
+        !/R\$/.test(vazio),
+        'render form: carrinho vazio não mostra "R$ 0,00" em lugar nenhum'
+      );
+      assert(
+        /wa-orc-btnPrincipal"[^>]*disabled/.test(vazio),
+        "render form: sem item, o Calcular está desabilitado"
+      );
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -1316,6 +1510,327 @@ const { prefillRascunho } = draft;
   assert(
     /tem_mais/.test(picker) && /tem_anterior/.test(picker),
     "picker: os botões de página continuam presos ao que a WM autoriza"
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 14. Preço do item escolhido — o cache por código
+ * ------------------------------------------------------------------ *
+ * A LISTA de candidatos da WM não traz preço, e buscá-lo para os 30 da página seriam 30
+ * consultas em tempo real no SQL Server da própria loja a cada busca (seção 11). Então o preço
+ * é consultado no TOQUE: uma chamada, por código, do item que a atendente acabou de escolher.
+ *
+ * Estas asserções guardam as três coisas que, se cederem, custam dinheiro de verdade: nenhum
+ * valor inventado, nenhuma chamada repetida sozinha e nenhuma cópia chamada de "atual".
+ */
+{
+  /* ---- presença: `0` é valor, ausência não é ---- */
+  assert(valorPresente("0.000") === true, "presença: estoque zerado é VALOR (e não bloqueia venda)");
+  assert(valorPresente(0) === true, "presença: zero numérico é valor, não ausência");
+  assert(valorPresente("-2.125") === true, "presença: estoque negativo é valor");
+  assert(valorPresente(false) === true, "presença: `ativo: false` é informação, não ausência");
+  for (const ausente of [null, undefined, "", "   ", NaN, {}, []]) {
+    assert(
+      valorPresente(ausente) === false,
+      `presença: ${JSON.stringify(ausente)} é ausência — e ausência vira "${SEM_VALOR}", nunca 0`
+    );
+  }
+
+  /* ---- extração: copia só o que existe, e nada mais ---- */
+  {
+    const valores = extrairValoresDoProduto({
+      codigo_produto_erp: "7001",
+      descricao: "PISO",
+      preco_unitario: "33.038",
+      estoque_previsto: "0.000",
+      unidade: "M2",
+      ativo: false,
+      // Campos que NÃO são valor não têm por que viajar no cache de preço.
+      grupo: "PISOS",
+      codigo_barras: "789",
+    });
+    assert(valores.preco_unitario === "33.038", "extração: o decimal da WM é copiado byte a byte");
+    assert(valores.estoque_previsto === "0.000", "extração: estoque zerado é copiado como veio");
+    assert(valores.unidade === "M2" && valores.ativo === false, "extração: unidade e `ativo` viajam");
+    assert(
+      !("grupo" in valores) && !("codigo_barras" in valores) && !("descricao" in valores),
+      "extração: só os quatro campos de valor entram — o resto fica fora"
+    );
+  }
+  assert(
+    extrairValoresDoProduto({ codigo_produto_erp: "1", descricao: "X" }) === null,
+    "extração: candidato de lista (sem preço) não gera entrada de valor nenhuma"
+  );
+  for (const ruim of [null, undefined, "", 42, []]) {
+    assert(
+      extrairValoresDoProduto(ruim) === null,
+      `extração: entrada ${JSON.stringify(ruim)} não vira valor`
+    );
+  }
+  assert(
+    extrairValoresDoProduto({ preco_unitario: "0" }).preco_unitario === "0",
+    'extração: preço "0" é um preço — quem some é a ausência'
+  );
+
+  /* ---- já tem preço? então não se gasta chamada ---- */
+  assert(produtoJaTemPreco({ preco_unitario: "10.00" }) === true, "resolvido já traz preço");
+  assert(produtoJaTemPreco({ descricao: "X" }) === false, "candidato de lista não traz preço");
+  assert(produtoJaTemPreco(null) === false, "produto inexistente não traz preço");
+
+  /* ---- leitura da resposta por código ---- */
+  {
+    const ok = valoresDaRespostaPorCodigo(
+      {
+        status: "produto",
+        produto: { codigo_produto_erp: "7001", preco_unitario: "33.038", unidade: "M2" },
+        meta: { fonte: "tempo_real" },
+      },
+      "7001"
+    );
+    assert(ok.valores.preco_unitario === "33.038", "resposta: o preço do código pedido é lido");
+    assert(ok.meta.fonte === "tempo_real", "resposta: a procedência vem junto com o valor");
+  }
+  assert(
+    valoresDaRespostaPorCodigo(
+      { status: "produto", produto: { codigo_produto_erp: "OUTRO", preco_unitario: "9.99" } },
+      "7001"
+    ) === null,
+    "resposta: preço de OUTRO código nunca responde pelo código pedido"
+  );
+  assert(
+    valoresDaRespostaPorCodigo(
+      {
+        status: "multiplos_produtos",
+        produtos: [{ codigo_produto_erp: "7001", preco_unitario: "1.00" }],
+      },
+      "7001"
+    ) === null,
+    "resposta: preço NÃO é pescado de dentro de uma lista — só o ramo resolvido vale"
+  );
+  for (const ruim of [null, undefined, {}, { status: "produto" }, 42]) {
+    assert(
+      valoresDaRespostaPorCodigo(ruim, "7001") === null,
+      `resposta: forma ${JSON.stringify(ruim)} não produz valor`
+    );
+  }
+
+  /* ---- quando vale gastar uma chamada ---- */
+  assert(
+    precisaConsultarPreco({}, { codigo_produto_erp: "7001" }) === true,
+    "chamada: candidato de lista sem entrada no cache merece UMA consulta"
+  );
+  assert(
+    precisaConsultarPreco({}, { codigo_produto_erp: "7001", preco_unitario: "1.00" }) === false,
+    "chamada: produto que já veio com preço não gasta chamada nenhuma"
+  );
+  assert(
+    precisaConsultarPreco({ 7001: { estado: ESTADO_PRECO.OK } }, { codigo_produto_erp: "7001" }) ===
+      false,
+    "chamada: código já consultado não é consultado de novo (adicionar 2x = quantidade)"
+  );
+  assert(
+    precisaConsultarPreco(
+      { 7001: { estado: ESTADO_PRECO.FALHOU } },
+      { codigo_produto_erp: "7001" }
+    ) === false,
+    "chamada: consulta que FALHOU não se repete sozinha — seria chamada no servidor do cliente"
+  );
+  assert(
+    precisaConsultarPreco(
+      { 7001: { estado: ESTADO_PRECO.CARREGANDO } },
+      { codigo_produto_erp: "7001" }
+    ) === false,
+    "chamada: com uma consulta em voo, o toque repetido não abre a segunda"
+  );
+  for (const semCodigo of [null, undefined, {}, { codigo_produto_erp: "" }]) {
+    assert(
+      precisaConsultarPreco({}, semCodigo) === false,
+      `chamada: sem código não há o que consultar (${JSON.stringify(semCodigo)})`
+    );
+  }
+
+  /* ---- procedência do conjunto: vale a linha MAIS FRACA ---- */
+  assert(procedenciaDosValores(null) === null, "procedência: sem mapa, nada a dizer");
+  assert(procedenciaDosValores({}) === null, "procedência: carrinho sem valor não fala de fonte");
+  assert(
+    procedenciaDosValores({ a: { estado: ESTADO_PRECO.CARREGANDO } }) === null,
+    "procedência: consulta em voo ainda não é valor na tela"
+  );
+  assert(
+    procedenciaDosValores({ a: { estado: ESTADO_PRECO.FALHOU } }) === null,
+    "procedência: falha não produz afirmação sobre fonte"
+  );
+  {
+    const tudoAgora = procedenciaDosValores({
+      a: {
+        estado: ESTADO_PRECO.OK,
+        valores: { preco_unitario: "1.00" },
+        // O backend manda os dois campos: `tempo_real` é derivado lá de `fonte`.
+        meta: { fonte: "tempo_real", tempo_real: true },
+      },
+      b: {
+        estado: ESTADO_PRECO.OK,
+        valores: { preco_unitario: "2.00" },
+        meta: { tempo_real: true },
+      },
+    });
+    assert(
+      rotuloFonte(tudoAgora)?.tempoReal === true,
+      "procedência: tudo em tempo real pode ser apresentado como 'agora'"
+    );
+    assert(
+      rotuloFonte(
+        procedenciaDosValores({
+          a: {
+            estado: ESTADO_PRECO.OK,
+            valores: { preco_unitario: "1.00" },
+            meta: { fonte: "tempo_real" },
+          },
+        })
+      )?.tempoReal === false,
+      "procedência: a string 'tempo_real' sem o booleano não basta — mesma régua de rotuloFonte"
+    );
+  }
+  {
+    const misturado = procedenciaDosValores({
+      a: {
+        estado: ESTADO_PRECO.OK,
+        valores: { preco_unitario: "1.00" },
+        meta: { fonte: "tempo_real" },
+      },
+      b: {
+        estado: ESTADO_PRECO.OK,
+        valores: { preco_unitario: "2.00" },
+        meta: { fonte: "cache_cloud" },
+      },
+    });
+    const rotulo = rotuloFonte(misturado);
+    assert(
+      rotulo?.tempoReal === false,
+      "procedência: UMA cópia no conjunto derruba o 'agora' de todos"
+    );
+    assert(/cópia/i.test(rotulo.texto), "procedência: conjunto misturado é apresentado como cópia");
+    assert(
+      !/atual|agora|tempo real/i.test(rotulo.texto),
+      "procedência: palavra proibida não escapa pelo caminho do conjunto"
+    );
+  }
+  {
+    const semMeta = procedenciaDosValores({
+      a: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "1.00" }, meta: null },
+    });
+    assert(
+      rotuloFonte(semMeta)?.tempoReal === false,
+      "procedência: sem meta, o valor é tratado como cópia (nunca como atual)"
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 15. Estoque sem saldo: destaque, nunca bloqueio
+ * ------------------------------------------------------------------ *
+ * O contrato permite estoque zerado e negativo, e nenhum dos dois impede a venda — quem decide
+ * é o ERP. `estoqueSemSaldo` existe só para DESTACAR o número, e por isso ausência tem de
+ * devolver `false`: ausência é "—", não "sem estoque".
+ */
+assert(estoqueSemSaldo("0.000") === true, "estoque: zero não tem saldo");
+assert(estoqueSemSaldo("-2.125") === true, "estoque: negativo não tem saldo (e é permitido)");
+assert(estoqueSemSaldo(0) === true, "estoque: zero numérico também");
+assert(estoqueSemSaldo("3") === false, "estoque: positivo tem saldo");
+assert(estoqueSemSaldo("0.001") === false, "estoque: a menor fração positiva ainda é saldo");
+for (const ausente of [null, undefined, "", "   ", "abc", {}, NaN]) {
+  assert(
+    estoqueSemSaldo(ausente) === false,
+    `estoque: ausência (${JSON.stringify(ausente)}) NÃO é "sem estoque" — é "—"`
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 16. O que o DRAWER e o FORMULÁRIO não podem fazer com o preço
+ * ------------------------------------------------------------------ *
+ * Olha o fonte porque o que se proíbe é caminho de execução: uma consulta por item dentro de um
+ * `useEffect` ou de um laço viraria N chamadas em TEMPO REAL no SQL Server da loja do cliente a
+ * cada abertura do drawer — exatamente o custo que consultar-no-toque evita.
+ */
+{
+  const { readFileSync } = await import("node:fs");
+  const drawer = readFileSync(
+    new URL("../src/conversa/orcamento/OrcamentoDrawer.jsx", import.meta.url),
+    "utf8"
+  );
+  const form = readFileSync(
+    new URL("../src/conversa/orcamento/OrcamentoForm.jsx", import.meta.url),
+    "utf8"
+  );
+  const semComentario = (texto) =>
+    texto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+
+  const chamadas = drawer.split("\n").filter((l) => /consultarProdutosOrcamento\(/.test(l));
+  assert(
+    chamadas.length === 1,
+    `drawer: o preço é consultado de UM lugar só — achei ${chamadas.length}`
+  );
+  assert(
+    /codigo_produto_erp: codigo/.test(drawer),
+    "drawer: a consulta de preço é POR CÓDIGO (uma só), nunca uma busca por termo"
+  );
+
+  const drawerLimpo = semComentario(drawer);
+  // O drawer nunca INVOCA a consulta: ela só é entregue ao formulário como prop, e quem a
+  // chama é o toque da atendente num candidato. Sem chamada no fonte não há `useEffect`, laço
+  // nem retry possível — é a forma mais curta de provar as três proibições de uma vez.
+  assert(
+    (drawerLimpo.match(/consultarPrecoDoItem\(/g) || []).length === 0,
+    "drawer: a consulta de preço não é invocada em lugar nenhum do fonte — só pelo toque"
+  );
+  assert(
+    /onProdutoEscolhido=\{consultarPrecoDoItem\}/.test(drawerLimpo),
+    "drawer: ela chega ao formulário como prop, para o clique no candidato acioná-la"
+  );
+  // O corpo da consulta de preço, isolado: é nele que a proibição vale. (Zerar `erro` e o
+  // cache no mesmo efeito de reset é outra coisa, e é correta.)
+  {
+    const ini = drawerLimpo.indexOf("const consultarPrecoDoItem");
+    const corpo = ini >= 0 ? drawerLimpo.slice(ini, drawerLimpo.indexOf("[anotarPreco]", ini)) : "";
+    assert(corpo.length > 0, "drawer: a consulta de preço continua existindo e isolável");
+    assert(
+      !/setErro\(|setAvisoCampo\(|setEtapa\(/.test(corpo),
+      "drawer: falha de preço não vira erro, aviso nem troca de tela — não impede o orçamento"
+    );
+    assert(
+      !/setTimeout|retry|tentarDeNovo/.test(corpo),
+      "drawer: nenhuma retentativa automática de preço — seria chamada no servidor do cliente"
+    );
+    assert(
+      /precisaConsultarPreco\(precosRef\.current/.test(corpo),
+      "drawer: a decisão de gastar uma chamada sai do espelho SÍNCRONO, não de um atualizador de estado"
+    );
+  }
+  assert(
+    /setPrecos\(\{\}\)/.test(drawer),
+    "drawer: o cache de preço morre ao trocar de conversa e ao limpar o rascunho"
+  );
+  assert(
+    /ESTADO_PRECO\.FALHOU/.test(drawer),
+    "drawer: a falha é um estado da linha, não um erro do orçamento"
+  );
+
+  const formLimpo = semComentario(form);
+  assert(
+    !/consultarProdutosOrcamento/.test(form),
+    "form: o formulário não fala com a WM — quem consulta é o drawer, de um lugar só"
+  );
+  assert(
+    !/(preco|valor)[A-Za-z_]*\s*[*/+]\s*/.test(formLimpo),
+    "form: nenhuma aritmética sobre preço no carrinho — a tela não soma, o ERP calcula"
+  );
+  assert(
+    !/R\$ 0,00|"0,00"/.test(formLimpo),
+    "form: nenhum zero monetário literal no carrinho"
+  );
+  assert(
+    /calculado pelo ERP/.test(form),
+    "form: o rodapé continua dizendo que o total é do ERP em vez de exibir uma soma própria"
   );
 }
 

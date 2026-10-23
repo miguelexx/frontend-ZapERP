@@ -49,12 +49,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { consultarProdutosOrcamento, extrairErroOrcamento } from "../../api/wmOrcamentosService";
 import {
+  estoqueSemSaldo,
   formatMoedaOrcamento,
   formatQuantidadeOrcamento,
   textoOuSemValor,
 } from "./orcamentoFormat";
+import { produtoJaTemPreco, valorPresente } from "./precoItemCache";
 import {
   agruparCandidatosProduto,
   mensagemBuscaSemResultado,
@@ -163,8 +166,11 @@ export default function ProdutoPicker({ onAdicionar, disabled = false, autoFocus
   }, []);
 
   const adicionar = useCallback(
-    (produto) => {
-      onAdicionar?.(produto);
+    (produto, meta) => {
+      // A procedência vai junto só quando o PRÓPRIO produto tem preço (ramo resolvido): é dele
+      // que `metaDoPrecificado` fala. Candidato de lista não tem preço, e quem o escolher vai
+      // receber a procedência da consulta por código que o drawer dispara.
+      onAdicionar?.(produto, produtoJaTemPreco(produto) ? meta ?? null : null);
       // Limpa SÓ a busca de produto e devolve o foco: o carrinho e o resto do formulário ficam.
       setTermo("");
       setPagina(1);
@@ -179,58 +185,94 @@ export default function ProdutoPicker({ onAdicionar, disabled = false, autoFocus
   const curto = termo.trim().length > 0 && termo.trim().length < MIN_CARACTERES;
   // Procedência dos VALORES (só existe quando algum card tem preço). `rotuloFonte` é quem
   // decide se dá para falar em "agora" — cópia nunca vira "atual".
-  const temValor = grupos.lista.some((p) => p?.preco_unitario || p?.estoque_previsto);
+  const temValor = grupos.lista.some(
+    (p) => valorPresente(p?.preco_unitario) || valorPresente(p?.estoque_previsto)
+  );
   const procedencia = temValor ? rotuloFonte(grupos.metaDoPrecificado) : null;
+  const vazio = !buscando && buscou && !erro && grupos.lista.length === 0;
 
   /**
-   * Um candidato. `exato` só é `true` quando a WM resolveu a busca nele E existem outros
-   * produtos com a mesma palavra logo abaixo — o rótulo existe para explicar por que ele está
-   * em primeiro, não para enfeitar linha solta.
+   * Um candidato — e um candidato é um BOTÃO que adiciona ao orçamento.
    *
-   * Preço, estoque e `ativo` aparecem só quando vêm no próprio produto, o que hoje acontece
-   * no ramo resolvido. Candidato de lista não tem esses campos e o card simplesmente não os
+   * Que o toque adiciona precisa estar dito, não adivinhado: o `aria-label` nomeia a ação com o
+   * produto ("Adicionar FILTRO AR … ao orçamento") e o sinal de mais à direita a mostra. A
+   * descrição é a linha que manda e aparece INTEIRA (ela é o que distingue um item do outro —
+   * "FILTRO AR EXT/INT MOTOR YUNNEI BRT15/20/23" perde a identidade se cortada), com marca,
+   * unidade e código recolhidos numa única linha secundária.
+   *
+   * `exato` só é `true` quando a WM resolveu a busca nele E existem outros produtos com a mesma
+   * palavra logo abaixo — o rótulo explica por que ele está em primeiro, não enfeita linha solta.
+   *
+   * Preço, estoque e `ativo` aparecem só quando vêm no próprio produto, o que hoje acontece no
+   * ramo resolvido. Candidato de lista não tem esses campos e o card simplesmente não os
    * desenha — nada é derivado, nada é herdado do card de cima.
    */
-  const renderCandidato = (p, exato) => (
-    <button
-      type="button"
-      key={p.codigo_produto_erp}
-      className={exato ? "wa-orc-candidato wa-orc-candidato--exato" : "wa-orc-candidato"}
-      disabled={disabled}
-      onClick={() => adicionar(p)}
-    >
-      <span className="wa-orc-candidato-titulo">{textoOuSemValor(p.descricao)}</span>
-      {exato ? <span className="wa-orc-candidato-tag">Nome igual ao que você pesquisou</span> : null}
-      <span className="wa-orc-candidato-meta">
-        {[p.marca, p.unidade].filter(Boolean).join(" · ") || "Sem marca informada"}
-      </span>
-      {/*
-        Preço e estoque só existem no produto RESOLVIDO. Quando não vierem, a linha inteira
-        some: um "R$ 0,00" ou um "0" inventado aqui seria lido como preço e estoque reais.
-      */}
-      {p.preco_unitario || p.estoque_previsto ? (
-        <span className="wa-orc-candidato-valores">
-          {p.preco_unitario ? (
-            <strong className="wa-orc-candidato-preco">{formatMoedaOrcamento(p.preco_unitario)}</strong>
+  const renderCandidato = (p, exato) => {
+    const descricao = textoOuSemValor(p.descricao);
+    const temPreco = valorPresente(p.preco_unitario);
+    const temEstoque = valorPresente(p.estoque_previsto);
+    // Marca e unidade podem faltar; o código nunca falta (candidato sem código não entra na
+    // lista). Ausência de marca não vira texto: ela já se lê pela ausência.
+    const secundaria = [p.marca, p.unidade, `Cód. ${p.codigo_produto_erp}`]
+      .filter(Boolean)
+      .join(" · ");
+    return (
+      <button
+        type="button"
+        key={p.codigo_produto_erp}
+        className={exato ? "wa-orc-candidato wa-orc-candidato--exato" : "wa-orc-candidato"}
+        disabled={disabled}
+        aria-label={`Adicionar ${descricao} ao orçamento`}
+        onClick={() => adicionar(p, grupos.metaDoPrecificado)}
+      >
+        <span className="wa-orc-candidato-corpo">
+          <span className="wa-orc-candidato-titulo">{descricao}</span>
+          {exato ? (
+            <span className="wa-orc-candidato-tag">Nome igual ao que você pesquisou</span>
           ) : null}
-          {p.estoque_previsto ? (
-            <span>Estoque {formatQuantidadeOrcamento(p.estoque_previsto)}</span>
+          <span className="wa-orc-candidato-meta">{secundaria}</span>
+          {/*
+            Preço e estoque só existem no produto RESOLVIDO. Quando não vierem, a linha inteira
+            some: um "R$ 0,00" ou um "0" inventado aqui seria lido como preço e estoque reais.
+            Estoque zerado ou negativo é valor de verdade e aparece — destacado, porque muda a
+            conversa com o cliente, e sem bloquear nada: quem decide isso é o ERP.
+          */}
+          {temPreco || temEstoque ? (
+            <span className="wa-orc-candidato-valores">
+              {temPreco ? (
+                <strong className="wa-orc-candidato-preco">
+                  {formatMoedaOrcamento(p.preco_unitario)}
+                </strong>
+              ) : null}
+              {temEstoque ? (
+                <span
+                  className={
+                    estoqueSemSaldo(p.estoque_previsto)
+                      ? "wa-orc-candidato-estoque wa-orc-candidato-estoque--zerado"
+                      : "wa-orc-candidato-estoque"
+                  }
+                >
+                  Estoque {formatQuantidadeOrcamento(p.estoque_previsto)}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+          {p.ativo === false ? (
+            <span className="wa-orc-candidato-inativo">Inativo no sistema da empresa</span>
           ) : null}
         </span>
-      ) : null}
-      {p.ativo === false ? (
-        <span className="wa-orc-candidato-inativo">Produto inativo no sistema da empresa</span>
-      ) : null}
-      {/* Código ERP em área secundária: o caminho principal é concluir por nome. */}
-      <span className="wa-orc-candidato-codigo">Cód. ERP {p.codigo_produto_erp}</span>
-    </button>
-  );
+        <span className="wa-orc-candidato-acao" aria-hidden="true">
+          <Plus size={18} strokeWidth={2.25} />
+        </span>
+      </button>
+    );
+  };
 
   return (
-    <section className="wa-orc-section" aria-label="Pesquisar produto">
-      <label className="wa-orc-label" htmlFor="wa-orc-produtoBusca">
-        Pesquisar produto
-      </label>
+    <section className="wa-orc-section wa-orc-section--divisa" aria-label="Pesquisar produto">
+      <h4 className="wa-orc-sectionTitle">
+        <label htmlFor="wa-orc-produtoBusca">Pesquisar produto</label>
+      </h4>
       <input
         id="wa-orc-produtoBusca"
         ref={inputRef}
@@ -268,10 +310,17 @@ export default function ProdutoPicker({ onAdicionar, disabled = false, autoFocus
       ) : null}
 
       <div className="wa-orc-resultados" aria-busy={buscando}>
-        {buscando ? <p className="wa-orc-hint">Pesquisando…</p> : null}
-        {!buscando && buscou && !erro && grupos.lista.length === 0 ? (
-          <p className="wa-orc-hint">{mensagemBuscaSemResultado(termo)}</p>
+        {/*
+          Faixa de estado SEMPRE presente (altura reservada no CSS): entrar em "Pesquisando…"
+          com resultados na tela não pode empurrar a lista para baixo — a atendente estaria com
+          o dedo a caminho de um card.
+        */}
+        {buscando || buscou ? (
+          <p className="wa-orc-buscaStatus" role="status">
+            {buscando ? "Pesquisando…" : ""}
+          </p>
         ) : null}
+        {vazio ? <p className="wa-orc-hint">{mensagemBuscaSemResultado(termo)}</p> : null}
         {procedencia ? <p className="wa-orc-origem">{procedencia.texto}</p> : null}
         {grupos.exato ? (
           <>

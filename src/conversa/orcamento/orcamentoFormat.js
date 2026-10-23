@@ -76,6 +76,19 @@ export function formatQuantidadeOrcamento(valor) {
   return texto.replace(".", ",");
 }
 
+/**
+ * Estoque sem saldo — zero ou negativo.
+ *
+ * Serve só para DESTACAR o número (o contrato permite estoque zerado e negativo, e nenhum dos
+ * dois impede a venda: o ERP decide isso, não a tela). Devolve `false` quando não há valor,
+ * para que ausência nunca seja apresentada como "sem estoque": ausência é "—".
+ */
+export function estoqueSemSaldo(valor) {
+  const n = numeroOuNull(valor);
+  if (n === null) return false;
+  return n <= 0;
+}
+
 /** Texto de exibição que pode faltar (descrição, unidade, nome). */
 export function textoOuSemValor(valor) {
   if (typeof valor !== "string") return SEM_VALOR;
@@ -166,6 +179,7 @@ export default {
   SEM_VALOR,
   formatMoedaOrcamento,
   formatQuantidadeOrcamento,
+  estoqueSemSaldo,
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,

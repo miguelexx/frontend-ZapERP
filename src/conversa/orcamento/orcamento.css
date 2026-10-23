@@ -14,7 +14,46 @@
    · Nenhum `font-size` abaixo de 16px em campo de formulário com `!important`: a guarda de
      zoom do iOS vive em `src/styles/app.css` sob `@media (pointer: coarse)` e precisa poder
      vencer (ela usa `font-size: max(16px, 1em) !important`).
+   · Ritmo de espaçamento em três passos (`--orc-gap-1/2/3`, 6/10/16px) e um raio só
+     (`--orc-raio`). Eles existem porque a folha tinha 8px, 10px, 12px e 14px disputando o
+     mesmo papel — valor solto aqui é o que faz um drawer parecer montado em vez de desenhado.
+   · O rodapé (`.wa-orc-foot`) é IRMÃO do corpo rolável, nunca filho: com dez itens no carrinho
+     de um celular, rodapé dentro do scroll some para baixo e o "Calcular" fica fora de
+     alcance. Cada etapa devolve `<>corpo + rodapé</>` por isso.
+   · Modo Operate: a atendente está no meio de uma venda, com o cliente esperando. Estado
+     visível e alvo confortável valem mais que efeito — nada de sombra, gradiente ou animação
+     que não sirva à tarefa.
    ========================================================================== */
+
+.wa-orcDrawer {
+  --orc-gap-1: 6px;
+  --orc-gap-2: 10px;
+  --orc-gap-3: 16px;
+  --orc-raio: 10px;
+
+  /*
+    Âmbar LEGÍVEL. `--wa-action-amber` é #D97706 no tema claro, e isso dá 3,2:1 sobre branco e
+    3,4:1 sobre o próprio `--wa-action-amber-soft` — abaixo do piso de 4,5:1 para texto pequeno
+    (medido na tela). Escurecer o MESMO token, em vez de trazer uma cor nova, mantém o âmbar do
+    projeto como fonte: 72% dele sobre preto dá 5,6:1 no branco e 4,9:1 no tingido.
+    No tema escuro o token já rende 10,7:1, então ele passa inteiro.
+  */
+  --orc-aviso: color-mix(in srgb, var(--wa-action-amber, #d97706) 72%, #000);
+}
+
+[data-theme="dark"] .wa-orcDrawer {
+  --orc-aviso: var(--wa-action-amber, #fbbf24);
+}
+
+/*
+  Overlay PRÓPRIO do orçamento. `.wa-modalOverlay` centraliza com 16px de padding, o que é certo
+  para um modal e errado para um drawer de borda a borda: no celular aquele padding deixava uma
+  moldura escura em volta e anulava o `width: 100vw` da media query.
+*/
+.wa-modalOverlay.wa-orcOverlay {
+  padding: 0;
+  align-items: stretch;
+}
 
 .wa-orcDrawer {
   margin-left: auto;
@@ -24,8 +63,8 @@
   border-left: 1px solid var(--wa-panel-border);
   display: flex;
   flex-direction: column;
-  padding: 14px;
-  gap: 12px;
+  padding: var(--orc-gap-3) var(--orc-gap-3) 0;
+  gap: var(--orc-gap-3);
   min-height: 0;
 }
 
@@ -33,20 +72,24 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--orc-gap-2);
   flex: 0 0 auto;
 }
 
 .wa-orcDrawer-title {
   margin: 0;
   font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 .wa-orcDrawer-subtitle {
   margin: 4px 0 0;
   color: var(--wa-text-muted);
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.4;
+  /* Medida de leitura: a frase não encosta na borda nem estica até a largura toda do drawer. */
+  max-width: 60ch;
 }
 
 /* Corpo rolável + rodapé fora do scroll: "carrinho e total sempre visíveis". */
@@ -55,22 +98,66 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--orc-gap-3);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  /* O corpo rola por baixo do rodapé: um fio de espaço evita o último item colado na borda. */
+  padding-bottom: 2px;
+}
+
+/* Mesma barra de rolagem da thread — a parte que o navegador desenha também é do tema. */
+.wa-orc-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.wa-orc-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wa-orc-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+}
+
+[data-theme="dark"] .wa-orc-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .wa-orc-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--orc-gap-2);
+}
+
+/*
+  Divisa entre os três blocos do drawer (cliente/vendedor · busca · itens). Fio de 1px e um
+  respiro maior ACIMA do título do que abaixo dele: é o que faz o título pertencer ao que vem
+  depois, e não flutuar entre dois grupos.
+*/
+.wa-orc-section--divisa {
+  padding-top: var(--orc-gap-3);
+  border-top: 1px solid var(--wa-panel-border);
 }
 
 .wa-orc-sectionTitle {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+
+/* O título da busca É o rótulo do campo: um só elemento para olho e leitor de tela. */
+.wa-orc-sectionTitle > label {
+  cursor: pointer;
+}
+
+/* Campo: rótulo, controle e dica andam juntos, mais apertados que a distância entre campos. */
+.wa-orc-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--orc-gap-1);
 }
 
 .wa-orc-label {
@@ -93,7 +180,7 @@
 }
 
 .wa-orc-hint--aviso {
-  color: var(--wa-action-amber, #b45309);
+  color: var(--orc-aviso);
 }
 
 /* Origem do dado (tempo real × cache). Nunca rotular cache como "atual". */
@@ -127,7 +214,7 @@
 .wa-orc-alert--aviso {
   border: 1px solid var(--wa-action-amber, #d97706);
   background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
-  color: var(--wa-action-amber, #b45309);
+  color: var(--orc-aviso);
 }
 
 /* ---- Candidatos (produto, cliente, vendedor) ---- */
@@ -135,41 +222,132 @@
 .wa-orc-resultados {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--orc-gap-1);
 }
 
+/*
+  Faixa de estado da busca com altura RESERVADA. Entrar em "Pesquisando…" com resultados na
+  tela não pode empurrar a lista para baixo: a atendente já está com o dedo a caminho de um
+  card, e o item que ela toca seria outro.
+*/
+.wa-orc-buscaStatus {
+  margin: 0;
+  min-height: 17px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wa-text-muted);
+}
+
+/*
+  Um resultado é um BOTÃO, e precisa parecer um.
+  Antes era um retângulo com texto que só mudava a borda no hover — num celular, onde hover não
+  existe, nada dizia que ali se toca. Agora: alvo de 56px, sinal de ação fixo à direita, e os
+  quatro estados (repouso, hover, foco de teclado, pressionado) visíveis e distintos.
+*/
 .wa-orc-candidato {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--orc-gap-2);
   text-align: left;
   width: 100%;
+  min-height: 56px;
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
-  padding: 10px;
-  background: transparent;
+  border-radius: var(--orc-raio);
+  padding: var(--orc-gap-2) var(--orc-gap-2) var(--orc-gap-2) 12px;
+  background: var(--wa-panel);
   color: var(--wa-text);
   cursor: pointer;
   font: inherit;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.wa-orc-candidato-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/*
+  O sinal de que o toque adiciona. Fica sempre visível (não aparece só no hover: num celular
+  isso significaria nunca) e é o único lugar da linha onde a cor da marca entra.
+*/
+.wa-orc-candidato-acao {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--wa-panel-border);
+  color: var(--wa-green);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 
 .wa-orc-candidato:hover:not(:disabled) {
   border-color: var(--wa-green);
+  background: var(--ds-hover, rgba(17, 27, 33, 0.04));
+}
+
+.wa-orc-candidato:hover:not(:disabled) .wa-orc-candidato-acao {
+  border-color: var(--wa-green);
+  background: color-mix(in srgb, var(--wa-green) 12%, transparent);
+}
+
+/* Foco de teclado com a mesma assinatura do resto do app (ver `.wa-messages-puxarBtn`). */
+.wa-orc-candidato:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+  border-color: var(--wa-green);
+}
+
+/* Pressionado: a cor confirma o toque onde o hover não existe. Sem deslocamento — numa lista
+   de 30 itens, card que pula sob o dedo faz a atendente perder o lugar. */
+.wa-orc-candidato:active:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-green) 10%, var(--wa-panel));
+  border-color: var(--wa-green);
+}
+
+.wa-orc-candidato:active:not(:disabled) .wa-orc-candidato-acao {
+  background: color-mix(in srgb, var(--wa-green) 18%, transparent);
 }
 
 .wa-orc-candidato:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: default;
 }
 
-.wa-orc-candidato-titulo {
-  font-weight: 600;
-  font-size: 14px;
+@media (prefers-reduced-motion: reduce) {
+  .wa-orc-candidato,
+  .wa-orc-candidato-acao {
+    transition: none;
+  }
 }
 
+/*
+  A descrição manda: é ela que distingue "FILTRO AR EXT/INT MOTOR YUNNEI BRT15/20/23" do filtro
+  ao lado. Aparece INTEIRA — cortá-la tiraria justamente o fim, onde mora a diferença — e
+  `anywhere` garante que um código comprido quebre em vez de furar o card a 390px.
+*/
+.wa-orc-candidato-titulo {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/* Marca · unidade · código numa linha só, discreta: contexto, não protagonista. */
 .wa-orc-candidato-meta {
   font-size: 12px;
+  line-height: 1.35;
   color: var(--wa-text-muted);
+  overflow-wrap: anywhere;
 }
 
 /* Correspondência exata revelando os irmãos: destaque discreto, nunca um banner. */
@@ -177,41 +355,79 @@
   border-color: var(--wa-green);
 }
 
+/*
+  Rótulo da correspondência exata. O texto usa a cor normal e não a da marca: a 11px, a marca
+  sobre o fundo tingido media 4,1:1 no tema escuro — abaixo do piso de leitura. A marca fica no
+  tingido e na borda, que é onde ela não precisa ser lida. O tingido sai de `--wa-green` (que
+  neste tema é o azul da marca); o `--wa-green-soft` que estava aqui não existe no projeto, e o
+  verde literal do fallback destoava de tudo em volta.
+*/
 .wa-orc-candidato-tag {
   align-self: flex-start;
   font-size: 11px;
   font-weight: 600;
-  line-height: 1.2;
-  padding: 2px 6px;
+  line-height: 1.3;
+  padding: 2px 7px;
   border-radius: 999px;
-  color: var(--wa-green);
-  background: var(--wa-green-soft, rgba(37, 211, 102, 0.12));
+  color: var(--wa-text);
+  background: color-mix(in srgb, var(--wa-green) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wa-green) 35%, transparent);
 }
 
-/* Preço e estoque do produto resolvido. Só aparecem quando a WM os mandou. */
+/*
+  Preço e estoque do produto resolvido. Só aparecem quando a WM os mandou — ausência é a linha
+  inteira sumindo, nunca um "R$ 0,00". E eles não competem com a descrição: o preço é um degrau
+  abaixo dela em tamanho, e o estoque fica em texto secundário.
+*/
 .wa-orc-candidato-valores {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--orc-gap-1) var(--orc-gap-2);
+  margin-top: 1px;
   font-size: 12px;
   color: var(--wa-text-muted);
 }
 
 .wa-orc-candidato-preco {
   font-size: 14px;
+  font-weight: 600;
   color: var(--wa-text);
+  /* Dígitos de largura fixa: preços em coluna ficam alinhados de olho, não só de cálculo. */
+  font-variant-numeric: tabular-nums;
 }
 
-.wa-orc-candidato-inativo {
-  font-size: 12px;
+.wa-orc-candidato-estoque {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  Estoque zerado ou negativo: o contrato permite os dois e nenhum impede a venda (quem decide é
+  o ERP). O âmbar só dá destaque — a informação está no número, então quem não distingue cor
+  não perde nada.
+*/
+.wa-orc-candidato-estoque--zerado {
+  color: var(--orc-aviso);
   font-weight: 600;
-  color: var(--wa-action-amber, #b45309);
+}
+
+/* Produto inativo: aviso com forma própria, não só cor — a lista pode devolver um. */
+.wa-orc-candidato-inativo {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 6px;
+  border: 1px solid var(--orc-aviso);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--orc-aviso);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
 }
 
 /* Título do grupo "Outros com essa palavra": separa sem parecer outro cabeçalho de seção. */
 .wa-orc-grupoTitulo {
-  margin: 4px 0 0;
+  margin: var(--orc-gap-1) 0 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--wa-text-muted);
@@ -229,7 +445,7 @@
 
 .wa-orc-paginacao {
   display: flex;
-  gap: 8px;
+  gap: var(--orc-gap-2);
   justify-content: space-between;
 }
 
@@ -239,10 +455,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--orc-gap-2);
+  min-height: 48px;
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: var(--orc-raio);
+  padding: var(--orc-gap-2) var(--orc-gap-2) var(--orc-gap-2) 12px;
 }
 
 .wa-orc-escolhido > div {
@@ -265,35 +482,65 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--orc-gap-1);
 }
 
 .wa-orc-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--orc-gap-2);
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: var(--orc-raio);
+  padding: var(--orc-gap-2) var(--orc-gap-2) var(--orc-gap-2) 12px;
 }
 
 .wa-orc-item-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .wa-orc-item-titulo {
   font-weight: 600;
   font-size: 14px;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
 .wa-orc-item-meta {
   font-size: 12px;
+  line-height: 1.35;
   color: var(--wa-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/*
+  Valores da linha com altura RESERVADA: a linha nasce junto com o item, então trocar
+  "Consultando preço…" pelo preço não empurra as linhas de baixo nem o rodapé.
+*/
+.wa-orc-item-valores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--orc-gap-1) var(--orc-gap-2);
+  min-height: 17px;
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-item-preco {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wa-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Consulta em voo: texto comum, sem animação. Ela dura menos de um segundo e vira preço. */
+.wa-orc-item-carregando {
+  color: var(--wa-text-muted);
+  font-style: italic;
 }
 
 .wa-orc-item-erro {
@@ -310,8 +557,8 @@
 }
 
 .wa-orc-qtdBtn {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   border: 1px solid var(--wa-panel-border);
   background: transparent;
@@ -321,36 +568,86 @@
   cursor: pointer;
 }
 
+.wa-orc-qtdBtn:hover:not(:disabled) {
+  border-color: var(--wa-green);
+  background: var(--ds-hover, rgba(17, 27, 33, 0.04));
+}
+
+.wa-orc-qtdBtn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+}
+
 .wa-orc-qtdBtn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.wa-orc-qtdInput {
-  width: 64px;
+/*
+  Dois nomes de classe de propósito: `.wa-input` traz `width: 100%` do CSS da conversa, e com
+  um seletor de mesma especificidade quem ganha é a folha que o navegador carregou por último —
+  aqui isso dependeria do drawer ser lazy. A largura da caixinha de quantidade não pode depender
+  de ordem de carregamento.
+*/
+.wa-input.wa-orc-qtdInput {
+  width: 58px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  A unidade do ERP (UN, PC, M2) colada no número, dentro do controle.
+  Quantidade sem unidade induz erro de verdade: "1" de um item vendido em M2 não é uma peça.
+  É rótulo, não botão — sem borda, sem fundo, sem cursor de clique.
+*/
+.wa-orc-qtdUnidade {
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--wa-text-muted);
+  white-space: nowrap;
+}
+
+.wa-orc-item-remover {
+  white-space: nowrap;
 }
 
 /* ---- Rodapé: total + ação principal ---- */
 
+/*
+  Rodapé: irmão do corpo rolável (ver o cabeçalho desta folha), então ele NÃO rola — o total e o
+  "Calcular" ficam alcançáveis com qualquer número de itens no carrinho. `safe-area-inset` é
+  pela barra inferior do iPhone: sem ela o botão fica sob o traço do sistema.
+*/
 .wa-orc-foot {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 10px;
+  gap: var(--orc-gap-2);
+  padding: var(--orc-gap-2) 0 calc(var(--orc-gap-3) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--wa-panel-border);
+  background: var(--wa-panel);
+}
+
+/* Rodapé de um botão só (incerto, erro de ambiguidade): ele vai para a direita, onde a ação
+   principal vive nas outras etapas — a posição é previsível, mude a etapa que mudar. */
+.wa-orc-foot--unico {
+  justify-content: flex-end;
 }
 
 .wa-orc-totalBox {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   min-width: 0;
 }
 
 .wa-orc-totalLabel {
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--wa-text-muted);
@@ -358,6 +655,8 @@
 
 .wa-orc-totalValor {
   font-size: 15px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
 }
 
 /* O botão principal não muda de posição ao entrar em "Calculando…". */
@@ -376,10 +675,13 @@
   gap: 8px;
 }
 
+/* "Limpar rascunho" vive abaixo do rodapé principal: é ação de descarte, nunca a próxima. */
 .wa-orc-rodapeSecundario {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
+  margin-top: calc(var(--orc-gap-3) * -1 + var(--orc-gap-1));
+  padding-bottom: calc(var(--orc-gap-2) + env(safe-area-inset-bottom, 0px));
 }
 
 .wa-orc-resumo {
@@ -500,25 +802,39 @@
   .wa-orcDrawer {
     width: 100vw;
     border-left: none;
-    padding: 12px;
+    padding: 12px 12px 0;
+    /* `dvh` acompanha a barra do navegador: com `100%` o rodapé some atrás dela no Safari. */
+    height: 100dvh;
   }
 
+  /* A quantidade e o "Remover" lado a lado: um por linha empilhava quatro alturas por item. */
   .wa-orc-item {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .wa-orc-item .wa-orc-qtd,
-  .wa-orc-item > .wa-btn {
+  .wa-orc-item-info {
+    grid-column: 1 / -1;
+  }
+
+  .wa-orc-item .wa-orc-qtd {
     justify-self: start;
   }
 
+  .wa-orc-item-remover {
+    justify-self: end;
+  }
+
+  /*
+    Total e ação lado a lado, com o botão dominando a largura: empilhados, o rodapé comia duas
+    linhas da área onde a lista precisa caber, e a 390px é a lista que está apertada.
+  */
   .wa-orc-foot {
-    flex-direction: column;
-    align-items: stretch;
+    align-items: center;
   }
 
   .wa-orc-btnPrincipal {
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   /* Em tela estreita o botão ocupa a largura toda: o `min-width` do rótulo longo passaria do

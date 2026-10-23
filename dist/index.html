@@ -50,9 +50,15 @@
       (~340 ms medidos em 2026-10-23). `https://zapapi.wmsistemas.inf.br` e' substituido pelo Vite no build.
     -->
     <link rel="preconnect" href="https://zapapi.wmsistemas.inf.br" crossorigin />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!--
+      A Inter e' AUTO-HOSPEDADA desde 23/10/2026 (ver o topo de src/styles/theme.css).
+      Antes havia aqui um <link rel="stylesheet"> para fonts.googleapis.com. Como
+      folha de estilo no <head> e' render-blocking, o primeiro pixel — inclusive o
+      esqueleto de boot logo abaixo — so' aparecia DEPOIS de um CDN de terceiros
+      responder. Nao recolocar: o ganho nao e' so' velocidade, e' nao depender de
+      uma origem externa para o app desenhar, e funcionar offline.
+    -->
 
     <!--
       ESQUELETO DE BOOT — inline de proposito (sem request extra, pinta junto com o HTML).
@@ -333,13 +339,13 @@
         }
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-CO3BeIxG.js"></script>
+    <script type="module" crossorigin src="/assets/index-DasYbUpP.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-DOBzNqAb.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-router-Cl0eBzqm.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-state-MTVZNGFo.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-axios-DNeoPP0G.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-dm1FmSOd.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BWuGHc0o.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-C7V_APnN.css">
   </head>
   <body>
     <div id="root">
