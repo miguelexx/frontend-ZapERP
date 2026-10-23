@@ -681,6 +681,8 @@ export default function OrcamentoDrawer({
             produtoFocusRef={produtoFocusRef}
             precos={precos}
             onProdutoEscolhido={consultarPrecoDoItem}
+            companyId={companyId}
+            userId={userId}
           />
         )}
 

@@ -82,13 +82,33 @@ export function produtoJaTemPreco(produto) {
 }
 
 /**
+ * Grupo e subgrupo do produto, quando a WM os mandou.
+ *
+ * Separados de `CAMPOS_VALOR` de propósito: estes são CLASSIFICAÇÃO, não dinheiro. Eles ajudam
+ * a atendente a distinguir dois produtos de descrição parecida na tela de busca e não entram
+ * no carrinho nem viajam para a criação — ao contrário de preço, estoque e unidade, que têm
+ * consequência no orçamento.
+ *
+ * @returns {{grupo?: string, subgrupo?: string}|null} só com o que existe, ou `null`
+ */
+export function classificacaoDoProduto(produto) {
+  if (!produto || typeof produto !== "object") return null;
+  const out = {};
+  for (const campo of ["grupo", "subgrupo"]) {
+    const v = produto[campo];
+    if (typeof v === "string" && v.trim()) out[campo] = v.trim();
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
  * Lê a resposta de `POST /produtos/consultar` feita POR CÓDIGO.
  *
  * Só o ramo resolvido (`status: "produto"`) serve: é o único que traz preço, e é o que uma
  * consulta por identificador deve devolver. Qualquer outra forma é tratada como "não vieram
  * valores" — nunca como oportunidade de pescar um preço de dentro de uma lista.
  *
- * @returns {{ valores: object, meta: object|null }|null}
+ * @returns {{ valores: object, classificacao: object|null, meta: object|null }|null}
  */
 export function valoresDaRespostaPorCodigo(data, codigoEsperado) {
   if (!data || typeof data !== "object") return null;
@@ -100,7 +120,11 @@ export function valoresDaRespostaPorCodigo(data, codigoEsperado) {
   if (codigoEsperado && produto.codigo_produto_erp !== codigoEsperado) return null;
   const valores = extrairValoresDoProduto(produto);
   if (!valores) return null;
-  return { valores, meta: data.meta && typeof data.meta === "object" ? data.meta : null };
+  return {
+    valores,
+    classificacao: classificacaoDoProduto(produto),
+    meta: data.meta && typeof data.meta === "object" ? data.meta : null,
+  };
 }
 
 /**
@@ -149,6 +173,7 @@ export default {
   valorPresente,
   extrairValoresDoProduto,
   produtoJaTemPreco,
+  classificacaoDoProduto,
   valoresDaRespostaPorCodigo,
   precisaConsultarPreco,
   procedenciaDosValores,

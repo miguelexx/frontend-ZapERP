@@ -8,6 +8,185 @@
 
 ---
 
+## ⚠️ CORREÇÃO (23/10, medido) — o ganho do brotli é MENOR do que este doc dizia
+
+Este documento afirmava "~60 kB gzip a menos no boot". **Estava errado**, por um erro de
+método meu: eu media com `curl`, que pede `gzip`, e concluí que a produção servia gzip.
+**O Chrome real já recebia `zstd`.**
+
+Medido no ar, no chunk de entrada:
+
+| codificação | bytes | |
+|---|---|---|
+| gzip | 114.850 | o que o curl pedia |
+| **zstd** | **112.565** | **o que o navegador recebe hoje** |
+| **br** | **99.156** | o melhor |
+
+Somando os 7 ativos referenciados no `index.html`:
+
+| | |
+|---|---|
+| hoje (zstd) | **219 kB** |
+| com br preferido | **194 kB** |
+| **ganho real** | **24 kB (11%)** |
+
+Continua valendo a pena — é uma label — mas **não é o ganho de 60 kB**. E isso reordena A:
+o **`Cache-Control` (A2) passa a ser o item mais valioso dos dois**, porque não é
+velocidade e sim correção: sem ele o browser pode servir um `index.html` velho apontando
+para chunks que já não existem.
+
+**Lição de método:** `curl --compressed` e `-H "Accept-Encoding: gzip, br"` NÃO
+representam um navegador. Para medir o que o utilizador recebe, usar o header real:
+`-H "Accept-Encoding: gzip, deflate, br, zstd"`.
+
+---
+
+## 🗺️ A INFRA, identificada em 23/10
+
+```
+internet
+  └─ coolify-proxy  (traefik:v3.6)        :80 :443  ← borda, faz o TLS e o h3
+       └─ gk5v42tffnqyjrhcrjc71rcq-…      :80       ← ESTE serve o frontend
+            nginx/1.31.8  (imagem construida pelo Coolify)
+```
+
+Identificado pela versão: o header de produção diz `Server: nginx/1.31.8` e só esse
+container responde essa versão. (Há um segundo nginx, `p8cwdjxp5em2rki0wj0ye09t-…` com
+1.31.6, que é outro site — não é o nosso.)
+
+Orquestração: **Coolify 4.0.0**. A imagem tem nome gerado (`gk5v42…:<sha>`), ou seja, foi
+construída pelo Coolify a partir do repo — e **não há Dockerfile versionado**. Logo a
+config do nginx é gerada pelo build do Coolify, e mudança feita com `docker exec` **se
+perde no próximo deploy**.
+
+**Dois caminhos possíveis, e o diagnóstico decide qual:**
+
+1. **Traefik** (borda) — o v3 tem middleware `compress` com suporte a **brotli**, aplicável
+   por label, sem tocar na imagem do site. Bom para A1.
+2. **Config do nginx via Coolify** — o painel permite config customizada para site
+   estático; é o caminho natural para o `Cache-Control` do `index.html` (A2), que o
+   Traefik faria de forma mais desajeitada por ser por caminho.
+
+Descobrir quem comprime hoje:
+
+```bash
+C=gk5v42tffnqyjrhcrjc71rcq-183613405703
+docker exec $C sh -c 'nginx -V 2>&1' | tr ' ' '
+' | grep -iE "brotli|gzip_static"
+docker exec $C sh -c 'nginx -T 2>/dev/null | grep -iE "gzip|brotli|add_header|location"'
+docker inspect $C --format '{{json .Mounts}}'
+docker inspect $C --format '{{json .Config.Labels}}' | tr ',' '
+' | grep -i traefik
+```
+
+- Se o `nginx -T` mostrar `gzip on` → quem comprime é o nginx do site.
+- Se não mostrar → quem comprime é o Traefik, e o brotli se resolve lá.
+- `Mounts` vazio = config assada na imagem (tem de ir pelo Coolify).
+
+---
+
+## ⚠️ ONDE O NGINX VIVE (descoberto em 23/10)
+
+`nginx -V` no host responde **"Command 'nginx' not found"** — o nginx **não está
+instalado na VPS**, roda dentro de um container. O header `Server: nginx/1.31.8` sai de
+lá, atravessando um proxy de borda (os dois domínios respondem `Alt-Svc: h3=":443"`,
+inclusive a API, que não manda `Server`).
+
+Consequência prática: **editar a config dentro do container à mão NÃO persiste** — some
+no próximo deploy. A mudança tem de ser feita na origem (imagem, volume montado, ou a
+configuração do painel que gera o container).
+
+Nada disso está versionado neste repo: não há Dockerfile, docker-compose, nginx.conf nem
+nixpacks. Antes de aplicar o bloco abaixo, descubra o container:
+
+```bash
+docker ps --format 'table {{.Names}}	{{.Image}}	{{.Ports}}'
+
+for c in $(docker ps -q); do
+  printf '%s  ->  ' "$(docker inspect -f '{{.Name}} [{{.Config.Image}}]' $c)"
+  docker exec "$c" sh -c 'nginx -v' 2>&1 | head -1
+done
+```
+
+O container que responder a versão do nginx é o alvo. Depois:
+
+```bash
+docker exec <container> sh -c 'nginx -V 2>&1' | tr ' ' '
+' | grep -iE "brotli|gzip_static"
+docker exec <container> sh -c 'nginx -T 2>/dev/null | head -60'
+docker inspect <container> --format '{{json .Mounts}}'
+```
+
+O `Mounts` diz se a config vem de um volume (editável e persistente) ou está assada na
+imagem (precisa mudar a origem do build).
+
+---
+
+## ⚡ PARA APLICAR AGORA (resumo — o resto do doc é a justificativa)
+
+**Passo 1 — descobrir se este nginx tem brotli:**
+
+```bash
+nginx -V 2>&1 | tr ' ' '
+' | grep -iE "brotli|gzip_static|http_v3"
+```
+
+**Passo 2 — colar no `server { }` do site:**
+
+```nginx
+# ── index.html: sempre revalidar. Hoje o nginx nao manda Cache-Control
+#    nenhum, so ETag, e o browser cai em cache heuristico — pode servir um
+#    HTML velho apontando para chunks que ja nao existem.
+#    `no-cache` guarda e revalida (304 barato). NAO use `no-store`.
+location = /index.html {
+    add_header Cache-Control "no-cache" always;
+    etag on;
+}
+
+# ── SPA: /atendimento, /crm, ... tambem devolvem o index
+location / {
+    try_files $uri $uri/ /index.html;
+}
+
+# ── assets com hash: JA ESTA CORRETO, nao mexer
+location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+}
+
+# ── compressao
+gzip             on;
+gzip_comp_level  5;
+gzip_min_length  1024;
+gzip_vary        on;
+gzip_types       text/plain text/css text/xml application/javascript
+                 application/json application/xml application/manifest+json
+                 image/svg+xml font/woff2;
+
+# ↓↓↓ SO se o passo 1 mostrou brotli. Senao, apague estas 5 linhas. ↓↓↓
+brotli            on;
+brotli_comp_level 5;
+brotli_min_length 1024;
+brotli_types      text/plain text/css text/xml application/javascript
+                  application/json application/xml application/manifest+json
+                  image/svg+xml font/woff2;
+```
+
+**Passo 3 — recarregar e conferir:**
+
+```bash
+nginx -t && nginx -s reload
+curl -sS -D - -o /dev/null -H "Accept-Encoding: gzip, br" https://zaperp.wmsistemas.inf.br/assets/index-CO3BeIxG.js | grep -i content-encoding
+curl -sS -D - -o /dev/null https://zaperp.wmsistemas.inf.br/ | grep -i cache-control
+```
+
+Esperado: `content-encoding: br` (ou `gzip` se o modulo nao existir) e `cache-control: no-cache`.
+
+> `font/woff2` entrou na lista porque a Inter passou a ser auto-hospedada em
+> 23/10. woff2 ja e comprimido — o ganho e' nulo e o `gzip_min_length` cuida
+> disso; esta' na lista so' para nao haver duvida se alguem a mover.
+
+---
+
 ## Antes de aplicar: descobrir o que esse nginx tem
 
 ```bash

@@ -34,9 +34,9 @@
 
 import { ChevronRight } from "lucide-react";
 import {
-  estoqueSemSaldo,
+  classeEstoque,
   formatMoedaOrcamento,
-  formatQuantidadeOrcamento,
+  textoEstoque,
   textoOuSemValor,
 } from "./orcamentoFormat";
 import { valorPresente } from "./precoItemCache";
@@ -122,7 +122,8 @@ function CandidatoVendedor({ candidato, onEscolher, ocupado }) {
 function CandidatoProduto({ candidato, onEscolher, ocupado }) {
   const descricao = textoOuSemValor(candidato.descricao);
   const temPreco = valorPresente(candidato.preco_unitario);
-  const temEstoque = valorPresente(candidato.estoque_previsto);
+  // Mesma leitura do card de busca: o texto diz o número e a cor só reforça a faixa.
+  const estoqueTexto = textoEstoque(candidato.estoque_previsto);
   return (
     <CartaoCandidato
       rotulo={`Usar o produto ${descricao}`}
@@ -134,23 +135,15 @@ function CandidatoProduto({ candidato, onEscolher, ocupado }) {
         {[candidato.unidade, `Cód. ${candidato.codigo_produto_erp}`].filter(Boolean).join(" · ")}
       </span>
       {/* Campo ausente não vira "—" solto numa linha de três: ele simplesmente não aparece. */}
-      {temPreco || temEstoque ? (
+      {temPreco || estoqueTexto ? (
         <span className="wa-orc-candidato-valores">
           {temPreco ? (
             <strong className="wa-orc-candidato-preco">
               {formatMoedaOrcamento(candidato.preco_unitario)}
             </strong>
           ) : null}
-          {temEstoque ? (
-            <span
-              className={
-                estoqueSemSaldo(candidato.estoque_previsto)
-                  ? "wa-orc-candidato-estoque wa-orc-candidato-estoque--zerado"
-                  : "wa-orc-candidato-estoque"
-              }
-            >
-              Estoque {formatQuantidadeOrcamento(candidato.estoque_previsto)}
-            </span>
+          {estoqueTexto ? (
+            <span className={classeEstoque(candidato.estoque_previsto)}>{estoqueTexto}</span>
           ) : null}
         </span>
       ) : null}

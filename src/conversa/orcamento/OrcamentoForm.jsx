@@ -34,11 +34,11 @@
 import { useCallback } from "react";
 import ProdutoPicker from "./ProdutoPicker";
 import {
-  estoqueSemSaldo,
+  classeEstoque,
   formatMoedaOrcamento,
-  formatQuantidadeOrcamento,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
+  textoEstoque,
   textoOuSemValor,
 } from "./orcamentoFormat";
 import { ESTADO_PRECO, procedenciaDosValores, valorPresente } from "./precoItemCache";
@@ -72,7 +72,8 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco }
   // A unidade do rascunho é a que sobrevive ao F5; a da consulta só preenche o que faltava.
   const unidade = item.unidade || valores?.unidade || "";
   const temPreco = valorPresente(valores?.preco_unitario);
-  const temEstoque = valorPresente(valores?.estoque_previsto);
+  // Mesma leitura do card de busca: o texto diz o número e a cor só reforça a faixa.
+  const estoqueTexto = textoEstoque(valores?.estoque_previsto);
   const secundaria = [item.marca, item.codigo_produto_erp ? `Cód. ${item.codigo_produto_erp}` : ""]
     .filter(Boolean)
     .join(" · ");
@@ -90,24 +91,19 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco }
         {preco ? (
           <span className="wa-orc-item-valores">
             {preco?.estado === ESTADO_PRECO.CARREGANDO ? (
-              <span className="wa-orc-item-carregando">Consultando preço…</span>
-            ) : temPreco || temEstoque ? (
+              <>
+                <span className="wa-orc-skelValor" aria-hidden="true" />
+                <span className="wa-orc-srOnly">Consultando preço…</span>
+              </>
+            ) : temPreco || estoqueTexto ? (
               <>
                 {temPreco ? (
                   <strong className="wa-orc-item-preco">
                     {formatMoedaOrcamento(valores.preco_unitario)}
                   </strong>
                 ) : null}
-                {temEstoque ? (
-                  <span
-                    className={
-                      estoqueSemSaldo(valores.estoque_previsto)
-                        ? "wa-orc-candidato-estoque wa-orc-candidato-estoque--zerado"
-                        : "wa-orc-candidato-estoque"
-                    }
-                  >
-                    Estoque {formatQuantidadeOrcamento(valores.estoque_previsto)}
-                  </span>
+                {estoqueTexto ? (
+                  <span className={classeEstoque(valores.estoque_previsto)}>{estoqueTexto}</span>
                 ) : null}
                 {valores?.ativo === false ? (
                   <span className="wa-orc-candidato-inativo">Inativo</span>
@@ -176,6 +172,8 @@ export default function OrcamentoForm({
   produtoFocusRef = null,
   precos = null,
   onProdutoEscolhido = null,
+  companyId = null,
+  userId = null,
 }) {
   const disabled = calculando;
   const itens = Array.isArray(rascunho?.itens) ? rascunho.itens : [];
@@ -358,10 +356,17 @@ export default function OrcamentoForm({
           </div>
         </section>
 
+        {/*
+          `companyId` + `userId` descem só para o atalho dos mais usados, que vive no navegador
+          desta atendente e é escopado por empresa + usuário — o isolamento neste projeto é
+          app-layer e vale também aqui dentro.
+        */}
         <ProdutoPicker
           onAdicionar={adicionarProduto}
           disabled={disabled || itens.length >= MAX_ITENS}
           autoFocusRef={produtoFocusRef}
+          companyId={companyId}
+          userId={userId}
         />
 
         <section className="wa-orc-section wa-orc-section--divisa" aria-label="Itens do orçamento">

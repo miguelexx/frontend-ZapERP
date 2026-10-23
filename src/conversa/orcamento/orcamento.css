@@ -39,10 +39,28 @@
     No tema escuro o token já rende 10,7:1, então ele passa inteiro.
   */
   --orc-aviso: color-mix(in srgb, var(--wa-action-amber, #d97706) 72%, #000);
+
+  /*
+    Verde do saldo em folga. Sai do verde que o projeto já tem (`--light-success`, o primitivo
+    por trás de `--ds-success` no tema claro) escurecido pela MESMA razão do âmbar: #0A9B6A puro
+    sobre branco dá 3,5:1, abaixo do piso de 4,5:1 para texto pequeno. Nenhuma cor nova entra —
+    e ele é verde de propósito, porque `--wa-green` neste projeto é o AZUL da marca e um saldo
+    pintado de azul viraria enfeite de marca em vez de informação.
+  */
+  --orc-saldo: color-mix(in srgb, var(--light-success, #0a9b6a) 82%, #000);
+
+  /*
+    Largura da coluna de preço e estoque. Fixa porque é ela que faz os valores caírem uns sobre
+    os outros entre cards — é assim que a lista pode ser varrida de cima a baixo comparando
+    preço. Cabe "R$ 12.345,67" a 14px e "tentar de novo" a 11px.
+  */
+  --orc-valor-col: 104px;
 }
 
 [data-theme="dark"] .wa-orcDrawer {
   --orc-aviso: var(--wa-action-amber, #fbbf24);
+  /* No escuro o verde claro do projeto já passa inteiro; escurecê-lo é que o apagaria. */
+  --orc-saldo: var(--light-success-border, #45d0a0);
 }
 
 /*
@@ -231,6 +249,10 @@
   card, e o item que ela toca seria outro.
 */
 .wa-orc-buscaStatus {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--orc-gap-2);
   margin: 0;
   min-height: 17px;
   font-size: 12px;
@@ -239,12 +261,97 @@
 }
 
 /*
+  "Enter adiciona o primeiro": atalho de quem está no teclado, e só para quem tem um. Num
+  celular (`pointer: coarse`) a frase seria instrução para uma tecla que não existe ali.
+*/
+.wa-orc-atalho {
+  flex: 0 0 auto;
+}
+
+@media (pointer: coarse) {
+  .wa-orc-atalho {
+    display: none;
+  }
+}
+
+/*
+  Esqueleto da primeira busca. Só aparece quando NÃO há resultado na tela: trocar cards por
+  caixas cinzentas tiraria da atendente justamente o card que ela já estava mirando.
+*/
+.wa-orc-skelCard {
+  min-height: 56px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: var(--orc-raio);
+  padding: var(--orc-gap-2) var(--orc-gap-2) var(--orc-gap-2) 12px;
+  background: var(--wa-panel);
+}
+
+.wa-orc-skelLinha,
+.wa-orc-skelValor {
+  display: block;
+  border-radius: 4px;
+  /* Tirado da própria cor do texto: funciona nos dois temas sem uma cor nova. */
+  background: color-mix(in srgb, var(--wa-text) 11%, transparent);
+  animation: wa-orc-pulsar 1.3s ease-in-out infinite;
+}
+
+.wa-orc-skelLinha--titulo {
+  width: 62%;
+  height: 14px;
+  margin-bottom: 7px;
+}
+
+.wa-orc-skelLinha--meta {
+  width: 38%;
+  height: 11px;
+}
+
+/* No lugar EXATO do preço: quando o valor chega, nada se move. */
+.wa-orc-skelValor {
+  display: inline-block;
+  width: 100%;
+  max-width: 72px;
+  height: 13px;
+}
+
+@keyframes wa-orc-pulsar {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-orc-skelLinha,
+  .wa-orc-skelValor {
+    animation: none;
+  }
+}
+
+/* Texto só para leitor de tela: o esqueleto é mudo, e "consultando" precisa ser dito. */
+.wa-orc-srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
   Um resultado é um BOTÃO, e precisa parecer um.
   Antes era um retângulo com texto que só mudava a borda no hover — num celular, onde hover não
   existe, nada dizia que ali se toca. Agora: alvo de 56px, sinal de ação fixo à direita, e os
   quatro estados (repouso, hover, foco de teclado, pressionado) visíveis e distintos.
 */
-.wa-orc-candidato {
+.wa-orc-candidato,
+.wa-orc-candidatoCard {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -264,6 +371,16 @@
     border-color 120ms ease;
 }
 
+/*
+  O card de PRODUTO não é um `<button>` — ele escuta o toque e carrega um botão de verdade (o
+  sinal de mais) com o nome acessível. Ver o cabeçalho de `ProdutoPicker.jsx`: "ver preço"
+  precisa ficar no lugar exato do preço, e botão dentro de botão não existe em HTML.
+  Arrastar para selecionar texto aqui não pode virar "adicionei um produto".
+*/
+.wa-orc-candidatoCard {
+  user-select: none;
+}
+
 .wa-orc-candidato-corpo {
   display: flex;
   flex-direction: column;
@@ -272,11 +389,127 @@
 }
 
 /*
+  Corpo do card de produto: duas colunas e duas linhas.
+      descrição          |  preço
+      marca · un · cód.  |  estoque
+  A coluna da direita tem largura FIXA (`--orc-valor-col`) para que os valores caiam uns sobre
+  os outros entre cards — é isso que deixa a lista ser varrida comparando preço, em vez de
+  obrigar a ler card por card. `baseline` alinha o preço à PRIMEIRA linha da descrição, então
+  descrição de três linhas não desalinha a coluna.
+*/
+.wa-orc-candidatoCard > .wa-orc-candidato-corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--orc-valor-col);
+  column-gap: var(--orc-gap-2);
+  row-gap: 2px;
+  align-items: baseline;
+}
+
+/*
+  Rótulo e aviso ocupam a linha inteira para não disputar a coluna dos valores — mas `justify-self`
+  os mantém do tamanho do próprio texto. Sem ele a grade os estica de ponta a ponta e a pílula
+  vira uma faixa: medido na tela.
+*/
+.wa-orc-candidatoCard > .wa-orc-candidato-corpo > .wa-orc-candidato-tag,
+.wa-orc-candidatoCard > .wa-orc-candidato-corpo > .wa-orc-candidato-inativo {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/*
+  A coluna dos valores. Fica reservada mesmo vazia — e vazia é CALADA: "R$ 0,00" num campo que
+  a WM não mandou seria um preço plausível e falso, e uma desculpa escrita ali seria ruído em
+  trinta cards.
+*/
+/*
+  A célula do preço tem altura RESERVADA do tamanho da afordância "ver preço" (24px). Sem isso
+  o card encolhia 4,5px no instante do toque — medido na tela — e a lista inteira subia sob o
+  dedo de quem já estava mirando o card de baixo. As três formas (afordância, esqueleto, preço)
+  ocupam a mesma caixa.
+*/
+.wa-orc-candidato-valor--preco {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 24px;
+}
+
+.wa-orc-candidato-valor {
+  justify-self: end;
+  min-width: 0;
+  text-align: right;
+  /*
+    12px explícito: esta célula saiu de dentro de `.wa-orc-candidato-valores`, que ditava o
+    tamanho do texto secundário. Sem isto o estoque herdava os 16px do card e gritava mais que
+    a descrição — medido na tela.
+  */
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--wa-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  "Ver preço": a afordância ocupa o espaço que o preço vai ocupar, então o card não se mexe
+  quando o valor chega. Tracejado porque é um lugar à espera de valor, não um valor.
+*/
+.wa-orc-verPreco {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px dashed var(--wa-panel-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wa-text-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.wa-orc-verPreco:hover:not(:disabled) {
+  color: var(--wa-text);
+  border-color: var(--wa-green);
+}
+
+.wa-orc-verPreco:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.wa-orc-verPreco:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Não veio: o próprio nome da ação conta o que houve, sem alarme vermelho e sem bloquear nada. */
+.wa-orc-verPreco--falhou {
+  color: var(--orc-aviso);
+  border-color: color-mix(in srgb, var(--orc-aviso) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-orc-verPreco {
+    transition: none;
+  }
+}
+
+/*
   O sinal de que o toque adiciona. Fica sempre visível (não aparece só no hover: num celular
   isso significaria nunca) e é o único lugar da linha onde a cor da marca entra.
 */
 .wa-orc-candidato-acao {
   flex: 0 0 auto;
+  padding: 0;
+  background: transparent;
+  cursor: inherit;
+  font: inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -290,41 +523,56 @@
     border-color 120ms ease;
 }
 
-.wa-orc-candidato:hover:not(:disabled) {
+.wa-orc-candidato:hover:not(:disabled),
+.wa-orc-candidatoCard:not(.wa-orc-candidatoCard--off):hover {
   border-color: var(--wa-green);
   background: var(--ds-hover, rgba(17, 27, 33, 0.04));
 }
 
-.wa-orc-candidato:hover:not(:disabled) .wa-orc-candidato-acao {
+.wa-orc-candidato:hover:not(:disabled) .wa-orc-candidato-acao,
+.wa-orc-candidatoCard:not(.wa-orc-candidatoCard--off):hover .wa-orc-candidato-acao {
   border-color: var(--wa-green);
   background: color-mix(in srgb, var(--wa-green) 12%, transparent);
 }
 
 /* Foco de teclado com a mesma assinatura do resto do app (ver `.wa-messages-puxarBtn`). */
-.wa-orc-candidato:focus-visible {
+.wa-orc-candidato:focus-visible,
+.wa-orc-candidato-acao:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
   outline-offset: 2px;
   border-color: var(--wa-green);
 }
 
+/*
+  Card de produto com o foco dentro: a borda diz QUAL card está sob o teclado, enquanto o anel
+  fica no controle que de fato recebeu o foco. Dois anéis encaixados diriam duas coisas.
+*/
+.wa-orc-candidatoCard:focus-within {
+  border-color: var(--wa-green);
+}
+
 /* Pressionado: a cor confirma o toque onde o hover não existe. Sem deslocamento — numa lista
    de 30 itens, card que pula sob o dedo faz a atendente perder o lugar. */
-.wa-orc-candidato:active:not(:disabled) {
+.wa-orc-candidato:active:not(:disabled),
+.wa-orc-candidatoCard:not(.wa-orc-candidatoCard--off):active {
   background: color-mix(in srgb, var(--wa-green) 10%, var(--wa-panel));
   border-color: var(--wa-green);
 }
 
-.wa-orc-candidato:active:not(:disabled) .wa-orc-candidato-acao {
+.wa-orc-candidato:active:not(:disabled) .wa-orc-candidato-acao,
+.wa-orc-candidatoCard:not(.wa-orc-candidatoCard--off):active .wa-orc-candidato-acao {
   background: color-mix(in srgb, var(--wa-green) 18%, transparent);
 }
 
-.wa-orc-candidato:disabled {
+.wa-orc-candidato:disabled,
+.wa-orc-candidatoCard--off {
   opacity: 0.55;
   cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .wa-orc-candidato,
+  .wa-orc-candidatoCard,
   .wa-orc-candidato-acao {
     transition: none;
   }
@@ -351,7 +599,8 @@
 }
 
 /* Correspondência exata revelando os irmãos: destaque discreto, nunca um banner. */
-.wa-orc-candidato--exato {
+.wa-orc-candidato--exato,
+.wa-orc-candidatoCard--exato {
   border-color: var(--wa-green);
 }
 
@@ -402,13 +651,47 @@
 }
 
 /*
-  Estoque zerado ou negativo: o contrato permite os dois e nenhum impede a venda (quem decide é
-  o ERP). O âmbar só dá destaque — a informação está no número, então quem não distingue cor
-  não perde nada.
+  Três faixas, e a cor NUNCA é o único sinal: o texto já diz "Sem estoque", "Estoque 3" ou
+  "Estoque 120", então quem não distingue cor — ou está com o celular no sol do balcão — lê a
+  mesma informação. Nenhuma delas bloqueia nada: o contrato permite vender com estoque zerado e
+  negativo, e quem decide isso é o ERP, não esta tela.
 */
-.wa-orc-candidato-estoque--zerado {
+.wa-orc-candidato-estoque--folga {
+  color: var(--orc-saldo);
+}
+
+.wa-orc-candidato-estoque--pouco {
   color: var(--orc-aviso);
   font-weight: 600;
+}
+
+.wa-orc-candidato-estoque--sem {
+  color: var(--wa-text-muted);
+  font-weight: 600;
+}
+
+/*
+  Grupo e subgrupo do produto (`PECAS · FILTROS`): etiqueta calada, para separar dois nomes
+  quase iguais sem competir com a descrição. Só existe quando o dado existe — ela não vem na
+  lista da WM, só na resposta resolvida.
+*/
+.wa-orc-candidato-grupo {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wa-text) 9%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Bloco dos mais usados: mesmo ritmo da lista de resultados, acima dela. */
+.wa-orc-frequentes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--orc-gap-1);
 }
 
 /* Produto inativo: aviso com forma própria, não só cor — a lista pode devolver um. */
@@ -535,12 +818,6 @@
   font-weight: 600;
   color: var(--wa-text);
   font-variant-numeric: tabular-nums;
-}
-
-/* Consulta em voo: texto comum, sem animação. Ela dura menos de um segundo e vira preço. */
-.wa-orc-item-carregando {
-  color: var(--wa-text-muted);
-  font-style: italic;
 }
 
 .wa-orc-item-erro {

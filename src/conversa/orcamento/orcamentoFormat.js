@@ -84,9 +84,86 @@ export function formatQuantidadeOrcamento(valor) {
  * para que ausência nunca seja apresentada como "sem estoque": ausência é "—".
  */
 export function estoqueSemSaldo(valor) {
+  return nivelEstoque(valor) === NIVEL_ESTOQUE.SEM;
+}
+
+/** Até quantas unidades o estoque ainda é "pouco". Acima disso, é folga. */
+export const ESTOQUE_POUCO_ATE = 5;
+
+export const NIVEL_ESTOQUE = Object.freeze({
+  /** Zero ou negativo. Permitido pelo contrato: **não** impede a venda. */
+  SEM: "sem",
+  /** Positivo, mas pouco — vale a atendente saber antes de prometer prazo. */
+  POUCO: "pouco",
+  /** Positivo com folga. */
+  FOLGA: "folga",
+});
+
+/**
+ * Em que faixa está este estoque — ou `null` quando não há valor.
+ *
+ * As três faixas existem para DESTACAR, nunca para decidir: o contrato permite vender com
+ * estoque zerado e negativo, e quem decide isso é o ERP. Ausência devolve `null` (e não "sem"),
+ * porque "não informado" e "acabou" são coisas diferentes e confundi-las faria a tela afirmar
+ * o que ninguém disse.
+ */
+export function nivelEstoque(valor) {
   const n = numeroOuNull(valor);
-  if (n === null) return false;
-  return n <= 0;
+  if (n === null) return null;
+  if (n <= 0) return NIVEL_ESTOQUE.SEM;
+  return n <= ESTOQUE_POUCO_ATE ? NIVEL_ESTOQUE.POUCO : NIVEL_ESTOQUE.FOLGA;
+}
+
+/**
+ * O estoque em palavras, para a cor nunca ser o único sinal.
+ *
+ * Quem não distingue verde de âmbar — e quem está com o celular no sol do balcão — continua
+ * lendo a mesma informação, porque ela está no texto: "Sem estoque", "Estoque 3", "Estoque 120".
+ * Estoque negativo mantém o número à vista entre parênteses: `-2,125` é informação do ERP sobre
+ * uma venda já feita, e esconder isso atrás de "sem estoque" apagaria o que o número diz.
+ *
+ * @returns {string} vazio quando não há valor — e vazio significa "não desenhe nada"
+ */
+export function textoEstoque(valor) {
+  const nivel = nivelEstoque(valor);
+  if (nivel === null) return "";
+  if (nivel !== NIVEL_ESTOQUE.SEM) return `Estoque ${formatQuantidadeOrcamento(valor)}`;
+  const n = numeroOuNull(valor);
+  return n < 0 ? `Sem estoque (${formatQuantidadeOrcamento(valor)})` : "Sem estoque";
+}
+
+/**
+ * A classe do estoque, num lugar só.
+ *
+ * Mora aqui, e não em cada componente, porque card de busca, linha do carrinho e card de
+ * ambiguidade mostram o MESMO número: três cópias da regra é como um deles acaba com a faixa
+ * errada depois de um ajuste. Ausência devolve `""` — quem não tem valor não desenha nada.
+ */
+export function classeEstoque(valor) {
+  const nivel = nivelEstoque(valor);
+  if (nivel === null) return "";
+  return `wa-orc-candidato-estoque wa-orc-candidato-estoque--${nivel}`;
+}
+
+/**
+ * Grupo e subgrupo do produto numa etiqueta só: `"PECAS · FILTROS"`.
+ *
+ * Numa loja de peças, duas descrições parecidas se distinguem pelo grupo — e ele **não vem na
+ * lista** de candidatos (medido no ERP real: a lista traz só código, descrição, marca e
+ * unidade). Só a resposta resolvida o traz. Por isso a etiqueta aparece quando o dado existe e
+ * simplesmente não existe quando não: inventar "sem grupo" encheria trinta cards de ruído.
+ *
+ * @returns {string} vazio quando a WM não mandou nem grupo nem subgrupo
+ */
+export function rotuloGrupoProduto(produto) {
+  if (!produto || typeof produto !== "object") return "";
+  const grupo = typeof produto.grupo === "string" ? produto.grupo.trim() : "";
+  const subgrupo = typeof produto.subgrupo === "string" ? produto.subgrupo.trim() : "";
+  const partes = [grupo, subgrupo].filter(Boolean);
+  if (!partes.length) return "";
+  // Subgrupo que repete o grupo ("FILTROS · FILTROS") não acrescenta nada e ocupa linha.
+  const unicas = partes.filter((p, i) => partes.indexOf(p) === i);
+  return unicas.join(" · ").slice(0, 60);
 }
 
 /** Texto de exibição que pode faltar (descrição, unidade, nome). */
@@ -180,6 +257,12 @@ export default {
   formatMoedaOrcamento,
   formatQuantidadeOrcamento,
   estoqueSemSaldo,
+  nivelEstoque,
+  textoEstoque,
+  classeEstoque,
+  rotuloGrupoProduto,
+  NIVEL_ESTOQUE,
+  ESTOQUE_POUCO_ATE,
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,

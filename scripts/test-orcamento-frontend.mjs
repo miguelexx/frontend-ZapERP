@@ -30,6 +30,12 @@ import {
   passoQuantidade,
   sugestaoDeBuscaCliente,
   estoqueSemSaldo,
+  nivelEstoque,
+  textoEstoque,
+  classeEstoque,
+  rotuloGrupoProduto,
+  NIVEL_ESTOQUE,
+  ESTOQUE_POUCO_ATE,
   SEM_VALOR,
 } from "../src/conversa/orcamento/orcamentoFormat.js";
 
@@ -49,6 +55,19 @@ import {
 } from "../src/conversa/orcamento/orcamentoViewModel.js";
 
 import {
+  chaveProdutosFrequentes,
+  lerProdutosFrequentes,
+  registrarProdutoUsado,
+  esquecerProdutoFrequente,
+  limparProdutosFrequentes,
+  pontuacaoFrequencia,
+  FREQUENTES_TTL_MS,
+  MAX_GUARDADOS,
+  MAX_SUGERIDOS,
+  MEIA_VIDA_DIAS,
+} from "../src/conversa/orcamento/produtosFrequentes.js";
+
+import {
   ESTADO_PRECO,
   valorPresente,
   extrairValoresDoProduto,
@@ -56,6 +75,7 @@ import {
   valoresDaRespostaPorCodigo,
   precisaConsultarPreco,
   procedenciaDosValores,
+  classificacaoDoProduto,
 } from "../src/conversa/orcamento/precoItemCache.js";
 
 import {
@@ -903,7 +923,9 @@ const { prefillRascunho } = draft;
           'import Preview from "./OrcamentoPreview.jsx";',
           'import Resultado from "./OrcamentoResultado.jsx";',
           'import Form from "./OrcamentoForm.jsx";',
-          "export const Componentes = { Preview, Resultado, Form };",
+          'import Picker from "./ProdutoPicker.jsx";',
+          'import Ambiguidade from "./AmbiguidadePicker.jsx";',
+          "export const Componentes = { Preview, Resultado, Form, Picker, Ambiguidade };",
           "export const render = (C, p) => renderToStaticMarkup(createElement(C, p));",
         ].join("\n"),
         resolveDir: new URL(".", dirOrcamento).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
@@ -1189,7 +1211,7 @@ const { prefillRascunho } = draft;
         "render form: estoque negativo chega à linha (o contrato permite, e não bloqueia venda)"
       );
       assert(
-        /wa-orc-candidato-estoque--zerado/.test(html),
+        /wa-orc-candidato-estoque--sem/.test(html),
         "render form: estoque sem saldo é destacado, e o número continua sendo a informação"
       );
       assert(
@@ -1308,6 +1330,121 @@ const { prefillRascunho } = draft;
       assert(
         /wa-orc-btnPrincipal"[^>]*disabled/.test(vazio),
         "render form: sem item, o Calcular está desabilitado"
+      );
+    }
+
+    /* ---- As três faixas de estoque, renderizadas de verdade ---- */
+    {
+      const comEstoque = (valor) =>
+        render(Componentes.Ambiguidade, {
+          ambiguidade: {
+            status: "produto_ambiguo",
+            candidatos: [
+              {
+                codigo_produto_erp: "4325",
+                descricao: "CIMENTO CAMPEAO AZUL CP 2 E 32 50KG",
+                unidade: "UN",
+                preco_unitario: "33.038",
+                estoque_previsto: valor,
+              },
+            ],
+            paginacao: null,
+          },
+        });
+
+      const folga = comEstoque("120.000");
+      assert(/wa-orc-candidato-estoque--folga/.test(folga), "render estoque: saldo com folga tem a faixa de folga");
+      assert(folga.includes("Estoque 120,000"), "render estoque: o número vem da WM, com as casas dela");
+
+      const pouco = comEstoque("3.000");
+      assert(/wa-orc-candidato-estoque--pouco/.test(pouco), "render estoque: pouco saldo tem a faixa de pouco");
+      assert(pouco.includes("Estoque 3,000"), "render estoque: pouco mostra o número, não um aviso vago");
+
+      const zero = comEstoque("0.000");
+      assert(/wa-orc-candidato-estoque--sem/.test(zero), "render estoque: zero cai na faixa sem saldo");
+      assert(zero.includes("Sem estoque"), "render estoque: zero é dito por extenso, não só pela cor");
+      assert(
+        !/wa-orc-candidato-estoque--folga|wa-orc-candidato-estoque--pouco/.test(zero),
+        "render estoque: uma faixa por vez — zero não herda a cor de saldo"
+      );
+
+      const semDado = comEstoque(null);
+      assert(
+        !/wa-orc-candidato-estoque/.test(semDado),
+        "render estoque: ausência não vira 'sem estoque' — ela simplesmente não desenha nada"
+      );
+      assert(
+        !/Sem estoque/.test(semDado),
+        "render estoque: campo que a WM não mandou NÃO pode ser apresentado como estoque zerado"
+      );
+    }
+
+    /* ---- Os mais usados: atalho renderizado antes de qualquer tecla ---- */
+    {
+      globalThis.localStorage = new StorageFake();
+      const escopo = { companyId: 20, userId: 7 };
+      registrarProdutoUsado({
+        ...escopo,
+        produto: {
+          codigo_produto_erp: "4325",
+          descricao: "CIMENTO CAMPEAO AZUL CP 2 E 32 50KG",
+          marca: "",
+          unidade: "UN",
+          // Preço vai junto no objeto de propósito: ele NÃO pode sobreviver no atalho.
+          preco_unitario: "33.038",
+          estoque_previsto: "120.000",
+        },
+      });
+
+      const html = render(Componentes.Picker, { ...escopo, onAdicionar: () => {} });
+      assert(html.includes("Usados com frequência"), "render picker: o atalho aparece antes de digitar");
+      assert(
+        html.includes("CIMENTO CAMPEAO AZUL CP 2 E 32 50KG"),
+        "render picker: o produto usado antes está pronto para um toque"
+      );
+      assert(
+        /aria-label="Adicionar CIMENTO[^"]*ao orçamento"/.test(html),
+        "render picker: o atalho é um botão com nome acessível, não um bloco clicável mudo"
+      );
+      assert(
+        !/R\$/.test(html),
+        "render picker: o atalho NÃO guarda preço — valor velho no navegador pareceria atual"
+      );
+      assert(
+        !/Estoque|Sem estoque/.test(html),
+        "render picker: o atalho também não guarda estoque"
+      );
+      assert(
+        /wa-orc-verPreco/.test(html),
+        "render picker: o card oferece ver o preço, sem ter ido buscá-lo"
+      );
+      assert(
+        /aria-label="Ver preço de CIMENTO[^"]*"/.test(html),
+        "render picker: a afordância de preço se nomeia pelo produto"
+      );
+      assert(
+        (html.match(/wa-orc-candidato-valor/g) || []).length >= 2,
+        "render picker: as duas células de valor existem mesmo vazias — a coluna fica reservada"
+      );
+
+      // Outro usuário da mesma empresa não vê o atalho deste.
+      const outro = render(Componentes.Picker, { companyId: 20, userId: 8, onAdicionar: () => {} });
+      assert(
+        !outro.includes("Usados com frequência"),
+        "render picker: o atalho é por empresa + usuário — ninguém vê o do outro"
+      );
+
+      // Sem storage (janela privada): a busca continua, o atalho simplesmente não existe.
+      const semStorage = new StorageFake({ lancar: true });
+      globalThis.localStorage = semStorage;
+      const bloqueado = render(Componentes.Picker, { ...escopo, onAdicionar: () => {} });
+      assert(
+        !bloqueado.includes("Usados com frequência"),
+        "render picker: storage bloqueado não quebra o picker — só não há atalho"
+      );
+      assert(
+        /wa-orc-produtoBusca/.test(bloqueado),
+        "render picker: com ou sem atalho, o campo de busca continua lá"
       );
     }
   }
@@ -1490,7 +1627,9 @@ const { prefillRascunho } = draft;
   const picker = readFileSync(new URL("../src/conversa/orcamento/ProdutoPicker.jsx", import.meta.url), "utf8");
 
   const chamadas = picker.split("\n").filter((l) => /consultarProdutosOrcamento\(/.test(l));
-  assert(chamadas.length === 1, `picker: a WM é consultada de UM lugar só — achei ${chamadas.length}`);
+  // DUAS chamadas, e exatamente duas: a busca com debounce e o "ver preço" por código. Uma
+  // terceira seria caminho novo para o servidor da loja — é isso que esta conta protege.
+  assert(chamadas.length === 2, `picker: a WM é consultada de DOIS lugares só — achei ${chamadas.length}`);
   assert(/const DEBOUNCE_MS = 800;/.test(picker), "picker: o debounce de 800 ms continua de pé");
   assert(/const MIN_CARACTERES = 3;/.test(picker), "picker: o mínimo de 3 caracteres continua de pé");
   assert(
@@ -1831,6 +1970,357 @@ for (const ausente of [null, undefined, "", "   ", "abc", {}, NaN]) {
   assert(
     /calculado pelo ERP/.test(form),
     "form: o rodapé continua dizendo que o total é do ERP em vez de exibir uma soma própria"
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 17. Estoque em três faixas — a cor reforça, o texto informa
+ * ------------------------------------------------------------------ *
+ * O contrato permite vender com estoque zerado e negativo, e nenhuma faixa daqui bloqueia
+ * nada. O que elas fazem é deixar a atendente ver, de relance numa lista de trinta, onde o
+ * saldo é apertado. Por isso a informação mora no TEXTO: quem não distingue cor lê o mesmo.
+ */
+assert(nivelEstoque("120.000") === NIVEL_ESTOQUE.FOLGA, "faixa: saldo alto é folga");
+assert(nivelEstoque("5") === NIVEL_ESTOQUE.POUCO, `faixa: ${ESTOQUE_POUCO_ATE} ainda é pouco`);
+assert(nivelEstoque("5.001") === NIVEL_ESTOQUE.FOLGA, "faixa: logo acima do limite já é folga");
+assert(nivelEstoque("0.001") === NIVEL_ESTOQUE.POUCO, "faixa: a menor fração positiva é pouco, não ausência");
+assert(nivelEstoque("0.000") === NIVEL_ESTOQUE.SEM, "faixa: zero é sem saldo");
+assert(nivelEstoque("-2.125") === NIVEL_ESTOQUE.SEM, "faixa: negativo é sem saldo (e é permitido)");
+for (const ausente of [null, undefined, "", "   ", "abc", {}, NaN, true]) {
+  assert(
+    nivelEstoque(ausente) === null,
+    `faixa: ausência (${JSON.stringify(ausente)}) não tem faixa — não é "sem estoque"`
+  );
+  assert(textoEstoque(ausente) === "", "faixa: ausência não produz texto nenhum");
+  assert(classeEstoque(ausente) === "", "faixa: ausência não produz classe nenhuma");
+}
+assert(textoEstoque("120.000") === "Estoque 120,000", "texto: folga mostra o número com as casas da WM");
+assert(textoEstoque("3") === "Estoque 3", "texto: pouco mostra o número");
+assert(textoEstoque("0.000") === "Sem estoque", "texto: zero é dito por extenso");
+assert(
+  textoEstoque("-2.125") === "Sem estoque (-2,125)",
+  "texto: negativo diz 'sem estoque' E mantém o número à vista — ele é informação do ERP"
+);
+assert(/--folga$/.test(classeEstoque("9")), "classe: folga");
+assert(/--pouco$/.test(classeEstoque("2")), "classe: pouco");
+assert(/--sem$/.test(classeEstoque("0")), "classe: sem saldo");
+assert(
+  classeEstoque("2") !== classeEstoque("9") && classeEstoque("0") !== classeEstoque("2"),
+  "classe: as três faixas são distinguíveis entre si"
+);
+// A régua antiga continua de pé: quem já lia `estoqueSemSaldo` lê a mesma coisa.
+assert(
+  estoqueSemSaldo("0.000") === true && estoqueSemSaldo("3") === false,
+  "faixa: `estoqueSemSaldo` não mudou de ideia"
+);
+
+/* ------------------------------------------------------------------ *
+ * 18. Grupo do produto — etiqueta que só existe quando o dado existe
+ * ------------------------------------------------------------------ *
+ * Medido no ERP real: `grupo`/`subgrupo` NÃO vêm na lista de candidatos, só na resposta
+ * resolvida. Uma etiqueta "sem grupo" em trinta cards seria ruído puro, então a ausência é o
+ * nada — e o nada não pode reservar buraco no layout.
+ */
+assert(rotuloGrupoProduto({ grupo: "PECAS", subgrupo: "FILTROS" }) === "PECAS · FILTROS", "grupo: os dois juntos");
+assert(rotuloGrupoProduto({ grupo: "PECAS" }) === "PECAS", "grupo: só o grupo");
+assert(rotuloGrupoProduto({ subgrupo: "FILTROS" }) === "FILTROS", "grupo: só o subgrupo");
+assert(rotuloGrupoProduto({ grupo: " PECAS ", subgrupo: " " }) === "PECAS", "grupo: aparado, e vazio não entra");
+assert(
+  rotuloGrupoProduto({ grupo: "FILTROS", subgrupo: "FILTROS" }) === "FILTROS",
+  "grupo: subgrupo que repete o grupo não vira 'FILTROS · FILTROS'"
+);
+for (const nada of [null, undefined, {}, "PECAS", 7, { grupo: "" }, { grupo: 3 }]) {
+  assert(rotuloGrupoProduto(nada) === "", `grupo: ${JSON.stringify(nada)} não produz etiqueta`);
+}
+assert(rotuloGrupoProduto({ grupo: "G".repeat(200) }).length === 60, "grupo: etiqueta gigante é cortada");
+
+assert(classificacaoDoProduto({ grupo: "PECAS", subgrupo: "FILTROS" })?.grupo === "PECAS", "classificação: o grupo é copiado");
+assert(classificacaoDoProduto({ grupo: "PECAS" })?.subgrupo === undefined, "classificação: campo ausente não vira vazio");
+for (const nada of [null, undefined, {}, { grupo: "   " }, { grupo: 1 }]) {
+  assert(classificacaoDoProduto(nada) === null, "classificação: sem nada, não há classificação");
+}
+// Classificação NÃO é valor: ela não pode entrar junto com preço e estoque no carrinho.
+assert(
+  extrairValoresDoProduto({ preco_unitario: "1.00", grupo: "PECAS" })?.grupo === undefined,
+  "classificação: grupo não viaja como valor — carrinho e criação não têm nada com ele"
+);
+{
+  const resolvido = {
+    status: "produto",
+    produto: {
+      codigo_produto_erp: "4325",
+      preco_unitario: "33.038",
+      grupo: "PECAS",
+      subgrupo: "FILTROS",
+    },
+    meta: { tempo_real: true },
+  };
+  const achado = valoresDaRespostaPorCodigo(resolvido, "4325");
+  assert(achado?.classificacao?.subgrupo === "FILTROS", "classificação: vem junto da consulta por código");
+  assert(achado?.valores?.preco_unitario === "33.038", "classificação: e não atrapalha o preço");
+  assert(
+    valoresDaRespostaPorCodigo(resolvido, "9999") === null,
+    "classificação: resposta de outro código continua sendo recusada inteira"
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 19. Produtos mais usados — o atalho que não custa chamada
+ * ------------------------------------------------------------------ *
+ * Numa loja que vende os mesmos itens todo dia, isto elimina a busca na maioria dos casos. O
+ * que ele NÃO pode fazer: guardar dinheiro (preço velho pareceria atual), vazar entre empresas
+ * ou usuários (o isolamento deste projeto é app-layer e vale no navegador também), crescer sem
+ * limite, ou derrubar o picker quando o storage não responde.
+ */
+globalThis.localStorage = new StorageFake();
+{
+  const A = { companyId: 20, userId: 7 };
+  const B = { companyId: 21, userId: 7 };
+  const C = { companyId: 20, userId: 8 };
+  assert(chaveProdutosFrequentes(A) !== chaveProdutosFrequentes(B), "frequentes: empresas diferentes não compartilham chave");
+  assert(chaveProdutosFrequentes(A) !== chaveProdutosFrequentes(C), "frequentes: usuários diferentes não compartilham chave");
+  assert(
+    chaveProdutosFrequentes({ companyId: "20:7", userId: "" }) !== chaveProdutosFrequentes({ companyId: "20", userId: "7" }),
+    "frequentes: escopo não pode ser forjado por separador na chave"
+  );
+
+  const cimento = {
+    codigo_produto_erp: "4325",
+    descricao: "CIMENTO CAMPEAO AZUL CP 2 E 32 50KG",
+    marca: "",
+    unidade: "UN",
+    preco_unitario: "33.038",
+    estoque_previsto: "120.000",
+    grupo: "MATERIAL",
+  };
+  assert(registrarProdutoUsado({ ...A, produto: cimento }) === true, "frequentes: gravação funciona");
+  const lidos = lerProdutosFrequentes(A);
+  assert(lidos.length === 1 && lidos[0].codigo === "4325", "frequentes: volta no mesmo escopo");
+  assert(lidos[0].descricao === cimento.descricao, "frequentes: a descrição volta para a tela poder mostrar o item");
+  assert(lidos[0].unidade === "UN", "frequentes: a unidade volta — '1' em M2 não é '1 peça'");
+  assert(lidos[0].usos === 1, "frequentes: o primeiro uso conta um");
+
+  // DINHEIRO NÃO ENTRA. Esta é a asserção que protege a regra inteira.
+  const cru = globalThis.localStorage.getItem(chaveProdutosFrequentes(A));
+  assert(!/preco|33\.038/.test(cru), "frequentes: preço NUNCA é persistido — valor velho pareceria atual");
+  assert(!/estoque|120\.000/.test(cru), "frequentes: estoque também não — ele muda no ERP sem avisar");
+  assert(!/grupo|MATERIAL/.test(cru), "frequentes: nem classificação; só o que identifica o produto");
+  assert(lidos[0].preco_unitario === undefined, "frequentes: nada de preço volta para a tela");
+
+  assert(lerProdutosFrequentes(B).length === 0, "frequentes: outra EMPRESA não enxerga este atalho");
+  assert(lerProdutosFrequentes(C).length === 0, "frequentes: outro USUÁRIO da mesma empresa também não");
+
+  // Mesmo produto de novo vira uso, não linha nova.
+  registrarProdutoUsado({ ...A, produto: cimento });
+  const depois = lerProdutosFrequentes(A);
+  assert(depois.length === 1, "frequentes: o mesmo código não duplica");
+  assert(depois[0].usos === 2, "frequentes: o uso é contado");
+}
+
+/* ---- Ordem: uso recente E frequência, numa conta só ---- */
+{
+  globalThis.localStorage = new StorageFake();
+  const A = { companyId: 20, userId: 7 };
+  const agora = Date.UTC(2026, 9, 23);
+  const dia = 24 * 60 * 60 * 1000;
+
+  const velho = { usos: 2, ultimoUso: agora - 60 * dia };
+  const novo = { usos: 1, ultimoUso: agora };
+  assert(
+    pontuacaoFrequencia(novo, agora) > pontuacaoFrequencia(velho, agora),
+    "ordem: usado hoje uma vez ganha de duas vezes há duas meias-vidas"
+  );
+  const muito = { usos: 4, ultimoUso: agora - MEIA_VIDA_DIAS * dia };
+  assert(
+    pontuacaoFrequencia(muito, agora) > pontuacaoFrequencia(novo, agora),
+    "ordem: o que ela usa MUITO não é apagado por um item usado uma vez hoje"
+  );
+  assert(pontuacaoFrequencia({ usos: 0, ultimoUso: agora }, agora) === 0, "ordem: sem uso, sem pontuação");
+  assert(pontuacaoFrequencia(null, agora) === 0, "ordem: entrada inválida pontua zero, não quebra");
+  assert(
+    pontuacaoFrequencia({ usos: 3 }, agora) === 3,
+    "ordem: sem data, a frequência vale sozinha (não some da lista)"
+  );
+
+  registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "VELHO" }, agora: agora - 60 * dia });
+  registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "VELHO" }, agora: agora - 60 * dia });
+  registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "HOJE" }, agora });
+  const ordem = lerProdutosFrequentes({ ...A, agora }).map((e) => e.codigo);
+  assert(ordem[0] === "HOJE", "ordem: a lista sai ordenada pela conta, não pela ordem de gravação");
+  assert(ordem.includes("VELHO"), "ordem: o antigo continua na lista, só mais abaixo");
+}
+
+/* ---- Tetos, prazo e lixo: a chave não cresce para sempre ---- */
+{
+  globalThis.localStorage = new StorageFake();
+  const A = { companyId: 20, userId: 7 };
+  const agora = Date.UTC(2026, 9, 23);
+  for (let i = 0; i < MAX_GUARDADOS + 15; i++) {
+    registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: `P${i}` }, agora: agora + i });
+  }
+  const guardados = JSON.parse(globalThis.localStorage.getItem(chaveProdutosFrequentes(A))).itens;
+  assert(guardados.length === MAX_GUARDADOS, `frequentes: o guardado para em ${MAX_GUARDADOS}`);
+  assert(
+    guardados.some((e) => e.codigo === `P${MAX_GUARDADOS + 14}`),
+    "frequentes: ao truncar, o que sobra é o mais recente"
+  );
+  assert(
+    lerProdutosFrequentes({ ...A, agora }).length === MAX_SUGERIDOS,
+    `frequentes: a tela recebe no máximo ${MAX_SUGERIDOS}`
+  );
+  assert(
+    lerProdutosFrequentes({ ...A, agora, limite: 3 }).length === 3,
+    "frequentes: o teto da tela é respeitado quando pedido menor"
+  );
+
+  // Vencido some sozinho na leitura.
+  const antigo = agora - FREQUENTES_TTL_MS - 1000;
+  globalThis.localStorage.setItem(
+    chaveProdutosFrequentes(A),
+    JSON.stringify({ v: 1, itens: [{ codigo: "ANTIGO", usos: 9, ultimoUso: antigo }] })
+  );
+  assert(lerProdutosFrequentes({ ...A, agora }).length === 0, "frequentes: item parado além do prazo não é oferecido");
+
+  // Lixo no storage não derruba nada.
+  for (const lixo of ["{", "null", "[]", '{"itens":"nao-e-lista"}', '{"itens":[null,3,{"usos":5}]}']) {
+    globalThis.localStorage.setItem(chaveProdutosFrequentes(A), lixo);
+    assert(lerProdutosFrequentes({ ...A, agora }).length === 0, `frequentes: lixo (${lixo}) devolve lista vazia`);
+  }
+  assert(
+    registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "" } }) === false,
+    "frequentes: produto sem código não entra (ele não existe para a WM)"
+  );
+  assert(registrarProdutoUsado({ ...A, produto: null }) === false, "frequentes: produto nulo não entra");
+
+  globalThis.localStorage.removeItem(chaveProdutosFrequentes(A));
+  registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "X1" }, agora });
+  registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "X2" }, agora });
+  assert(esquecerProdutoFrequente({ ...A, codigo: "X1", agora }) === true, "frequentes: dá para esquecer um item");
+  assert(
+    lerProdutosFrequentes({ ...A, agora })
+      .map((e) => e.codigo)
+      .join() === "X2",
+    "frequentes: esquecer tira só o pedido"
+  );
+}
+
+/* ---- Logout: o atalho some, e só ele ---- */
+{
+  globalThis.localStorage = new StorageFake();
+  registrarProdutoUsado({ companyId: 20, userId: 7, produto: { codigo_produto_erp: "A" } });
+  registrarProdutoUsado({ companyId: 21, userId: 9, produto: { codigo_produto_erp: "B" } });
+  globalThis.localStorage.setItem("zap_erp_last_email", "miguel@exemplo.com");
+  const removidas = limparProdutosFrequentes();
+  assert(removidas === 2, "logout: TODAS as chaves do módulo saem, não só a do escopo logado");
+  assert(lerProdutosFrequentes({ companyId: 20, userId: 7 }).length === 0, "logout: nada sobra para o próximo login");
+  assert(
+    globalThis.localStorage.getItem("zap_erp_last_email") === "miguel@exemplo.com",
+    "logout: a limpeza não leva junto chave de outro módulo"
+  );
+}
+
+/* ---- Storage bloqueado (janela privada) não pode derrubar o orçamento ---- */
+{
+  globalThis.localStorage = new StorageFake({ lancar: true });
+  const A = { companyId: 20, userId: 7 };
+  assert(lerProdutosFrequentes(A).length === 0, "storage bloqueado: leitura devolve vazio em vez de lançar");
+  assert(
+    registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "A" } }) === false,
+    "storage bloqueado: gravação falha em silêncio"
+  );
+  assert(esquecerProdutoFrequente({ ...A, codigo: "A" }) === false, "storage bloqueado: esquecer falha em silêncio");
+  assert(limparProdutosFrequentes() === 0, "storage bloqueado: a limpeza do logout não lança");
+
+  delete globalThis.localStorage;
+  assert(lerProdutosFrequentes(A).length === 0, "sem localStorage nenhum: leitura devolve vazio");
+  assert(
+    registrarProdutoUsado({ ...A, produto: { codigo_produto_erp: "A" } }) === false,
+    "sem localStorage nenhum: gravação devolve falso"
+  );
+  assert(limparProdutosFrequentes() === 0, "sem localStorage nenhum: limpeza devolve zero");
+  globalThis.localStorage = new StorageFake();
+}
+
+/* ------------------------------------------------------------------ *
+ * 20. "Ver preço", o atalho e o Enter: o que o PICKER não pode fazer
+ * ------------------------------------------------------------------ *
+ * Olha o fonte porque o que se proíbe é caminho de execução. Uma consulta de preço disparada
+ * por efeito, por laço ou por timer viraria N chamadas em TEMPO REAL no SQL Server da loja a
+ * cada busca — exatamente o custo que "uma por toque" existe para evitar.
+ */
+{
+  const { readFileSync } = await import("node:fs");
+  const picker = readFileSync(new URL("../src/conversa/orcamento/ProdutoPicker.jsx", import.meta.url), "utf8");
+  const limpo = picker
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  // O corpo do "ver preço", isolado: é nele que as proibições valem.
+  const ini = limpo.indexOf("const verPreco");
+  const corpo = ini >= 0 ? limpo.slice(ini, limpo.indexOf("[anotarDetalhe]", ini)) : "";
+  assert(corpo.length > 0, "ver preço: a consulta por toque existe e é isolável");
+  assert(
+    /codigo_produto_erp: codigo/.test(corpo),
+    "ver preço: consulta POR CÓDIGO — é o único ramo que a WM resolve com preço"
+  );
+  assert(
+    !/setTimeout|setInterval|retry|tentarDeNovo/.test(corpo),
+    "ver preço: nenhuma retentativa automática — seria chamada no servidor do cliente"
+  );
+  assert(
+    !/setErro\(|setBuscando\(|setGrupos\(/.test(corpo),
+    "ver preço: falhar não vira erro da busca nem mexe na lista — não impede adicionar o produto"
+  );
+  assert(
+    /ESTADO_PRECO\.OK\) return/.test(corpo),
+    "ver preço: código já respondido não gasta uma segunda chamada enquanto a busca é a mesma"
+  );
+  assert(/geracao/.test(corpo), "ver preço: resposta de uma busca anterior não pode pintar card da busca nova");
+
+  // Nada de consulta automática: `verPreco` só é chamada de um `onClick`.
+  const chamadasVerPreco = limpo.split("\n").filter((l) => /\bverPreco\(/.test(l) && !/const verPreco/.test(l));
+  assert(chamadasVerPreco.length === 1, `ver preço: um único chamador — achei ${chamadasVerPreco.length}`);
+  assert(
+    /onClick=\{\(e\) => \{[\s\S]{0,240}verPreco\(p\)/.test(limpo),
+    "ver preço: o chamador é o toque, e ele para o clique de virar 'adicionei ao carrinho'"
+  );
+  assert(
+    !/useEffect\([\s\S]{0,400}verPreco\(/.test(limpo),
+    "ver preço: nunca dentro de um efeito — abrir a busca não pode custar trinta consultas"
+  );
+  assert(
+    !/\.map\([^)]*verPreco|forEach[\s\S]{0,80}verPreco/.test(limpo),
+    "ver preço: nunca em laço sobre a lista"
+  );
+
+  // O atalho é só memória local: ele não fala com a WM.
+  assert(
+    /registrarProdutoUsado\(/.test(limpo),
+    "atalho: o produto escolhido é registrado para virar atalho da próxima vez"
+  );
+  const registros = limpo.split("\n").filter((l) => /registrarProdutoUsado\(\{/.test(l));
+  assert(registros.length === 1, `atalho: registra de um lugar só (o item entrando no carrinho) — achei ${registros.length}`);
+
+  // Enter: atalho de teclado, não gatilho de busca nem de consulta.
+  const iniEnter = limpo.indexOf("const aoTeclarNaBusca");
+  const corpoEnter = iniEnter >= 0 ? limpo.slice(iniEnter, limpo.indexOf("[adicionar,", iniEnter)) : "";
+  assert(corpoEnter.length > 0, "enter: o atalho existe e é isolável");
+  assert(
+    /if \(buscando \|\| disabled\) return;/.test(corpoEnter),
+    "enter: não dispara com a busca em voo nem com o formulário travado"
+  );
+  assert(
+    /termoConsultadoRef\.current\.startsWith/.test(corpoEnter),
+    "enter: só adiciona se os resultados na tela forem DO TERMO digitado — senão seria outro produto"
+  );
+  assert(
+    !/consultarProdutosOrcamento|buscar\(/.test(corpoEnter),
+    "enter: não dispara busca — a busca continua sendo do debounce de 800 ms"
+  );
+  assert(
+    /onKeyDown=\{aoTeclarNaBusca\}/.test(limpo),
+    "enter: o atalho vive no campo de busca, não num ouvinte global de teclado"
   );
 }
 

@@ -129,6 +129,12 @@ export const useAuthStore = create((set, get) => ({
       void import("../conversa/orcamento/vendedorLembrado")
         .then((m) => m.limparVendedoresLembrados())
         .catch(() => {})
+      // Mesma razão para os produtos mais usados do orçamento: eles dizem o que esta empresa
+      // vende e o que esta atendente vende dentro dela. Num navegador de balcão, isso não pode
+      // sobrar na tela de quem logar depois.
+      void import("../conversa/orcamento/produtosFrequentes")
+        .then((m) => m.limparProdutosFrequentes())
+        .catch(() => {})
     } catch (_) {}
     set({ user: null, token: null })
     if (redirect && typeof window !== "undefined") {
