@@ -25,6 +25,7 @@
 import {
   formatMoedaOrcamento,
   formatQuantidadeOrcamento,
+  formatQuantidadeExibicao,
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
@@ -140,6 +141,49 @@ assert(passoQuantidade("1", -1) === "1", "passo: piso é 1, não 0 nem negativo"
 assert(passoQuantidade("1", 1) === "2", "passo: 1 + 1 = 2");
 assert(passoQuantidade("1.5", 1) === "2.5", "passo: preserva a casa decimal digitada");
 assert(passoQuantidade("abc", 1) === "1", "passo: texto inválido volta para 1");
+
+/* ------------------------------------------------------------------ *
+ * 2B. Quantidade EXIBIDA — "1,000" não é mil (doc 36, achado de 23/10)
+ * ------------------------------------------------------------------ *
+ * A WM serializa quantidade e estoque com três casas fixas: `"1.000"` é UMA peça. Exibido como
+ * `1,000`, o olho lê mil — e um orçamento com a quantidade mil vezes maior sai pelo WhatsApp.
+ * Aqui prova-se a régua de exibição E, logo abaixo, que ela NÃO vazou para o que é enviado.
+ */
+assert(formatQuantidadeExibicao("1.000") === "1", 'exibição: "1.000" da WM é UMA unidade, não mil');
+assert(formatQuantidadeExibicao("13.000") === "13", 'exibição: "13.000" são treze, não treze mil');
+assert(formatQuantidadeExibicao("100.000") === "100", 'exibição: "100.000" são cem, não cem mil');
+assert(formatQuantidadeExibicao("2.000", "UN") === "2 UN", "exibição: a unidade do ERP vem colada");
+assert(formatQuantidadeExibicao("100.000", "PC") === "100 PC", "exibição: saldo real com unidade");
+// Fração DE VERDADE não é casa vazia: apagá-la mudaria a quantidade.
+assert(formatQuantidadeExibicao("1.500", "M2") === "1,5 M2", 'exibição: meia unidade continua "1,5"');
+assert(formatQuantidadeExibicao("1.050") === "1,05", "exibição: só os zeros do fim saem");
+assert(formatQuantidadeExibicao("-2.125") === "-2,125", "exibição: negativo do ERP continua inteiro");
+assert(formatQuantidadeExibicao("3", "CX") === "3 CX", "exibição: inteiro sem casas não ganha nada");
+assert(formatQuantidadeExibicao("2.000", "  ") === "2", "exibição: unidade em branco não vira espaço solto");
+assert(formatQuantidadeExibicao("xx", "UN") === SEM_VALOR, 'exibição: inválido continua "—", nunca "0 UN"');
+assert(formatQuantidadeExibicao(null) === SEM_VALOR, 'exibição: ausência continua "—"');
+// O formatador exato continua existindo e continua exato: os dois não são intercambiáveis.
+assert(formatQuantidadeOrcamento("1.000") === "1,000", "exibição: o formatador exato não mudou de ideia");
+
+/* O QUE É ENVIADO NÃO MUDA — a régua de ouro do módulo (§8.1, `payload_hash`).
+   Mesmo valor, dois destinos: a tela lê "2 UN" e a WM recebe "2.000", byte a byte. */
+for (const bruta of ["1.000", "2.000", "1.500", "100.000"]) {
+  const enviado = normalizarQuantidadeParaEnvio(bruta);
+  assert(
+    enviado.ok && enviado.value === bruta,
+    `envio: ${JSON.stringify(bruta)} tem de sair INTACTO para a WM — veio ${JSON.stringify(enviado.value)}`
+  );
+  assert(
+    formatQuantidadeExibicao(bruta, "UN") !== enviado.value,
+    `envio: o texto da tela (${formatQuantidadeExibicao(bruta, "UN")}) não pode ser o que viaja`
+  );
+}
+// E a assinatura, que casa rascunho com corpo enviado, continua cega para a exibição.
+assert(
+  assinaturaDoRascunho({ itens: [{ codigo_produto_erp: "A1", quantidade: "2.000" }] }) ===
+    assinaturaDoBody({ itens: [{ codigo_produto_erp: "A1", quantidade: "2.000" }] }),
+  "envio: a assinatura continua sobre o valor cru, não sobre o texto exibido"
+);
 
 /* ------------------------------------------------------------------ *
  * 3. Timeout por URL (lacuna 2)
@@ -395,10 +439,16 @@ const PREVIA_WM = {
   );
 
   const [item1, item2] = view.itens;
-  assert(item1.quantidade === "2,000", 'prévia: quantidade preserva as casas da WM ("2.000")');
+  // A WM manda três casas fixas. Exibi-las ("2,000") faz a atendente ler DOIS MIL.
+  assert(item1.quantidade === "2", 'prévia: "2.000" da WM é exibido como "2" — "2,000" se lê como dois mil');
+  assert(
+    item2.quantidade === "1 UN",
+    'prévia: a unidade anda colada na quantidade — "1" sozinho não diz se é peça, metro ou caixa'
+  );
   assert(item1.precoUnitario === formatMoedaOrcamento("33.038"), "prévia: preço unitário é o da WM");
   assert(item1.precoExato === "33,038", "prévia: a 3ª casa do preço aparece exata nos detalhes");
   assert(item1.valorTotal === formatMoedaOrcamento("66.076"), "prévia: valor do item é o da WM");
+  // Casa decimal que SIGNIFICA alguma coisa continua inteira — aqui não há nada a enxugar.
   assert(item1.estoque === "-2,125", "prévia: estoque negativo é exibido, não escondido");
 
   // A regra mais importante: preço AUSENTE não é derivado de `valor_total / quantidade`.
@@ -624,6 +674,15 @@ for (const semNumero of [
   };
   const resumo = montarResumoOrcamento(RESULTADO_WM, { previa });
   assert(resumo.includes("1,5 × Cabo"), `resumo: 1.500 vira "1,5" — veio "${resumo}"`);
+  assert(!resumo.includes("1,500"), "resumo: as casas vazias da WM não chegam ao cliente");
+}
+{
+  // A unidade vai junto também na mensagem do cliente: "2 × Piso" num item vendido em M2
+  // deixaria o cliente somando peças onde o ERP conta metros quadrados.
+  const resumo = montarResumoOrcamento(RESULTADO_WM, {
+    previa: { itens: [{ descricao: "Piso", unidade: "M2", quantidade: "2.500", preco_unitario: "10.00" }] },
+  });
+  assert(resumo.includes("2,5 M2 × Piso"), `resumo: unidade acompanha a quantidade — veio "${resumo}"`);
   assert(!resumo.includes("Sem preço"), "resumo: item sem preço some em vez de virar '— '");
   assert(!resumo.includes("— × "), "resumo: item sem descrição some em vez de virar linha vazia");
 }
@@ -961,7 +1020,15 @@ const { prefillRascunho } = draft;
     assert(htmlPrevia.includes("Maria Souza"), "render prévia: mostra o cliente por nome");
     assert(htmlPrevia.includes("Carlos Lima"), "render prévia: mostra o vendedor por nome");
     assert(htmlPrevia.includes("Notebook") && htmlPrevia.includes("Mouse"), "render prévia: lista os itens");
-    assert(htmlPrevia.includes("2,000"), "render prévia: imprime a quantidade com as casas da WM");
+    assert(
+      htmlPrevia.includes("2 ×"),
+      "render prévia: a quantidade chega à tela como '2', não como '2,000'"
+    );
+    assert(htmlPrevia.includes("1 UN"), "render prévia: a unidade chega colada na quantidade");
+    assert(
+      !htmlPrevia.includes("2,000") && !htmlPrevia.includes("1,000"),
+      'render prévia: as três casas da WM NÃO podem chegar à tela — "1,000" se lê como mil'
+    );
     assert(htmlPrevia.includes(formatMoedaOrcamento("33.038")), "render prévia: imprime o preço unitário da WM");
     assert(htmlPrevia.includes("33,038"), "render prévia: a 3ª casa aparece exata nos detalhes");
     assert(htmlPrevia.includes("-2,125"), "render prévia: estoque negativo chega à tela");
@@ -1354,11 +1421,11 @@ const { prefillRascunho } = draft;
 
       const folga = comEstoque("120.000");
       assert(/wa-orc-candidato-estoque--folga/.test(folga), "render estoque: saldo com folga tem a faixa de folga");
-      assert(folga.includes("Estoque 120,000"), "render estoque: o número vem da WM, com as casas dela");
+      assert(folga.includes("Estoque 120 UN"), "render estoque: o número sai sem as casas vazias e com a unidade");
 
       const pouco = comEstoque("3.000");
       assert(/wa-orc-candidato-estoque--pouco/.test(pouco), "render estoque: pouco saldo tem a faixa de pouco");
-      assert(pouco.includes("Estoque 3,000"), "render estoque: pouco mostra o número, não um aviso vago");
+      assert(pouco.includes("Estoque 3 UN"), "render estoque: pouco mostra o número, não um aviso vago");
 
       const zero = comEstoque("0.000");
       assert(/wa-orc-candidato-estoque--sem/.test(zero), "render estoque: zero cai na faixa sem saldo");
@@ -1994,7 +2061,7 @@ for (const ausente of [null, undefined, "", "   ", "abc", {}, NaN, true]) {
   assert(textoEstoque(ausente) === "", "faixa: ausência não produz texto nenhum");
   assert(classeEstoque(ausente) === "", "faixa: ausência não produz classe nenhuma");
 }
-assert(textoEstoque("120.000") === "Estoque 120,000", "texto: folga mostra o número com as casas da WM");
+assert(textoEstoque("120.000") === "Estoque 120", "texto: folga mostra o número sem as casas vazias");
 assert(textoEstoque("3") === "Estoque 3", "texto: pouco mostra o número");
 assert(textoEstoque("0.000") === "Sem estoque", "texto: zero é dito por extenso");
 assert(

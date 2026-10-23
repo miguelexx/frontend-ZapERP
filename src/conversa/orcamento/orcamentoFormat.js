@@ -23,6 +23,13 @@
  * para a criação, então NADA aqui reformata o valor de origem: `Number` é usado só para
  * PRODUZIR a string exibida, nunca para substituir o dado. Quem precisar enviar o valor manda
  * a string original, não a formatada.
+ *
+ * Daí haver DOIS formatadores de quantidade, e eles não são intercambiáveis:
+ *   · `formatQuantidadeOrcamento` — o número com as casas que a WM mandou (`"2.000"` → `2,000`),
+ *     para onde o dado é conferido contra o ERP;
+ *   · `formatQuantidadeExibicao` — o número como se LÊ, sem as casas vazias e com a unidade
+ *     (`"2.000"` + `UN` → `2 UN`), para toda tela que a atendente e o cliente leem.
+ * Nenhum dos dois toca no valor ENVIADO: isso é de `normalizarQuantidadeParaEnvio`.
  */
 
 /** Locale e moeda fixos: o orçamento é do ERP brasileiro. */
@@ -77,6 +84,43 @@ export function formatQuantidadeOrcamento(valor) {
 }
 
 /**
+ * Casas decimais que não significam nada, tiradas do fim do número JÁ FORMATADO.
+ * `"2,000"` → `"2"`, `"1,500"` → `"1,5"`, `"1,05"` → `"1,05"` (o 5 é significativo).
+ */
+function semCasasVazias(texto) {
+  if (!texto.includes(",")) return texto;
+  return texto.replace(/,?0+$/, "") || texto;
+}
+
+/**
+ * Quantidade como se LÊ em português: sem as casas vazias, com a unidade do produto.
+ *
+ * A WM serializa quantidade e estoque com três casas fixas — `"1.000"` é UMA peça e `"13.000"`
+ * são TREZE. A tela imprimia isso trocando só o ponto pela vírgula, e `1,000` no balcão se lê
+ * como mil: a atendente passava ao cliente uma quantidade mil vezes maior. Num orçamento isso
+ * não é estética, é o número errado.
+ *
+ * Então: as casas que não significam nada saem, e a unidade vem colada, porque "1" sozinho num
+ * item vendido em M2 não é "uma peça" — é um metro quadrado. Fração de verdade permanece
+ * (`"1.500"` + `M2` → `1,5 M2`); meia unidade é informação e não se apaga.
+ *
+ * ⚠️ **Isto é exibição, e só exibição.** O valor que vai para a WM é a string decimal dela,
+ * byte a byte (§8.1), e quem o envia usa `normalizarQuantidadeParaEnvio` sobre o texto cru —
+ * nunca este formatador. Quem precisar do número com as casas da WM usa
+ * `formatQuantidadeOrcamento`, que continua existindo para isso.
+ *
+ * @param {string|number|null|undefined} valor string decimal da WM, de preferência
+ * @param {string} [unidade] unidade do ERP (UN, PC, M2, CX); ausente, sai só o número
+ */
+export function formatQuantidadeExibicao(valor, unidade) {
+  const exato = formatQuantidadeOrcamento(valor);
+  if (exato === SEM_VALOR) return SEM_VALOR;
+  const numero = semCasasVazias(exato);
+  const un = typeof unidade === "string" ? unidade.trim() : "";
+  return un ? `${numero} ${un}` : numero;
+}
+
+/**
  * Estoque sem saldo — zero ou negativo.
  *
  * Serve só para DESTACAR o número (o contrato permite estoque zerado e negativo, e nenhum dos
@@ -122,14 +166,20 @@ export function nivelEstoque(valor) {
  * Estoque negativo mantém o número à vista entre parênteses: `-2,125` é informação do ERP sobre
  * uma venda já feita, e esconder isso atrás de "sem estoque" apagaria o que o número diz.
  *
+ * O número passa por `formatQuantidadeExibicao`: estoque é quantidade, e `Estoque 13,000` num
+ * saldo de treze unidades seria lido como treze mil (medido no catálogo real da empresa 20, que
+ * tem saldos de `"13.000"` e `"100.000"`).
+ *
+ * @param {string|number|null|undefined} valor `estoque_previsto`, como a WM o mandou
+ * @param {string} [unidade] unidade do ERP, quando a tela a conhece
  * @returns {string} vazio quando não há valor — e vazio significa "não desenhe nada"
  */
-export function textoEstoque(valor) {
+export function textoEstoque(valor, unidade) {
   const nivel = nivelEstoque(valor);
   if (nivel === null) return "";
-  if (nivel !== NIVEL_ESTOQUE.SEM) return `Estoque ${formatQuantidadeOrcamento(valor)}`;
+  if (nivel !== NIVEL_ESTOQUE.SEM) return `Estoque ${formatQuantidadeExibicao(valor, unidade)}`;
   const n = numeroOuNull(valor);
-  return n < 0 ? `Sem estoque (${formatQuantidadeOrcamento(valor)})` : "Sem estoque";
+  return n < 0 ? `Sem estoque (${formatQuantidadeExibicao(valor, unidade)})` : "Sem estoque";
 }
 
 /**
@@ -256,6 +306,7 @@ export default {
   SEM_VALOR,
   formatMoedaOrcamento,
   formatQuantidadeOrcamento,
+  formatQuantidadeExibicao,
   estoqueSemSaldo,
   nivelEstoque,
   textoEstoque,

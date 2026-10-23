@@ -85,6 +85,23 @@ rodapé de `backend/supabase/migrations/20261023180000_indices_lista_nulls_last.
 
 # C — Frontend · velocidade
 
+> **STATUS 23/10 (fim do dia):** C5 e C6 **APLICADOS**. C7 **FECHADO** (a "melhoria"
+> reintroduziria bug corrigido). C8 continua válido mas pede sessão dedicada (60 usos).
+> C9 e C12 **não feitos de propósito** (risco alto / decisão de produto). C10 e C11 com
+> ganho que não justifica o churn. Detalhe e números em `docs/ai-handoff/12-PERFORMANCE.md`.
+>
+> | | antes | depois |
+> |---|---|---|
+> | chunk de entrada (fonte) | 858 kB / 82 módulos | **328 kB / 51 (−62%)** |
+> | chunk de entrada (build) | 392,62 kB / 109,73 gzip | **145 kB / 42,55 gzip** |
+> | **JS bruto antes do 1º render** | **634 kB** | **396 kB (−38%)** |
+> | janela crítica mobile | 331 kB gzip | **267 kB gzip** |
+>
+> Bónus não previsto: `vendor-socket` **saiu da lista de preload do HTML** (eram 6 arquivos,
+> agora 5) — o socket.io só chega pelo `import()` dinâmico.
+
+
+
 ### 5. Item 10 — as 3 arestas do chunk de entrada ⭐
 **Ganho:** 82 → 49 módulos, 858 → **356 kB de fonte (−59%)**. É o **único item que reduz os 634 kB brutos** que o celular parseia antes do 1º render — num Android intermediário, centenas de ms de main thread.
 **Risco:** **médio** — mexe no handler de 401 (`api/http.js`), no `push/swBridge.js` e no boot do socket (`authStore.restore()`).

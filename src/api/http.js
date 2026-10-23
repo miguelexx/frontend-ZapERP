@@ -1,8 +1,12 @@
 import axios from "axios"
 import { getApiBaseUrl } from "./baseUrl"
-import { disconnectSocket } from "../socket/socket"
 import { useNotificationStore } from "../notifications/notificationStore"
-import { clearConversaSessionCaches } from "../conversa/conversaStore"
+// NAO importar socket/socket nem conversa/conversaStore aqui: este arquivo e'
+// importado por quase tudo, e esses dois arrastavam o MOTOR DE CONVERSAS inteiro
+// para o chunk de entrada (medido: ~59% dele). A limpeza do 401 passa pelo
+// registo de src/runtime/sessionRuntime.js — quem nao carregou nao tem o que
+// limpar, e o no-op e' a resposta correta.
+import { executarLimpezaDeSessao } from "../runtime/sessionRuntime.js"
 import { HTTP_TIMEOUT_DEFAULT_MS, resolveRequestTimeoutMs } from "./httpTimeouts"
 
 const baseURL = getApiBaseUrl()
@@ -127,16 +131,10 @@ api.interceptors.response.use(
 
       if (!skipLogout && hadAuth) {
         localStorage.removeItem("zap_erp_auth")
-        try {
-          clearConversaSessionCaches?.()
-        } catch (_) {
-          /* ignore */
-        }
-        try {
-          disconnectSocket?.()
-        } catch (_) {
-          /* ignore */
-        }
+        // Desliga socket e limpa caches de conversa SE o motor estiver carregado.
+        // Sincrono de proposito: logo abaixo vem `location.href`, e um import()
+        // dinamico poderia nao chegar a tempo antes da recarga.
+        executarLimpezaDeSessao()
         const path = typeof window !== "undefined" ? window.location.pathname : ""
         if (path && !path.includes("/login")) {
           window.location.href = "/login"

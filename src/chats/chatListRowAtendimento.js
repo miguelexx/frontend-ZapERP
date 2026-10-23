@@ -7,7 +7,7 @@ import {
   isModoSimplesAguardandoCliente,
   resolveModoSimplesAguardandoEffective,
 } from "../utils/conversaUtils";
-import { parseToDate } from "../conversa/utils/conversaViewHelpers";
+import { parseToDate } from "../utils/parseToDate.js";
 import { getContactDisplay } from "./chatListDisplay";
 import { useWhatsappLabelsStore } from "./whatsappLabelsStore";
 

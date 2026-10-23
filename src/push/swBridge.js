@@ -1,4 +1,7 @@
-import { useConversaStore } from "../conversa/conversaStore"
+// NAO importar conversaStore aqui: arrasta o motor de conversas para o boot.
+// `conversaSelecionada` vem do registo; sem motor carregado devolve null, o que
+// significa "nenhuma conversa aberta" -> o push e' mostrado (padrao seguro).
+import { lerDoMotor } from "../runtime/sessionRuntime.js"
 import { isAppUiFullyFocusedForSuppress, isConversationRouteActive } from "../notifications/chatNotificationService"
 import { schedulePushSubscriptionSync } from "./deferredPushSync"
 import { shouldDeferLocalNotificationToWebPush } from "./pushPlatform"
@@ -27,7 +30,7 @@ function isSuppressedForFocusedConversation(conversaId) {
   if (!cid) return false
   if (!isAppUiFullyFocusedForSuppress()) return false
   if (!isConversationRouteActive(window.location?.pathname || "")) return false
-  const selectedId = useConversaStore.getState().selectedId
+  const selectedId = lerDoMotor("conversaSelecionada")
   return normalize(selectedId) === cid
 }
 

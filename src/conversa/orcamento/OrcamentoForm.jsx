@@ -73,7 +73,7 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco }
   const unidade = item.unidade || valores?.unidade || "";
   const temPreco = valorPresente(valores?.preco_unitario);
   // Mesma leitura do card de busca: o texto diz o número e a cor só reforça a faixa.
-  const estoqueTexto = textoEstoque(valores?.estoque_previsto);
+  const estoqueTexto = textoEstoque(valores?.estoque_previsto, unidade);
   const secundaria = [item.marca, item.codigo_produto_erp ? `Cód. ${item.codigo_produto_erp}` : ""]
     .filter(Boolean)
     .join(" · ");

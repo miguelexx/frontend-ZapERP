@@ -13,7 +13,8 @@ import {
   pruneHiddenClosedMap,
   shouldBlockHiddenClosedReinsert,
 } from "./chatListQueryHelpers"
-import { parseToDate } from "../conversa/utils/conversaViewHelpers"
+import { parseToDate } from "../utils/parseToDate.js"
+import { registrarLimpezaDeSessao } from "../runtime/sessionRuntime.js"
 
 function toStoreMsgTs(raw) {
   if (raw == null || raw === "") return 0
@@ -955,3 +956,8 @@ if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigat
       .catch(() => {})
   }, 300)
 }
+
+// Ponte com o boot — ver src/runtime/sessionRuntime.js.
+registrarLimpezaDeSessao("chatsStore", () => {
+  useChatStore.getState().limpar()
+})

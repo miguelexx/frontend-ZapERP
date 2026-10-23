@@ -30,6 +30,7 @@ const tests = [
   "test-chat-list-hint.mjs",
   "test-mobile-input-zoom.mjs",
   "test-preload-conversa-view.mjs",
+  "test-session-runtime.mjs",
   "test-boot-primeira-pagina.mjs",
   "test-boot-permissoes-paralelas.mjs",
   "test-edit-window.mjs",

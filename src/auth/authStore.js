@@ -1,11 +1,14 @@
 import { create } from "zustand"
 import { login as loginService } from "./authService"
 import { getUsuarioMe } from "../api/configService"
-import { initSocket, disconnectSocket } from "../socket/socket"
-import { useChatStore } from "../chats/chatsStore"
-import { clearChatListSidebarSessionCache } from "../chats/chatListSidebarCache"
+// socket/chatsStore/conversaStore/chatListSidebarCache NAO entram aqui: sao o
+// MOTOR DE CONVERSAS e punham ~59% do chunk de entrada antes do primeiro render.
+// O que a sessao precisa deles passa pelo registo (ver runtime/sessionRuntime.js);
+// `initSocket` entra por import() dinamico, logo depois do boot.
+// `prefetchDefaultChatList` FICA ESTATICO de proposito: e' o GET /chats do boot,
+// e adia-lo atrasaria a lista (medido). Ele nao arrasta o motor.
 import { prefetchDefaultChatList } from "../chats/prefetchDefaultChatList"
-import { useConversaStore } from "../conversa/conversaStore"
+import { executarLimpezaDeSessao } from "../runtime/sessionRuntime.js"
 import { usePermissoesStore } from "./permissoesStore"
 import { unsubscribeWebPush, resetPushRegistrationDebounce } from "../push/webPushClient"
 import { schedulePushSubscriptionSync } from "../push/deferredPushSync"
@@ -80,7 +83,9 @@ export const useAuthStore = create((set, get) => ({
       })
 
       // 🔌 inicia socket autenticado
-      initSocket(token)
+      // Dinamico: traz o motor DEPOIS do primeiro render. O realtime sobe uns
+      // milissegundos mais tarde; a lista vem por HTTP e nao depende dele.
+      void import("../socket/socket").then((m) => m.initSocket(token)).catch(() => {})
 
       // Notificações: o evento `storage` não dispara na mesma aba — re-registar subscription/token após login.
       resetPushRegistrationDebounce()
@@ -107,11 +112,11 @@ export const useAuthStore = create((set, get) => ({
     const { redirect = false } = opts
     unsubscribeWebPush().catch(() => {})
     localStorage.removeItem("zap_erp_auth")
-    disconnectSocket()
+    // Socket, lista, conversa e cache da sidebar limpam-se pelo registo: cada um
+    // regista-se ao carregar. Se o motor nunca carregou, nao ha estado dele para
+    // limpar — o no-op e' a resposta correta. Ver runtime/sessionRuntime.js.
+    executarLimpezaDeSessao()
     try {
-      useChatStore.getState().limpar()
-      clearChatListSidebarSessionCache()
-      useConversaStore.getState().limpar()
       usePermissoesStore.getState().clearPermissoes()
       useEmpresaStore.getState().clear()
     } catch (_) {}
@@ -224,7 +229,7 @@ export const useAuthStore = create((set, get) => ({
         user: userNormalizado,
       })
 
-      initSocket(parsed.token)
+      void import("../socket/socket").then((m) => m.initSocket(parsed.token)).catch(() => {})
       prefetchDefaultChatList(userNormalizado).catch(() => {})
 
       queueMicrotask(() => {

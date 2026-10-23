@@ -7,6 +7,8 @@
  * Não persiste arrays de mensagens da thread nem conteúdo além do preview da última linha.
 
  */
+import { registrarLimpezaDeSessao } from "../runtime/sessionRuntime.js"
+
 
 const SIDEBAR_TTL_MS = 2 * 60 * 1000;
 // Cache de filtro é apenas stale-while-revalidate: filas/status mudam com
@@ -602,4 +604,7 @@ export function persistChatListSidebarToSession(scopeKey, chats, extras = {}) {
 
 }
 
-
+// Ponte com o boot — ver src/runtime/sessionRuntime.js.
+registrarLimpezaDeSessao("chatListSidebarCache", () => {
+  clearChatListSidebarSessionCache()
+})

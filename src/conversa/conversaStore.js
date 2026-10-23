@@ -54,6 +54,7 @@ import { salvarSnapshotConversa, carregarSnapshotConversa } from "./offlineSnaps
 import { prefetchAudiosDaConversa } from "./offlineAudioCache.js"
 import { resolveAudioPlaybackCandidates } from "./utils/conversaViewHelpers.js"
 import { prefetchThreadImages } from "./utils/prefetchThreadMedia.js"
+import { registrarLimpezaDeSessao, registrarLeitor } from "../runtime/sessionRuntime.js"
 
 export { stableSyntheticMessageKey, mapDedupeKey, getMessageListReactKey, isPendingOutgoingTemp }
 
@@ -2351,3 +2352,11 @@ export function mergeMessageIntoListForTest(list, convId, msg) {
   const next = applyAnexarOneToList(Array.isArray(list) ? [...list] : [], convId, msg)
   return finalizeMensagensList(next)
 }
+
+// Ponte com o boot: `api/http.js` (401) e `push/swBridge.js` precisam disto sem
+// IMPORTAR este módulo — ver src/runtime/sessionRuntime.js.
+registrarLimpezaDeSessao("conversaStore", () => {
+  clearConversaSessionCaches()
+  useConversaStore.getState().limpar()
+})
+registrarLeitor("conversaSelecionada", () => useConversaStore.getState().selectedId)

@@ -40,6 +40,7 @@ import {
   resolveCardStatusFromMsg,
 } from "./statusMensagemBatch"
 import { getStatusAtendimentoEffective, isClosedAttendance } from "../utils/conversaUtils"
+import { registrarLimpezaDeSessao } from "../runtime/sessionRuntime.js"
 
 const TYPING_EXPIRY_MS = 5000
 const typingExpiryTimers = new Map()
@@ -2120,3 +2121,10 @@ export function disconnectSocket() {
 
 export { updateDocumentTitleFromChats, applyDocumentTitle }
 export { SOCKET_EVENTS } from "./events"
+
+// Ponte com o boot: `api/http.js` precisa desligar o socket no 401 sem IMPORTAR
+// este módulo (ele arrasta o motor de conversas inteiro para o chunk de entrada).
+// Ver src/runtime/sessionRuntime.js.
+registrarLimpezaDeSessao("socket", () => {
+  disconnectSocket()
+})

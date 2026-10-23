@@ -39,6 +39,7 @@
 
 import {
   formatMoedaOrcamento,
+  formatQuantidadeExibicao,
   formatQuantidadeOrcamento,
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
@@ -284,13 +285,17 @@ export function montarPreviaView(previa) {
       chave: `${codigoBruto}-${indice}`,
       codigo: textoOuSemValor(item.codigo_produto_erp),
       descricao: textoOuSemValor(item.descricao),
+      // A unidade crua, para quem precisar dela sozinha; a tela não a imprime separada, porque
+      // `quantidade` e `estoque` abaixo já a trazem coladas no número.
       unidade,
-      quantidade: formatQuantidadeOrcamento(item.quantidade),
+      // Quantidade e estoque saem como se LEEM: sem as casas vazias das três decimais da WM e
+      // com a unidade colada (`"2.000"` + `UN` → `2 UN`). "2,000 × " seria lido como dois mil.
+      quantidade: formatQuantidadeExibicao(item.quantidade, unidade),
       precoUnitario: formatMoedaOrcamento(item.preco_unitario),
       precoExato: precoExatoTexto(item.preco_unitario),
       valorTotal: formatMoedaOrcamento(item.valor_total),
       // Estoque previsto PODE SER NEGATIVO no contrato; é texto de exibição e não entra em conta.
-      estoque: formatQuantidadeOrcamento(item.estoque_previsto),
+      estoque: formatQuantidadeExibicao(item.estoque_previsto, unidade),
     };
   });
 
@@ -351,22 +356,6 @@ export function montarResultadoView(resultado, { jaEstavaCriado = false } = {}) 
 }
 
 /**
- * Quantidade no texto que vai para o CLIENTE.
- *
- * A WM manda `"2.000"` e a prévia mostra isso tal e qual, porque ali o atendente está
- * conferindo o dado do ERP. Numa mensagem de WhatsApp, "2,000 × Mouse" só confunde. Aqui as
- * casas decimais vazias saem — `"2.000"` → `"2"`, `"1.500"` → `"1,5"` — e isso é recorte de
- * texto, não conta: nenhum dígito significativo é tocado, e o valor exato continua na prévia
- * e no que foi gravado no ERP.
- */
-function quantidadeParaCliente(bruta) {
-  const texto = formatQuantidadeOrcamento(bruta);
-  if (texto === SEM_VALOR) return SEM_VALOR;
-  if (!texto.includes(",")) return texto;
-  return texto.replace(/,?0+$/, "") || texto;
-}
-
-/**
  * Linhas de item do resumo, a partir da PRÉVIA que foi confirmada.
  *
  * Os itens não vêm no `200` da criação (§10 só devolve número, documento, cliente, vendedor,
@@ -382,7 +371,9 @@ function linhasDeItem(previa) {
   for (const bruto of itens) {
     const item = bruto && typeof bruto === "object" ? bruto : {};
     const descricao = textoOuSemValor(item.descricao);
-    const quantidade = quantidadeParaCliente(item.quantidade);
+    // Mesma leitura da prévia: sem as casas vazias e com a unidade. "2,000 × Mouse" na mensagem
+    // do cliente seria lido como dois mil mouses — e o cliente não tem a prévia para conferir.
+    const quantidade = formatQuantidadeExibicao(item.quantidade, item.unidade);
     const preco = formatMoedaOrcamento(item.preco_unitario);
     // Linha sem descrição ou sem preço não vira "— × — — —" na mensagem do cliente: some.
     if (descricao === SEM_VALOR || quantidade === SEM_VALOR || preco === SEM_VALOR) continue;

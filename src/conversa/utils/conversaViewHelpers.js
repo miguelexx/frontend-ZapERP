@@ -1,6 +1,9 @@
 import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
 import { getApiBaseUrl } from "../../api/baseUrl";
 import { CAPTION_BUNDLE_MAX_SEC, STICKER_RECENTS_LIMIT } from "../conversaConstants";
+import { parseToDate } from "../../utils/parseToDate.js";
+// Reexportado para nao mudar nada de quem ja importava daqui.
+export { parseToDate };
 
 export function formatForwardHttpError(err) {
   const status = err?.response?.status;
@@ -11,19 +14,6 @@ export function formatForwardHttpError(err) {
   if (status === 404) return "Conversa ou recurso não encontrado.";
   if (status >= 500) return "Erro no servidor. Tente novamente em instantes.";
   return err?.message || "Falha de rede ou resposta inesperada.";
-}
-export function parseToDate(ts) {
-  if (!ts) return null;
-  if (ts instanceof Date) return ts;
-  if (typeof ts === "number") return new Date(ts);
-  const s = String(ts).trim();
-  if (!s) return null;
-  // Se vier sem timezone (ex.: "2026-02-10T20:36:00"), assuma UTC (Supabase timestamp sem TZ)
-  const noTzIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/;
-  const hasTz = /Z$|[+-]\d{2}:\d{2}$/.test(s);
-  const normalized = !hasTz && noTzIso.test(s) ? `${s}Z` : s;
-  const d = new Date(normalized);
-  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export function formatHora(ts) {

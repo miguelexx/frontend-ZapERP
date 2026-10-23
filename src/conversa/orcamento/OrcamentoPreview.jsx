@@ -59,9 +59,9 @@ function ItemPrevia({ item }) {
     <li className="wa-orc-previaItem">
       <div className="wa-orc-item-info">
         <span className="wa-orc-item-titulo">{item.descricao}</span>
+        {/* A unidade já vem colada na quantidade (`formatQuantidadeExibicao`): "2 UN". */}
         <span className="wa-orc-item-meta">
-          {item.quantidade}
-          {item.unidade ? ` ${item.unidade}` : ""} × {item.precoUnitario}
+          {item.quantidade} × {item.precoUnitario}
         </span>
       </div>
       <strong className="wa-orc-previaItem-valor">{item.valorTotal}</strong>

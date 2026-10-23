@@ -490,7 +490,7 @@ export default function ProdutoPicker({
     const carregando = detalhe?.estado === ESTADO_PRECO.CARREGANDO;
     const falhou = detalhe?.estado === ESTADO_PRECO.FALHOU;
     const oferecerPreco = !temPreco && !carregando;
-    const estoqueTexto = textoEstoque(estoque);
+    const estoqueTexto = textoEstoque(estoque, unidade);
 
     // Marca e unidade podem faltar; o código nunca falta (candidato sem código não entra na
     // lista). Ausência de marca não vira texto: ela já se lê pela ausência.

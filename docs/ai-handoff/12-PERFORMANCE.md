@@ -160,6 +160,88 @@ absolutos entre execuções não vale**; só A/B na mesma sessão, logo em segui
 **Se alguém for recolocar o Google Fonts:** não recoloque. O ganho principal é não
 depender de origem externa para o app desenhar.
 
+**ITEM 10 APLICADO (23/10) — o motor de conversas saiu do chunk de entrada**
+
+Novo arquivo `src/runtime/sessionRuntime.js`, **sem nenhum import** (é essa ausência que
+o deixa entrar no boot sem arrastar nada — há teste que falha se alguém puser um).
+
+| | módulos | fonte | build (entrada) |
+|---|---|---|---|
+| antes | 82 | 858 kB | 392,62 kB / 109,73 kB gzip |
+| **depois** | **51** | **328 kB (−62%)** | **149,14 kB / 42,55 kB gzip** |
+
+**As 3 arestas que prendiam o motor** (e por que não bastava `import()` dinâmico):
+
+- `api/http.js` → `socket/socket` + `conversa/conversaStore`, só para limpar no 401. Como
+  logo a seguir vem `location.href = "/login"`, um import dinâmico poderia **não chegar a
+  tempo** e a limpeza ficaria por fazer, às vezes. Por isso é **inversão de dependência**,
+  não import tardio.
+- `push/swBridge.js` → `conversaStore`, só para ler `selectedId`.
+- `auth/authStore.js` → socket + chatsStore + conversaStore.
+
+**Como funciona:** quem é pesado **regista-se** ao carregar
+(`registrarLimpezaDeSessao` / `registrarLeitor`); quem é leve chama o que estiver
+registado. A propriedade que torna isto seguro **por construção**: se um módulo nunca
+carregou, não há estado dele para limpar nem valor para ler — o no-op é a resposta
+**correta**. Sem socket carregado não há socket para desligar; sem conversaStore não há
+conversa aberta (e o push aparece, que é o padrão seguro).
+
+**`prefetchDefaultChatList` ficou ESTÁTICO de propósito** — é o `GET /chats` do boot, e
+adiá-lo atrasaria a lista. Medido: ele não arrasta o motor. Há teste que trava isso.
+
+**`initSocket` passou a `import()` dinâmico** no login/restore: o realtime sobe uns
+milissegundos depois; a lista vem por HTTP e não depende dele.
+
+**Item 6 junto (`parseToDate`):** `chats/chatListRowAtendimento.js` e `chats/chatsStore.js`
+importavam **só** essa função de `conversa/utils/conversaViewHelpers.js` (68 exports, 41 kB,
+que ainda arrasta `conversaUtils`). Em 23/10 eu medi **0 kB de ganho** — porque o módulo
+chegava ao boot pelo próprio motor. Depois do corte, passou a valer 40 kB. Agora vive em
+`src/utils/parseToDate.js` e o arquivo antigo **reexporta**, então nada do lado da conversa
+mudou. **Lição: medir antes de refatorar — e medir de novo depois de mudar o contexto.**
+
+Teste: `scripts/test-session-runtime.mjs`, validado com 4 mutações (voltar o import em
+`http.js`; tirar o registo do leitor; pôr um import no `sessionRuntime`; tirar o try/catch
+que isola uma limpeza que estoura).
+
+### Itens do backlog C reavaliados com o código na mão (23/10)
+
+- **C7 (resync em cascata) — FECHAR, não implementar.** `pagesLoadedTarget` é
+  `min(20, pagesLoaded)`, ou seja **quantas páginas o utilizador realmente carregou**: quem
+  nunca clicou "Carregar mais" faz 1 página. E o comentário em `chatList.jsx:759` documenta
+  que voltar só a 1ª página **causou bug real** ("conversas antigas sumirem da lista"). A
+  "melhoria" do backlog reintroduziria um bug já corrigido.
+- **C8 (`ConversaViewBody` assina `mensagens`) — MEDIDO em 23/10, e o diagnóstico do
+  backlog estava impreciso.**
+  - O "60 lugares" que eu próprio escrevi era contagem bruta de `grep`: a maioria é
+    `mensagens_bloqueadas` (outro campo), comentários e strings. Os usos **reais** do array
+    assinado são **~7**, e outros **9** já leem por `getState()` de otimizações anteriores.
+  - **Custo medido** (dev, com mock, instrumentando o render do coordenador e descontando
+    o overhead do laço de medição):
+
+    | thread aberta | custo por mensagem |
+    |---|---|
+    | 200 msgs | ~7,6 ms |
+    | 1.000 msgs | ~7 ms |
+    | 3.000 msgs | **~24,7 ms** |
+
+    Com a thread FECHADA o mesmo lote custa ~0 (0 renders) — ou seja, o número acima é o
+    custo total de coordenador + thread, não só do coordenador. Em dev o React é
+    não-minificado e o StrictMode **dobra** os renders (medi 2 por mensagem); em produção
+    é menos.
+  - **Leitura:** o custo é PLANO até ~1000 mensagens e só degrada em thread muito longa.
+    O culpado provável da degradação não é o re-render do coordenador em si, e sim o
+    `buildMensagensComSeparadores(mensagens, isGroup)` ser **O(n) a cada mensagem**
+    (O(n²) ao longo da conversa).
+  - **Recomendação: NÃO fazer agora.** Refatorar um componente de 3553 linhas no caminho
+    marcado como zona de perigo (scroll/teclado) para ganhar poucos ms no caso comum é mau
+    negócio. Se um dia valer, o alvo certo é tornar o `buildMensagensComSeparadores`
+    incremental — não mover a assinatura.
+- **C10 (unificar ícones) — ganho não justifica.** `vendor-icons` é **11 kB gzip no total**;
+  unificar tocaria 52 arquivos com troca de nomes de ícone (mudança visual a verificar
+  uma a uma) para poupar talvez 5 kB.
+- **C11 (`react-easy-crop`) — dep morta, mas ganho zero no bundle** (não é importada, logo
+  não é empacotada). Só encurta `npm install`, ao custo de churn no lockfile.
+
 **Não aplicado (é servidor, não tem nginx versionado no repo):** brotli (~60 kB a menos
 no boot, medido) e `Cache-Control: no-cache` no `index.html` (hoje o nginx não manda
 header nenhum — só `ETag`; o `<meta http-equiv>` do HTML é ignorado pelo browser).

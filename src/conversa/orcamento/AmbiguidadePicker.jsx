@@ -123,7 +123,7 @@ function CandidatoProduto({ candidato, onEscolher, ocupado }) {
   const descricao = textoOuSemValor(candidato.descricao);
   const temPreco = valorPresente(candidato.preco_unitario);
   // Mesma leitura do card de busca: o texto diz o número e a cor só reforça a faixa.
-  const estoqueTexto = textoEstoque(candidato.estoque_previsto);
+  const estoqueTexto = textoEstoque(candidato.estoque_previsto, candidato.unidade);
   return (
     <CartaoCandidato
       rotulo={`Usar o produto ${descricao}`}
