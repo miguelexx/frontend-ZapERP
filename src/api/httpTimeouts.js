@@ -24,7 +24,13 @@ const UPLOAD_BYTES_PER_SEC = 50 * 1024;
  * 120 s no `wmApiClient`), e 150 s cobre isso mais a latência da nossa própria rota.
  * ------------------------------------------------------------------ */
 
-/** Busca de produto: backend espera ~15 s da WM (`WM_API_TIMEOUT_READ_MS`) + folga local. */
+/**
+ * Busca de produto e de cliente: backend espera ~15 s da WM (`WM_API_TIMEOUT_READ_MS`) + folga
+ * local. As duas são leitura e usam o MESMO perfil no `wmApiClient` (`OPERACAO.LEITURA`), mesmo
+ * sendo portas de natureza diferente — produto vem do acervo da WM, cliente fala em tempo real
+ * com a máquina da loja. O que a de cliente tem de pior é a espera do 503 quando a loja está
+ * fora do ar (2,5 s medidos, mais as retentativas de leitura), e isso cabe nos 30 s.
+ */
 export const HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS = 30_000;
 /** Preparação/prévia: backend usa o timeout de escrita (~30 s) + folga local. */
 export const HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS = 45_000;
@@ -42,7 +48,9 @@ export function resolveOrcamentoTimeoutMs(url) {
   if (!u.includes("/api/orcamentos")) return 0;
   if (/\/(confirmar|verificar)(\?|$)/.test(u)) return HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS;
   if (u.includes("/preparar")) return HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS;
-  if (u.includes("/produtos/consultar")) return HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS;
+  if (u.includes("/produtos/consultar") || u.includes("/clientes/consultar")) {
+    return HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS;
+  }
   // `GET /api/orcamentos/:id` é leitura do nosso banco: o default serve.
   return HTTP_TIMEOUT_DEFAULT_MS;
 }

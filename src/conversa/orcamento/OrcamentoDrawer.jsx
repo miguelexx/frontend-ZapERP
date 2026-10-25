@@ -87,6 +87,7 @@ import { normalizarQuantidadeParaEnvio } from "./orcamentoFormat";
 import {
   assinaturaDoBody,
   assinaturaDoRascunho,
+  dicaClienteEscolhidoRecusado,
   dicaClienteNaoEncontrado,
 } from "./orcamentoViewModel";
 import { gravarVendedorLembrado } from "./vendedorLembrado";
@@ -278,6 +279,15 @@ export default function OrcamentoDrawer({
     setPrecos({});
   }, [conversaId, open]);
 
+  /*
+    A dica de cliente fala do cliente que estava no campo quando o Calcular recusou. Mexer no
+    cliente — digitar outro nome, escolher outro na busca, tocar em "Trocar" — torna a frase
+    obsoleta, e uma explicação obsoleta passa a descrever o cliente errado.
+  */
+  useEffect(() => {
+    setDicaCliente("");
+  }, [rascunho?.clienteCodigoErp, rascunho?.clienteBusca]);
+
   useEffect(
     () => () => {
       try {
@@ -415,9 +425,22 @@ export default function OrcamentoDrawer({
       setEtapa(ETAPA.FORM);
       setErro(mensagem);
       if (campo) setAvisoCampo("Revise os dados informados e calcule de novo.");
-      // "Não encontrado" com nome de cliente digitado quase sempre é o prefixo: a WM casa
-      // cliente pelo COMEÇO do nome, então sobrenome não acha. É texto, não consulta nova.
-      setDicaCliente(dicaClienteNaoEncontrado(codigo, body?.cliente_busca));
+      /*
+        Duas dicas de cliente, e o que decide entre elas é o que a pessoa fez:
+
+        · digitou o nome e não achou → quase sempre é o PREFIXO (a WM casa cliente pelo começo
+          do nome, então sobrenome não acha);
+        · escolheu na busca e levou `CLIENTE_INVALIDO` → o cliente existe, mas está inativo ou
+          bloqueado. Sem explicação, "Escolha outro" depois de escolher de uma lista que o
+          próprio sistema mostrou parece defeito — é a consequência de tela do
+          `resolucao_definitiva: false` (D11).
+
+        As duas são TEXTO: nenhuma dispara consulta nova.
+      */
+      setDicaCliente(
+        dicaClienteNaoEncontrado(codigo, body?.cliente_busca) ||
+          dicaClienteEscolhidoRecusado(codigo, body?.cliente_codigo_erp)
+      );
     } finally {
       setCalculando(false);
     }

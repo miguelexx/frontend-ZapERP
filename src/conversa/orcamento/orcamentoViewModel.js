@@ -499,12 +499,241 @@ const CODIGOS_CLIENTE_NAO_ACHADO = Object.freeze([
  */
 export function dicaClienteNaoEncontrado(codigo, clienteBusca) {
   if (!CODIGOS_CLIENTE_NAO_ACHADO.includes(String(codigo || ""))) return "";
-  const digitado = String(clienteBusca ?? "").trim().replace(/\s+/g, " ");
+  return mensagemBuscaClienteSemResultado(clienteBusca);
+}
+
+/**
+ * A MESMA frase, dita no estado vazio da busca de cliente.
+ *
+ * Uma frase só para os dois momentos de propósito: o atendente que digita o sobrenome na busca
+ * e o que digita o sobrenome e aperta Calcular estão diante do mesmo fato do ERP, e duas
+ * explicações diferentes para ele ensinariam duas coisas.
+ *
+ * @param {string|null|undefined} termo o que a pessoa digitou
+ * @returns {string} vazio quando não há o que explicar (nada digitado)
+ */
+export function mensagemBuscaClienteSemResultado(termo) {
+  const digitado = String(termo ?? "").trim().replace(/\s+/g, " ");
   if (!digitado) return "";
   return (
     `Nenhum cliente começando com "${digitado}". A busca de cliente é pelo começo do nome — ` +
     "tente o primeiro nome, ou cole o CPF/CNPJ."
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * A busca de cliente: lista, estados e o que ela NÃO promete
+ * ------------------------------------------------------------------ *
+ * `POST /api/orcamentos/clientes/consultar` é AUXÍLIO DE BUSCA, não autoridade: ela não aplica
+ * os filtros Inativo/Bloqueado e `preparar` aplica (D11), e é por isso que a resposta carrega
+ * `resolucao_definitiva: false`. Escolher aqui encurta o caminho; quem decide continua sendo o
+ * Calcular, que pode recusar com `CLIENTE_INVALIDO` um cliente que esta lista mostrou.
+ *
+ * Tudo abaixo é regra, não JSX: o componente imprime o que estas funções decidirem.
+ */
+
+/** Documentos do ERP, em ordem de preferência — ver `dbo.Clientes` em `docs/wm/04-contratos-api.md`. */
+const DOCUMENTOS_CLIENTE = Object.freeze([
+  ["cnpj", "CNPJ"],
+  ["cpf", "CPF"],
+  ["inscricao_estadual", "IE"],
+]);
+
+/**
+ * O documento que distingue dois homônimos, rotulado — o primeiro que existir.
+ *
+ * Nunca os três juntos: numa lista de 30 nomes, três documentos por linha afogam o nome, que é
+ * o que está sendo lido. CNPJ primeiro porque cliente pessoa jurídica é quem mais repete nome
+ * (filial, matriz) na base da loja.
+ *
+ * A mesma regra existe hoje dentro do `AmbiguidadePicker` (função local `documentoCliente`).
+ * Não a unifiquei nesta passagem para não encostar no laço de ambiguidade, que está estável e
+ * em produção — unificar é follow-up, e a duplicação está anotada aqui para ser achada.
+ *
+ * @param {object|null|undefined} cliente candidato da WM
+ * @returns {string} vazio quando o candidato não traz documento nenhum
+ */
+export function documentoDoCliente(cliente) {
+  if (!cliente || typeof cliente !== "object") return "";
+  for (const [campo, rotulo] of DOCUMENTOS_CLIENTE) {
+    const valor = typeof cliente[campo] === "string" ? cliente[campo].trim() : "";
+    if (valor) return `${rotulo} ${valor}`;
+  }
+  return "";
+}
+
+/** Forma vazia da busca de cliente. Congelada: nunca mutada, só substituída. */
+export const SEM_CLIENTE = Object.freeze({
+  status: "",
+  unico: false,
+  lista: [],
+  paginacao: null,
+});
+
+/**
+ * Traduz a resposta da consulta de clientes na forma que a tela consome.
+ *
+ * Dois ramos no contrato (`ConsultarClientesResposta`), e a diferença entre eles é de SENTIDO,
+ * não de formato:
+ *
+ *   · `multiplos_clientes` → `candidatos[]` + `paginacao`: uma lista para escolher, e o
+ *     documento é o que separa duas "MARIA SILVA";
+ *   · `cliente`            → UM cliente que o ERP resolveu sozinho. É um ACHADO, não uma lista
+ *     de um — e por isso vem sem paginação e, pelo contrato, sem documentos (o ramo único traz
+ *     só código e nome). Dizer "sem documento" ali seria afirmar algo sobre o cadastro que a
+ *     resposta não disse.
+ *
+ * Candidato sem código não entra: não há como escolhê-lo. (O backend já recusa a resposta
+ * inteira nesse caso; isto é a rede de segurança da tela.)
+ *
+ * @param {object|null|undefined} data corpo de `POST /api/orcamentos/clientes/consultar`
+ * @returns {{ status: string, unico: boolean, lista: object[], paginacao: object|null }}
+ */
+export function agruparCandidatosCliente(data) {
+  if (!data || typeof data !== "object") return SEM_CLIENTE;
+  const selecionavel = (c) =>
+    Boolean(c && typeof c === "object" && typeof c.codigo_cliente_erp === "string" && c.codigo_cliente_erp);
+
+  if (data.status === "cliente") {
+    if (!selecionavel(data.cliente)) return SEM_CLIENTE;
+    return { status: "cliente", unico: true, lista: [data.cliente], paginacao: null };
+  }
+
+  if (data.status === "multiplos_clientes") {
+    const lista = Array.isArray(data.candidatos) ? data.candidatos.filter(selecionavel) : [];
+    const paginacao = data.paginacao && typeof data.paginacao === "object" ? data.paginacao : null;
+    return { status: "multiplos_clientes", unico: false, lista, paginacao };
+  }
+
+  return SEM_CLIENTE;
+}
+
+/**
+ * A frase que acompanha a lista — e o trabalho que ela nomeia.
+ *
+ * Com vários, o trabalho é DESEMPATAR, e o que desempata é o documento: duas "MARIA SILVA" só
+ * se separam por ele. Com um, o trabalho é confirmar — e nem aí a tela escolhe sozinha: o
+ * contrato é explícito ("a última página com um único registro não resolve automaticamente"),
+ * e escolher por conta própria colocaria no orçamento um cliente que ninguém viu.
+ *
+ * @param {{unico: boolean, lista: object[]}} grupo saída de `agruparCandidatosCliente`
+ * @returns {string} vazio quando não há nada na mão
+ */
+export function tituloClientesEncontrados(grupo) {
+  const lista = Array.isArray(grupo?.lista) ? grupo.lista : [];
+  if (!lista.length) return "";
+  if (grupo?.unico || lista.length === 1) return "Um cliente encontrado. Toque para usar.";
+  return "Mais de um cliente com esse nome. Confira o documento para escolher.";
+}
+
+/** Códigos do envelope que, na busca de cliente, significam indisponibilidade da loja. */
+const CODIGOS_CLIENTE_INDISPONIVEL = Object.freeze(["WM_SINCRONIZADOR_OFFLINE"]);
+/** Envelope de "o cliente escolhido não serve para orçamento" (Inativo/Bloqueado no ERP). */
+const CODIGO_CLIENTE_INVALIDO = "WM_CLIENTE_INVALIDO";
+
+/**
+ * Indisponibilidade NÃO é lista vazia, e a diferença é a conclusão do atendente.
+ *
+ * A porta de cliente é realtime: ela fala com o sincronizador instalado na máquina da loja, e
+ * devolve `503 SINCRONIZADOR_OFFLINE` quando ele está fora do ar — enquanto a busca de produto,
+ * servida do acervo já sincronizado dentro da WM, continua respondendo 200 (medido em produção
+ * em 25/10/2026). Pintar esse 503 como "nenhum cliente encontrado" faz o atendente concluir que
+ * o cliente saiu do cadastro.
+ *
+ * A mensagem do envelope também não serve aqui: ela foi escrita para o Calcular ("o orçamento
+ * não pôde ser calculado. Nada foi gravado"), e no campo de busca fala de um cálculo que
+ * ninguém pediu. Mesma razão pela qual o `ProdutoPicker` não exibe a mensagem do 404.
+ *
+ * "Não encontrado" vira VAZIO, não erro: houve resposta, e ela foi "não tem".
+ *
+ * @param {{codigo?: string, mensagem?: string}} erro saída de `extrairErroOrcamento`
+ * @returns {{ tipo: "vazio"|"indisponivel"|"erro", mensagem: string }}
+ */
+export function traduzirErroBuscaCliente(erro) {
+  const codigo = String(erro?.codigo || "");
+  if (CODIGOS_CLIENTE_NAO_ACHADO.includes(codigo)) return { tipo: "vazio", mensagem: "" };
+  if (CODIGOS_CLIENTE_INDISPONIVEL.includes(codigo)) {
+    return {
+      tipo: "indisponivel",
+      mensagem:
+        "Não foi possível procurar clientes agora: o sistema da sua loja não respondeu. " +
+        "Isso não quer dizer que o cliente não está cadastrado.",
+    };
+  }
+  return { tipo: "erro", mensagem: String(erro?.mensagem || "") };
+}
+
+/** O que fazer quando a loja não responde — e o que ainda funciona enquanto isso. */
+export const RECUPERACAO_CLIENTE_INDISPONIVEL =
+  "Confira se o computador do ERP está ligado e com internet. O Calcular depende do mesmo " +
+  "sistema; a busca de produto continua funcionando.";
+
+/**
+ * O que a escolha na busca vale — dito ANTES do Calcular, não depois dele.
+ *
+ * Esta lista mostra o cadastro inteiro e o orçamento só aceita cliente ativo e desbloqueado:
+ * transformar a escolha num "cliente confirmado" prometeria o que a consulta não entrega.
+ */
+export const AVISO_CLIENTE_NAO_DEFINITIVO =
+  "O cliente é confirmado no Calcular: se estiver inativo ou bloqueado no ERP, o cálculo recusa.";
+
+/**
+ * A explicação para o `CLIENTE_INVALIDO` de quem acabou de escolher na lista.
+ *
+ * Sem ela, a mensagem do envelope ("O cliente escolhido não está liberado para orçamento no
+ * ERP. Escolha outro.") parece defeito: a pessoa escolheu de uma lista que o próprio sistema
+ * mostrou, e agora o sistema diz que o cliente não serve. O que falta é o porquê — a busca não
+ * filtra Inativo/Bloqueado e o cálculo filtra.
+ *
+ * Só vale quando o código FOI enviado, isto é, quando a escolha veio de uma lista. Quem digitou
+ * o nome não escolheu nada, e aí a dica do prefixo é a que se aplica.
+ *
+ * @param {string|null|undefined} codigo código do envelope de erro
+ * @param {string|null|undefined} codigoClienteEnviado `cliente_codigo_erp` do corpo enviado
+ * @returns {string} vazio quando não se aplica
+ */
+export function dicaClienteEscolhidoRecusado(codigo, codigoClienteEnviado) {
+  if (String(codigo || "") !== CODIGO_CLIENTE_INVALIDO) return "";
+  if (!String(codigoClienteEnviado || "").trim()) return "";
+  return (
+    "Esse cliente aparece na busca porque a busca mostra o cadastro inteiro, mas o orçamento " +
+    "só aceita cliente ativo e desbloqueado no ERP. Escolha outro na busca, ou peça para " +
+    "liberarem esse no sistema da loja."
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Código × busca: a troca que não pode deixar código órfão
+ * ------------------------------------------------------------------ *
+ * `preparar` recebe `cliente_codigo_erp` XOR `cliente_busca`, e o código GANHA quando os dois
+ * existem no rascunho (ver `montarBodyPreparar`). Daí o defeito clássico deste desenho: a
+ * pessoa escolhe "MARIA APARECIDA" na lista, depois mexe no texto do campo para procurar outro
+ * cliente, e o código da Maria continua lá — o orçamento sai para ela, com o nome de outra
+ * pessoa na tela. Em silêncio, e em produção, para um cliente real.
+ *
+ * As duas funções abaixo são o único caminho pelo qual a tela escreve a identidade do cliente
+ * no rascunho, e elas são opostas por construção: escolher grava código e nome; digitar apaga
+ * os dois. Nenhuma das duas lê o estado anterior, então não há ordem de chamada que as burle.
+ */
+
+/** Mexer no texto invalida a escolha anterior: volta-se a `cliente_busca`, sem código órfão. */
+export function patchClienteDigitado(valor) {
+  return { clienteBusca: String(valor ?? ""), clienteCodigoErp: "", clienteNome: "" };
+}
+
+/**
+ * Escolher na lista grava o código canônico — é ele que elimina a ambiguidade no `preparar` e
+ * dispensa o laço do `AmbiguidadePicker`.
+ *
+ * O texto digitado fica INTACTO: é por ele que a pessoa voltará à mesma lista se tocar em
+ * "Trocar", sem gastar outra consulta na loja.
+ *
+ * @returns {object|null} `null` para candidato sem código (nada a gravar)
+ */
+export function patchClienteEscolhido(candidato) {
+  const codigo = typeof candidato?.codigo_cliente_erp === "string" ? candidato.codigo_cliente_erp.trim() : "";
+  if (!codigo) return null;
+  return { clienteCodigoErp: codigo, clienteNome: String(candidato?.nome || "").trim() };
 }
 
 /* ------------------------------------------------------------------ *

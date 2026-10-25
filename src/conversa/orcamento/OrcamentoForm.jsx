@@ -5,13 +5,21 @@
  * e UX; D11 — cliente e vendedor resolvem dentro de `preparar`).
  *
  * ────────────────────────────────────────────────────────────────────────────
- * POR QUE CLIENTE E VENDEDOR SÃO CAMPOS DE TEXTO, E NÃO PICKERS COM BUSCA
+ * CLIENTE TEM BUSCA; VENDEDOR CONTINUA SENDO CAMPO DE TEXTO
  * ────────────────────────────────────────────────────────────────────────────
- * Por D11. `/clientes/consultar` da WM **não** filtra Inativo/Bloqueado, mas `preparar`
- * **filtra**: um cliente escolhido num picker próprio poderia ser recusado depois com
- * `CLIENTE_INVALIDO` — um beco sem saída que o atendente não tem como prever. Então o nome
- * digitado vai dentro da própria preparação, que resolve e, se houver mais de um,
- * devolve a ambiguidade com os candidatos já elegíveis. Menos chamadas e nenhum beco.
+ * D11 continua valendo nos dois casos: quem RESOLVE cliente e vendedor é `preparar`, e quem
+ * digita e aperta Calcular cai no laço de ambiguidade como sempre.
+ *
+ * O cliente ganhou busca (`ClientePicker`) porque o campo de texto puro era adivinhação: a
+ * busca do ERP é por PREFIXO, então "DINIZ" não acha "MARIA DINIZ" (medido), e o atendente
+ * descobria isso só no Calcular — com o cliente esperando. A busca mostra os clientes reais
+ * antes do cálculo. Ela é AUXÍLIO, não autoridade: `/clientes/consultar` não filtra
+ * Inativo/Bloqueado e `preparar` filtra, então a tela não promete que a escolha passa (ver o
+ * cabeçalho do `ClientePicker`).
+ *
+ * O vendedor NÃO ganhou: a semântica de busca dele não está declarada no contrato (prefixo?
+ * trecho?), e inventar a regra na tela seria ensinar ao atendente algo que pode ser falso.
+ * Pendência aberta com a WM.
  *
  * O nome da conversa entra como SUGESTÃO EDITÁVEL no campo de cliente (vem do rascunho), e
  * nunca como seleção canônica: só a WM transforma nome em `codigo_cliente_erp`. Título que é só
@@ -32,6 +40,7 @@
  */
 
 import { useCallback } from "react";
+import ClientePicker from "./ClientePicker";
 import ProdutoPicker from "./ProdutoPicker";
 import {
   classeEstoque,
@@ -268,48 +277,18 @@ export default function OrcamentoForm({
         */}
         <section className="wa-orc-section wa-orc-section--dupla" aria-label="Cliente e vendedor">
           <h4 className="wa-orc-sectionTitle">Cliente e vendedor</h4>
-          <div className="wa-orc-campo">
-            <label className="wa-orc-label" htmlFor="wa-orc-cliente">
-              Cliente
-            </label>
-            {rascunho?.clienteCodigoErp ? (
-              <div className="wa-orc-escolhido">
-                <div>
-                  <strong>{textoOuSemValor(rascunho.clienteNome)}</strong>
-                  <span className="wa-orc-item-codigo">Cód. ERP {rascunho.clienteCodigoErp}</span>
-                </div>
-                <button
-                  type="button"
-                  className="wa-btn wa-btn-ghost wa-orc-btnSm"
-                  disabled={disabled}
-                  onClick={() => onPatch({ clienteCodigoErp: "", clienteNome: "" })}
-                >
-                  Trocar
-                </button>
-              </div>
-            ) : (
-              <input
-                id="wa-orc-cliente"
-                className="wa-input wa-orc-input"
-                type="text"
-                autoComplete="off"
-                placeholder="Nome do cliente no ERP"
-                value={rascunho?.clienteBusca || ""}
-                maxLength={100}
-                disabled={disabled}
-                onChange={(e) => onPatch({ clienteBusca: e.target.value })}
-              />
-            )}
-            {/*
-              Produto casa por TRECHO; cliente casa por PREFIXO — regras diferentes no mesmo
-              formulário, e a de cliente é a que surpreende. Medido no ERP real: "DINIZ"
-              (sobrenome) não acha nada. Dizer isso aqui evita o atendente concluir que o
-              cliente não existe.
-            */}
-            {!rascunho?.clienteCodigoErp ? (
-              <p className="wa-orc-hint">Pelo começo do nome, ou pelo CPF/CNPJ.</p>
-            ) : null}
-          </div>
+          {/*
+            O campo de cliente traz a busca do ERP dentro dele — e devolve DOIS filhos para
+            esta grade: a célula do campo e a região de resultados, que ocupa a linha inteira
+            (ver `ClientePicker.jsx` e `.wa-orc-clienteResultados`).
+          */}
+          <ClientePicker
+            busca={rascunho?.clienteBusca || ""}
+            codigoErp={rascunho?.clienteCodigoErp || ""}
+            nome={rascunho?.clienteNome || ""}
+            onPatch={onPatch}
+            disabled={disabled}
+          />
 
           <div className="wa-orc-campo">
             <label className="wa-orc-label" htmlFor="wa-orc-vendedor">

@@ -50,6 +50,16 @@ import {
   termoDeResgate,
   mensagemResgateBusca,
   dicaClienteNaoEncontrado,
+  mensagemBuscaClienteSemResultado,
+  documentoDoCliente,
+  agruparCandidatosCliente,
+  tituloClientesEncontrados,
+  traduzirErroBuscaCliente,
+  dicaClienteEscolhidoRecusado,
+  patchClienteDigitado,
+  patchClienteEscolhido,
+  AVISO_CLIENTE_NAO_DEFINITIVO,
+  RECUPERACAO_CLIENTE_INDISPONIVEL,
   rotuloFonte,
   textoBloqueio,
   textoBloqueado,
@@ -989,8 +999,9 @@ const { prefillRascunho } = draft;
           'import Resultado from "./OrcamentoResultado.jsx";',
           'import Form from "./OrcamentoForm.jsx";',
           'import Picker from "./ProdutoPicker.jsx";',
+          'import Cliente from "./ClientePicker.jsx";',
           'import Ambiguidade from "./AmbiguidadePicker.jsx";',
-          "export const Componentes = { Preview, Resultado, Form, Picker, Ambiguidade };",
+          "export const Componentes = { Preview, Resultado, Form, Picker, Cliente, Ambiguidade };",
           "export const render = (C, p) => renderToStaticMarkup(createElement(C, p));",
         ].join("\n"),
         resolveDir: new URL(".", dirOrcamento).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
@@ -1390,6 +1401,85 @@ const { prefillRascunho } = draft;
       assert(
         /<label for="wa-orc-produtoBusca">Pesquisar produto<\/label>/.test(html),
         "form: o título da busca continua sendo o rótulo do campo (um só para olho e leitor)"
+      );
+    }
+
+    /* ---- o campo de cliente: busca quando não há escolha, escolha visível e trocável ---- */
+    {
+      const semEscolha = formular({});
+      assert(
+        /id="wa-orc-cliente"/.test(semEscolha),
+        "render cliente: sem escolha, o campo de texto é o que está na tela"
+      );
+      assert(
+        /Pelo começo do nome, ou pelo CPF\/CNPJ\./.test(semEscolha),
+        "render cliente: a dica do prefixo continua no campo — é por isso que ela existe"
+      );
+      assert(
+        !/wa-orc-clienteResultados/.test(semEscolha),
+        "render cliente: a região de resultados não existe antes de alguém pedir uma busca"
+      );
+
+      const escolhido = formular({
+        rascunho: {
+          clienteBusca: "MARIA APARECIDA",
+          clienteCodigoErp: "0000108",
+          clienteNome: "MARIA APARECIDA AMADEI",
+          vendedorBusca: "Carlos",
+          itens: [ITEM_M2],
+        },
+      });
+      assert(
+        escolhido.includes("MARIA APARECIDA AMADEI") && escolhido.includes("Cód. ERP 0000108"),
+        "render cliente: o cliente escolhido fica visível, com nome e código do ERP"
+      );
+      assert(
+        !/id="wa-orc-cliente"/.test(escolhido),
+        "render cliente: com cliente escolhido o campo de texto sai — não há texto para editar por cima da escolha"
+      );
+      assert(escolhido.includes("Trocar"), "render cliente: a escolha é trocável");
+      assert(
+        escolhido.includes(AVISO_CLIENTE_NAO_DEFINITIVO),
+        "render cliente: o aviso de que a confirmação é no Calcular acompanha a escolha (D11)"
+      );
+      assert(
+        !/✓|✔/.test(escolhido),
+        'render cliente: nenhum selo de "pronto" na escolha — a palavra final é do Calcular'
+      );
+    }
+
+    /* ---- os candidatos de cliente: o documento é o que separa duas homônimas ---- */
+    {
+      const html = render(Componentes.Cliente, {
+        busca: "MARIA SILVA",
+        codigoErp: "",
+        nome: "",
+        onPatch: () => {},
+      });
+      assert(
+        /id="wa-orc-cliente"/.test(html) && /value="MARIA SILVA"/.test(html),
+        "render cliente: o componente imprime o texto do rascunho no campo"
+      );
+      // O render estático não roda efeitos: nenhuma busca sai daqui, e é isso que se quer.
+      assert(
+        !/wa-orc-clienteResultados/.test(html),
+        "render cliente: montar o componente não traz lista nenhuma — a busca é do gesto humano"
+      );
+
+      const comEscolha = render(Componentes.Cliente, {
+        busca: "MARIA SILVA",
+        codigoErp: "0000210",
+        nome: "MARIA SILVA",
+        onPatch: () => {},
+        disabled: true,
+      });
+      assert(
+        /wa-orc-escolhido/.test(comEscolha) && /Trocar/.test(comEscolha),
+        "render cliente: a escolha usa a mesma casca de cliente/vendedor resolvidos"
+      );
+      assert(
+        /wa-orc-btnSm"[^>]*disabled/.test(comEscolha),
+        "render cliente: calculando, nem o Trocar aceita toque"
       );
     }
 
@@ -2726,6 +2816,323 @@ globalThis.localStorage = new StorageFake();
     /onKeyDown=\{aoTeclarNaBusca\}/.test(limpo),
     "enter: o atalho vive no campo de busca, não num ouvinte global de teclado"
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * 21. Busca de CLIENTE — o campo que era adivinhação
+ * ------------------------------------------------------------------ *
+ * A busca de cliente do ERP é por PREFIXO (`dbo.Clientes`, `Latin1_General_CI_AI`). Medido no
+ * ERP real da empresa 20: `DINIZ` → nenhum, `SILVA` → nenhum, `MARIA APARECIDA AMADEI` → 3.
+ * O campo de texto puro escondia isso até o Calcular.
+ *
+ * As quatro coisas que esta seção protege, todas com consequência real:
+ *   · a troca código → busca quando o texto muda (código órfão = orçamento para OUTRO cliente);
+ *   · o 503 da loja fora do ar ≠ lista vazia (confundir é dizer que o cliente saiu do cadastro);
+ *   · o documento junto do nome (sem ele, duas "MARIA SILVA" são sorteio);
+ *   · o caminho antigo — digitar e calcular sem olhar a lista — intacto.
+ */
+{
+  /* ---- o documento é o desempate, e vem um só ---- */
+  assert(
+    documentoDoCliente({ cnpj: "12.345.678/0001-99", cpf: "123.456.789-01" }) === "CNPJ 12.345.678/0001-99",
+    "cliente: com CNPJ e CPF, o CNPJ manda (pessoa jurídica é quem mais repete nome na base)"
+  );
+  assert(documentoDoCliente({ cpf: "123.456.789-01" }) === "CPF 123.456.789-01", "cliente: CPF rotulado");
+  assert(
+    documentoDoCliente({ inscricao_estadual: "ISENTO" }) === "IE ISENTO",
+    "cliente: IE entra como veio — valor fiscal como ISENTO é preservado pelo contrato"
+  );
+  assert(documentoDoCliente({ cpf: "   " }) === "", "cliente: documento só com espaço não é documento");
+  assert(documentoDoCliente(null) === "", "cliente: ausência de candidato não vira texto");
+
+  /* ---- os dois ramos do contrato, e a diferença de SENTIDO entre eles ---- */
+  {
+    const varios = agruparCandidatosCliente({
+      status: "multiplos_clientes",
+      candidatos: [
+        { codigo_cliente_erp: "0000108", nome: "MARIA SILVA", cpf: "111.111.111-11" },
+        { codigo_cliente_erp: "0000210", nome: "MARIA SILVA", cpf: "222.222.222-22" },
+      ],
+      paginacao: { pagina: 1, tamanho_pagina: 30, total: 2, tem_mais: false, tem_anterior: false },
+      resolucao_definitiva: false,
+    });
+    assert(varios.lista.length === 2 && !varios.unico, "cliente: a lista de candidatos vem inteira");
+    assert(varios.paginacao?.total === 2, "cliente: a paginação é a da WM, repassada sem conserto");
+    assert(
+      /documento/i.test(tituloClientesEncontrados(varios)),
+      "cliente: com homônimos, a frase nomeia o trabalho — conferir o DOCUMENTO"
+    );
+
+    const unico = agruparCandidatosCliente({
+      status: "cliente",
+      cliente: { codigo_cliente_erp: "0000108", nome: "JOAO DA SILVA" },
+      paginacao: null,
+      resolucao_definitiva: false,
+    });
+    assert(unico.unico && unico.lista.length === 1, "cliente: ramo único é um ACHADO, não lista de um");
+    assert(unico.paginacao === null, "cliente: o ramo único não tem paginação (o contrato não manda)");
+    assert(
+      !/documento/i.test(tituloClientesEncontrados(unico)),
+      "cliente: com um só, não se pede para conferir documento (o ramo único não traz documentos)"
+    );
+
+    // Resposta fora dos dois ramos é VAZIO, nunca uma lista improvisada.
+    for (const estranho of [null, undefined, {}, { status: "produto" }, { status: "multiplos_clientes" }]) {
+      assert(
+        agruparCandidatosCliente(estranho).lista.length === 0,
+        `cliente: resposta estranha (${JSON.stringify(estranho)}) não vira lista`
+      );
+    }
+    // Candidato sem código não é escolhível: não entra.
+    assert(
+      agruparCandidatosCliente({
+        status: "multiplos_clientes",
+        candidatos: [{ nome: "SEM CODIGO" }, { codigo_cliente_erp: "1", nome: "OK" }],
+      }).lista.length === 1,
+      "cliente: candidato sem código ERP não entra na lista"
+    );
+    assert(tituloClientesEncontrados({ lista: [] }) === "", "cliente: sem nada na mão, nada a dizer");
+  }
+
+  /* ---- 503 da loja NÃO é lista vazia ---- */
+  {
+    const offline = traduzirErroBuscaCliente({
+      codigo: "WM_SINCRONIZADOR_OFFLINE",
+      // A mensagem do envelope fala do CÁLCULO: ela foi escrita para o Calcular.
+      mensagem: "O sistema da sua loja está fora do ar, então o orçamento não pôde ser calculado.",
+    });
+    assert(offline.tipo === "indisponivel", "cliente: 503 da loja é indisponibilidade, não resultado vazio");
+    assert(
+      !/calculad|gravad/i.test(offline.mensagem),
+      "cliente: no campo de busca a frase não pode falar de um cálculo que ninguém pediu"
+    );
+    assert(
+      /não está cadastrado|não quer dizer/i.test(offline.mensagem),
+      "cliente: a frase precisa negar a conclusão errada — o cliente não sumiu do cadastro"
+    );
+    assert(
+      /ligado|internet/i.test(RECUPERACAO_CLIENTE_INDISPONIVEL),
+      "cliente: a recuperação diz o que fazer, e é na loja que se resolve"
+    );
+    assert(
+      /Calcular/.test(RECUPERACAO_CLIENTE_INDISPONIVEL),
+      "cliente: avisa que o Calcular depende do mesmo sistema — senão monta-se a cesta inteira para nada"
+    );
+    assert(
+      /produto/i.test(RECUPERACAO_CLIENTE_INDISPONIVEL),
+      "cliente: diz que a busca de produto continua funcionando (a tela fica meio viva)"
+    );
+
+    for (const codigo of ["WM_NAO_ENCONTRADO", "WM_CLIENTE_NAO_ENCONTRADO"]) {
+      const r = traduzirErroBuscaCliente({ codigo, mensagem: "Nenhum resultado encontrado no ERP." });
+      assert(r.tipo === "vazio", `cliente: ${codigo} é VAZIO, não erro — houve resposta, e ela foi "não tem"`);
+      assert(r.mensagem === "", "cliente: o vazio não carrega mensagem de erro (quem fala é o estado vazio)");
+    }
+
+    const outro = traduzirErroBuscaCliente({ codigo: "WM_INDISPONIVEL", mensagem: "Não foi possível falar com o ERP agora." });
+    assert(outro.tipo === "erro", "cliente: falha que não é 503 nem 404 continua sendo erro");
+    assert(outro.mensagem === "Não foi possível falar com o ERP agora.", "cliente: erro exibe a mensagem do envelope");
+    assert(
+      traduzirErroBuscaCliente(null).tipo === "erro",
+      "cliente: erro sem forma conhecida não vira vazio (vazio é afirmação sobre o cadastro)"
+    );
+  }
+
+  /* ---- o estado vazio ensina o prefixo, e é a MESMA frase do Calcular ---- */
+  {
+    const vazio = mensagemBuscaClienteSemResultado("Diniz");
+    assert(/Diniz/.test(vazio), "cliente: o estado vazio cita o que foi digitado");
+    assert(/começo do nome/i.test(vazio), "cliente: o estado vazio explica a busca por prefixo");
+    assert(/primeiro nome/i.test(vazio), "cliente: oferece a saída mais provável — o primeiro nome");
+    assert(/CPF\/CNPJ/.test(vazio), "cliente: oferece a saída que casa por igualdade");
+    assert(
+      vazio === dicaClienteNaoEncontrado("WM_NAO_ENCONTRADO", "Diniz"),
+      "cliente: busca e Calcular dizem a MESMA frase — duas explicações ensinariam duas coisas"
+    );
+    assert(mensagemBuscaClienteSemResultado("   ") === "", "cliente: sem termo, nada a explicar");
+  }
+
+  /* ---- escolher não é confirmar: `resolucao_definitiva: false` tem consequência de tela ---- */
+  {
+    assert(
+      /Calcular/.test(AVISO_CLIENTE_NAO_DEFINITIVO) && /inativo|bloquead/i.test(AVISO_CLIENTE_NAO_DEFINITIVO),
+      "cliente: o aviso diz onde a confirmação acontece e o que pode recusar"
+    );
+    // A frase pode (e deve) usar a palavra "confirmado" — desde que no FUTURO, apontando para o
+    // Calcular. O que ela não pode é afirmar que a confirmação já aconteceu, nem carregar selo.
+    assert(
+      !/✓|✔|\bconfirmado\b(?![^.]*Calcular)/.test(AVISO_CLIENTE_NAO_DEFINITIVO),
+      'cliente: a escolha na busca NUNCA é apresentada como "cliente confirmado" (nem com selo)'
+    );
+
+    const dica = dicaClienteEscolhidoRecusado("WM_CLIENTE_INVALIDO", "0000108");
+    assert(
+      /busca mostra o cadastro inteiro/i.test(dica),
+      'cliente: o CLIENTE_INVALIDO de quem escolheu na lista explica o porquê — senão "escolha outro" parece defeito'
+    );
+    assert(/ativo e desbloqueado/i.test(dica), "cliente: a dica diz qual é a regra do orçamento");
+    assert(
+      dicaClienteEscolhidoRecusado("WM_CLIENTE_INVALIDO", "") === "",
+      "cliente: sem código enviado ninguém escolheu de lista — a dica do prefixo é a que vale"
+    );
+    assert(
+      dicaClienteEscolhidoRecusado("WM_NAO_ENCONTRADO", "0000108") === "",
+      "cliente: outro erro não vira conselho sobre inativo/bloqueado"
+    );
+    // As duas dicas nunca se aplicam ao mesmo erro: o drawer escolhe uma com `||`.
+    assert(
+      !(dicaClienteNaoEncontrado("WM_CLIENTE_INVALIDO", "Maria") &&
+        dicaClienteEscolhidoRecusado("WM_CLIENTE_INVALIDO", "0000108")) ||
+        dicaClienteNaoEncontrado("WM_CLIENTE_INVALIDO", "Maria") === "",
+      "cliente: um erro não produz as duas dicas ao mesmo tempo"
+    );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * O BUG CLÁSSICO DESTE DESENHO: o código órfão
+   * ------------------------------------------------------------------ *
+   * `preparar` recebe `cliente_codigo_erp` XOR `cliente_busca`, e o código GANHA quando os dois
+   * estão no rascunho. Se mexer no texto não apagasse o código, a pessoa escolheria "MARIA
+   * APARECIDA", procuraria outro cliente, e o orçamento sairia para a Maria — com outro nome na
+   * tela. Em silêncio, para um cliente real.
+   *
+   * A prova usa `assinaturaDoRascunho`/`assinaturaDoBody`, que codificam a MESMA precedência de
+   * `montarBodyPreparar` (`refItem`: código quando existe, senão busca). Se o rascunho depois da
+   * digitação ainda resolvesse por código, a assinatura o denunciaria.
+   */
+  {
+    const base = {
+      clienteBusca: "MARIA APARECIDA",
+      clienteCodigoErp: "",
+      clienteNome: "",
+      vendedorBusca: "CARLOS",
+      itens: [{ codigo_produto_erp: "7001", quantidade: "2" }],
+    };
+    const corpo = (cliente) => ({
+      ...cliente,
+      vendedor_busca: "CARLOS",
+      itens: [{ codigo_produto_erp: "7001", quantidade: "2" }],
+    });
+
+    // 1. Escolheu na lista: o rascunho passa a resolver por CÓDIGO.
+    const escolhido = { ...base, ...patchClienteEscolhido({ codigo_cliente_erp: "0000108", nome: "MARIA APARECIDA AMADEI" }) };
+    assert(escolhido.clienteCodigoErp === "0000108", "cliente: escolher grava o código canônico");
+    assert(
+      escolhido.clienteNome === "MARIA APARECIDA AMADEI",
+      "cliente: escolher grava o nome canônico do ERP, para a tela mostrar quem foi escolhido"
+    );
+    assert(
+      escolhido.clienteBusca === "MARIA APARECIDA",
+      "cliente: o texto digitado fica intacto — é por ele que o 'Trocar' volta à lista sem outra consulta"
+    );
+    assert(
+      assinaturaDoRascunho(escolhido) === assinaturaDoBody(corpo({ cliente_codigo_erp: "0000108" })),
+      "cliente: com a escolha feita, o que vai para o preparar é `cliente_codigo_erp`"
+    );
+
+    // 2. Mexeu no texto depois de escolher: a escolha anterior deixa de valer.
+    const depois = { ...escolhido, ...patchClienteDigitado("MARIO") };
+    assert(depois.clienteCodigoErp === "" && depois.clienteNome === "", "cliente: digitar apaga a escolha anterior");
+    assert(
+      assinaturaDoRascunho(depois) === assinaturaDoBody(corpo({ cliente_busca: "MARIO" })),
+      "cliente: depois de digitar, o preparar recebe `cliente_busca` — nunca o código de antes"
+    );
+    assert(
+      assinaturaDoRascunho(depois) !== assinaturaDoBody(corpo({ cliente_codigo_erp: "0000108" })),
+      "cliente: NENHUM caminho deixa o código órfão sobreviver à digitação"
+    );
+
+    // 3. As duas funções são opostas por construção: nenhuma lê o estado anterior.
+    assert(patchClienteEscolhido({ nome: "SEM CODIGO" }) === null, "cliente: candidato sem código não grava nada");
+    assert(
+      patchClienteEscolhido({ codigo_cliente_erp: "  0000108  ", nome: "  MARIA  " }).clienteCodigoErp === "0000108",
+      "cliente: código é aparado — o ERP casa por igualdade"
+    );
+    assert(
+      Object.keys(patchClienteDigitado("x")).sort().join(",") === "clienteBusca,clienteCodigoErp,clienteNome",
+      "cliente: digitar escreve exatamente os três campos da identidade do cliente, sempre"
+    );
+
+    // 4. O CAMINHO ANTIGO CONTINUA INTEIRO: digitar e calcular sem olhar a lista.
+    assert(
+      assinaturaDoRascunho(base) === assinaturaDoBody(corpo({ cliente_busca: "MARIA APARECIDA" })),
+      "cliente: quem nunca usou a busca continua mandando `cliente_busca` — o laço de ambiguidade é o mesmo"
+    );
+  }
+
+  /* ---- o timeout da rota nova é o de busca, não o default de 55 s ---- */
+  assert(
+    resolveOrcamentoTimeoutMs("/api/orcamentos/clientes/consultar") === HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS,
+    "cliente: a consulta de cliente usa o perfil de busca (leitura), não o default"
+  );
+
+  /* ------------------------------------------------------------------ *
+   * O que o CLIENTE PICKER não pode fazer — caminho de execução, olhado no fonte
+   * ------------------------------------------------------------------ *
+   * Cada busca aqui é uma consulta em TEMPO REAL no SQL Server da loja. Chamada que sai sem
+   * gesto humano é dinheiro do cliente queimado (seção 11 do doc 36), e escolha automática põe
+   * no orçamento um cliente que ninguém viu.
+   */
+  {
+    const { readFileSync } = await import("node:fs");
+    const fonte = readFileSync(new URL("../src/conversa/orcamento/ClientePicker.jsx", import.meta.url), "utf8");
+    const codigo = fonte
+      .split("\n")
+      .filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l))
+      .join("\n");
+
+    const chamadas = codigo.split("\n").filter((l) => /consultarClientesOrcamento\(/.test(l));
+    assert(chamadas.length === 1, `cliente picker: a WM é consultada de UM lugar só — achei ${chamadas.length}`);
+    assert(/const DEBOUNCE_MS = 800;/.test(fonte), "cliente picker: debounce de 800 ms");
+    assert(/const MIN_CARACTERES = 3;/.test(fonte), "cliente picker: piso de 3 caracteres");
+
+    // O campo nasce pré-preenchido com o nome da conversa: abrir o drawer não pode custar uma
+    // consulta na loja. A primeira busca espera o toque ou a digitação.
+    assert(
+      /if \(codigoErp \|\| !pedida\) return undefined;/.test(codigo),
+      "cliente picker: sem gesto humano (`pedida`) nenhuma busca sai — o campo nasce preenchido"
+    );
+    assert(
+      /onFocus=\{\(\) => setPedida\(true\)\}/.test(codigo),
+      "cliente picker: tocar o campo é o gesto que libera a primeira busca"
+    );
+
+    // Nada é escolhido sozinho: `escolher` só é chamado pelo toque no card.
+    const escolhas = codigo.split("\n").filter((l) => /onEscolher=\{escolher\}|escolher\(/.test(l));
+    assert(escolhas.length > 0, "cliente picker: a escolha existe e passa por um lugar só");
+    assert(
+      !/useEffect\([\s\S]{0,400}escolher\(/.test(codigo),
+      "cliente picker: nunca escolhe dentro de um efeito — nem quando volta um cliente só"
+    );
+    assert(
+      !/lista\[0\]|lista\.length === 1[\s\S]{0,80}escolher/.test(codigo),
+      "cliente picker: não auto-seleciona o único candidato (o contrato proíbe)"
+    );
+
+    // Com cliente escolhido a lista sai da tela: insistir nela gastaria consulta para pintar o
+    // que ninguém vê.
+    assert(
+      /!codigoErp && \(buscando \|\| buscou/.test(codigo),
+      "cliente picker: a região de resultados só existe enquanto não há cliente escolhido"
+    );
+
+    // A identidade do cliente é escrita só pelas duas funções opostas do view model.
+    const escritas = codigo
+      .split("\n")
+      .filter((l) => /clienteCodigoErp:/.test(l) && /onPatch|clienteNome/.test(l));
+    assert(
+      escritas.length === 1,
+      `cliente picker: um lugar só escreve código à mão (o "Trocar", que limpa) — achei ${escritas.length}`
+    );
+    assert(
+      /patchClienteDigitado\(valor\)/.test(codigo) && /patchClienteEscolhido\(candidato\)/.test(codigo),
+      "cliente picker: digitar e escolher passam pelas funções opostas do view model"
+    );
+    assert(
+      !/clienteBusca:/.test(codigo),
+      "cliente picker: o texto do cliente não é gravado à mão — senão um caminho esqueceria de apagar o código"
+    );
+  }
 }
 
 if (falhas.length) {

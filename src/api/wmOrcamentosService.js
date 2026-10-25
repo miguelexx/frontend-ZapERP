@@ -189,6 +189,43 @@ export async function consultarProdutosOrcamento({ busca, codigo_produto_erp, pa
 }
 
 /**
+ * `POST /api/orcamentos/clientes/consultar` — auxílio para achar o cliente no ERP.
+ *
+ * `busca` XOR `codigo_cliente_erp`, mais `pagina` opcional. O backend apara as bordas do termo
+ * (a busca do ERP é por PREFIXO: um espaço à esquerda garante zero resultado) e recusa chave
+ * desconhecida e qualquer identidade no corpo.
+ *
+ * ESTA ROTA NÃO DECIDE O CLIENTE DO ORÇAMENTO, e a resposta diz isso em
+ * `resolucao_definitiva: false`. Ela não aplica os filtros Inativo/Bloqueado e `preparar`
+ * aplica (D11), então um cliente achado aqui ainda pode ser recusado no Calcular com
+ * `CLIENTE_INVALIDO`. Quem exibe a lista tem de refletir isso.
+ *
+ * É REALTIME: fala com o sincronizador na máquina da loja e devolve `WM_SINCRONIZADOR_OFFLINE`
+ * quando ele está fora do ar — enquanto a busca de produto, servida do acervo da WM, continua
+ * respondendo. Indisponibilidade não é lista vazia (ver `traduzirErroBuscaCliente`).
+ *
+ * Resposta: `{ status: "multiplos_clientes", candidatos[], paginacao }` ou
+ * `{ status: "cliente", cliente }`. Cada candidato traz `codigo_cliente_erp`, `nome`, `cpf`,
+ * `cnpj` e `inscricao_estadual` — os documentos existem para distinguir homônimos.
+ *
+ * @param {{busca?: string, codigo_cliente_erp?: string, pagina?: number,
+ *          signal?: AbortSignal}} params
+ */
+export async function consultarClientesOrcamento({ busca, codigo_cliente_erp, pagina, signal } = {}) {
+  const url = `${BASE}/clientes/consultar`;
+  const body = {};
+  if (codigo_cliente_erp != null && String(codigo_cliente_erp).length > 0) {
+    body.codigo_cliente_erp = String(codigo_cliente_erp);
+  } else {
+    body.busca = String(busca ?? "");
+  }
+  if (Number.isInteger(pagina) && pagina >= 1) body.pagina = pagina;
+
+  const { data } = await api.post(url, body, configFor(url, signal ? { signal } : {}));
+  return data;
+}
+
+/**
  * `POST /api/orcamentos/preparar` — resolve cliente, vendedor e itens e devolve OU a próxima
  * ambiguidade OU a preparação pronta.
  *
@@ -263,6 +300,7 @@ export async function obterOrcamento(operacaoId) {
 
 export default {
   consultarProdutosOrcamento,
+  consultarClientesOrcamento,
   prepararOrcamento,
   confirmarOrcamento,
   verificarOrcamento,

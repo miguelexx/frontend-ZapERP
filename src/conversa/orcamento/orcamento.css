@@ -253,6 +253,28 @@
   .wa-orc-section--dupla > .wa-orc-sectionTitle {
     grid-column: 1 / -1;
   }
+
+  /*
+    A lista de clientes encontrados pede a LINHA INTEIRA. Em meia coluna (~260px no drawer de
+    560px) "MARIA APARECIDA AMADEI · CPF 123.456.789-01 · Cód. 0000108" quebra em cinco linhas
+    e o documento — que é justamente o que separa duas homônimas — vira a última coisa que se lê.
+
+    `order` em vez de `grid-row`: no DOM a região vem logo depois do campo de cliente, que é onde
+    ela tem de estar no celular (seção em coluna única, lista embaixo do campo que a produziu).
+    Aqui ela é mandada para depois das duas colunas sem que ninguém precise contar linhas.
+  */
+  .wa-orc-section--dupla > .wa-orc-clienteResultados {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+}
+
+/* Mesma pilha vertical da busca de produto: faixa de estado, cards, paginação. */
+.wa-orc-clienteResultados {
+  display: flex;
+  flex-direction: column;
+  gap: var(--orc-gap-1);
+  min-width: 0;
 }
 
 .wa-orc-label {
@@ -730,6 +752,16 @@
   line-height: 1.35;
   color: var(--wa-text-muted);
   overflow-wrap: anywhere;
+}
+
+/*
+  CPF/CNPJ/IE do cliente. Documento se lê dígito a dígito, conferindo contra um papel ou contra
+  o que o cliente acabou de falar — com `tabular-nums` os algarismos têm a mesma largura e o
+  olho não escorrega. É o único número desta linha, e por isso o `font-variant` fica nele e não
+  na linha toda (o "Cód." ao lado é identificador, não quantidade).
+*/
+.wa-orc-candidato-doc {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Correspondência exata revelando os irmãos: destaque discreto, nunca um banner. */
