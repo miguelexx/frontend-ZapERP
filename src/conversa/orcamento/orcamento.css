@@ -993,14 +993,54 @@
   gap: var(--orc-gap-1);
 }
 
+/*
+  O item do carrinho é tingido de AZUL DA MARCA, e os cards de resultado não.
+  Os dois tinham exatamente a mesma cara — fundo do painel, mesma borda, mesmo raio — e são
+  coisas diferentes: um é candidato que a atendente ainda pode escolher, o outro JÁ ESTÁ no
+  orçamento que vai para o ERP. Com a lista de resultados logo acima do carrinho, a diferença
+  precisa ser lida de relance, sem comparar texto.
+
+  O azul sai de `--wa-green`, que neste projeto É o azul da marca (#1E6FE8 claro / #2E86FF
+  escuro) — nenhuma cor nova entra. A tinta é baixa de propósito: ela marca a faixa, não pinta
+  um alerta, e todo o texto por cima continua acima do piso de 4,5:1 (medido nos dois temas).
+
+  Sem faixa lateral grossa: a cor diz o que precisa dizer em 1px de borda e um fundo lavado.
+*/
 .wa-orc-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--orc-gap-2);
-  border: 1px solid var(--wa-panel-border);
+  border: 1px solid color-mix(in srgb, var(--wa-green) 24%, var(--wa-panel-border));
   border-radius: var(--orc-raio);
   padding: var(--orc-gap-2) var(--orc-gap-2) var(--orc-gap-2) 12px;
+  background: color-mix(in srgb, var(--wa-green) 18%, var(--wa-panel));
+}
+
+/*
+  A FORÇA da tinta não é gosto: ela tem de passar do hover do card de resultado.
+  Medido: o card de resultado sob o ponteiro fica `rgb(228,238,254)` no claro — ou seja, uma
+  tinta fraca aqui deixava o candidato EM HOVER mais azul que o item que já está no orçamento,
+  invertendo o significado. No escuro os dois batiam em luminância quase idêntica (1,004).
+  18% no claro e 22% no escuro põem o carrinho claramente além do hover nos dois temas.
+*/
+[data-theme="dark"] .wa-orc-item {
+  border-color: color-mix(in srgb, var(--wa-green) 34%, var(--wa-panel-border));
+  background: color-mix(in srgb, var(--wa-green) 22%, var(--wa-panel));
+}
+
+/*
+  Tingir a superfície obriga a retomar o texto que vive nela.
+  Medido: sobre o azul de 22% do tema escuro, `--wa-text-muted` caía para 4,35:1 — abaixo do
+  piso de 4,5:1 para texto pequeno. A correção não é clarear o fundo (o fundo tem trabalho a
+  fazer: passar do hover), é puxar o secundário na direção do próprio texto da interface.
+  Só no escuro, que é onde a conta não fechava; no claro o secundário já rende 6,27:1 e
+  clareá-lo só encostaria ele no título.
+*/
+[data-theme="dark"] .wa-orc-item .wa-orc-item-meta,
+[data-theme="dark"] .wa-orc-item .wa-orc-qtdUnidade,
+[data-theme="dark"] .wa-orc-item .wa-orc-item-remover.wa-btn-ghost {
+  color: color-mix(in srgb, var(--wa-text-muted) 62%, var(--wa-text));
 }
 
 .wa-orc-item-info {
