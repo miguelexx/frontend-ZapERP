@@ -29,7 +29,17 @@
   --orc-gap-1: 6px;
   --orc-gap-2: 10px;
   --orc-gap-3: 16px;
-  --orc-raio: 10px;
+
+  /*
+    Raio vindo da ESCALA do projeto (`--ds-radius-*`), não de números soltos.
+    O drawer tinha quatro linguagens de raio brigando na mesma tela: campo em cápsula (herdada
+    do composer, que é um campo de CHAT), card em 10px, "ver preço" em cápsula e o "+" redondo.
+    Agora há uma escada só — superfície 12, controle 8, e redondo SÓ no "+", onde a forma
+    circular é o próprio sinal de "acrescentar". É a mesma escada do `NovoContatoModal`, que é
+    o formulário de referência deste app.
+  */
+  --orc-raio: var(--ds-radius-lg, 12px);
+  --orc-raio-controle: var(--ds-radius, 8px);
 
   /*
     Âmbar LEGÍVEL. `--wa-action-amber` é #D97706 no tema claro, e isso dá 3,2:1 sobre branco e
@@ -71,43 +81,92 @@
 .wa-modalOverlay.wa-orcOverlay {
   padding: 0;
   align-items: stretch;
+  /* Cortina um pouco mais funda: é ela que faz o painel ler como superfície à frente do app,
+     e não como uma coluna branca colada na borda. */
+  background: rgba(8, 26, 43, 0.44);
 }
 
+[data-theme="dark"] .wa-modalOverlay.wa-orcOverlay {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+/*
+  O painel é uma SUPERFÍCIE À FRENTE DO APP, e agora se comporta como tal.
+  Antes era um retângulo chapado com um fio de 1px: o app inteiro já usa sombra funda para o que
+  flutua (`--ds-shadow-lg`, o mesmo do `NovoContatoModal`), e só este drawer ficava de fora.
+  A sombra é lançada para a ESQUERDA, de onde o painel entra.
+*/
 .wa-orcDrawer {
   margin-left: auto;
   height: 100%;
   width: min(560px, 100vw);
   background: var(--wa-panel);
   border-left: 1px solid var(--wa-panel-border);
+  box-shadow: -24px 0 60px -28px rgba(8, 26, 43, 0.45);
   display: flex;
   flex-direction: column;
-  padding: var(--orc-gap-3) var(--orc-gap-3) 0;
-  gap: var(--orc-gap-3);
+  padding: 0 var(--orc-gap-3);
   min-height: 0;
+  /*
+    Uma entrada só, e é a do painel: ele desliza da borda de onde nasce, com a curva de saída
+    exponencial que o projeto já usa (`--ds-motion-ease`). Nada mais nesta tela anima a
+    aparição — num drawer de venda, item que entra se mexendo atrapalha quem está varrendo.
+  */
+  animation: wa-orc-entrar 240ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
 }
 
+[data-theme="dark"] .wa-orcDrawer {
+  box-shadow: -24px 0 60px -26px rgba(0, 0, 0, 0.72);
+}
+
+@keyframes wa-orc-entrar {
+  from {
+    transform: translateX(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-orcDrawer {
+    animation: none;
+  }
+}
+
+/*
+  Cabeçalho como BARRA: ele não rola, então precisa se encerrar num fio — senão o conteúdo
+  parece passar por baixo do título sem fim definido.
+*/
 .wa-orcDrawer-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--orc-gap-2);
   flex: 0 0 auto;
+  padding: var(--orc-gap-3) 0 var(--orc-gap-2);
+  border-bottom: 1px solid var(--wa-panel-border);
+  margin-bottom: var(--orc-gap-3);
 }
 
 .wa-orcDrawer-title {
   margin: 0;
-  font-size: 18px;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.2;
+  /* Título curto e firme: o tracking negativo é o que o resto do app usa nos títulos. */
+  letter-spacing: -0.015em;
 }
 
 .wa-orcDrawer-subtitle {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--wa-text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.4;
   /* Medida de leitura: a frase não encosta na borda nem estica até a largura toda do drawer. */
-  max-width: 60ch;
+  max-width: 54ch;
 }
 
 /* Corpo rolável + rodapé fora do scroll: "carrinho e total sempre visíveis". */
@@ -178,6 +237,24 @@
   gap: var(--orc-gap-1);
 }
 
+/*
+  Dois campos irmãos dividindo a linha quando há largura para isso. O título da seção atravessa
+  as duas colunas; a dica de cada campo fica dentro da sua. `460px` é o ponto onde cada metade
+  ainda comporta "Nome do vendedor no ERP" sem cortar o placeholder.
+*/
+@media (min-width: 460px) {
+  .wa-orc-section--dupla {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--orc-gap-3);
+    align-items: start;
+  }
+
+  .wa-orc-section--dupla > .wa-orc-sectionTitle {
+    grid-column: 1 / -1;
+  }
+}
+
 .wa-orc-label {
   font-size: 12px;
   font-weight: 600;
@@ -186,8 +263,43 @@
   letter-spacing: 0.02em;
 }
 
+/*
+  CAMPO DE FORMULÁRIO, não campo de chat.
+  `.wa-input` vem do composer: cápsula de 56px de altura, feita para uma caixa de digitar
+  mensagem. Dentro deste drawer ela era o elemento mais pesado da tela carregando a menor
+  informação — três cápsulas gigantes empurravam a lista de produtos para fora do campo de
+  visão. Aqui ela veste o formulário do app (`NovoContatoModal`): raio da escala, borda forte,
+  anel de foco do design system. A altura cai de 56 para 44 e devolve ~40px à lista.
+
+  Não mexe em `font-size`: a guarda de zoom do iOS (`max(16px, 1em) !important`, em app.css sob
+  `pointer: coarse`) precisa continuar vencendo.
+*/
 .wa-orc-input {
   width: 100%;
+}
+
+.wa-orcDrawer .wa-input.wa-orc-input {
+  min-height: 44px;
+  max-height: none;
+  padding: 10px 12px;
+  border-radius: var(--orc-raio-controle);
+  border: 1px solid var(--ds-border-strong, var(--wa-panel-border));
+  background: var(--wa-input-bg, var(--wa-panel));
+  transition:
+    border-color var(--ds-transition, 140ms ease),
+    box-shadow var(--ds-transition, 140ms ease);
+}
+
+.wa-orcDrawer .wa-input.wa-orc-input:hover:not(:disabled):not(:focus) {
+  border-color: color-mix(in srgb, var(--wa-green) 40%, var(--ds-border-strong, #ccc));
+}
+
+/* Anel de foco do projeto: 3px de cor da marca, em vez do contorno padrão do navegador. */
+.wa-orcDrawer .wa-input.wa-orc-input:focus,
+.wa-orcDrawer .wa-input.wa-orc-input:focus-visible {
+  outline: none;
+  border-color: var(--wa-green);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring, rgba(46, 134, 255, 0.4));
 }
 
 .wa-orc-hint {
@@ -212,7 +324,7 @@
 }
 
 .wa-orc-alert {
-  border-radius: 10px;
+  border-radius: var(--orc-raio);
   padding: 10px;
   font-size: 13px;
   line-height: 1.4;
@@ -366,9 +478,11 @@
   color: var(--wa-text);
   cursor: pointer;
   font: inherit;
+  box-shadow: none;
   transition:
     background-color 120ms ease,
-    border-color 120ms ease;
+    border-color 120ms ease,
+    box-shadow 120ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 /*
@@ -513,20 +627,38 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  border: 1px solid var(--wa-panel-border);
+  /*
+    O "+" é a ação principal do card e agora parece uma: tingido de marca em repouso, em vez de
+    um contorno cinza do mesmo peso do "ver preço" ao lado. Dois contornos iguais faziam a
+    atendente ter de ler os dois para saber qual adiciona.
+  */
+  border: 1px solid color-mix(in srgb, var(--wa-green) 26%, transparent);
+  background: color-mix(in srgb, var(--wa-green) 9%, transparent);
   color: var(--wa-green);
   transition:
     background-color 120ms ease,
-    border-color 120ms ease;
+    border-color 120ms ease,
+    transform 120ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .wa-orc-candidato-acao {
+    transition: none;
+  }
+}
+
+/*
+  Repouso é plano; quem sobe é o card sob o ponteiro. Sombra em TODOS os cards de uma lista de
+  30 vira ruído e some como informação — a elevação só vale enquanto distingue um do resto.
+*/
 .wa-orc-candidato:hover:not(:disabled),
 .wa-orc-candidatoCard:not(.wa-orc-candidatoCard--off):hover {
   border-color: var(--wa-green);
   background: var(--ds-hover, rgba(17, 27, 33, 0.04));
+  box-shadow: var(--ds-shadow-sm, 0 2px 8px rgba(8, 26, 43, 0.07));
 }
 
 .wa-orc-candidato:hover:not(:disabled) .wa-orc-candidato-acao,
@@ -557,6 +689,8 @@
 .wa-orc-candidatoCard:not(.wa-orc-candidatoCard--off):active {
   background: color-mix(in srgb, var(--wa-green) 10%, var(--wa-panel));
   border-color: var(--wa-green);
+  /* Pressionar devolve o card ao plano: o relevo some sob o dedo em vez de crescer. */
+  box-shadow: none;
 }
 
 .wa-orc-candidato:active:not(:disabled) .wa-orc-candidato-acao,
@@ -644,6 +778,29 @@
   color: var(--wa-text);
   /* Dígitos de largura fixa: preços em coluna ficam alinhados de olho, não só de cálculo. */
   font-variant-numeric: tabular-nums;
+  /*
+    O preço é esperado: a atendente pediu "ver preço" e ficou olhando a vaga. Entrar com um
+    fade curto é o que diferencia "o valor chegou" de "a tela piscou" — e é a única animação
+    desta lista, de propósito. Card que se mexe sozinho numa varredura de 30 itens atrapalha.
+  */
+  animation: wa-orc-valorEntrou 180ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+@keyframes wa-orc-valorEntrou {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-orc-candidato-preco {
+    animation: none;
+  }
 }
 
 .wa-orc-candidato-estoque {
@@ -716,6 +873,74 @@
   color: var(--wa-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+/*
+  "Também contêm 'cimento'": daqui para baixo o termo só aparece no MEIO de outra palavra
+  (arrefecimento). O fio é o que marca a virada — sem ele, dois títulos iguais em sequência não
+  dizem que a lista mudou de natureza. É a mesma divisa de `.wa-orc-section--divisa`, pelo mesmo
+  motivo e com o mesmo token: nada de cor nova para rebaixar item que continua sendo resultado.
+*/
+.wa-orc-grupoTitulo--ruido {
+  margin-top: var(--orc-gap-2);
+  padding-top: var(--orc-gap-2);
+  border-top: 1px solid var(--wa-panel-border);
+}
+
+/*
+  O trecho que CASOU, dentro da descrição e da marca — é a resposta a "por que isto apareceu?".
+
+  `<mark>` chega do navegador com fundo amarelo e texto preto, que não são deste produto nem
+  sobrevivem ao tema escuro: a cor vem toda do acento que a folha já usa, e o texto é promovido
+  a `--wa-text` em vez de tingido. Promovido porque na linha secundária (marca) o texto é
+  `--wa-text-muted`: ali o trecho casado passa a ser o mais legível da linha, que é exatamente o
+  papel dele. Contraste nos dois temas sai por construção — só o fundo ganha um tingimento leve,
+  a frente continua sendo a cor de texto do tema.
+
+  A margem negativa compensa o respiro: sem ela a palavra destacada empurraria as vizinhas e a
+  descrição mudaria de largura conforme o que foi digitado.
+*/
+.wa-orc-destaque {
+  background: color-mix(in srgb, var(--wa-green) 18%, transparent);
+  color: var(--wa-text);
+  font-weight: 700;
+  /*
+    3px é LITERAL de propósito, e não um esquecimento da escada de raio desta folha: isto é
+    marcação de um trecho DENTRO de uma linha de texto, não um controle nem uma superfície.
+    Herdar `--orc-raio-controle` (8px) arredondaria demais uma marca de 15px de altura. Mesma
+    razão do 4px da barra de esqueleto — dois valores pequenos com dois trabalhos diferentes,
+    que é justamente o motivo de nenhum dos dois virar token.
+  */
+  border-radius: 3px;
+  padding: 0 1px;
+  margin: 0 -1px;
+}
+
+/*
+  O aviso do resgate: o que está na lista NÃO é o termo digitado.
+
+  Fica ACIMA dos cards de propósito — lido depois da lista, viraria explicação de uma escolha
+  já feita. Usa o âmbar legível da folha (`--orc-aviso`), o mesmo de todo aviso daqui, porque é
+  disso que se trata: o resultado é bom, mas não é o que ela pediu.
+*/
+.wa-orc-resgate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--wa-action-amber, #d97706);
+  border-radius: var(--orc-raio);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
+  color: var(--orc-aviso);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.wa-orc-resgate > span {
+  flex: 1 1 180px;
 }
 
 /* Código ERP é área secundária: o caminho principal é concluir por nome. */
@@ -836,13 +1061,16 @@
 .wa-orc-qtdBtn {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
-  border: 1px solid var(--wa-panel-border);
+  border-radius: var(--orc-raio-controle);
+  border: 1px solid var(--ds-border-strong, var(--wa-panel-border));
   background: transparent;
   color: var(--wa-text);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
+  transition:
+    background-color var(--ds-transition, 140ms ease),
+    border-color var(--ds-transition, 140ms ease);
 }
 
 .wa-orc-qtdBtn:hover:not(:disabled) {
@@ -866,10 +1094,32 @@
   aqui isso dependeria do drawer ser lazy. A largura da caixinha de quantidade não pode depender
   de ordem de carregamento.
 */
+/*
+  A caixinha de quantidade é um CONTADOR, não um campo de texto livre.
+  `.wa-input` traz do composer `min-width: 160px`, `flex: 1 1 0` e raio de cápsula — e
+  `min-width` ganha de `width`, então ela esticava para 160px e virava o elemento mais largo da
+  linha do carrinho, ao lado de um "−" e um "+" de 34px. Aqui os três são desligados de uma
+  vez, e o grupo inteiro vira um controle só.
+*/
 .wa-input.wa-orc-qtdInput {
-  width: 58px;
+  flex: 0 0 auto;
+  width: 60px;
+  min-width: 0;
+  max-width: 60px;
+  min-height: 34px;
+  padding: 4px 6px;
+  border-radius: var(--orc-raio-controle);
+  border: 1px solid var(--ds-border-strong, var(--wa-panel-border));
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.wa-input.wa-orc-qtdInput:focus,
+.wa-input.wa-orc-qtdInput:focus-visible {
+  outline: none;
+  border-color: var(--wa-green);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring, rgba(46, 134, 255, 0.4));
 }
 
 /*
@@ -887,8 +1137,29 @@
   white-space: nowrap;
 }
 
-.wa-orc-item-remover {
+/*
+  "Remover" é descarte: mesma regra do "Limpar rascunho" no rodapé. Com o fundo cinza do
+  `.wa-btn-ghost` ele tinha o mesmo peso de caixa dos controles de quantidade, que são a ação
+  comum da linha.
+*/
+.wa-orc-item-remover.wa-btn-ghost {
   white-space: nowrap;
+  background: transparent;
+  color: var(--wa-text-muted);
+  border-radius: var(--orc-raio-controle);
+  transition:
+    background-color var(--ds-transition, 140ms ease),
+    color var(--ds-transition, 140ms ease);
+}
+
+.wa-orc-item-remover.wa-btn-ghost:hover:not(:disabled) {
+  background: var(--wa-action-red-soft, rgba(220, 38, 38, 0.1));
+  color: var(--wa-action-red, #b91c1c);
+}
+
+.wa-orc-item-remover.wa-btn-ghost:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
 }
 
 /* ---- Rodapé: total + ação principal ---- */
@@ -898,15 +1169,30 @@
   "Calcular" ficam alcançáveis com qualquer número de itens no carrinho. `safe-area-inset` é
   pela barra inferior do iPhone: sem ela o botão fica sob o traço do sistema.
 */
+/*
+  UMA barra no pé, e ela se separa do conteúdo por sombra, não só por fio: o corpo rola por
+  baixo dela, e um fio sozinho não diz que ainda há lista passando ali embaixo. A sombra é a
+  mesma do composer (`--wa-composer-shadow`), que resolve exatamente este problema na thread.
+*/
 .wa-orc-foot {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--orc-gap-2);
-  padding: var(--orc-gap-2) 0 calc(var(--orc-gap-3) + env(safe-area-inset-bottom, 0px));
+  padding: var(--orc-gap-2) 0 calc(var(--orc-gap-2) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--wa-panel-border);
   background: var(--wa-panel);
+  box-shadow: var(--wa-composer-shadow, 0 -14px 32px -30px rgba(15, 23, 42, 0.46));
+}
+
+/* Descarte e avanço na mesma linha, com pesos opostos. */
+.wa-orc-foot-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--orc-gap-1);
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* Rodapé de um botão só (incerto, erro de ambiguidade): ele vai para a direita, onde a ação
@@ -930,16 +1216,98 @@
   color: var(--wa-text-muted);
 }
 
+/* O total é a cifra da tela: tamanho de cifra, não de legenda. */
 .wa-orc-totalValor {
-  font-size: 15px;
-  line-height: 1.25;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
 }
 
+/*
+  Quando a vaga do valor carrega uma FRASE ("calculado pelo ERP") em vez de um número, ela
+  precisa parecer frase: na altura de cifra, aquilo era lido como se o ERP fosse o valor.
+*/
+.wa-orc-totalValor--texto {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--wa-text-muted);
+}
+
+/*
+  Descarte é TEXTO, não botão. `.wa-btn-ghost` vem com um fundo cinza que, ao lado do
+  "Calcular", dava às duas ações o mesmo peso de caixa — e uma delas joga fora o orçamento
+  inteiro. Aqui ela só ganha fundo quando o ponteiro ou o teclado chega nela.
+*/
+.wa-orc-btnLimpar.wa-btn-ghost {
+  background: transparent;
+  color: var(--wa-text-muted);
+  white-space: nowrap;
+  border-radius: var(--orc-raio-controle);
+  transition:
+    background-color var(--ds-transition, 140ms ease),
+    color var(--ds-transition, 140ms ease);
+}
+
+.wa-orc-btnLimpar.wa-btn-ghost:hover:not(:disabled) {
+  background: var(--ds-hover, rgba(0, 0, 0, 0.05));
+  color: var(--wa-text);
+}
+
+.wa-orc-btnLimpar.wa-btn-ghost:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+  color: var(--wa-text);
+}
+
 /* O botão principal não muda de posição ao entrar em "Calculando…". */
+/*
+  Ação principal com peso de ação principal. Antes ela já nascia no azul claro do estado
+  desabilitado e ficava indistinguível de si mesma desligada — a atendente não sabia se podia
+  calcular. Agora: cheia e com sombra quando dá para seguir, lisa e sem relevo quando não dá.
+*/
 .wa-orc-btnPrincipal {
   min-width: 132px;
+  min-height: 42px;
   justify-content: center;
+  border-radius: var(--orc-raio-controle);
+  font-weight: 600;
+  box-shadow: var(--ds-shadow-sm, 0 2px 8px rgba(8, 26, 43, 0.07));
+  transition:
+    transform 120ms var(--ds-motion-ease, cubic-bezier(0.16, 1, 0.3, 1)),
+    box-shadow var(--ds-transition, 140ms ease),
+    opacity var(--ds-transition, 140ms ease);
+}
+
+.wa-orc-btnPrincipal:hover:not(:disabled) {
+  box-shadow: var(--ds-shadow-md, 0 6px 18px rgba(8, 26, 43, 0.1));
+}
+
+.wa-orc-btnPrincipal:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: var(--ds-shadow-xs, 0 1px 2px rgba(8, 26, 43, 0.06));
+}
+
+.wa-orc-btnPrincipal:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.wa-orc-btnPrincipal:disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-orc-btnPrincipal {
+    transition: none;
+  }
+
+  .wa-orc-btnPrincipal:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .wa-orc-btnSm {
@@ -952,21 +1320,12 @@
   gap: 8px;
 }
 
-/* "Limpar rascunho" vive abaixo do rodapé principal: é ação de descarte, nunca a próxima. */
-.wa-orc-rodapeSecundario {
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: flex-end;
-  margin-top: calc(var(--orc-gap-3) * -1 + var(--orc-gap-1));
-  padding-bottom: calc(var(--orc-gap-2) + env(safe-area-inset-bottom, 0px));
-}
-
 .wa-orc-resumo {
   display: flex;
   flex-direction: column;
   gap: 6px;
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
+  border-radius: var(--orc-raio);
   padding: 10px;
 }
 
@@ -990,7 +1349,7 @@
   align-items: baseline;
   gap: 4px 10px;
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
+  border-radius: var(--orc-raio);
   padding: 10px;
 }
 
@@ -1011,7 +1370,7 @@
   flex-direction: column;
   gap: 6px;
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
+  border-radius: var(--orc-raio);
   padding: 10px;
 }
 
@@ -1045,7 +1404,7 @@
   flex-direction: column;
   gap: 2px;
   border: 1px solid var(--wa-green);
-  border-radius: 10px;
+  border-radius: var(--orc-raio);
   padding: 12px;
 }
 
@@ -1059,7 +1418,7 @@
 .wa-orc-resumoTexto {
   margin: 0;
   border: 1px solid var(--wa-panel-border);
-  border-radius: 10px;
+  border-radius: var(--orc-raio);
   padding: 10px;
   font: inherit;
   font-size: 13px;

@@ -43,6 +43,12 @@ import {
 import {
   agruparCandidatosProduto,
   mensagemBuscaSemResultado,
+  candidatoRelevante,
+  separarCandidatosPorRelevancia,
+  fatiarDestaque,
+  tituloCandidatosRuido,
+  termoDeResgate,
+  mensagemResgateBusca,
   dicaClienteNaoEncontrado,
   rotuloFonte,
   textoBloqueio,
@@ -1683,6 +1689,271 @@ const { prefillRascunho } = draft;
 }
 
 /* ------------------------------------------------------------------ *
+ * 12.1 Relevante × ruído, o destaque e o resgate de duas palavras
+ * ------------------------------------------------------------------ *
+ * Medido ao vivo no ERP da empresa 20 em 25/10:
+ *
+ *   `cimento` → 6 produtos, 5 deles "ARREFECIMENTO"/"ARREFICIMENTO"  (83% de ruído)
+ *   `cimen`   → 7, mesmos 5 de ruído
+ *   `tinta`   → 17, zero ruído   ·   `oleo` → 181, zero   ·   `cabo` → 144, zero
+ *   `filtro oleo` acha           ·   `oleo filtro` devolve ZERO
+ *
+ * A loja é revenda de peças agrícolas e automotivas: "só um cimento" é o dado certo, o problema
+ * é o radiador que vinha junto. Estas asserções provam a régua (início de palavra × meio de
+ * palavra), o destaque que explica cada linha e os limites do resgate.
+ */
+{
+  const RADIADOR = {
+    codigo_produto_erp: "AL221117",
+    descricao: "AL221117 - RADIADOR DO SISTEMA DE ARREFECIMENTO - MAHLE",
+    marca: "MAHLE",
+  };
+  const ADITIVO = {
+    codigo_produto_erp: "9002",
+    descricao: "ADITIVO ARREFICIMENTO ROSA 1L",
+    marca: "PARAFLU",
+  };
+  const CIMENTO = {
+    codigo_produto_erp: "0004325",
+    descricao: "CIMENTO CAMPEAO AZUL CP 2 E 32 50KG",
+    marca: "CAMPEAO",
+  };
+
+  /* ---- a régua: o termo INICIA uma palavra? ---- */
+  assert(candidatoRelevante(CIMENTO, "cimento") === true, "régua: 'cimento' inicia a descrição do cimento");
+  assert(
+    candidatoRelevante(RADIADOR, "cimento") === false,
+    "régua: 'cimento' dentro de ARREFECIMENTO é ruído — é o radiador que atrapalhava a busca"
+  );
+  assert(
+    candidatoRelevante(ADITIVO, "cimento") === false,
+    "régua: ARREFICIMENTO (com I) também é ruído — a grafia do catálogo não muda a regra"
+  );
+  assert(candidatoRelevante(CIMENTO, "CIMENTO") === true, "régua: caixa não conta");
+  assert(candidatoRelevante(CIMENTO, "  cimento  ") === true, "régua: espaço em volta não conta");
+
+  /* ---- a marca também encontra (é o que a dica do campo promete) ---- */
+  assert(candidatoRelevante(RADIADOR, "mahle") === true, "marca: 'mahle' casa pela marca do produto");
+  assert(
+    candidatoRelevante(CIMENTO, "mahle") === false,
+    "marca: quem não é da marca não vira relevante por acaso"
+  );
+  assert(
+    candidatoRelevante({ descricao: "FILTRO", marca: "JOHN DEERE" }, "deere") === true,
+    "marca: a segunda palavra da marca também é palavra"
+  );
+
+  /* ---- separadores do catálogo: hífen, barra e o código colado ---- */
+  assert(
+    candidatoRelevante({ descricao: "CORREIA R-1892 DENTADA" }, "1892") === true,
+    "separador: o hífen de 'R-1892' começa palavra nova"
+  );
+  assert(
+    candidatoRelevante({ descricao: "CORREIA R-1892 DENTADA" }, "892") === false,
+    "separador: '892' é miolo de 1892 — ruído, não resultado"
+  );
+  assert(
+    candidatoRelevante({ descricao: "FILTRO AR EXT/INT MOTOR" }, "int") === true,
+    "separador: a barra de 'EXT/INT' começa palavra nova"
+  );
+  assert(
+    candidatoRelevante(RADIADOR, "radiador") === true,
+    "separador: 'AL221117 - RADIADOR' tem várias palavras"
+  );
+  assert(
+    candidatoRelevante(RADIADOR, "221117") === false,
+    "separador: '221117' colado em AL é miolo de código, não palavra"
+  );
+
+  /* ---- acento não atrapalha ---- */
+  assert(
+    candidatoRelevante({ descricao: "ÓLEO LUBRIFICANTE 15W40" }, "oleo") === true,
+    "acento: 'oleo' acha 'ÓLEO' — ninguém digita acento com o cliente esperando"
+  );
+  assert(
+    candidatoRelevante({ descricao: "SOLUCAO" }, "solução") === true,
+    "acento: digitar COM acento também casa o que está sem"
+  );
+
+  /* ---- a separação em dois grupos, com a ordem da WM preservada ---- */
+  {
+    const pagina = [RADIADOR, CIMENTO, ADITIVO];
+    const { relevantes, ruido } = separarCandidatosPorRelevancia(pagina, "cimento");
+    assert(relevantes.length === 1 && relevantes[0] === CIMENTO, "separar: o cimento sobe sozinho");
+    assert(ruido.length === 2, "separar: os dois arrefecimentos descem");
+    assert(
+      ruido[0] === RADIADOR && ruido[1] === ADITIVO,
+      "separar: dentro do ruído a ordem da WM é preservada — não se reordena duas vezes"
+    );
+    assert(
+      relevantes.length + ruido.length === pagina.length,
+      "separar: NADA é filtrado — ruído continua escolhível, só vai para baixo"
+    );
+  }
+  {
+    // `tinta` e `oleo` medidos: 17 e 181 resultados, zero ruído. O caso comum não muda nada.
+    const pagina = [{ descricao: "TINTA ACRILICA" }, { descricao: "TINTA SPRAY PRETA" }];
+    const { relevantes, ruido } = separarCandidatosPorRelevancia(pagina, "tinta");
+    assert(ruido.length === 0, "separar: sem ruído na página, nada desce");
+    assert(relevantes[0] === pagina[0] && relevantes[1] === pagina[1], "separar: e a ordem é a da WM");
+  }
+  for (const semTermo of ["", "   ", null, undefined]) {
+    const { relevantes, ruido } = separarCandidatosPorRelevancia([RADIADOR], semTermo);
+    assert(
+      ruido.length === 0 && relevantes.length === 1,
+      `separar: sem termo (${JSON.stringify(semTermo)}) nada é rebaixado`
+    );
+  }
+  assert(
+    separarCandidatosPorRelevancia(null, "cimento").relevantes.length === 0,
+    "separar: entrada degenerada devolve listas utilizáveis"
+  );
+
+  /* ---- o agrupamento inteiro: exato primeiro, relevantes, ruído ---- */
+  {
+    const g = agruparCandidatosProduto(
+      { status: "multiplos_produtos", produtos: [RADIADOR, CIMENTO, ADITIVO], paginacao: { total: 6, tem_mais: false, tem_anterior: false } },
+      "cimento"
+    );
+    assert(
+      g.lista.map((p) => p.codigo_produto_erp).join(",") === "0004325,AL221117,9002",
+      "agrupar: a lista sai na ordem em que a tela imprime — relevante primeiro"
+    );
+    assert(g.ruido.length === 2 && g.relevantes.length === 1, "agrupar: os dois grupos atravessam para a tela");
+    assert(g.termo === "cimento", "agrupar: o termo consultado viaja (destaque e título saem dele)");
+    assert(g.paginacao?.total === 6, "agrupar: a contagem da WM não é tocada — não inventamos que filtramos");
+  }
+  {
+    // A correspondência exata fica ACIMA DE TUDO, inclusive do relevante.
+    const EXATO = { codigo_produto_erp: "E1", descricao: "CIMENTO" };
+    const g = agruparCandidatosProduto(
+      {
+        status: "multiplos_produtos",
+        produtos: [EXATO, RADIADOR, CIMENTO],
+        correspondencia_exata: EXATO,
+        outros_com_a_palavra: [RADIADOR, CIMENTO],
+      },
+      "cimento"
+    );
+    assert(g.exato?.codigo_produto_erp === "E1", "agrupar: o exato do backend continua sendo o exato");
+    assert(
+      g.lista.map((p) => p.codigo_produto_erp).join(",") === "E1,0004325,AL221117",
+      "agrupar: exato → relevante → ruído, nesta ordem"
+    );
+    assert(g.relevantes[0] === CIMENTO && g.ruido[0] === RADIADOR, "agrupar: a régua vale para os 'outros'");
+  }
+  {
+    /*
+      O termo dos "outros" é o ENCURTADO, quando o backend encurtou (pendência 15).
+
+      Para revelar os irmãos escondidos pela correspondência exata, o backend reconsulta com o
+      termo menos um caractere e diz qual usou. "FILTRANTE" entra na lista por casar `filtr` e
+      NÃO contém `filtro`: classificá-lo contra o termo digitado o mandaria para um bloco
+      afirmando que ele contém uma palavra que ele não contém.
+    */
+    const EXATO = { codigo_produto_erp: "E1", descricao: "FILTRO" };
+    const FILTRANTE = { codigo_produto_erp: "F1", descricao: "ELEMENTO FILTRANTE SEPARADOR" };
+    const g = agruparCandidatosProduto(
+      {
+        status: "multiplos_produtos",
+        produtos: [EXATO, FILTRANTE],
+        correspondencia_exata: EXATO,
+        outros_com_a_palavra: [FILTRANTE],
+        termo_dos_outros: "filtr",
+      },
+      "filtro"
+    );
+    assert(g.termo === "filtr", "agrupar: o termo que vale para os outros é o que o backend usou");
+    assert(
+      g.relevantes[0] === FILTRANTE && g.ruido.length === 0,
+      "agrupar: 'FILTRANTE' é relevante contra 'filtr' — e seria ruído contra 'filtro'"
+    );
+    assert(
+      tituloCandidatosRuido(g.termo) === 'Também contêm "filtr"',
+      "agrupar: o rótulo do ruído cita o termo que de fato casou, não um que não casa"
+    );
+  }
+  assert(
+    agruparCandidatosProduto({ status: "multiplos_produtos", produtos: [RADIADOR] }).ruido.length === 0,
+    "agrupar: chamada SEM termo (compatível com antes) não rebaixa ninguém"
+  );
+
+  /* ---- o destaque: por que esta linha apareceu ---- */
+  {
+    const pedacos = fatiarDestaque("ARREFECIMENTO", "cimento");
+    assert(pedacos.length === 2, "destaque: 'ARREFECIMENTO' se parte em 'ARREFE' + 'CIMENTO'");
+    assert(pedacos[0].destaque === false && pedacos[1].destaque === true, "destaque: só o trecho casado acende");
+    assert(pedacos[1].texto === "CIMENTO", "destaque: o trecho sai com a caixa ORIGINAL do catálogo");
+  }
+  {
+    // A invariante que impede a descrição de virar outra coisa: colar tudo devolve o original.
+    const textos = [
+      "AL221117 - RADIADOR DO SISTEMA DE ARREFECIMENTO - MAHLE",
+      "FILTRO AR EXT/INT MOTOR YUNNEI BRT15/20/23",
+      "ÓLEO ÓLEO ÓLEO",
+      "CIMENTO",
+      "—",
+    ];
+    for (const texto of textos) {
+      for (const termo of ["cimento", "oleo", "ext", "zzz", ""]) {
+        assert(
+          fatiarDestaque(texto, termo).map((p) => p.texto).join("") === texto,
+          `destaque: "${texto}" + "${termo}" devolve a descrição inteira, sem perder caractere`
+        );
+      }
+    }
+  }
+  assert(
+    fatiarDestaque("ÓLEO LUBRIFICANTE", "oleo")[0].texto === "ÓLEO",
+    "destaque: o acento do catálogo é preservado no trecho aceso"
+  );
+  {
+    const pedacos = fatiarDestaque("A A A A A A", "a");
+    const acesos = pedacos.filter((p) => p.destaque).length;
+    assert(acesos === 3, "destaque: no máximo três trechos acendem — mais que isso vira listra ilegível");
+    assert(pedacos.map((p) => p.texto).join("") === "A A A A A A", "destaque: e o resto do texto continua lá");
+  }
+  assert(
+    fatiarDestaque("CIMENTO", "zzz").length === 1 &&
+      fatiarDestaque("CIMENTO", "zzz")[0].destaque === false,
+    "destaque: sem casamento sai um pedaço só — a tela fica idêntica à de antes"
+  );
+  assert(fatiarDestaque("", "cimento").length === 0, "destaque: texto vazio não vira pedaço nenhum");
+  assert(fatiarDestaque("CIMENTO", "").length === 1, "destaque: sem termo não acende nada");
+
+  /* ---- o título do bloco de ruído ---- */
+  assert(
+    tituloCandidatosRuido("cimento") === 'Também contêm "cimento"',
+    "ruído: o título diz o que aquilo é, com o termo pesquisado"
+  );
+  assert(
+    !/relevante|irrelevante|ruído|lixo/i.test(tituloCandidatosRuido("cimento")),
+    "ruído: nada de jargão nosso na tela — o item continua sendo um resultado"
+  );
+  assert(tituloCandidatosRuido("  ") === "Também contêm o termo pesquisado", "ruído: sem termo, o título ainda se lê");
+
+  /* ---- o resgate de duas palavras: qual palavra, e quando nenhuma ---- */
+  assert(termoDeResgate("oleo filtro") === "filtro", "resgate: escolhe a palavra MAIS LONGA (mais específica)");
+  assert(termoDeResgate("oleo filtro motor") === "filtro", "resgate: com três palavras, a mais longa também");
+  assert(termoDeResgate("filtro") === null, "resgate: uma palavra só não tem o que resgatar");
+  assert(termoDeResgate("  filtro  ") === null, "resgate: espaço em volta não inventa segunda palavra");
+  assert(termoDeResgate("oleo  filtro") === "filtro", "resgate: espaço repetido não atrapalha");
+  assert(termoDeResgate("ab cd") === null, "resgate: nenhuma palavra com 3 caracteres — não vale a chamada");
+  assert(termoDeResgate("ab filtro") === "filtro", "resgate: a palavra curta é ignorada, a longa serve");
+  assert(termoDeResgate("juta soja") === "juta", "resgate: empate fica com a primeira — a ordem em que ela pensou");
+  for (const ruim of [null, undefined, "", "   ", 42]) {
+    assert(termoDeResgate(ruim) === null, `resgate: entrada ${JSON.stringify(ruim)} não dispara nada`);
+  }
+  {
+    const msg = mensagemResgateBusca("oleo filtro", "filtro");
+    assert(/oleo filtro/.test(msg), "resgate: a frase cita o que a pessoa digitou");
+    assert(/"filtro"/.test(msg), "resgate: e cita o termo que de fato trouxe os resultados");
+    assert(/Nada com/.test(msg), "resgate: diz primeiro que o termo dela não achou nada");
+  }
+  assert(mensagemResgateBusca("", "filtro") === "", "resgate: sem os dois termos não há frase a escrever");
+}
+
+/* ------------------------------------------------------------------ *
  * 13. O que o PICKER não pode fazer
  * ------------------------------------------------------------------ *
  * Olha o fonte porque o que se proíbe aqui é caminho de execução e aritmética sobre dinheiro,
@@ -1694,14 +1965,80 @@ const { prefillRascunho } = draft;
   const picker = readFileSync(new URL("../src/conversa/orcamento/ProdutoPicker.jsx", import.meta.url), "utf8");
 
   const chamadas = picker.split("\n").filter((l) => /consultarProdutosOrcamento\(/.test(l));
-  // DUAS chamadas, e exatamente duas: a busca com debounce e o "ver preço" por código. Uma
-  // terceira seria caminho novo para o servidor da loja — é isso que esta conta protege.
+  // DUAS chamadas, e exatamente duas: a busca (dentro de `pedirPagina`) e o "ver preço" por
+  // código. Uma terceira seria caminho novo para o servidor da loja — é isso que esta conta
+  // protege. O resgate de duas palavras NÃO abre caminho novo: ele reusa `pedirPagina`.
   assert(chamadas.length === 2, `picker: a WM é consultada de DOIS lugares só — achei ${chamadas.length}`);
   assert(/const DEBOUNCE_MS = 800;/.test(picker), "picker: o debounce de 800 ms continua de pé");
   assert(/const MIN_CARACTERES = 3;/.test(picker), "picker: o mínimo de 3 caracteres continua de pé");
   assert(
     !/setTimeout[\s\S]{0,200}buscar\(termo\.trim\(\)\.split/.test(picker),
     "picker: o estado vazio NÃO dispara busca alternativa por conta própria"
+  );
+
+  /*
+    O RESGATE: no máximo UMA segunda consulta, e só no vazio.
+
+    Estas contas são o que impede a correção de virar cascata — duas palavras que não acham
+    nada dispararem três, quatro consultas ao servidor da loja atrás de alguma que ache.
+  */
+  {
+    const pedidos = picker.split("\n").filter((l) => /await pedirPagina\(/.test(l));
+    assert(
+      pedidos.length === 2,
+      `resgate: a busca pede no máximo DUAS páginas (a do termo e a do resgate) — achei ${pedidos.length}`
+    );
+    const iniBuscar = picker.indexOf("const buscar = useCallback");
+    const corpoBuscar = picker.slice(iniBuscar, picker.indexOf("[cancelarEmVoo, limparDetalhes]", iniBuscar));
+    assert(corpoBuscar.length > 0, "resgate: o corpo da busca é isolável");
+    assert(
+      /grupos\.lista\.length === 0/.test(corpoBuscar),
+      "resgate: a segunda tentativa é condicionada ao resultado VAZIO — nunca para melhorar o que veio"
+    );
+    assert(
+      /resgateRecusadoRef\.current !== termoLimpo/.test(corpoBuscar),
+      "resgate: quem pediu para ver só o que digitou não é resgatada de novo"
+    );
+    assert(
+      !/\bbuscar\(/.test(corpoBuscar),
+      "resgate: a busca não chama a si mesma — recursão aqui é cascata de chamadas à WM"
+    );
+    assert(
+      !/termoDeResgate\([\s\S]{0,400}termoDeResgate\(/.test(corpoBuscar),
+      "resgate: o termo alternativo é escolhido UMA vez; não há segunda rodada de encurtamento"
+    );
+    assert(
+      /termoDeResgate\(termoLimpo\)/.test(corpoBuscar),
+      "resgate: o alternativo sai do que a pessoa digitou, não do termo já resgatado"
+    );
+  }
+
+  // O resgate precisa estar DITO na tela: lista de outro termo sem aviso é mentira silenciosa.
+  assert(
+    /mensagemResgateBusca\(resgate\.digitado, resgate\.usado\)/.test(picker),
+    "resgate: a tela nomeia os dois termos — o digitado e o que trouxe os resultados"
+  );
+  assert(
+    /voltarAoTermoDigitado/.test(picker),
+    "resgate: há volta para o termo original, e ela não custa chamada nenhuma"
+  );
+  {
+    const iniVolta = picker.indexOf("const voltarAoTermoDigitado");
+    const corpoVolta = picker.slice(iniVolta, picker.indexOf("[resgate, limparDetalhes]", iniVolta));
+    assert(
+      !/pedirPagina|consultarProdutosOrcamento|buscar\(/.test(corpoVolta),
+      "resgate: desfazer o resgate é local — o vazio do termo dela já é conhecido"
+    );
+  }
+
+  // O ruído é rebaixado, NUNCA escondido, e a contagem da WM não é reescrita.
+  assert(
+    /grupos\.ruido\.map\(/.test(picker),
+    "ruído: os itens de ruído continuam sendo impressos — às vezes é o que ela quer"
+  );
+  assert(
+    /tituloCandidatosRuido\(grupos\.termo\)/.test(picker),
+    "ruído: o bloco é rotulado com o termo pesquisado, não largado sem explicação"
   );
   const semComentario = picker.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
   assert(

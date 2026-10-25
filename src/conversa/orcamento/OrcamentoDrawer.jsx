@@ -683,16 +683,10 @@ export default function OrcamentoDrawer({
             onProdutoEscolhido={consultarPrecoDoItem}
             companyId={companyId}
             userId={userId}
+            onLimpar={limparTudo}
           />
         )}
 
-        {etapa === ETAPA.FORM && !calculando ? (
-          <div className="wa-orc-rodapeSecundario">
-            <button type="button" className="wa-btn wa-btn-ghost wa-orc-btnSm" onClick={limparTudo}>
-              Limpar rascunho
-            </button>
-          </div>
-        ) : null}
       </aside>
     </div>,
     document.body

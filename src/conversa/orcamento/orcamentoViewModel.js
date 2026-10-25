@@ -122,6 +122,152 @@ export function precoExatoTexto(valor) {
 }
 
 /* ------------------------------------------------------------------ *
+ * O termo dentro do texto: início de palavra × meio de palavra
+ * ------------------------------------------------------------------ *
+ * A busca da WM casa QUALQUER TRECHO da descrição, inclusive no meio de outra palavra.
+ * Medido ao vivo no ERP da empresa 20 em 25/10:
+ *
+ *   `cimento` → 6 produtos, e 5 deles são "ARREFECIMENTO"/"ARREFICIMENTO" (radiador, líquido)
+ *   `cimen`   → 7 produtos, 5 do mesmo ruído
+ *   `tinta`   → 17, nenhum ruído   ·   `oleo` → 181, nenhum ruído   ·   `cabo` → 144, idem
+ *
+ * Ou seja: num termo central do vocabulário de quem atende, 83% do resultado era lixo — e ela
+ * não tinha como saber por que aquilo estava ali. A loja é revenda de peças agrícolas e
+ * automotivas; "só um cimento" é o dado certo, o problema é o que vinha em volta.
+ *
+ * A WM é quem decide o que entra na página; nós decidimos a ORDEM em que a página é lida.
+ * Um candidato é RELEVANTE quando o termo INICIA uma palavra da descrição ou da marca, e é
+ * RUÍDO quando só aparece grudado no meio de outra. Ruído não some — às vezes é exatamente o
+ * que a pessoa quer —, ele vai para baixo de um título que diz o que ele é.
+ *
+ * "Palavra" aqui é separada por qualquer caractere que não seja letra ou dígito, porque é
+ * assim que o catálogo escreve: `R-1892`, `EXT/INT`, `AL221117 - RADIADOR`, `CP 2 E 32 50KG`.
+ * Acento e caixa não contam (`ÓLEO` casa `oleo`), e `AL221117` NÃO casa `221117` — ali o
+ * número é miolo de um código, não uma palavra.
+ */
+
+/**
+ * Texto comparável (sem acento, sem caixa) com o índice ORIGINAL de cada caractere.
+ *
+ * O índice é o que permite destacar o trecho casado no texto como ele é: `"ÓLEO".normalize()`
+ * muda o comprimento da string, e fatiar o original por posições medidas na forma normalizada
+ * cortaria a descrição no lugar errado.
+ */
+function normalizarComIndices(texto) {
+  const origem = String(texto ?? "");
+  let normalizado = "";
+  const inicios = [];
+  const fins = [];
+  for (let i = 0; i < origem.length; i += 1) {
+    const base = origem[i]
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase();
+    for (const c of base) {
+      normalizado += c;
+      inicios.push(i);
+      fins.push(i + 1);
+    }
+  }
+  return { origem, normalizado, inicios, fins };
+}
+
+/** Forma comparável de um termo digitado: sem acento, sem caixa, sem espaço sobrando. */
+function normalizarTermo(termo) {
+  return normalizarComIndices(String(termo ?? "").trim().replace(/\s+/g, " ")).normalizado;
+}
+
+/** Letra ou dígito — o resto (espaço, `-`, `/`, `.`, parêntese…) separa palavras. */
+function ehLetraOuDigito(caractere) {
+  return Boolean(caractere) && /[a-z0-9]/.test(caractere);
+}
+
+/**
+ * Onde o termo aparece no texto, em posições do texto ORIGINAL.
+ *
+ * @returns {{ ini: number, fim: number, inicioDePalavra: boolean }[]}
+ */
+function ocorrenciasDoTermo(texto, termo) {
+  const alvo = normalizarComIndices(texto);
+  const agulha = normalizarTermo(termo);
+  if (!agulha || !alvo.normalizado) return [];
+  const achados = [];
+  let de = 0;
+  for (;;) {
+    const pos = alvo.normalizado.indexOf(agulha, de);
+    if (pos < 0) break;
+    const anterior = pos > 0 ? alvo.normalizado[pos - 1] : "";
+    achados.push({
+      ini: alvo.inicios[pos],
+      fim: alvo.fins[pos + agulha.length - 1],
+      inicioDePalavra: pos === 0 || !ehLetraOuDigito(anterior),
+    });
+    de = pos + agulha.length;
+  }
+  return achados;
+}
+
+/**
+ * O termo inicia alguma palavra da descrição ou da marca deste candidato?
+ *
+ * Sem termo utilizável nada é classificado como ruído: a lista continua exatamente como a WM a
+ * mandou. Rebaixar item por uma regra que não se aplica seria pior que não ordenar.
+ */
+export function candidatoRelevante(produto, termo) {
+  if (!normalizarTermo(termo)) return true;
+  const campos = [produto?.descricao, produto?.marca];
+  return campos.some((campo) =>
+    ocorrenciasDoTermo(campo, termo).some((o) => o.inicioDePalavra)
+  );
+}
+
+/**
+ * Parte a lista em relevantes e ruído, **preservando a ordem da WM dentro de cada grupo**.
+ *
+ * Isto reordena só a página que já está na mão. Não há filtro, não há contagem nova e a
+ * paginação continua sendo a da WM: um produto que esteja na página 4 continua na página 4.
+ */
+export function separarCandidatosPorRelevancia(produtos, termo) {
+  const lista = Array.isArray(produtos) ? produtos : [];
+  if (!normalizarTermo(termo)) return { relevantes: lista.slice(), ruido: [] };
+  const relevantes = [];
+  const ruido = [];
+  for (const p of lista) (candidatoRelevante(p, termo) ? relevantes : ruido).push(p);
+  return { relevantes, ruido };
+}
+
+/**
+ * O texto em pedaços, marcando o trecho que casou — é o "por que este item apareceu".
+ *
+ * Com `ARREFECIMENTO` destacado em `cimento`, a lista se explica sozinha em vez de parecer
+ * quebrada. Só os primeiros `maximo` trechos são marcados: um termo curto que se repete muitas
+ * vezes transformaria a descrição numa sequência de listras ilegíveis.
+ *
+ * @returns {{ texto: string, destaque: boolean }[]} sempre com ao menos um pedaço quando há texto
+ */
+export function fatiarDestaque(texto, termo, { maximo = 3 } = {}) {
+  const origem = String(texto ?? "");
+  if (!origem) return [];
+  const achados = ocorrenciasDoTermo(origem, termo).slice(0, Math.max(0, maximo));
+  if (!achados.length) return [{ texto: origem, destaque: false }];
+  const pedacos = [];
+  let cursor = 0;
+  for (const { ini, fim } of achados) {
+    if (ini > cursor) pedacos.push({ texto: origem.slice(cursor, ini), destaque: false });
+    pedacos.push({ texto: origem.slice(ini, fim), destaque: true });
+    cursor = fim;
+  }
+  if (cursor < origem.length) pedacos.push({ texto: origem.slice(cursor), destaque: false });
+  return pedacos;
+}
+
+/** Título do bloco de ruído. Diz o que aquilo é, em vez de deixar a pessoa adivinhar. */
+export function tituloCandidatosRuido(termo) {
+  const limpo = String(termo ?? "").trim().replace(/\s+/g, " ");
+  return limpo ? `Também contêm "${limpo}"` : "Também contêm o termo pesquisado";
+}
+
+/* ------------------------------------------------------------------ *
  * Candidatos de produto — correspondência exata × "outros com essa palavra"
  * ------------------------------------------------------------------ *
  * A WM resolve a busca direto num único produto quando o termo digitado é IGUAL à descrição
@@ -141,11 +287,24 @@ export function precoExatoTexto(valor) {
 
 /**
  * @param {object|null|undefined} data corpo de `POST /api/orcamentos/produtos/consultar`
- * @returns {{ exato: object|null, outros: object[], lista: object[], paginacao: object|null,
- *            metaDoPrecificado: object|null }}
+ * @param {string} [termo] o que foi efetivamente consultado — usado para separar relevante de
+ *   ruído e para destacar o trecho casado. Ausente, a lista sai na ordem exata da WM.
+ * @returns {{ exato: object|null, outros: object[], lista: object[], relevantes: object[],
+ *            ruido: object[], paginacao: object|null, metaDoPrecificado: object|null,
+ *            termo: string }}
  */
-export function agruparCandidatosProduto(data) {
-  const vazio = { exato: null, outros: [], lista: [], paginacao: null, metaDoPrecificado: null };
+export function agruparCandidatosProduto(data, termo = "") {
+  const buscado = String(termo ?? "").trim().replace(/\s+/g, " ");
+  const vazio = {
+    exato: null,
+    outros: [],
+    lista: [],
+    relevantes: [],
+    ruido: [],
+    paginacao: null,
+    metaDoPrecificado: null,
+    termo: buscado,
+  };
   if (!data || typeof data !== "object") return vazio;
 
   const paginacao = data.paginacao && typeof data.paginacao === "object" ? data.paginacao : null;
@@ -162,8 +321,11 @@ export function agruparCandidatosProduto(data) {
       exato: null,
       outros: [],
       lista: [data.produto],
+      relevantes: [data.produto],
+      ruido: [],
       paginacao: null,
       metaDoPrecificado,
+      termo: buscado,
     };
   }
 
@@ -171,7 +333,21 @@ export function agruparCandidatosProduto(data) {
   const produtos = Array.isArray(data.produtos) ? data.produtos.filter(comCodigo) : [];
 
   const exato = comCodigo(data.correspondencia_exata) ? data.correspondencia_exata : null;
-  if (!exato) return { exato: null, outros: [], lista: produtos, paginacao, metaDoPrecificado: null };
+  if (!exato) {
+    const { relevantes, ruido } = separarCandidatosPorRelevancia(produtos, buscado);
+    return {
+      exato: null,
+      outros: [],
+      // A lista única já sai NA ORDEM EM QUE A TELA A IMPRIME: é ela que o Enter usa para
+      // adicionar "o primeiro", e o primeiro precisa ser o primeiro que a pessoa vê.
+      lista: [...relevantes, ...ruido],
+      relevantes,
+      ruido,
+      paginacao,
+      metaDoPrecificado: null,
+      termo: buscado,
+    };
+  }
 
   const brutos = Array.isArray(data.outros_com_a_palavra) ? data.outros_com_a_palavra : produtos;
   const outros = brutos.filter(
@@ -179,9 +355,41 @@ export function agruparCandidatosProduto(data) {
   );
 
   // Marcado como exato mas sem ninguém para contrastar: volta a ser uma lista simples.
-  if (!outros.length) return { exato: null, outros: [], lista: [exato], paginacao, metaDoPrecificado };
+  if (!outros.length) {
+    return {
+      exato: null,
+      outros: [],
+      lista: [exato],
+      relevantes: [exato],
+      ruido: [],
+      paginacao,
+      metaDoPrecificado,
+      termo: buscado,
+    };
+  }
 
-  return { exato, outros, lista: [exato, ...outros], paginacao, metaDoPrecificado };
+  // A correspondência exata não passa pela régua: ela é o produto cujo nome É o termo, e o
+  // backend já a marcou. Quem se reordena são os outros.
+  //
+  // E a régua tem de usar o termo com que os OUTROS foram de fato buscados. Para revelar os
+  // irmãos escondidos, o backend reconsulta com o termo encurtado (pendência 15) e diz qual foi
+  // em `termo_dos_outros`: `filtro` → `filtr`. Classificar "FILTRANTE" contra `filtro` o mandaria
+  // para um bloco dizendo que ele contém uma palavra que ele não contém.
+  const termoDosOutros =
+    typeof data.termo_dos_outros === "string" && data.termo_dos_outros.trim()
+      ? data.termo_dos_outros.trim()
+      : buscado;
+  const { relevantes, ruido } = separarCandidatosPorRelevancia(outros, termoDosOutros);
+  return {
+    exato,
+    outros,
+    lista: [exato, ...relevantes, ...ruido],
+    relevantes,
+    ruido,
+    paginacao,
+    metaDoPrecificado,
+    termo: termoDosOutros,
+  };
 }
 
 /**
@@ -206,6 +414,60 @@ export function mensagemBuscaSemResultado(termo) {
     `Nenhum produto encontrado com "${limpo}". A pesquisa procura as palavras juntas, ` +
     `na ordem digitada. Tente só uma palavra — por exemplo, "${palavras[0]}".`
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * O resgate da busca de duas palavras
+ * ------------------------------------------------------------------ *
+ * A WM procura o trecho LITERAL, então a ordem das palavras decide: medido na empresa 20,
+ * `filtro oleo` acha e `oleo filtro` devolve zero. Para quem atende, o produto simplesmente
+ * "não existe" — e ela desiste de um item que está lá.
+ *
+ * Quando o resultado vem VAZIO e havia duas ou mais palavras, vale uma segunda tentativa com a
+ * palavra mais longa do que foi digitado. Uma só, nunca em cascata, e **jamais** para melhorar
+ * um resultado que veio: cada chamada à WM pode custar dinheiro (seção 11 do doc 36), e trocar
+ * o termo de quem já achou algo seria mexer na busca dela pelas costas.
+ *
+ * A palavra mais longa porque é a mais específica: em `oleo filtro motor`, `filtro` recorta
+ * mais que `oleo`. Empate fica com a primeira — na dúvida, a ordem em que ela pensou.
+ */
+
+/** Mínimo da palavra de resgate: o mesmo piso de 3 caracteres que a busca inteira respeita. */
+const MIN_PALAVRA_RESGATE = 3;
+
+/**
+ * A palavra com que vale tentar de novo, ou `null` quando não vale tentativa nenhuma.
+ *
+ * @param {string} termo o que a pessoa digitou
+ * @returns {string|null}
+ */
+export function termoDeResgate(termo) {
+  const limpo = String(termo ?? "").trim().replace(/\s+/g, " ");
+  const palavras = limpo ? limpo.split(" ") : [];
+  if (palavras.length < 2) return null;
+  let melhor = null;
+  for (const palavra of palavras) {
+    if (palavra.length < MIN_PALAVRA_RESGATE) continue;
+    if (!melhor || palavra.length > melhor.length) melhor = palavra;
+  }
+  // Uma palavra igual ao termo inteiro não existe aqui (há duas ou mais), mas um termo que só
+  // difere por espaço repetido já foi normalizado acima — e repetir a mesma consulta seria
+  // gastar uma chamada para receber o mesmo vazio.
+  if (!melhor || melhor === limpo) return null;
+  return melhor;
+}
+
+/**
+ * O aviso do resgate. Diz, sem rodeio, que o que está na tela NÃO é o que foi digitado.
+ *
+ * @param {string} digitado termo original
+ * @param {string} usado termo que trouxe os resultados
+ */
+export function mensagemResgateBusca(digitado, usado) {
+  const a = String(digitado ?? "").trim().replace(/\s+/g, " ");
+  const b = String(usado ?? "").trim();
+  if (!a || !b) return "";
+  return `Nada com "${a}". Mostrando resultados para "${b}".`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -499,6 +761,12 @@ export function assinaturaDoBody(body) {
 export default {
   FONTE_CACHE,
   agruparCandidatosProduto,
+  candidatoRelevante,
+  separarCandidatosPorRelevancia,
+  fatiarDestaque,
+  tituloCandidatosRuido,
+  termoDeResgate,
+  mensagemResgateBusca,
   mensagemBuscaSemResultado,
   dicaClienteNaoEncontrado,
   rotuloFonte,

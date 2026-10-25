@@ -174,6 +174,7 @@ export default function OrcamentoForm({
   onProdutoEscolhido = null,
   companyId = null,
   userId = null,
+  onLimpar = null,
 }) {
   const disabled = calculando;
   const itens = Array.isArray(rascunho?.itens) ? rascunho.itens : [];
@@ -260,7 +261,12 @@ export default function OrcamentoForm({
         {avisoCampo ? <p className="wa-orc-hint wa-orc-hint--aviso">{avisoCampo}</p> : null}
         {dicaCliente ? <p className="wa-orc-hint wa-orc-hint--aviso">{dicaCliente}</p> : null}
 
-        <section className="wa-orc-section" aria-label="Cliente e vendedor">
+        {/*
+          Cliente e vendedor são campos IRMÃOS: num drawer largo eles dividem a linha, e a
+          lista de produtos sobe junto. Empilhados, só este bloco comia quase um terço da
+          altura útil antes do primeiro resultado aparecer.
+        */}
+        <section className="wa-orc-section wa-orc-section--dupla" aria-label="Cliente e vendedor">
           <h4 className="wa-orc-sectionTitle">Cliente e vendedor</h4>
           <div className="wa-orc-campo">
             <label className="wa-orc-label" htmlFor="wa-orc-cliente">
@@ -406,18 +412,46 @@ export default function OrcamentoForm({
       <footer className="wa-orc-foot">
         <div className="wa-orc-totalBox">
           <span className="wa-orc-totalLabel">Total</span>
-          <strong className="wa-orc-totalValor">
+          {/*
+            O valor continua sendo o do ERP, e a tela continua não somando nada. Quando não há
+            número, o que ocupa a vaga é uma FRASE — e frase em vaga de número precisa parecer
+            frase, senão é lida como se fosse o valor.
+          */}
+          <strong
+            className={
+              itens.length === 0
+                ? "wa-orc-totalValor"
+                : "wa-orc-totalValor wa-orc-totalValor--texto"
+            }
+          >
             {itens.length === 0 ? "—" : "calculado pelo ERP"}
           </strong>
         </div>
-        <button
-          type="button"
-          className="wa-btn wa-btn-primary wa-orc-btnPrincipal"
-          disabled={!podeCalcular}
-          onClick={onCalcular}
-        >
-          {calculando ? "Calculando…" : "Calcular"}
-        </button>
+        {/*
+          Uma barra só no pé do drawer. "Limpar rascunho" morava numa terceira faixa abaixo do
+          rodapé: três zonas empilhadas comendo a altura da lista, e a ação de DESCARTE com a
+          mesma largura de tela da ação principal. Agora ela é um texto discreto ao lado do
+          botão que de fato leva adiante.
+        */}
+        <div className="wa-orc-foot-acoes">
+          {typeof onLimpar === "function" && !calculando ? (
+            <button
+              type="button"
+              className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-btnLimpar"
+              onClick={onLimpar}
+            >
+              Limpar rascunho
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="wa-btn wa-btn-primary wa-orc-btnPrincipal"
+            disabled={!podeCalcular}
+            onClick={onCalcular}
+          >
+            {calculando ? "Calculando…" : "Calcular"}
+          </button>
+        </div>
       </footer>
     </>
   );

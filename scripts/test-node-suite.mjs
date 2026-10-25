@@ -69,6 +69,8 @@ const tests = [
   "test-sequential-messages.mjs",
   "test-specialty-outbound-accept.mjs",
   "test-status-mensagem-batch.mjs",
+  "test-sw-asset-cache-prune.mjs",
+  "test-sw-index-fresco.mjs",
   "test-thread-media-prefetch.mjs",
 ];
 

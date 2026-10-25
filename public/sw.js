@@ -22,6 +22,16 @@ const CACHE_SHELL = 'zap-shell-v1'
 const CACHE_ASSETS = 'zap-assets-v1'
 const SHELL_KEY = '/__zap_shell__'
 
+// Teto do cache de assets. O filtro do `activate` remove caches cujo NOME difere, mas os
+// nomes são fixos (`v1`) — então nada saía nunca e cada deploy acrescentava chunks com
+// hash novo para sempre (medido: o build tem 152 arquivos / 4,1 MB, e o histórico acumula
+// ~26 arquivos novos por deploy ao longo de 839 deploys).
+//
+// O risco não é o espaço e sim a COTA da origem, partilhada com o outbox em IndexedDB
+// (mensagens pendentes que precisam sobreviver ao F5) e com o cache de áudios offline: ao
+// bater na cota, o browser pode despejar a origem inteira e perder mensagem pendente.
+const MAX_ASSETS_EM_CACHE = 120
+
 async function armazenarShell(res) {
   try {
     if (!res || !res.ok) return
@@ -33,6 +43,25 @@ async function armazenarShell(res) {
     const cache = await caches.open(CACHE_SHELL)
     await cache.put(SHELL_KEY, limpa)
   } catch (_) {}
+}
+
+// O index.html é servido sem `Cache-Control`, então o browser aplica cache HEURÍSTICO
+// (~10% da idade do arquivo; medido em ~57 min, crescendo com o tempo) e entrega HTML
+// VELHO sem revalidar. Esse HTML aponta para chunks com hash que o deploy seguinte já
+// apagou → 404 → erro de carregamento de chunk. `cache: 'no-store'` obriga a ida à rede
+// e torna o SW independente daquele cabeçalho.
+//
+// Por que o guard: passar um init rebaixa o mode de 'navigate' para 'same-origin' (regra
+// do construtor de Request), o que muda como redirecionamentos se comportam numa
+// navegação. Então QUALQUER resposta fora do esperado — não-ok, redirecionada ou opaca —
+// e qualquer exceção caem para `fetch(req)`, que é exatamente o comportamento anterior.
+// O pior caso desta função é "nada mudou".
+async function buscarIndexFresco(req) {
+  try {
+    const r = await fetch(req.url, { cache: 'no-store' })
+    if (r && r.ok && !r.redirected && r.type !== 'opaqueredirect') return r
+  } catch (_) {}
+  return fetch(req)
 }
 
 self.addEventListener('fetch', (event) => {
@@ -47,7 +76,7 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const fresh = await fetch(req)
+        const fresh = await buscarIndexFresco(req)
         armazenarShell(fresh)
         return fresh
       } catch (err) {
@@ -151,6 +180,56 @@ self.addEventListener('install', (event) => {
   )
 })
 
+/**
+ * Caminhos `/assets/` que o HTML do shell referencia — é o caminho do boot, e nunca é
+ * podado: perdê-lo obrigaria a baixar o essencial outra vez (ou, offline, impediria abrir).
+ */
+function assetsReferenciadosNoShell(html) {
+  const refs = new Set()
+  if (typeof html !== 'string') return refs
+  const re = /\/assets\/[A-Za-z0-9._-]+/g
+  let m
+  while ((m = re.exec(html)) !== null) refs.add(m[0])
+  return refs
+}
+
+/**
+ * Mantém `zap-assets-v1` abaixo do teto, removendo os mais antigos primeiro.
+ *
+ * Perder uma entrada aqui NUNCA é erro de correção: `/assets/*` cai para a rede. É o que
+ * torna a poda segura. Mesmo assim, os assets do shell atual ficam de fora da poda.
+ * Corre no `activate`, isto é, uma vez por atualização do SW — não no caminho quente.
+ */
+async function podarCacheDeAssets() {
+  try {
+    const cache = await caches.open(CACHE_ASSETS)
+    const chaves = await cache.keys()
+    const excedente = chaves.length - MAX_ASSETS_EM_CACHE
+    if (excedente <= 0) return 0
+
+    let protegidos = new Set()
+    try {
+      const shell = await caches.match(SHELL_KEY)
+      if (shell) protegidos = assetsReferenciadosNoShell(await shell.clone().text())
+    } catch (_) {}
+
+    // `cache.keys()` devolve por ordem de inserção: os primeiros são os mais antigos.
+    const candidatos = chaves.filter((req) => {
+      try {
+        return !protegidos.has(new URL(req.url).pathname)
+      } catch (_) {
+        return true
+      }
+    })
+
+    const aRemover = Math.min(candidatos.length, excedente)
+    for (let i = 0; i < aRemover; i++) await cache.delete(candidatos[i])
+    return aRemover
+  } catch (_) {
+    return 0
+  }
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
@@ -162,6 +241,8 @@ self.addEventListener('activate', (event) => {
           nomes.filter((n) => n.startsWith('zap-') && !manter.has(n)).map((n) => caches.delete(n))
         )
       } catch (_) {}
+      // ...e, dentro do cache que FICA, poda o que sobrou de deploys antigos.
+      await podarCacheDeAssets()
       await self.clients.claim()
     })()
   )

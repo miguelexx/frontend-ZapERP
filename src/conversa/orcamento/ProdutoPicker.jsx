@@ -69,9 +69,30 @@
  * quem é a correspondência exata (doc 36, seção 10, pendência 15); aqui ela aparece primeiro,
  * com rótulo, e os demais sob um título. A escolha continua sendo um toque, como antes.
  *
- * O estado vazio de busca com DUAS OU MAIS palavras explica a ordem: a WM procura o trecho
- * literal, então `filtro oleo` acha e `oleo filtro` não (medido). É só texto — nenhuma busca
- * alternativa é disparada por conta própria.
+ * ────────────────────────────────────────────────────────────────────────────
+ * O RELEVANTE PRIMEIRO, O RUÍDO DEPOIS — E DITO
+ * ────────────────────────────────────────────────────────────────────────────
+ * A WM casa qualquer TRECHO da descrição, inclusive no meio de outra palavra. Medido no ERP
+ * real em 25/10: `cimento` devolve 6 produtos e 5 são "ARREFECIMENTO"/"ARREFICIMENTO" — 83% de
+ * lixo num termo central do vocabulário de quem atende (`tinta`, `oleo` e `cabo` não têm ruído
+ * nenhum). A WM decide o que entra na página; aqui se decide a ORDEM em que ela é lida:
+ * relevante (o termo INICIA uma palavra da descrição ou da marca) em cima, ruído embaixo de um
+ * título que diz o que ele é. Nada some, nada é filtrado, a contagem e a paginação continuam
+ * sendo as da WM — isto reordena só a página que já está na mão. A régua é do view model
+ * (`separarCandidatosPorRelevancia`), e a correspondência exata segue acima de tudo.
+ *
+ * E cada card mostra POR QUE apareceu: o trecho casado vai dentro de um `<mark>`, na descrição
+ * e na marca. "ARREFE**CIMENTO**" se explica sozinho, e a lista deixa de parecer quebrada.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * DUAS PALAVRAS QUE NÃO ACHAM NADA
+ * ────────────────────────────────────────────────────────────────────────────
+ * A WM procura o trecho literal, então `filtro oleo` acha e `oleo filtro` não (medido). Quando
+ * o resultado vem VAZIO e havia duas ou mais palavras, a busca é refeita UMA vez com a palavra
+ * mais longa — e a tela diz, acima dos cards, que o termo mostrado não é o digitado, com a
+ * volta à mão. Uma tentativa, nunca em cascata, nunca para melhorar resultado que já veio, e
+ * nunca depois de ela pedir para ver só o que digitou. O estado vazio continua ensinando a
+ * ordem das palavras quando a segunda tentativa também não acha.
  *
  * Paginação é "Mostrar mais resultados" / "Voltar", nunca número de página, e **sem clamp**:
  * página além da última é `400` do contrato, não algo a corrigir em silêncio. Por isso os
@@ -98,8 +119,12 @@ import {
 import { lerProdutosFrequentes, registrarProdutoUsado } from "./produtosFrequentes";
 import {
   agruparCandidatosProduto,
+  fatiarDestaque,
   mensagemBuscaSemResultado,
+  mensagemResgateBusca,
   rotuloFonte,
+  termoDeResgate,
+  tituloCandidatosRuido,
 } from "./orcamentoViewModel";
 
 const MIN_CARACTERES = 3;
@@ -107,9 +132,65 @@ const DEBOUNCE_MS = 800;
 /** Código do envelope quando a WM não acha o termo (`404 PRODUTO_NAO_ENCONTRADO` mapeado). */
 const CODIGO_PRODUTO_NAO_ENCONTRADO = "WM_PRODUTO_NAO_ENCONTRADO";
 /** Forma do agrupamento quando não há nada na tela. Congelada: nunca é mutada, só substituída. */
-const SEM_RESULTADO = Object.freeze({ exato: null, outros: [], lista: [], paginacao: null });
+const SEM_RESULTADO = Object.freeze({
+  exato: null,
+  outros: [],
+  lista: [],
+  relevantes: [],
+  ruido: [],
+  paginacao: null,
+  termo: "",
+});
 /** Quantos esqueletos pintar enquanto a primeira busca não volta. */
 const ESQUELETOS = [0, 1, 2];
+
+/**
+ * UMA consulta à WM por um termo, já traduzida para a tela.
+ *
+ * É o ÚNICO lugar do componente que pede uma busca — o resgate (abaixo) reusa esta função em
+ * vez de abrir um caminho novo para o servidor da loja.
+ *
+ * Busca que não acha nada NÃO é erro: é resultado vazio. A WM responde `404
+ * PRODUTO_NAO_ENCONTRADO`, e a mensagem do envelope ("Um dos produtos do orçamento não foi
+ * encontrado no ERP") foi escrita para o momento do cálculo — no campo de busca ela confunde, e
+ * o alerta vermelho com "Tentar de novo" sugere falha onde houve resposta. Volta como vazio, e
+ * quem exibe é o estado vazio da tela.
+ */
+async function pedirPagina(busca, paginaAlvo, signal) {
+  try {
+    const data = await consultarProdutosOrcamento({
+      busca,
+      pagina: paginaAlvo > 1 ? paginaAlvo : undefined,
+      signal,
+    });
+    return { grupos: agruparCandidatosProduto(data, busca), erro: "", cancelado: false };
+  } catch (err) {
+    const { codigo, mensagem, cancelado } = extrairErroOrcamento(err);
+    if (cancelado) return { grupos: SEM_RESULTADO, erro: "", cancelado: true };
+    return {
+      grupos: SEM_RESULTADO,
+      erro: codigo === CODIGO_PRODUTO_NAO_ENCONTRADO ? "" : mensagem,
+      cancelado: false,
+    };
+  }
+}
+
+/**
+ * O texto em pedaços, com o trecho casado dentro de um `<mark>` — o "por que este apareceu".
+ *
+ * Sem casamento sai uma string só, idêntica ao que havia antes de existir destaque.
+ */
+function destacar(texto, termo) {
+  return fatiarDestaque(texto, termo).map((pedaco, i) =>
+    pedaco.destaque ? (
+      <mark className="wa-orc-destaque" key={`d${i}`}>
+        {pedaco.texto}
+      </mark>
+    ) : (
+      pedaco.texto
+    )
+  );
+}
 
 export default function ProdutoPicker({
   onAdicionar,
@@ -124,6 +205,11 @@ export default function ProdutoPicker({
   const [buscando, setBuscando] = useState(false);
   const [erro, setErro] = useState("");
   const [buscou, setBuscou] = useState(false);
+  /**
+   * Resgate em curso: `{ digitado, usado }` quando o que está na tela NÃO é o termo digitado.
+   * `null` é o caso normal — a esmagadora maioria das buscas.
+   */
+  const [resgate, setResgate] = useState(null);
   /**
    * Preço, estoque e grupo pedidos card a card, por código — ver "VER PREÇO" no cabeçalho.
    * Vive só enquanto a busca é a mesma: valor de uma busca velha não pode pintar card novo.
@@ -145,6 +231,13 @@ export default function ProdutoPicker({
   const geracaoRef = useRef(0);
   /** Último termo efetivamente consultado — evita repetir a mesma chamada. */
   const termoConsultadoRef = useRef("");
+  /**
+   * Termo para o qual a pessoa DISPENSOU o resgate ("Voltar ao que digitei").
+   *
+   * Ela pediu para ver a busca dela, não uma parecida: insistir no resgate na próxima página
+   * seria desfazer a escolha dela — e gastar uma chamada para isso.
+   */
+  const resgateRecusadoRef = useRef("");
   /**
    * Espelho SÍNCRONO de `detalhes`. A decisão "vale gastar uma chamada?" não pode sair de dentro
    * de um atualizador de estado: ele roda quando o React quer, e ler o resultado na linha
@@ -232,32 +325,46 @@ export default function ProdutoPicker({
       setBuscando(true);
       setErro("");
       try {
-        const data = await consultarProdutosOrcamento({
-          busca: termoLimpo,
-          pagina: paginaAlvo > 1 ? paginaAlvo : undefined,
-          signal: controller?.signal,
-        });
+        // O agrupamento (exata × relevantes × ruído) é do view model: aqui o componente só
+        // imprime o que ele decidiu.
+        let resposta = await pedirPagina(termoLimpo, paginaAlvo, controller?.signal);
         // Resposta de uma geração anterior: descarta sem tocar na tela.
-        if (geracao !== geracaoRef.current) return;
+        if (geracao !== geracaoRef.current || resposta.cancelado) return;
+
+        /*
+          O RESGATE DA BUSCA DE DUAS PALAVRAS — uma segunda tentativa, e só uma.
+
+          A WM procura o trecho literal: `filtro oleo` acha e `oleo filtro` devolve zero
+          (medido). Quem digitou duas palavras e não achou nada conclui que o produto não
+          existe. Então, e SOMENTE quando o resultado veio vazio, refazemos a busca uma vez com
+          a palavra mais longa — e dizemos na tela, em voz alta, que o termo mostrado não é o
+          que ela digitou.
+
+          Três limites, porque cada chamada à WM pode custar dinheiro (seção 11 do doc 36):
+          nunca em cascata (a segunda resposta é final, dê no que der), nunca para "melhorar"
+          um resultado que já veio, e nunca depois de a pessoa ter pedido para ver só o que
+          digitou.
+        */
+        let resgatado = null;
+        const vazioDeVerdade = !resposta.erro && resposta.grupos.lista.length === 0;
+        if (vazioDeVerdade && resgateRecusadoRef.current !== termoLimpo) {
+          const alternativo = termoDeResgate(termoLimpo);
+          if (alternativo) {
+            const segunda = await pedirPagina(alternativo, paginaAlvo, controller?.signal);
+            if (geracao !== geracaoRef.current || segunda.cancelado) return;
+            if (!segunda.erro && segunda.grupos.lista.length > 0) {
+              resposta = segunda;
+              resgatado = { digitado: termoLimpo, usado: alternativo };
+            }
+          }
+        }
+
         termoConsultadoRef.current = `${termoLimpo}|${paginaAlvo}`;
         limparDetalhes();
-        // O agrupamento (correspondência exata × "outros com essa palavra") é do view model:
-        // aqui o componente só imprime o que ele decidiu.
-        setGrupos(agruparCandidatosProduto(data));
+        setGrupos(resposta.grupos);
+        setResgate(resgatado);
+        setErro(resposta.erro);
         setBuscou(true);
-      } catch (err) {
-        if (geracao !== geracaoRef.current) return;
-        const { codigo, mensagem, cancelado } = extrairErroOrcamento(err);
-        if (cancelado) return;
-        limparDetalhes();
-        setGrupos(SEM_RESULTADO);
-        setBuscou(true);
-        // Busca que não acha nada NÃO é erro: é resultado vazio. A WM responde `404
-        // PRODUTO_NAO_ENCONTRADO`, e a mensagem do envelope ("Um dos produtos do orçamento não
-        // foi encontrado no ERP") foi escrita para o momento do cálculo — no campo de busca ela
-        // confunde, e o alerta vermelho com "Tentar de novo" sugere falha onde houve resposta.
-        // Cai no estado vazio que já existe logo abaixo.
-        setErro(codigo === CODIGO_PRODUTO_NAO_ENCONTRADO ? "" : mensagem);
       } finally {
         if (geracao === geracaoRef.current) setBuscando(false);
       }
@@ -275,6 +382,7 @@ export default function ProdutoPicker({
       setBuscando(false);
       setBuscou(false);
       setErro("");
+      setResgate(null);
       termoConsultadoRef.current = "";
       limparDetalhes();
       return undefined;
@@ -290,6 +398,19 @@ export default function ProdutoPicker({
     setTermo(valor);
     setPagina(1);
   }, []);
+
+  /**
+   * "Voltar ao que digitei": desfaz o resgate e mostra o vazio do termo dela.
+   *
+   * Não gasta chamada nenhuma — o vazio do termo digitado já é conhecido (foi ele que disparou
+   * o resgate). E fica anotado, para a próxima busca do mesmo termo não resgatar de novo.
+   */
+  const voltarAoTermoDigitado = useCallback(() => {
+    if (resgate?.digitado) resgateRecusadoRef.current = resgate.digitado;
+    setResgate(null);
+    setGrupos(SEM_RESULTADO);
+    limparDetalhes();
+  }, [resgate, limparDetalhes]);
 
   /** Escreve só se a busca ainda for a mesma (ver `detalhesGeracaoRef`). */
   const anotarDetalhe = useCallback((codigo, entrada, geracao) => {
@@ -380,6 +501,7 @@ export default function ProdutoPicker({
       setPagina(1);
       setGrupos(SEM_RESULTADO);
       setBuscou(false);
+      setResgate(null);
       termoConsultadoRef.current = "";
       limparDetalhes();
       recarregarFrequentes();
@@ -470,7 +592,7 @@ export default function ProdutoPicker({
    * teclado ou leitor de tela chega nele e o aciona como antes — o clique dele sobe para o card
    * —, e quem usa o dedo continua podendo tocar a linha inteira. Nenhum caminho foi perdido.
    */
-  const renderCandidato = (p, { exato = false, meta = null } = {}) => {
+  const renderCandidato = (p, { exato = false, meta = null, casado = "" } = {}) => {
     const codigo = p.codigo_produto_erp;
     const descricao = textoOuSemValor(p.descricao);
     const detalhe = detalhes[codigo] || null;
@@ -494,7 +616,11 @@ export default function ProdutoPicker({
 
     // Marca e unidade podem faltar; o código nunca falta (candidato sem código não entra na
     // lista). Ausência de marca não vira texto: ela já se lê pela ausência.
-    const secundaria = [p.marca, unidade, `Cód. ${codigo}`].filter(Boolean).join(" · ");
+    //
+    // A marca sai do texto corrido para poder receber destaque: a WM casa descrição E marca,
+    // então um item pode estar na lista por causa dela — e "MAHLE" aceso aqui é o que explica
+    // uma descrição onde o termo não aparece em lugar nenhum.
+    const secundaria = [unidade, `Cód. ${codigo}`].filter(Boolean).join(" · ");
 
     const aoAdicionar = () => {
       if (!disabled) adicionar(p, meta);
@@ -513,7 +639,7 @@ export default function ProdutoPicker({
         onClick={aoAdicionar}
       >
         <span className="wa-orc-candidato-corpo">
-          <span className="wa-orc-candidato-titulo">{descricao}</span>
+          <span className="wa-orc-candidato-titulo">{destacar(descricao, casado)}</span>
           <span className="wa-orc-candidato-valor wa-orc-candidato-valor--preco">
             {carregando ? (
               <>
@@ -546,6 +672,12 @@ export default function ProdutoPicker({
             <span className="wa-orc-candidato-tag">Nome igual ao que você pesquisou</span>
           ) : null}
           <span className="wa-orc-candidato-meta">
+            {p.marca ? (
+              <>
+                {destacar(p.marca, casado)}
+                {secundaria ? " · " : null}
+              </>
+            ) : null}
             {secundaria}
             {/*
               Grupo e subgrupo NÃO vêm na lista — só na resposta resolvida. A etiqueta aparece
@@ -598,7 +730,7 @@ export default function ProdutoPicker({
       <p className="wa-orc-hint">
         {curto
           ? `Digite ao menos ${MIN_CARACTERES} letras para pesquisar.`
-          : "Pesquise pelo nome, ou bipe/cole o código de barras."}
+          : "Pesquise pelo nome ou pela marca, ou bipe/cole o código de barras."}
       </p>
 
       {erro ? (
@@ -660,15 +792,50 @@ export default function ProdutoPicker({
             ))
           : null}
         {vazio ? <p className="wa-orc-hint">{mensagemBuscaSemResultado(termo)}</p> : null}
+        {/*
+          O resgate não pode passar por resultado normal: quem olha a lista precisa saber, antes
+          de escolher, que ela é de OUTRO termo. Por isso a frase vem acima dos cards, nomeia os
+          dois termos e traz a saída de volta.
+        */}
+        {resgate ? (
+          <div className="wa-orc-resgate" role="status">
+            <span>{mensagemResgateBusca(resgate.digitado, resgate.usado)}</span>
+            <button
+              type="button"
+              className="wa-btn wa-btn-ghost wa-orc-btnSm"
+              disabled={buscando}
+              onClick={voltarAoTermoDigitado}
+            >
+              Voltar ao que digitei
+            </button>
+          </div>
+        ) : null}
         {procedencia ? <p className="wa-orc-origem">{procedencia.texto}</p> : null}
-        {grupos.exato ? (
-          <>
-            {renderCandidato(grupos.exato, { exato: true, meta: grupos.metaDoPrecificado })}
-            <p className="wa-orc-grupoTitulo">Outros com essa palavra</p>
-            {grupos.outros.map((p) => renderCandidato(p, { meta: grupos.metaDoPrecificado }))}
-          </>
-        ) : (
-          grupos.lista.map((p) => renderCandidato(p, { meta: grupos.metaDoPrecificado }))
+        {/*
+          O card exato vai SEM destaque: a descrição dele é o termo inteiro, acender tudo não
+          explicaria nada — e o rótulo logo abaixo do nome já diz por que ele está em primeiro.
+        */}
+        {grupos.exato
+          ? renderCandidato(grupos.exato, { exato: true, meta: grupos.metaDoPrecificado })
+          : null}
+        {grupos.exato && grupos.relevantes.length ? (
+          <p className="wa-orc-grupoTitulo">Outros com essa palavra</p>
+        ) : null}
+        {grupos.relevantes.map((p) =>
+          renderCandidato(p, { meta: grupos.metaDoPrecificado, casado: grupos.termo })
+        )}
+        {/*
+          O ruído fica, e fica DITO: às vezes "arrefecimento" é exatamente o que ela queria.
+          Sem ruído na página — o caso comum, como `tinta` e `oleo` — este título não existe e
+          a tela é idêntica à de antes.
+        */}
+        {grupos.ruido.length ? (
+          <p className="wa-orc-grupoTitulo wa-orc-grupoTitulo--ruido">
+            {tituloCandidatosRuido(grupos.termo)}
+          </p>
+        ) : null}
+        {grupos.ruido.map((p) =>
+          renderCandidato(p, { meta: grupos.metaDoPrecificado, casado: grupos.termo })
         )}
       </div>
 
