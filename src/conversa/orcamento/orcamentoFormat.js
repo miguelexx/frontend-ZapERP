@@ -120,6 +120,59 @@ export function formatQuantidadeExibicao(valor, unidade) {
   return un ? `${numero} ${un}` : numero;
 }
 
+/* ------------------------------------------------------------------ *
+ * Preço que não é preço
+ * ------------------------------------------------------------------ */
+
+/**
+ * Teto do "preço não cadastrado": um centavo.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * DE ONDE SAI ESTE NÚMERO (e o que quem vier depois precisa saber para mexer)
+ * ────────────────────────────────────────────────────────────────────────────
+ * Medido no catálogo real da Tijolar em 25/10/2026: de 24 produtos amostrados, **5 vieram com
+ * `preco_unitario: "0.010"`**. Conferido contra a prévia oficial da WM — o valor é o que a WM
+ * devolve, não defeito nosso: são produtos sem preço cadastrado no Icthus da loja. A tela os
+ * mostrava como "R$ 0,01", que é um preço plausível, e um orçamento assim sair é acidente
+ * comercial.
+ *
+ * O limiar é `<= 0.01` e não `=== 0.010` porque o sentinela do ERP não é um contrato: hoje são
+ * três casas (`"0.010"`), amanhã pode ser `"0.001"` ou `"0.000"`, e um limiar de igualdade
+ * exata deixaria passar o mesmo acidente com outra serialização. Ele também não é mais alto
+ * (`0.10`, `1.00`) porque aí deixaria de descrever "valor irrisório" e passaria a marcar
+ * produto BARATO como sem preço — numa loja de material de construção existe parafuso a R$ 0,50
+ * e marcá-lo como "não cadastrado" seria mentir na direção oposta.
+ *
+ * Um centavo é o limite defensável: é a menor unidade que a moeda representa, e nada abaixo ou
+ * igual a ela pode ser um preço de venda real. Zero e negativo entram pelo mesmo teto — os dois
+ * são "não há preço", não "custa nada".
+ *
+ * Quem for mexer: subir isto marca produto baratinho como sem preço; descer para abaixo de 0,01
+ * deixa de pegar o `"0.010"` que foi MEDIDO em produção. Qualquer mudança precisa de uma nova
+ * amostragem do catálogo, não de intuição.
+ */
+export const PRECO_NAO_CADASTRADO_ATE = 0.01;
+
+/** Como a tela chama esse estado. Nunca "R$ 0,01", nunca "grátis", nunca "R$ 0,00". */
+export const TEXTO_PRECO_NAO_CADASTRADO = "Preço não cadastrado";
+
+/**
+ * Este valor é "preço não cadastrado no ERP" em vez de preço?
+ *
+ * AUSÊNCIA NÃO ENTRA AQUI, e a diferença importa: `null`, `""` e texto fora do padrão são
+ * "não sabemos o preço" — a tela já os mostra como "—" ou como "ver preço", e chamá-los de
+ * "não cadastrado" afirmaria sobre o cadastro do ERP algo que ninguém consultou. Esta função
+ * só fala de valor que a WM MANDOU e que é irrisório ou nulo.
+ *
+ * @param {string|number|null|undefined} valor `preco_unitario`, como a WM o mandou
+ * @returns {boolean}
+ */
+export function precoNaoCadastrado(valor) {
+  const n = numeroOuNull(valor);
+  if (n === null) return false;
+  return n <= PRECO_NAO_CADASTRADO_ATE;
+}
+
 /**
  * Estoque sem saldo — zero ou negativo.
  *
@@ -308,6 +361,9 @@ export default {
   formatQuantidadeOrcamento,
   formatQuantidadeExibicao,
   estoqueSemSaldo,
+  precoNaoCadastrado,
+  PRECO_NAO_CADASTRADO_ATE,
+  TEXTO_PRECO_NAO_CADASTRADO,
   nivelEstoque,
   textoEstoque,
   classeEstoque,
