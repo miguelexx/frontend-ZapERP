@@ -31,6 +31,10 @@ function formatPrice(price, currency) {
   }
 }
 
+function productKey(product) {
+  return String(product?.id ?? product?.product_id ?? product?.product_retailer_id ?? product?.name ?? "");
+}
+
 function PickerThumb({ product }) {
   const [failed, setFailed] = useState(false);
   const src = productImage(product);
@@ -49,24 +53,27 @@ export default function CatalogPickerModal({
   products,
   loading,
   error,
-  sendingId,
+  sending,
+  sendProgress,
   sendingCatalog,
   onClose,
   onReload,
-  onSendProduct,
+  onSendProducts,
   onSendCatalogLink,
 }) {
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(() => new Set());
 
   useEffect(() => {
     if (!open) return undefined;
     setSearch("");
+    setSelected(new Set());
     function onKey(event) {
-      if (event.key === "Escape" && !sendingId && !sendingCatalog) onClose();
+      if (event.key === "Escape" && !sending && !sendingCatalog) onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose, sendingId, sendingCatalog]);
+  }, [open, onClose, sending, sendingCatalog]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -75,7 +82,54 @@ export default function CatalogPickerModal({
   }, [products, search]);
 
   if (!open || typeof document === "undefined") return null;
-  const busy = !!sendingId || sendingCatalog;
+  const busy = sending || sendingCatalog;
+
+  function toggle(key) {
+    if (busy) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const filteredKeys = filtered.map(productKey);
+  const allVisibleSelected = filteredKeys.length > 0 && filteredKeys.every((k) => selected.has(k));
+
+  function toggleAllVisible() {
+    if (busy) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) filteredKeys.forEach((k) => next.delete(k));
+      else filteredKeys.forEach((k) => next.add(k));
+      return next;
+    });
+  }
+
+  function handleSend() {
+    if (busy || selected.size === 0) return;
+    // Mantém a ordem original do catálogo.
+    const chosen = products.filter((p) => selected.has(productKey(p)));
+    // Remove da seleção cada produto já entregue → reenvio após falha parcial
+    // manda só os que faltaram.
+    onSendProducts(chosen, (sent) => {
+      const key = productKey(sent);
+      setSelected((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    });
+  }
+
+  const selectedCount = selected.size;
+  const progressLabel = sendProgress
+    ? `Enviando ${sendProgress.done} de ${sendProgress.total}…`
+    : selectedCount > 0
+      ? `Enviar ${selectedCount} ${selectedCount > 1 ? "produtos" : "produto"}`
+      : "Selecione produtos para enviar";
 
   return createPortal(
     <div className="wa-catalogPicker-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
@@ -83,7 +137,7 @@ export default function CatalogPickerModal({
         <header className="wa-catalogPicker-head">
           <div>
             <h2>Catálogo</h2>
-            <p>Escolha um item para enviar ao cliente</p>
+            <p>Selecione os produtos para enviar ao cliente</p>
           </div>
           <div className="wa-catalogPicker-headActions">
             <button type="button" className="wa-catalogPicker-icon" onClick={onReload} disabled={loading || busy} title="Atualizar" aria-label="Atualizar catálogo">
@@ -107,6 +161,15 @@ export default function CatalogPickerModal({
           />
         </div>
 
+        {!loading && !error && filtered.length > 0 ? (
+          <div className="wa-catalogPicker-toolbar">
+            <button type="button" className="wa-catalogPicker-selectAll" onClick={toggleAllVisible} disabled={busy}>
+              {allVisibleSelected ? "Limpar seleção" : "Selecionar todos"}
+            </button>
+            {selectedCount > 0 ? <span className="wa-catalogPicker-selCount">{selectedCount} selecionado{selectedCount > 1 ? "s" : ""}</span> : null}
+          </div>
+        ) : null}
+
         <div className="wa-catalogPicker-body">
           {error ? (
             <div className="wa-catalogPicker-msg wa-catalogPicker-msg--error">
@@ -125,25 +188,25 @@ export default function CatalogPickerModal({
           ) : (
             <ul className="wa-catalogPicker-list">
               {filtered.map((product) => {
+                const key = productKey(product);
                 const price = formatPrice(product.price, product.currency);
-                const isSending = sendingId === product.id;
+                const isSelected = selected.has(key);
                 return (
-                  <li key={product.id || product.product_retailer_id || product.name} className="wa-catalogPicker-item">
-                    <PickerThumb product={product} />
-                    <div className="wa-catalogPicker-info">
-                      <strong title={product.name}>{product.name || "Produto sem nome"}</strong>
-                      {price ? <span className="wa-catalogPicker-price">{price}</span> : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="wa-catalogPicker-send"
-                      onClick={() => onSendProduct(product)}
-                      disabled={busy}
-                      title="Enviar este produto"
-                    >
-                      {isSending ? <span className="wa-catalogPicker-spinner" /> : <IconSend size={16} />}
-                      <span>{isSending ? "Enviando…" : "Enviar"}</span>
-                    </button>
+                  <li key={key || product.name} className={`wa-catalogPicker-item${isSelected ? " is-selected" : ""}`}>
+                    <label className="wa-catalogPicker-row">
+                      <input
+                        type="checkbox"
+                        className="wa-catalogPicker-check"
+                        checked={isSelected}
+                        onChange={() => toggle(key)}
+                        disabled={busy}
+                      />
+                      <PickerThumb product={product} />
+                      <div className="wa-catalogPicker-info">
+                        <strong title={product.name}>{product.name || "Produto sem nome"}</strong>
+                        {price ? <span className="wa-catalogPicker-price">{price}</span> : null}
+                      </div>
+                    </label>
                   </li>
                 );
               })}
@@ -152,6 +215,16 @@ export default function CatalogPickerModal({
         </div>
 
         <footer className="wa-catalogPicker-foot">
+          <button
+            type="button"
+            className="wa-catalogPicker-sendBtn"
+            onClick={handleSend}
+            disabled={busy || selectedCount === 0 || loading || !!error}
+            title="Enviar os produtos selecionados"
+          >
+            {sending ? <span className="wa-catalogPicker-spinner" /> : <IconSend size={16} />}
+            <span>{progressLabel}</span>
+          </button>
           <button type="button" className="wa-catalogPicker-catalogBtn" onClick={onSendCatalogLink} disabled={busy || loading || !!error}>
             {sendingCatalog ? <span className="wa-catalogPicker-spinner" /> : <IconLink size={16} />}
             <span>{sendingCatalog ? "Enviando…" : "Enviar link do catálogo completo"}</span>

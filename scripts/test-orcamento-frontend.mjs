@@ -31,6 +31,16 @@ import {
   passoQuantidade,
   sugestaoDeBuscaCliente,
   estoqueSemSaldo,
+  estoqueNegativo,
+  TITULO_SALDO_NEGATIVO,
+  idadeLegivel,
+  idadeDoSaldo,
+  IDADE_SALDO_AVISO_HORAS,
+  precoNaoCadastrado,
+  PRECO_NAO_CADASTRADO_ATE,
+  TEXTO_PRECO_NAO_CADASTRADO,
+  ETIQUETA_PRECO_NAO_CADASTRADO,
+  TITULO_PRECO_NAO_CADASTRADO,
   nivelEstoque,
   textoEstoque,
   classeEstoque,
@@ -46,6 +56,7 @@ import {
   candidatoRelevante,
   separarCandidatosPorRelevancia,
   fatiarDestaque,
+  termoCasaNoTexto,
   tituloCandidatosRuido,
   termoDeResgate,
   mensagemResgateBusca,
@@ -64,6 +75,9 @@ import {
   textoBloqueio,
   textoBloqueado,
   precoExatoTexto,
+  descontoDoItemPrevia,
+  itensSemPrecoCadastrado,
+  avisoItensSemPreco,
   montarPreviaView,
   montarResultadoView,
   montarResumoOrcamento,
@@ -93,10 +107,19 @@ import {
   precisaConsultarPreco,
   procedenciaDosValores,
   classificacaoDoProduto,
+  carimbosDoProduto,
 } from "../src/conversa/orcamento/precoItemCache.js";
 
 import {
+  MOTIVO_ERP,
+  lerStatusErp,
+  avisoErpIndisponivel,
+  erroSugereErpFora,
+} from "../src/conversa/orcamento/erpDisponibilidade.js";
+
+import {
   resolveOrcamentoTimeoutMs,
+  HTTP_TIMEOUT_ORCAMENTO_STATUS_MS,
   HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS,
   HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS,
   HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS,
@@ -437,6 +460,39 @@ const PREVIA_WM = {
   valor_total: "1.00",
   bloquear_apos_criar: true,
   meta: { fonte: "cache_cloud", tempo_real: false },
+};
+
+/*
+  Prévia com um item SEM PREÇO CADASTRADO: `"0.010"` é o que a WM devolve para produto sem
+  preço no Icthus (5 de 24 amostrados na Tijolar em 25/10/2026). Fica aqui, com as outras
+  fixtures, porque o render real a usa antes da seção que prova as regras.
+*/
+const PREVIA_SEM_PRECO = {
+  cliente: { codigo_cliente_erp: "C1", nome: "Construtora Diniz" },
+  vendedor: { codigo_vendedor_erp: "V1", nome: "Carlos Lima" },
+  itens: [
+    {
+      codigo_produto_erp: "4325",
+      descricao: "CIMENTO CAMPEAO AZUL CP 2 E 32 50KG",
+      unidade: "UN",
+      quantidade: "10.000",
+      preco_unitario: "33.038",
+      valor_total: "330.380",
+    },
+    {
+      codigo_produto_erp: "9001",
+      descricao: "AREIA MEDIA LAVADA M3",
+      unidade: "M3",
+      quantidade: "2.000",
+      // O sentinela medido: produto sem preço no Icthus da loja.
+      preco_unitario: "0.010",
+      valor_total: "0.020",
+    },
+  ],
+  valor_produtos: "330.400",
+  valor_total: "330.400",
+  bloquear_apos_criar: true,
+  meta: { fonte: "tempo_real", tempo_real: true },
 };
 
 {
@@ -1611,6 +1667,321 @@ const { prefillRascunho } = draft;
       );
     }
   }
+
+  /* ---- Preço não cadastrado: o HTML das três telas que o atendente lê ---- *
+   *
+   * O card de busca não entra aqui porque candidato só aparece depois de uma busca, e o atalho
+   * dos frequentes nunca guarda preço (`produtosFrequentes.js`) — ele usa a MESMA
+   * `precoNaoCadastrado` e a mesma classe, provadas acima e nas duas telas abaixo.
+   */
+  if (bundle) {
+    const { render, Componentes } = bundle;
+    const ZERO_UM = formatMoedaOrcamento("0.010");
+
+    /* ---- Prévia: a vaga do preço diz o estado, e o total do item continua lá ---- */
+    {
+      const html = render(Componentes.Preview, { preparacao: { previa: PREVIA_SEM_PRECO } });
+      assert(
+        html.includes(TEXTO_PRECO_NAO_CADASTRADO),
+        "render prévia: o item de 0.010 é marcado como preço não cadastrado"
+      );
+      assert(
+        !html.includes(ZERO_UM),
+        `render prévia: "${ZERO_UM}" NÃO pode aparecer como preço unitário — é o acidente inteiro`
+      );
+      // O item com preço de verdade não é tocado.
+      assert(
+        html.includes(formatMoedaOrcamento("33.038")),
+        "render prévia: o item com preço real continua mostrando o preço"
+      );
+      // O valor exato continua acessível nos detalhes: é o que o ERP vai gravar.
+      assert(
+        html.includes("0,010"),
+        "render prévia: o valor exato continua nos detalhes do item, sem vestir-se de preço"
+      );
+      // O aviso do conjunto está na tela, e vem ANTES da lista de itens.
+      assert(
+        /AREIA MEDIA LAVADA M3[\s\S]*wa-orc-previaItem/.test(html),
+        "render prévia: o aviso do conjunto aparece antes da lista — depois dela já passou"
+      );
+      assert(
+        /wa-orc-alert--aviso[^>]*>[\s\S]{0,400}sem preço cadastrado/.test(html),
+        "render prévia: o aviso do conjunto usa a faixa de aviso da tela"
+      );
+      // Continua sendo possível criar: o aviso informa, não bloqueia (há motivo legítimo para
+      // orçar um item assim, e cada adição não pode virar pedágio).
+      assert(
+        !/wa-orc-btnConfirmar"[^>]*disabled[^>]*>/.test(
+          render(Componentes.Preview, {
+            preparacao: { previa: PREVIA_SEM_PRECO },
+            onConfirmar: () => {},
+          })
+        ),
+        "render prévia: item sem preço avisa, mas não bloqueia a criação"
+      );
+    }
+
+    /* ---- Resultado: o ÚLTIMO portão, antes de o resumo ir para o cliente ---- */
+    {
+      const html = render(Componentes.Resultado, {
+        resultado: RESULTADO_WM,
+        previa: PREVIA_SEM_PRECO,
+        onEnviarAoCliente: () => {},
+      });
+      assert(
+        /sem preço cadastrado/.test(html),
+        "render resultado: antes do envio, o aviso de preço não cadastrado está na tela"
+      );
+      assert(
+        /resumo/i.test(html.match(/wa-orc-alert--aviso[\s\S]{0,500}?<\/div>/)?.[0] || ""),
+        "render resultado: o aviso fala do RESUMO que vai para o cliente, não de criar no ERP"
+      );
+      // Antes do texto: aviso que aparece depois do bloco que ele qualifica chega tarde.
+      assert(
+        /wa-orc-alert--aviso[\s\S]*wa-orc-resumoTexto/.test(html),
+        "render resultado: o aviso vem ACIMA do resumo, para ser lido antes dele"
+      );
+      // Avisar não é impedir: o botão de envio continua disponível.
+      assert(
+        !/wa-orc-btnPrincipal"[^>]*disabled/.test(html),
+        "render resultado: o aviso não bloqueia o envio — quem decide é o atendente"
+      );
+      // Sem item marcado, nenhum aviso: alarme em orçamento normal treina a ignorar o alarme.
+      const limpo = render(Componentes.Resultado, {
+        resultado: RESULTADO_WM,
+        previa: PREVIA_WM,
+        onEnviarAoCliente: () => {},
+      });
+      assert(
+        !/sem preço cadastrado/.test(limpo),
+        "render resultado: orçamento com preço de verdade não ganha aviso nenhum"
+      );
+      // Sem prévia não há item para examinar — e calar é melhor que afirmar sobre o que não se tem.
+      const semPrevia = render(Componentes.Resultado, {
+        resultado: RESULTADO_WM,
+        onEnviarAoCliente: () => {},
+      });
+      assert(
+        !/sem preço cadastrado/.test(semPrevia),
+        "render resultado: sem prévia em mãos, nada se afirma sobre preço de item"
+      );
+    }
+
+    /* ---- Linha do carrinho: a marcação chega antes de calcular ---- */
+    {
+      const html = render(Componentes.Form, {
+        rascunho: {
+          clienteBusca: "Diniz",
+          vendedorBusca: "Carlos",
+          itens: [
+            {
+              codigo_produto_erp: "9001",
+              descricao: "AREIA MEDIA LAVADA M3",
+              unidade: "M3",
+              quantidade: "2",
+            },
+          ],
+        },
+        precos: {
+          9001: {
+            estado: "ok",
+            valores: { preco_unitario: "0.010", estoque_previsto: "40.000", unidade: "M3" },
+            meta: { fonte: "tempo_real", tempo_real: true },
+          },
+        },
+      });
+      assert(
+        html.includes(TEXTO_PRECO_NAO_CADASTRADO),
+        "render form: a linha do carrinho marca o item sem preço cadastrado"
+      );
+      assert(
+        !html.includes(ZERO_UM),
+        `render form: "${ZERO_UM}" não pode aparecer na linha do carrinho`
+      );
+      // A linha continua mostrando o resto: marcar o preço não apaga estoque nem unidade.
+      assert(
+        /Estoque 40/.test(html),
+        "render form: o estoque da linha continua visível ao lado da marcação"
+      );
+      assert(
+        /wa-orc-qtdUnidade[^>]*>M3</.test(html),
+        "render form: a unidade continua colada na quantidade"
+      );
+      // E o item pode ser removido/alterado como qualquer outro: nada foi bloqueado.
+      assert(
+        /aria-label="Remover AREIA MEDIA LAVADA M3 do orçamento"/.test(html),
+        "render form: o item marcado segue sendo um item normal do carrinho"
+      );
+    }
+
+    /* ---- A idade do saldo, o saldo negativo e o inativo chegam à linha do carrinho ---- *
+     * Dados reais da Tijolar medidos em 26/10/2026: `0000209` com saldo `352.500` carimbado em
+     * `2026-10-23T00:09:24.272Z` (86,6 h na hora da medição) e `0000749` com saldo `-908.000`.
+     * O carimbo aqui é fabricado a partir do relógio do teste para a idade ser determinística.
+     */
+    {
+      const agoraTeste = Date.now();
+      const carimbo = (ms) => new Date(agoraTeste - ms).toISOString();
+      const html = render(Componentes.Form, {
+        rascunho: {
+          itens: [
+            { codigo_produto_erp: "0000209", descricao: "PISO PROMOCAO", unidade: "M2", quantidade: "2" },
+            { codigo_produto_erp: "0000749", descricao: "CIMENTO MEIO SACO", unidade: "SC", quantidade: "1" },
+            { codigo_produto_erp: "0005038", descricao: "CABO FLEX PRETO", unidade: "MT", quantidade: "1" },
+          ],
+        },
+        precos: {
+          "0000209": {
+            estado: "ok",
+            valores: { preco_unitario: "18.420", estoque_previsto: "352.500", unidade: "M2" },
+            carimbos: { estoque_sincronizado_em: carimbo(86.6 * 60 * 60 * 1000) },
+            meta: { fonte: "tempo_real", tempo_real: true },
+          },
+          "0000749": {
+            estado: "ok",
+            valores: { preco_unitario: "29.130", estoque_previsto: "-908.000", unidade: "SC" },
+            carimbos: { estoque_sincronizado_em: carimbo(2.5 * 60 * 60 * 1000) },
+            meta: { fonte: "tempo_real", tempo_real: true },
+          },
+          // Item inativo e SEM carimbo nenhum: a idade simplesmente não existe nesta linha.
+          "0005038": {
+            estado: "ok",
+            valores: { preco_unitario: "81.020", estoque_previsto: "4.000", unidade: "MT", ativo: false },
+            carimbos: null,
+            meta: { fonte: "tempo_real", tempo_real: true },
+          },
+        },
+      });
+
+      assert(
+        html.includes("Saldo atualizado há 3 dias"),
+        "render form: a idade do saldo de 86,6 h chega à tela em linguagem de gente"
+      );
+      assert(
+        /wa-orc-saldoIdade wa-orc-saldoIdade--aviso/.test(html),
+        "render form: e passadas 24 h ela vem marcada como aviso"
+      );
+      assert(
+        /title="[^"]*prometer entrega[^"]*"/.test(html),
+        "render form: o aviso carrega a consequência, não só a data"
+      );
+      assert(
+        html.includes("Saldo atualizado há 2 h"),
+        "render form: o saldo de 2,5 h também diz a idade — a verdade não é só para o caso ruim"
+      );
+      assert(
+        (html.match(/wa-orc-saldoIdade--aviso/g) || []).length === 1,
+        "render form: saldo fresco NÃO é marcado como aviso (alarme em tudo é alarme em nada)"
+      );
+      // Três itens no carrinho, DUAS frases de idade: a linha sem carimbo não ganha nenhuma.
+      assert(
+        (html.match(/Saldo atualizado/g) || []).length === 2,
+        "render form: a linha sem carimbo não ganha idade — ausência não vira 'atualizado agora'"
+      );
+      assert(
+        !/atualizado agora/.test(html),
+        "render form: nenhuma linha afirma 'agora' sem carimbo que o sustente"
+      );
+
+      /* ---- Saldo negativo é distinguível de zero, na tela ---- */
+      assert(
+        html.includes("Saldo -908 SC"),
+        "render form: o saldo negativo aparece com o número inteiro e a palavra 'Saldo'"
+      );
+      assert(
+        !/Sem estoque \(/.test(html),
+        "render form: negativo não é mais apresentado como 'Sem estoque (…)'"
+      );
+      assert(
+        /wa-orc-candidato-estoque--negativo/.test(html),
+        "render form: e ganha a classe própria, distinta da do zero"
+      );
+      assert(
+        /title="[^"]*saldo dele ficou negativo[^"]*"/.test(html),
+        "render form: a explicação do inventário negativo está ao alcance"
+      );
+
+      /* ---- Inativo diz a consequência (o `preparar` recusa com PRODUTO_INATIVO) ---- */
+      assert(
+        /Inativo — o cálculo vai recusar/.test(html),
+        "render form: item inativo avisa que o Calcular vai recusar, antes de a pessoa tentar"
+      );
+
+      // Zero continua sendo zero: a frase antiga não foi perdida junto com a mudança.
+      const htmlZero = render(Componentes.Form, {
+        rascunho: { itens: [{ codigo_produto_erp: "1", descricao: "TINTA", unidade: "LT", quantidade: "1" }] },
+        precos: {
+          1: {
+            estado: "ok",
+            valores: { preco_unitario: "247.080", estoque_previsto: "0.000", unidade: "LT" },
+            carimbos: null,
+            meta: { fonte: "tempo_real", tempo_real: true },
+          },
+        },
+      });
+      assert(
+        htmlZero.includes("Sem estoque"),
+        "render form: estoque zerado continua dito por extenso"
+      );
+      assert(
+        !/Saldo -/.test(htmlZero) && !/--negativo/.test(htmlZero),
+        "render form: zero não é tratado como negativo"
+      );
+    }
+
+    /* ---- O desconto do ERP na prévia: invisível hoje, visível quando existir ---- */
+    {
+      const semDesconto = render(Componentes.Preview, { preparacao: { previa: PREVIA_WM } });
+      assert(
+        !/Desconto do sistema/.test(semDesconto),
+        "render prévia: sem desconto (o caso medido hoje) a linha não existe"
+      );
+      assert(
+        !/R\$ 0,00 por/.test(semDesconto),
+        'render prévia: "Desconto R$ 0,00" nunca ocupa espaço em linha nenhuma'
+      );
+
+      const comDesconto = render(Componentes.Preview, {
+        preparacao: {
+          previa: {
+            ...PREVIA_WM,
+            itens: [
+              {
+                codigo_produto_erp: "0000209",
+                descricao: "PISO PROMOCAO",
+                unidade: "M2",
+                quantidade: "2.000",
+                preco_unitario: "18.42",
+                valor_total: "33.84",
+                valor_total_bruto: "36.84",
+                valor_desconto_unit: "1.50",
+              },
+            ],
+          },
+        },
+      });
+      assert(
+        /Desconto do sistema/.test(comDesconto),
+        "render prévia: o desconto do ERP aparece quando existe"
+      );
+      assert(
+        comDesconto.includes(formatMoedaOrcamento("1.50")),
+        "render prévia: com o valor que a WM mandou"
+      );
+      assert(
+        /<s class="wa-orc-item-descontoDe">/.test(comDesconto),
+        "render prévia: e com o valor cheio riscado ao lado, para o desconto ser conferível"
+      );
+      assert(
+        comDesconto.includes("por M2"),
+        "render prévia: o desconto é POR UNIDADE (`valor_desconto_unit`) e a frase diz a unidade"
+      );
+      assert(
+        comDesconto.includes(formatMoedaOrcamento("33.84")),
+        "render prévia: o total da linha continua sendo o da WM, não o bruto"
+      );
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -2491,13 +2862,9 @@ for (const ausente of [null, undefined, "", "   ", "abc", {}, NaN, true]) {
 assert(textoEstoque("120.000") === "Estoque 120", "texto: folga mostra o número sem as casas vazias");
 assert(textoEstoque("3") === "Estoque 3", "texto: pouco mostra o número");
 assert(textoEstoque("0.000") === "Sem estoque", "texto: zero é dito por extenso");
-assert(
-  textoEstoque("-2.125") === "Sem estoque (-2,125)",
-  "texto: negativo diz 'sem estoque' E mantém o número à vista — ele é informação do ERP"
-);
 assert(/--folga$/.test(classeEstoque("9")), "classe: folga");
 assert(/--pouco$/.test(classeEstoque("2")), "classe: pouco");
-assert(/--sem$/.test(classeEstoque("0")), "classe: sem saldo");
+assert(/--sem/.test(classeEstoque("0")), "classe: sem saldo");
 assert(
   classeEstoque("2") !== classeEstoque("9") && classeEstoque("0") !== classeEstoque("2"),
   "classe: as três faixas são distinguíveis entre si"
@@ -2507,6 +2874,357 @@ assert(
   estoqueSemSaldo("0.000") === true && estoqueSemSaldo("3") === false,
   "faixa: `estoqueSemSaldo` não mudou de ideia"
 );
+
+/* ---- Saldo NEGATIVO não é "sem estoque" ------------------------------------------------ *
+ * Medido no catálogo real da Tijolar em 26/10/2026: 8 de 36 produtos resolvidos vinham com saldo
+ * negativo (`-908.000`, `-3943.500`) e 13 com zero. Os dois casos saíam pela MESMA frase, "Sem
+ * estoque", com o negativo num aparte entre parênteses. Zero é "acabou"; negativo é o inventário
+ * da loja errado, e o número não descreve a prateleira — é o caso que pede conferência antes de
+ * prometer entrega. As duas leituras não podem voltar a ser a mesma.
+ */
+assert(estoqueNegativo("-908.000") === true, "negativo: saldo negativo é reconhecido");
+assert(estoqueNegativo("0.000") === false, "negativo: zero NÃO é negativo");
+assert(estoqueNegativo("3") === false, "negativo: positivo não é negativo");
+for (const ausente of [null, undefined, "", "   ", "abc", true]) {
+  assert(
+    estoqueNegativo(ausente) === false,
+    `negativo: ausência (${JSON.stringify(ausente)}) não é negativo — ninguém informou nada`
+  );
+}
+assert(
+  textoEstoque("-908.000", "SC") === "Saldo -908 SC",
+  "negativo: o texto diz SALDO e traz o número inteiro, sem aparte entre parênteses"
+);
+assert(
+  textoEstoque("-908.000") !== textoEstoque("0.000"),
+  "negativo: a frase do negativo é diferente da do zero — era isto que faltava"
+);
+assert(
+  !/sem estoque/i.test(textoEstoque("-2.125")),
+  'negativo: "sem estoque" esconderia que o número não descreve a prateleira'
+);
+assert(
+  /-2,125/.test(textoEstoque("-2.125")),
+  "negativo: o número continua à vista — ele é informação do ERP sobre o item"
+);
+assert(
+  /--negativo/.test(classeEstoque("-2.125")) && !/--negativo/.test(classeEstoque("0.000")),
+  "negativo: a classe distingue negativo de zero (e o texto já distinguia — cor não é sinal único)"
+);
+assert(
+  /--sem/.test(classeEstoque("-2.125")),
+  "negativo: continua na faixa `sem` — `nivelEstoque` e `estoqueSemSaldo` não mudaram de ideia"
+);
+assert(
+  estoqueSemSaldo("-2.125") === true,
+  "negativo: `estoqueSemSaldo` continua dizendo que negativo não tem saldo"
+);
+assert(
+  TITULO_SALDO_NEGATIVO.length > 40 && !/zaperp/i.test(TITULO_SALDO_NEGATIVO),
+  "negativo: a explicação manda conferir na loja — e não acusa o ZapERP de um defeito do ERP"
+);
+
+/* ------------------------------------------------------------------ *
+ * A IDADE DO SALDO — "352,5 em estoque" de quando?
+ * ------------------------------------------------------------------ *
+ * `meta.fonte: "tempo_real"` diz que a CONSULTA foi ao vivo, não que o valor é de agora. Medido
+ * no ERP real em 26/10/2026, em 36 produtos: a idade de `estoque_sincronizado_em` vinha em dois
+ * regimes, 0,2–2,5 h ou 86,6 h (3,6 dias), com mediana de 86,6 h. Quem promete prazo de entrega
+ * ao cliente decide em cima desse número, e as duas situações apareciam idênticas na tela.
+ */
+{
+  const AGORA = Date.parse("2026-10-26T12:00:00.000Z");
+  const atras = (ms) => new Date(AGORA - ms).toISOString();
+  const MIN = 60 * 1000;
+  const HORA = 60 * MIN;
+  const DIA = 24 * HORA;
+
+  /* ---- Ausência não vira "agora": é o defeito que esta linha existe para corrigir ---- */
+  for (const nada of [null, undefined, "", "   ", "abc", 0, {}, "2026-13-45"]) {
+    assert(
+      idadeLegivel(nada, AGORA) === "",
+      `idade: carimbo inutilizável (${JSON.stringify(nada)}) não produz idade nenhuma`
+    );
+    assert(
+      idadeDoSaldo(nada, AGORA) === null,
+      `idade: sem carimbo (${JSON.stringify(nada)}) a tela não escreve nada — e NUNCA "agora"`
+    );
+  }
+
+  /* ---- Linguagem de gente, nas bordas de cada unidade ---- */
+  assert(idadeLegivel(atras(0), AGORA) === "agora", "idade: o próprio instante é 'agora'");
+  assert(idadeLegivel(atras(30 * 1000), AGORA) === "agora", "idade: meio minuto é 'agora'");
+  assert(
+    idadeLegivel(atras(-5 * 1000), AGORA) === "agora",
+    "idade: carimbo no FUTURO (relógio do servidor adiantado) é 'agora', nunca 'há -1 min'"
+  );
+  assert(
+    idadeLegivel(atras(-6 * HORA), AGORA) === "agora",
+    "idade: futuro distante também não produz idade negativa"
+  );
+  assert(idadeLegivel(atras(90 * 1000), AGORA) === "há 1 min", "idade: 90 s já é um minuto");
+  assert(idadeLegivel(atras(12 * MIN), AGORA) === "há 12 min", "idade: minutos, por extenso");
+  assert(
+    idadeLegivel(atras(59 * MIN + 59 * 1000), AGORA) === "há 59 min",
+    "idade: um segundo antes da hora ainda são minutos"
+  );
+  assert(idadeLegivel(atras(HORA), AGORA) === "há 1 h", "idade: a hora exata vira hora");
+  assert(idadeLegivel(atras(3 * HORA), AGORA) === "há 3 h", "idade: horas");
+  assert(
+    idadeLegivel(atras(DIA - 1000), AGORA) === "há 23 h",
+    "idade: um segundo antes do dia ainda são horas"
+  );
+  assert(idadeLegivel(atras(DIA), AGORA) === "há 1 dia", "idade: o dia exato é SINGULAR");
+  assert(idadeLegivel(atras(2 * DIA), AGORA) === "há 2 dias", "idade: dias no plural");
+  assert(
+    idadeLegivel(atras(86.6 * HORA), AGORA) === "há 3 dias",
+    "idade: 86,6 h (a mediana medida) arredonda para BAIXO, como se fala"
+  );
+
+  /* ---- Até 24 h é informação; daí em diante é aviso ---- */
+  assert(
+    idadeDoSaldo(atras(0), AGORA).texto === "Saldo atualizado agora",
+    "idade: a frase nomeia o SALDO, que é o número que está ao lado dela"
+  );
+  assert(
+    idadeDoSaldo(atras(3 * HORA), AGORA).aviso === false,
+    "idade: saldo de três horas é dito, calado — alarme em tudo é alarme em nada"
+  );
+  assert(
+    idadeDoSaldo(atras(DIA - 1000), AGORA).aviso === false,
+    `idade: um segundo antes das ${IDADE_SALDO_AVISO_HORAS} h ainda não é aviso`
+  );
+  assert(
+    idadeDoSaldo(atras(IDADE_SALDO_AVISO_HORAS * HORA), AGORA).aviso === true,
+    `idade: ${IDADE_SALDO_AVISO_HORAS} h em ponto já é aviso`
+  );
+  const velho = idadeDoSaldo(atras(86.6 * HORA), AGORA);
+  assert(velho.aviso === true, "idade: a mediana medida (86,6 h) é aviso");
+  assert(velho.texto === "Saldo atualizado há 3 dias", "idade: e a frase diz quanto tempo faz");
+  assert(
+    /entrega/.test(velho.titulo),
+    "idade: o aviso diz a CONSEQUÊNCIA (conferir antes de prometer entrega), não só a data"
+  );
+  assert(
+    idadeDoSaldo(atras(3 * HORA), AGORA).titulo === "",
+    "idade: saldo fresco não carrega conselho nenhum — não há o que fazer a respeito"
+  );
+
+  /* ---- A IDADE ANDA: é por isso que `agora` é parâmetro ---- */
+  const carimbo = atras(50 * MIN);
+  assert(idadeDoSaldo(carimbo, AGORA).idade === "há 50 min", "idade: lida no instante da consulta");
+  assert(
+    idadeDoSaldo(carimbo, AGORA + 20 * MIN).idade === "há 1 h",
+    "idade: vinte minutos depois, com o drawer aberto, a MESMA resposta já é outra idade"
+  );
+  assert(
+    idadeDoSaldo(carimbo, AGORA + 3 * DIA).aviso === true,
+    "idade: o que era fresco vira aviso só pela passagem do tempo — nada é reconsultado"
+  );
+  // Sem `agora`, o padrão é o relógio real: a chamada não pode exigir o parâmetro para funcionar.
+  assert(
+    idadeDoSaldo(new Date().toISOString())?.idade === "agora",
+    "idade: sem instante de referência, usa o relógio de agora"
+  );
+
+  /* ---- Os DOIS carimbos, que não se misturam ---- *
+   * `estoque_sincronizado_em` é do SALDO; `sincronizado_em` é do CADASTRO (descrição, preço,
+   * grupo). Medido no mesmo produto real (`0000209`): saldo de 86,6 h e cadastro de 92,3 h.
+   * Datar o saldo com a data do cadastro seria uma data certa sobre o número errado.
+   */
+  const carimbos = carimbosDoProduto({
+    codigo_produto_erp: "0000209",
+    estoque_sincronizado_em: "2026-10-23T00:09:24.272Z",
+    sincronizado_em: "2026-10-22T18:26:16.860Z",
+    preco_unitario: "18.420",
+  });
+  assert(
+    carimbos.estoque_sincronizado_em === "2026-10-23T00:09:24.272Z",
+    "carimbos: o do saldo atravessa"
+  );
+  assert(
+    carimbos.sincronizado_em === "2026-10-22T18:26:16.860Z",
+    "carimbos: o do cadastro atravessa, separado — são afirmações diferentes"
+  );
+  assert(
+    carimbos.estoque_sincronizado_em !== carimbos.sincronizado_em,
+    "carimbos: no produto real medido eles DIFEREM — confundi-los dataria o número errado"
+  );
+  assert(
+    carimbosDoProduto({ codigo_produto_erp: "1" }) === null,
+    "carimbos: produto sem carimbo nenhum devolve null, e a tela não escreve nada"
+  );
+  assert(
+    carimbosDoProduto({ estoque_sincronizado_em: "   " }) === null,
+    "carimbos: carimbo em branco é ausência"
+  );
+  for (const nada of [null, undefined, "x", 7]) {
+    assert(carimbosDoProduto(nada) === null, "carimbos: entrada que não é produto devolve null");
+  }
+  // E eles chegam pela consulta por código, junto com os valores — não numa segunda leitura.
+  const comCarimbo = valoresDaRespostaPorCodigo(
+    {
+      status: "produto",
+      produto: {
+        codigo_produto_erp: "0000209",
+        preco_unitario: "18.420",
+        estoque_previsto: "352.500",
+        estoque_sincronizado_em: "2026-10-23T00:09:24.272Z",
+      },
+      meta: { fonte: "tempo_real", tempo_real: true },
+    },
+    "0000209"
+  );
+  assert(
+    comCarimbo?.carimbos?.estoque_sincronizado_em === "2026-10-23T00:09:24.272Z",
+    "carimbos: o 'ver preço' traz a idade junto com o saldo, do mesmo produto"
+  );
+  assert(
+    comCarimbo?.valores?.estoque_previsto === "352.500",
+    "carimbos: e o saldo continua chegando como veio"
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * O DESCONTO DO ERP — só quando existe de verdade
+ * ------------------------------------------------------------------ *
+ * A prévia traz `valor_total_bruto` e `valor_desconto_unit` por item. Medido ao vivo na MARGRE
+ * em 26/10/2026, os dois vêm neutros (`"0.00"`, bruto igual ao total) — então hoje nada aparece
+ * na tela. Quando o ERP aplicar desconto (tabela promocional, política por cliente), ele precisa
+ * aparecer: sem isso o atendente vê um preço abaixo do cadastro e não consegue explicá-lo.
+ *
+ * `null` (não informado) e `"0.00"` (informado, e é zero) são coisas diferentes — e nenhuma das
+ * duas desenha linha de desconto.
+ */
+{
+  const base = { codigo_produto_erp: "A1", quantidade: "2.000", preco_unitario: "18.42" };
+
+  assert(
+    descontoDoItemPrevia({
+      ...base,
+      valor_total: "36.84",
+      valor_total_bruto: "36.84",
+      valor_desconto_unit: "0.00",
+    }) === null,
+    'desconto: "0.00" é a WM dizendo que não há desconto — nada é desenhado'
+  );
+  assert(
+    descontoDoItemPrevia({
+      ...base,
+      valor_total: "36.84",
+      valor_total_bruto: null,
+      valor_desconto_unit: null,
+    }) === null,
+    "desconto: null é ausência de informação — e também não desenha nada"
+  );
+  assert(
+    descontoDoItemPrevia({ ...base, valor_total: "36.84" }) === null,
+    "desconto: campo que não veio na resposta não inventa desconto"
+  );
+  assert(
+    descontoDoItemPrevia({ ...base, valor_desconto_unit: "-1.50" }) === null,
+    "desconto: valor negativo não é desconto — não se afirma o que não se entende"
+  );
+  assert(
+    descontoDoItemPrevia({ ...base, valor_desconto_unit: "abc" }) === null,
+    "desconto: valor fora de formato não vira desconto"
+  );
+  for (const nada of [null, undefined, "x", 3]) {
+    assert(descontoDoItemPrevia(nada) === null, "desconto: entrada que não é item devolve null");
+  }
+
+  const com = descontoDoItemPrevia({
+    ...base,
+    valor_total: "33.84",
+    valor_total_bruto: "36.84",
+    valor_desconto_unit: "1.50",
+  });
+  assert(com !== null, "desconto: desconto de verdade aparece");
+  assert(
+    com.descontoUnit === formatMoedaOrcamento("1.50"),
+    "desconto: o valor é o da WM, passado pelo formatador de moeda — nada é calculado"
+  );
+  assert(
+    com.valorBruto === formatMoedaOrcamento("36.84"),
+    "desconto: o valor cheio vem junto, para o desconto ser conferível"
+  );
+  // O bruto só entra quando DIFERE do líquido: dois números iguais, um riscado, pareceria erro.
+  const igual = descontoDoItemPrevia({
+    ...base,
+    valor_total: "36.84",
+    valor_total_bruto: "36.84",
+    valor_desconto_unit: "1.50",
+  });
+  assert(
+    igual !== null && igual.valorBruto === null,
+    "desconto: bruto igual ao total não é mostrado riscado ao lado dele mesmo"
+  );
+  const semBruto = descontoDoItemPrevia({
+    ...base,
+    valor_total: "33.84",
+    valor_desconto_unit: "1.50",
+  });
+  assert(
+    semBruto !== null && semBruto.valorBruto === null,
+    "desconto: sem o bruto, o desconto ainda é dito — ele é o dado que explica o preço"
+  );
+
+  /* ---- E a prévia inteira: a linha do desconto nasce no modelo, não no JSX ---- */
+  const viewSemDesconto = montarPreviaView(PREVIA_WM);
+  assert(
+    viewSemDesconto.itens.every((i) => i.desconto === null),
+    "desconto: a prévia medida hoje (sem desconto) não ganha linha nenhuma"
+  );
+  const viewComDesconto = montarPreviaView({
+    ...PREVIA_WM,
+    itens: [
+      {
+        codigo_produto_erp: "ABC1234",
+        descricao: "Notebook",
+        unidade: "UN",
+        quantidade: "2.000",
+        preco_unitario: "33.038",
+        valor_total: "63.076",
+        valor_total_bruto: "66.076",
+        valor_desconto_unit: "1.50",
+      },
+    ],
+  });
+  assert(
+    viewComDesconto.itens[0].desconto?.descontoUnit === formatMoedaOrcamento("1.50"),
+    "desconto: e aparece no item da prévia quando o ERP o aplica"
+  );
+  assert(
+    viewComDesconto.valorTotal === viewSemDesconto.valorTotal,
+    "desconto: mostrar desconto não mexe no total — ele continua sendo o número da WM"
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * O CÓDIGO DE BARRAS — aparece só quando foi ele que achou o produto
+ * ------------------------------------------------------------------ *
+ * O campo convida a bipar/colar o código, e medido no ERP real em 26/10 isso resolve direto no
+ * produto: `2500209000002` → `0000209`. O card mostrava "PISO (((PROMOÇÃO)))" — uma descrição
+ * onde os dígitos bipados não aparecem em lugar nenhum, sem nada ligando as duas coisas.
+ */
+{
+  assert(
+    termoCasaNoTexto("2500209000002", "2500209000002") === true,
+    "barras: o código bipado casa com o código do produto"
+  );
+  assert(
+    termoCasaNoTexto("2500209000002", "250020") === true,
+    "barras: trecho colado também casa — é a mesma régua do destaque"
+  );
+  assert(
+    termoCasaNoTexto("2500209000002", "piso") === false,
+    "barras: busca por nome NÃO acende o código de barras — seriam 13 dígitos de ruído por card"
+  );
+  assert(
+    termoCasaNoTexto("", "250") === false && termoCasaNoTexto("2500", "") === false,
+    "barras: sem texto ou sem termo não há casamento"
+  );
+}
 
 /* ------------------------------------------------------------------ *
  * 18. Grupo do produto — etiqueta que só existe quando o dado existe
@@ -3134,6 +3852,426 @@ globalThis.localStorage = new StorageFake();
     );
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * 12. "R$ 0,01" não é preço, é preço NÃO CADASTRADO no ERP
+ * ------------------------------------------------------------------ *
+ * Medido no catálogo da Tijolar em 25/10/2026: 5 de 24 produtos amostrados vêm com
+ * `preco_unitario: "0.010"` — conferido na prévia oficial, é o que a WM devolve para produto sem
+ * preço no Icthus. A tela mostrava "R$ 0,01" e aquilo passava por preço de verdade.
+ *
+ * O limiar e a razão dele estão em `precoNaoCadastrado`. Aqui provam-se as BORDAS: o que entra,
+ * o que não entra, e que a ausência de valor continua sendo outra coisa.
+ * ------------------------------------------------------------------ */
+assert(PRECO_NAO_CADASTRADO_ATE === 0.01, "limiar: um centavo — mexer aqui exige nova amostragem");
+
+// O valor MEDIDO em produção. Se só este caso sobreviver, ele é o que não pode falhar.
+assert(precoNaoCadastrado("0.010") === true, 'preço: "0.010" (medido na Tijolar) não é preço');
+for (const dentro of ["0.01", "0.010", "0.0100", "0", "0.0", "0.000", 0, 0.01, "-1.00", "-0.5", -3]) {
+  assert(
+    precoNaoCadastrado(dentro) === true,
+    `preço: ${JSON.stringify(dentro)} é nulo/irrisório — não pode ser apresentado como preço`
+  );
+}
+// Logo acima do limiar já é preço, e marcar produto baratinho como "sem preço" mentiria para o
+// outro lado: numa loja de material de construção existe item de poucos centavos.
+for (const fora of ["0.011", "0.02", "0.10", "0.50", "1.00", "33.038", "3500", 0.02]) {
+  assert(
+    precoNaoCadastrado(fora) === false,
+    `preço: ${JSON.stringify(fora)} é preço de verdade e não pode ser marcado`
+  );
+}
+// AUSÊNCIA não é "não cadastrado": a tela já a mostra como "—" ou como "ver preço", e chamá-la
+// de não cadastrada afirmaria algo sobre o ERP que ninguém consultou.
+for (const ausente of [null, undefined, "", "   ", "abc", "R$ 0,01", NaN, {}, [], true, "1.2.3"]) {
+  assert(
+    precoNaoCadastrado(ausente) === false,
+    `preço: ${JSON.stringify(ausente)} é ausência de valor, não "preço não cadastrado"`
+  );
+}
+// A etiqueta não pode conter moeda: dizer "não é preço" e mostrar "R$ 0,01" ao lado reinstala
+// exatamente a leitura que a marcação existe para desfazer.
+for (const texto of [
+  TEXTO_PRECO_NAO_CADASTRADO,
+  ETIQUETA_PRECO_NAO_CADASTRADO,
+  TITULO_PRECO_NAO_CADASTRADO,
+]) {
+  assert(!/R\$|0,01|centavo/i.test(texto), `etiqueta: "${texto}" não pode falar em valor`);
+  assert(!/gr[áa]tis|de gra[çc]a/i.test(texto), `etiqueta: "${texto}" não pode sugerir "de graça"`);
+}
+// A curta cabe na coluna de 104px do card (altura reservada de 24px); a longa não, e é por isso
+// que são duas. Se alguém trocar uma pela outra, isto quebra.
+assert(
+  ETIQUETA_PRECO_NAO_CADASTRADO.length < TEXTO_PRECO_NAO_CADASTRADO.length,
+  "etiqueta: a do card de busca é a curta — a longa estoura a altura reservada da coluna"
+);
+
+/* ---- O valor ENVIADO não muda, nem quando o item está marcado (§8.1) ---- */
+{
+  // `preco_confirmado` vive no snapshot do servidor e a confirmação vai com corpo VAZIO, então o
+  // que o frontend não pode fazer é mexer na string enquanto ela passa por ele.
+  const produto = {
+    codigo_produto_erp: "4325",
+    descricao: "AREIA",
+    preco_unitario: "0.010",
+    unidade: "UN",
+  };
+  const valores = extrairValoresDoProduto(produto);
+  assert(
+    valores.preco_unitario === "0.010",
+    "marcado: o cache guarda a string da WM byte a byte — nada de reformatar o que foi marcado"
+  );
+  assert(
+    typeof valores.preco_unitario === "string",
+    "marcado: o preço continua STRING; converter para number perderia a serialização da WM"
+  );
+  const daResposta = valoresDaRespostaPorCodigo({ status: "produto", produto }, "4325");
+  assert(
+    daResposta.valores.preco_unitario === "0.010",
+    "marcado: a leitura da resposta por código também copia o valor sem tocar"
+  );
+  assert(
+    produtoJaTemPreco(produto) === true,
+    "marcado: produto com 0.010 JÁ TEM valor — não se gasta outra chamada por causa da marcação"
+  );
+  assert(
+    precisaConsultarPreco({}, produto) === false,
+    "marcado: marcar é apresentação; não vira motivo para consultar de novo"
+  );
+  // A marcação também não pode entrar na identidade do que foi orçado: ela é de tela.
+  const rascunho = {
+    clienteCodigoErp: "C1",
+    vendedorCodigoErp: "V1",
+    itens: [{ codigo_produto_erp: "4325", quantidade: "2" }],
+  };
+  assert(
+    !/preco|0\.010/.test(assinaturaDoRascunho(rascunho)),
+    "marcado: a assinatura do rascunho não carrega preço — ela identifica o conjunto, não o valor"
+  );
+}
+
+/* ---- O conjunto: quantos itens, quais nomes, e a frase de cada momento ---- */
+assert(
+  itensSemPrecoCadastrado(PREVIA_SEM_PRECO).length === 1,
+  "conjunto: só o item de 0.010 entra na lista — o de 33.038 tem preço"
+);
+assert(
+  itensSemPrecoCadastrado(PREVIA_SEM_PRECO)[0] === "AREIA MEDIA LAVADA M3",
+  "conjunto: o item é identificado pelo nome que o atendente lê na linha"
+);
+assert(
+  itensSemPrecoCadastrado(PREVIA_WM).length === 0,
+  "conjunto: preço AUSENTE (null) não é preço não cadastrado — são estados diferentes"
+);
+for (const nada of [null, undefined, {}, { itens: null }, { itens: [] }, { itens: [null, 7] }]) {
+  assert(
+    itensSemPrecoCadastrado(nada).length === 0,
+    `conjunto: ${JSON.stringify(nada)} não produz lista — nem exceção`
+  );
+}
+// Item sem descrição utilizável tem de ser identificável de todo jeito: "—" não diz qual linha.
+{
+  const nomes = itensSemPrecoCadastrado({
+    itens: [{ codigo_produto_erp: "777", descricao: "   ", preco_unitario: "0.010" }],
+  });
+  assert(nomes[0] === "cód. 777", "conjunto: item sem descrição entra pelo código, nunca como —");
+}
+{
+  const nomes = itensSemPrecoCadastrado({ itens: [{ preco_unitario: "0" }] });
+  assert(
+    nomes[0] === "item sem identificação",
+    "conjunto: sem descrição e sem código, a frase ainda diz que existe um item assim"
+  );
+}
+
+{
+  const previa = avisoItensSemPreco(PREVIA_SEM_PRECO, { momento: "previa" });
+  const envio = avisoItensSemPreco(PREVIA_SEM_PRECO, { momento: "envio" });
+  assert(previa?.quantidade === 1 && envio?.quantidade === 1, "aviso: conta os itens marcados");
+  assert(
+    previa.texto !== envio.texto,
+    "aviso: a frase de antes de CRIAR não serve para antes de ENVIAR — a consequência é outra"
+  );
+  assert(
+    /AREIA MEDIA LAVADA M3/.test(previa.texto) && /AREIA MEDIA LAVADA M3/.test(envio.texto),
+    "aviso: as duas frases dizem QUAL item conferir"
+  );
+  // A frase do envio fala do que acontece a seguir: o texto indo para o cliente.
+  assert(
+    /resumo|enviar/i.test(envio.texto),
+    "aviso de envio: tem de falar do resumo que vai para o cliente"
+  );
+  assert(
+    /calcule de novo|cadastrarem/i.test(previa.texto),
+    "aviso de prévia: tem de oferecer o caminho de correção antes de criar"
+  );
+  // Nenhuma das duas repete o valor.
+  for (const a of [previa, envio]) {
+    assert(!/R\$|0,01|0,02/.test(a.texto), `aviso: a frase não pode conter o valor — "${a.texto}"`);
+  }
+  assert(
+    avisoItensSemPreco(PREVIA_WM) === null,
+    "aviso: sem item marcado não há aviso (prévia de preço ausente não é prévia de preço falso)"
+  );
+  assert(avisoItensSemPreco(null) === null, "aviso: sem prévia, nada a avisar");
+}
+
+// Concordância e corte da lista de nomes: a frase precisa ser legível com um item e com dez.
+{
+  const comN = (n) => ({
+    itens: Array.from({ length: n }, (_, i) => ({
+      codigo_produto_erp: String(i),
+      descricao: `ITEM ${i}`,
+      preco_unitario: "0.010",
+    })),
+  });
+  assert(/^Um item deste orçamento está/.test(avisoItensSemPreco(comN(1)).texto), "aviso: singular");
+  assert(/^2 itens deste orçamento estão/.test(avisoItensSemPreco(comN(2)).texto), "aviso: plural");
+  assert(
+    /ITEM 0, ITEM 1 e ITEM 2\b/.test(avisoItensSemPreco(comN(3)).texto),
+    "aviso: até três nomes saem inteiros, com 'e' no último"
+  );
+  const dez = avisoItensSemPreco(comN(10));
+  assert(dez.quantidade === 10, "aviso: a contagem é de todos, mesmo com a lista cortada");
+  assert(
+    /e mais 7/.test(dez.texto) && !/ITEM 9/.test(dez.texto),
+    "aviso: lista longa é cortada em 'e mais N' — parede de texto não é lida"
+  );
+}
+
+/* ---- A prévia marca item por item, e o valor exato continua à vista ---- */
+{
+  const view = montarPreviaView(PREVIA_SEM_PRECO);
+  assert(view.itens[0].precoNaoCadastrado === false, "prévia: item com preço real não é marcado");
+  assert(view.itens[1].precoNaoCadastrado === true, "prévia: item de 0.010 é marcado");
+  assert(
+    view.itens[1].precoExato === "0,010",
+    "prévia: o valor exato continua nos detalhes — é o que o ERP vai gravar e o suporte procurar"
+  );
+  assert(view.avisoSemPreco?.quantidade === 1, "prévia: a view carrega o aviso do conjunto");
+  assert(
+    montarPreviaView(PREVIA_WM).avisoSemPreco === null,
+    "prévia: sem item marcado a view não carrega aviso"
+  );
+  // A marcação é de exibição: o preço formatado continua sendo calculado do mesmo jeito.
+  assert(
+    view.itens[1].precoUnitario === formatMoedaOrcamento("0.010"),
+    "prévia: a marcação não substitui nem altera o preço formatado no modelo"
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 13. "A loja está no ar?" — o aviso antes do trabalho perdido
+ * ------------------------------------------------------------------ *
+ * `GET /api/orcamentos/erp/status` responde SEMPRE 200, inclusive quando a resposta é "não dá".
+ * As portas da WM caem separadamente: com o sincronizador da loja fora do ar, a busca de produto
+ * responde 200 em 166 ms enquanto cliente e `preparar` devolvem 503 (medido em 25/10/2026).
+ * ------------------------------------------------------------------ */
+
+/* ---- Leitura do envelope: o que vira veredito e o que vira SILÊNCIO ---- */
+assert(
+  lerStatusErp({ ok: true, erp_alcancavel: true, motivo: null })?.alcancavel === true,
+  "status: ERP alcançável é lido como alcançável"
+);
+for (const motivo of ["sincronizador_offline", "lento", "indisponivel", "nao_configurado"]) {
+  const lido = lerStatusErp({ ok: true, erp_alcancavel: false, motivo });
+  assert(
+    lido?.alcancavel === false && lido.motivo === motivo,
+    `status: o motivo "${motivo}" chega intacto à tela`
+  );
+}
+// Motivo novo no backend não pode virar aviso em branco; "não sabemos" é o fallback honesto.
+for (const estranho of ["motivo_novo_do_backend", "", "   ", null, 7, undefined]) {
+  assert(
+    lerStatusErp({ ok: true, erp_alcancavel: false, motivo: estranho })?.motivo ===
+      MOTIVO_ERP.INDISPONIVEL,
+    `status: motivo ${JSON.stringify(estranho)} cai em "indisponivel", nunca em frase vazia`
+  );
+}
+// Forma inesperada = cale-se. Inventar indisponibilidade a partir de uma resposta que não se
+// entende é acusar a loja por um problema que pode ser nosso.
+for (const ruim of [
+  null,
+  undefined,
+  "ok",
+  7,
+  {},
+  { ok: false, erp_alcancavel: false, motivo: "lento" },
+  { ok: true },
+  { ok: true, erp_alcancavel: "false", motivo: "lento" },
+  { ok: true, erp_alcancavel: null },
+]) {
+  assert(
+    lerStatusErp(ruim) === null,
+    `status: resposta ${JSON.stringify(ruim)} tem de produzir silêncio, não aviso`
+  );
+}
+
+/* ---- A sonda que FALHA fica calada ---- */
+// O drawer trata exceção não mexendo no estado; no nível das funções, o que se prova é que
+// nenhum caminho produz aviso sem um veredito, e que `null` nunca desenha nada.
+assert(avisoErpIndisponivel(null) === null, "sonda falhou: sem veredito, nenhum aviso");
+assert(avisoErpIndisponivel(undefined) === null, "sonda em voo: sem veredito, nenhum aviso");
+assert(
+  avisoErpIndisponivel(lerStatusErp(null)) === null,
+  "sonda falhou: a cadeia inteira (resposta ruim → veredito → aviso) termina em silêncio"
+);
+assert(
+  avisoErpIndisponivel({ alcancavel: true, motivo: null }) === null,
+  "ERP de pé: nada a avisar — o aviso não pode existir quando dá para orçar"
+);
+
+/* ---- Cada motivo é uma situação diferente e pede frase diferente ---- */
+{
+  const avisos = {};
+  for (const motivo of Object.values(MOTIVO_ERP)) {
+    avisos[motivo] = avisoErpIndisponivel({ alcancavel: false, motivo });
+    assert(avisos[motivo] !== null, `aviso ERP: ${motivo} tem de produzir aviso`);
+  }
+
+  // Quatro frases distintas, e distintas no CONTEÚDO: um texto genérico para todos seria o
+  // mesmo que não distinguir as situações.
+  const titulos = Object.values(avisos).map((a) => a.titulo);
+  assert(new Set(titulos).size === titulos.length, "aviso ERP: cada motivo tem título próprio");
+  const explicacoes = Object.values(avisos).map((a) => a.explicacao);
+  assert(
+    new Set(explicacoes).size === explicacoes.length,
+    "aviso ERP: cada motivo explica a sua própria situação"
+  );
+
+  // `sincronizador_offline`: a ação é NA LOJA, e o que ainda funciona é a busca de produto.
+  const off = avisos[MOTIVO_ERP.SINCRONIZADOR_OFFLINE];
+  assert(
+    /computador/i.test(off.recuperacao),
+    "sincronizador offline: a ação é no computador do ERP da loja — é lá que se resolve"
+  );
+  assert(
+    /busca de produto/i.test(off.explicacao),
+    "sincronizador offline: dizer o que AINDA funciona é o conteúdo útil do aviso"
+  );
+  assert(
+    !/suporte/i.test(off.recuperacao),
+    "sincronizador offline: mandar procurar o suporte do ZapERP manda a pessoa errada resolver"
+  );
+
+  // `lento` é demora, não queda — e a palavra importa: com "fora do ar" ninguém tentaria.
+  const lento = avisos[MOTIVO_ERP.LENTO];
+  assert(/lento|demor/i.test(lento.titulo + lento.explicacao), "lento: a frase fala de DEMORA");
+  assert(
+    !/fora do ar|n[ãa]o est[áa] respondendo/i.test(lento.titulo + lento.explicacao),
+    "lento: não é queda, e chamar de queda desaconselharia tentar o Calcular"
+  );
+  assert(
+    /calcular/i.test(lento.recuperacao),
+    "lento: ainda vale tentar calcular, e a frase diz isso"
+  );
+
+  // `indisponivel` é "não sabemos" — então não afirma causa nem manda consertar nada.
+  const inde = avisos[MOTIVO_ERP.INDISPONIVEL];
+  assert(
+    /n[ãa]o sabemos/i.test(inde.explicacao),
+    "indisponível: a frase assume que não se sabe o motivo"
+  );
+  assert(
+    !/computador|ligad/i.test(inde.titulo + inde.explicacao + inde.recuperacao),
+    "indisponível: sem causa provada, não se manda conferir máquina nenhuma"
+  );
+
+  // `nao_configurado`: problema de INSTALAÇÃO. Quem resolve é o suporte, e mandar conferir o
+  // computador da loja seria mandar consertar uma máquina que não tem defeito.
+  const semConfig = avisos[MOTIVO_ERP.NAO_CONFIGURADO];
+  assert(
+    /suporte/i.test(semConfig.recuperacao),
+    "não configurado: quem resolve é o suporte do ZapERP"
+  );
+  assert(
+    !/computador|m[áa]quina|internet|ligad/i.test(
+      semConfig.titulo + semConfig.explicacao + semConfig.recuperacao
+    ),
+    "não configurado: NENHUMA menção ao computador/internet da loja — não há defeito lá"
+  );
+  assert(
+    semConfig.oferecerVerificar === false,
+    "não configurado: resondar não muda nada até alguém configurar — botão que só gira é teatro"
+  );
+  for (const motivo of [
+    MOTIVO_ERP.SINCRONIZADOR_OFFLINE,
+    MOTIVO_ERP.LENTO,
+    MOTIVO_ERP.INDISPONIVEL,
+  ]) {
+    assert(
+      avisos[motivo].oferecerVerificar === true,
+      `${motivo}: a situação pode mudar sozinha, então "verificar de novo" faz sentido`
+    );
+  }
+  // `nao_configurado` é o único que NÃO promete a busca de produto: ela usa o mesmo contato
+  // autorizado e também não funciona.
+  assert(
+    !/busca de produto/i.test(semConfig.explicacao),
+    "não configurado: não prometer busca de produto — ela depende do mesmo vínculo que falta"
+  );
+
+  // Nenhuma frase pode carregar jargão, código ou status HTTP (regra do drawer inteiro).
+  for (const [motivo, a] of Object.entries(avisos)) {
+    const tudo = `${a.titulo} ${a.explicacao} ${a.recuperacao}`;
+    assert(
+      !/503|504|WM_|sincronizador|erp_alcancavel|requestId|comando_id/i.test(tudo),
+      `aviso ERP (${motivo}): nada de código, status ou nome técnico na tela — "${tudo}"`
+    );
+    assert(
+      a.titulo.length > 0 && a.explicacao.length > 0 && a.recuperacao.length > 0,
+      `aviso ERP (${motivo}): sem campo vazio`
+    );
+  }
+  // Motivo fora do vocabulário ainda produz aviso utilizável (o do "não sabemos").
+  assert(
+    avisoErpIndisponivel({ alcancavel: false, motivo: "coisa_nova" })?.motivo ===
+      MOTIVO_ERP.INDISPONIVEL,
+    "aviso ERP: motivo desconhecido cai no 'não sabemos', nunca em aviso vazio"
+  );
+}
+
+/* ---- Quando reconsultar: só por fato novo, nunca em laço ---- */
+for (const codigo of ["WM_SINCRONIZADOR_OFFLINE", "WM_TIMEOUT", "WM_INDISPONIVEL"]) {
+  assert(erroSugereErpFora(codigo) === true, `reconsulta: ${codigo} desmente o veredito da tela`);
+}
+for (const codigo of [
+  "WM_CLIENTE_INVALIDO",
+  "WM_PRODUTO_NAO_ENCONTRADO",
+  "WM_RESULTADO_INCERTO",
+  "ORCAMENTO_DADOS_INVALIDOS",
+  "",
+  null,
+  undefined,
+]) {
+  assert(
+    erroSugereErpFora(codigo) === false,
+    `reconsulta: ${JSON.stringify(codigo)} não é queda do ERP — resondar seria chamada à toa`
+  );
+}
+
+/* ---- O timeout da sonda: curto, porque aviso atrasado não avisa ---- */
+assert(
+  resolveOrcamentoTimeoutMs("/api/orcamentos/erp/status") === HTTP_TIMEOUT_ORCAMENTO_STATUS_MS,
+  "sonda: tem perfil de timeout próprio"
+);
+assert(
+  HTTP_TIMEOUT_ORCAMENTO_STATUS_MS < HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS,
+  "sonda: nunca espera mais que o confirmar — estourar aqui é silêncio, estourar lá é dúvida caríssima"
+);
+assert(
+  HTTP_TIMEOUT_ORCAMENTO_STATUS_MS >= 15_000,
+  "sonda: tem de caber o timeout de leitura do backend, senão o navegador aborta antes da resposta"
+);
+// A sonda não pode roubar o perfil das outras rotas.
+assert(
+  resolveOrcamentoTimeoutMs("/api/orcamentos/preparar") === HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS,
+  "sonda: o novo ramo não muda o perfil do preparar"
+);
+assert(
+  resolveOrcamentoTimeoutMs("/api/orcamentos/abc/confirmar") === HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS,
+  "sonda: o novo ramo não muda o perfil do confirmar"
+);
 
 if (falhas.length) {
   for (const f of falhas) console.error(`FALHOU: ${f}`);

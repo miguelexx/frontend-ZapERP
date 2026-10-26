@@ -36,6 +36,20 @@ export const HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS = 30_000;
 export const HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS = 45_000;
 /** Confirmar/verificar: acima do teto de escrita do backend (120 s), ver regra acima. */
 export const HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS = 150_000;
+/**
+ * `GET /erp/status` — a sonda de "dá para orçar agora?".
+ *
+ * Curto de propósito, e é o único perfil do orçamento onde isso vale: esta chamada existe para
+ * AVISAR, e um aviso que chega tarde não avisa nada. O backend sonda a loja com o timeout de
+ * leitura (~15 s), devolve 200 inclusive quando a resposta é "não dá", e guarda os dois
+ * vereditos num cache de 30 s — então o caso lento é a PRIMEIRA abertura, e as seguintes voltam
+ * do cache em milissegundos. Medido com a loja fora do ar: 2,5 s.
+ *
+ * Estourar aqui é um silêncio deliberado: o drawer continua aberto e sem aviso, que é
+ * exatamente o que se quer quando não se sabe nada (ver `erpDisponibilidade.js`). Esperar 55 s
+ * por isso seria pagar o pior dos dois mundos — sem aviso e com uma requisição pendurada.
+ */
+export const HTTP_TIMEOUT_ORCAMENTO_STATUS_MS = 20_000;
 
 /**
  * Timeout de uma rota de orçamento, ou `0` quando a URL não é de orçamento.
@@ -47,6 +61,7 @@ export function resolveOrcamentoTimeoutMs(url) {
   const u = String(url || "");
   if (!u.includes("/api/orcamentos")) return 0;
   if (/\/(confirmar|verificar)(\?|$)/.test(u)) return HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS;
+  if (u.includes("/erp/status")) return HTTP_TIMEOUT_ORCAMENTO_STATUS_MS;
   if (u.includes("/preparar")) return HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS;
   if (u.includes("/produtos/consultar") || u.includes("/clientes/consultar")) {
     return HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS;

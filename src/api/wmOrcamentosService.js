@@ -189,6 +189,29 @@ export async function consultarProdutosOrcamento({ busca, codigo_produto_erp, pa
 }
 
 /**
+ * `GET /api/orcamentos/erp/status` — "dá para orçar agora?".
+ *
+ * **Responde sempre 200**, inclusive quando a resposta é "não dá": indisponibilidade do ERP é o
+ * conteúdo, não um erro. Quem chama não precisa tratar 503 para saber que a loja está fora do
+ * ar. O corpo é `{ ok, requestId, erp_alcancavel, motivo, verificado_em, origem_resposta }`, e
+ * `motivo` é vocabulário fechado — ler e traduzir é de `erpDisponibilidade.js`.
+ *
+ * A sonda do backend tem cache de 30 s e é coalescida: chamar várias vezes não custa, mas
+ * também não adianta. Ela é consultada na abertura do drawer e por ação explícita — nunca em
+ * laço de fundo.
+ *
+ * ⚠️ Esta é a única rota do orçamento que PODE falhar em silêncio: quem chama deve tratar
+ * exceção como "não sei" e não desenhar aviso nenhum. Um aviso de indisponibilidade inventado a
+ * partir de uma chamada que não respondeu culpa a loja por um problema que pode ser do
+ * navegador.
+ */
+export async function consultarStatusErp({ signal } = {}) {
+  const url = `${BASE}/erp/status`;
+  const { data } = await api.get(url, configFor(url, signal ? { signal } : {}));
+  return data;
+}
+
+/**
  * `POST /api/orcamentos/clientes/consultar` — auxílio para achar o cliente no ERP.
  *
  * `busca` XOR `codigo_cliente_erp`, mais `pagina` opcional. O backend apara as bordas do termo
@@ -299,6 +322,7 @@ export async function obterOrcamento(operacaoId) {
 }
 
 export default {
+  consultarStatusErp,
   consultarProdutosOrcamento,
   consultarClientesOrcamento,
   prepararOrcamento,

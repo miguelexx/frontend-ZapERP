@@ -18,7 +18,31 @@
  * cegas. Agora aparece no card — impresso COMO VEIO (nada de recalcular ou reformatar), com
  * ausência virando "—" e com a procedência dita em voz alta: cópia nunca é chamada de "atual".
  *
- * Produto inativo é avisado: o contrato permite que a consulta por identificador devolva um.
+ * Produto inativo é avisado COM A CONSEQUÊNCIA: o contrato permite que a consulta por
+ * identificador devolva um, e a preparação depois o recusa com `PRODUTO_INATIVO` e o índice do
+ * item. Dizer isso aqui é o que evita montar o orçamento inteiro para tomar o erro no Calcular.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * "352,5 EM ESTOQUE" DE QUANDO?
+ * ────────────────────────────────────────────────────────────────────────────
+ * `meta.fonte: 'tempo_real'` diz que a CONSULTA foi ao vivo. Não diz que o número é de agora —
+ * e a tela deixava as duas coisas parecerem a mesma. Medido no ERP real em 26/10/2026, em 36
+ * produtos: a idade de `estoque_sincronizado_em` vinha em dois regimes, **0,2–2,5 h** ou **86,6
+ * h (3,6 dias)**, com mediana de 86,6 h. Quem promete prazo de entrega ao cliente decide em cima
+ * desse número, e as duas situações apareciam idênticas.
+ *
+ * Então o card diz a idade do saldo, em linguagem de gente ("agora", "há 3 dias"), calada até
+ * 24 h e em âmbar a partir daí (`idadeDoSaldo`). Três detalhes a tornam verdadeira:
+ *   · ela ANDA — o instante de referência vem de `useRelogioDeIdade`, porque o saldo é buscado
+ *     uma vez e o relógio não para enquanto o drawer fica aberto;
+ *   · ela acompanha o NÚMERO que está na tela: saldo e carimbo são lidos da mesma origem (o
+ *     produto resolvido, ou a consulta do "ver preço"), nunca um de cada lado;
+ *   · `sincronizado_em` é OUTRO carimbo — o do cadastro (descrição, preço, grupo) — e não entra
+ *     aqui. Datar o saldo com a data do cadastro seria uma data certa sobre o número errado.
+ *
+ * Saldo NEGATIVO não é "sem estoque": medido na mesma amostra, 8 produtos vinham negativos
+ * (`-908`, `-3943,5`) e 13 zerados. Zero é "acabou"; negativo é o inventário da loja errado. Os
+ * dois diziam a mesma frase, e agora não (ver `textoEstoque` e `estoqueNegativo`).
  *
  * ────────────────────────────────────────────────────────────────────────────
  * "VER PREÇO": UMA CHAMADA, E SÓ A PEDIDO
@@ -104,10 +128,16 @@ import { Plus } from "lucide-react";
 import { consultarProdutosOrcamento, extrairErroOrcamento } from "../../api/wmOrcamentosService";
 import {
   classeEstoque,
+  estoqueNegativo,
   formatMoedaOrcamento,
+  idadeDoSaldo,
+  precoNaoCadastrado,
   rotuloGrupoProduto,
   textoEstoque,
   textoOuSemValor,
+  ETIQUETA_PRECO_NAO_CADASTRADO,
+  TITULO_PRECO_NAO_CADASTRADO,
+  TITULO_SALDO_NEGATIVO,
 } from "./orcamentoFormat";
 import {
   ESTADO_PRECO,
@@ -117,12 +147,14 @@ import {
   valoresDaRespostaPorCodigo,
 } from "./precoItemCache";
 import { lerProdutosFrequentes, registrarProdutoUsado } from "./produtosFrequentes";
+import useRelogioDeIdade from "./useRelogioDeIdade";
 import {
   agruparCandidatosProduto,
   fatiarDestaque,
   mensagemBuscaSemResultado,
   mensagemResgateBusca,
   rotuloFonte,
+  termoCasaNoTexto,
   termoDeResgate,
   tituloCandidatosRuido,
 } from "./orcamentoViewModel";
@@ -437,7 +469,13 @@ export default function ProdutoPicker({
       const geracao = detalhesGeracaoRef.current;
       anotarDetalhe(
         codigo,
-        { estado: ESTADO_PRECO.CARREGANDO, valores: null, classificacao: null, meta: null },
+        {
+          estado: ESTADO_PRECO.CARREGANDO,
+          valores: null,
+          classificacao: null,
+          carimbos: null,
+          meta: null,
+        },
         geracao
       );
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -455,9 +493,18 @@ export default function ProdutoPicker({
                 estado: ESTADO_PRECO.OK,
                 valores: achado.valores,
                 classificacao: achado.classificacao,
+                // De quando é o saldo que acabou de chegar. Vem junto com ele, do mesmo
+                // produto, para a idade nunca datar o número de outra consulta.
+                carimbos: achado.carimbos,
                 meta: achado.meta,
               }
-            : { estado: ESTADO_PRECO.FALHOU, valores: null, classificacao: null, meta: null },
+            : {
+                estado: ESTADO_PRECO.FALHOU,
+                valores: null,
+                classificacao: null,
+                carimbos: null,
+                meta: null,
+              },
           geracao
         );
       } catch (err) {
@@ -466,7 +513,13 @@ export default function ProdutoPicker({
         if (cancelado) return;
         anotarDetalhe(
           codigo,
-          { estado: ESTADO_PRECO.FALHOU, valores: null, classificacao: null, meta: null },
+          {
+            estado: ESTADO_PRECO.FALHOU,
+            valores: null,
+            classificacao: null,
+            carimbos: null,
+            meta: null,
+          },
           geracao
         );
       } finally {
@@ -540,6 +593,33 @@ export default function ProdutoPicker({
   const podeEnter = !buscando && !disabled && grupos.lista.length > 0;
 
   /**
+   * Há carimbo de saldo em algum card da tela agora?
+   *
+   * É o que liga (e desliga) o relógio da idade. Card de lista não traz estoque — o preço é sob
+   * demanda, um toque por produto —, então na maior parte do tempo não há idade nenhuma nesta
+   * tela e um timer ligado seria um render por minuto no caminho da digitação.
+   */
+  const temCarimboNaTela = useMemo(() => {
+    for (const p of grupos.lista) {
+      if (valorPresente(p?.estoque_previsto) && p?.estoque_sincronizado_em) return true;
+    }
+    for (const entrada of Object.values(detalhes)) {
+      if (entrada?.estado === ESTADO_PRECO.OK && entrada.carimbos?.estoque_sincronizado_em) {
+        return true;
+      }
+    }
+    return false;
+  }, [grupos, detalhes]);
+
+  /**
+   * O instante contra o qual a idade do saldo é lida — e ele ANDA (ver `useRelogioDeIdade`).
+   *
+   * O saldo é buscado uma vez; a idade dele, não. Com o drawer aberto durante a conversa,
+   * "atualizado há 40 min" congelado no instante do toque seria falso meia hora depois.
+   */
+  const agora = useRelogioDeIdade(temCarimboNaTela);
+
+  /**
    * Procedência dos VALORES na tela, e ela vale pela mais fraca.
    *
    * Dois caminhos trazem valor para cá: o produto resolvido da própria busca e cada "ver preço".
@@ -601,18 +681,35 @@ export default function ProdutoPicker({
     // O valor do próprio produto manda; o do "ver preço" preenche o que faltava. Nunca o
     // contrário, e nunca o valor de outro código.
     const preco = valorPresente(p.preco_unitario) ? p.preco_unitario : valores?.preco_unitario;
-    const estoque = valorPresente(p.estoque_previsto)
-      ? p.estoque_previsto
-      : valores?.estoque_previsto;
+    // O SALDO E O CARIMBO DELE ANDAM JUNTOS, de propósito: a idade tem de descrever o número
+    // que está na tela. Separar as duas leituras deixaria o estoque vir do produto e a data da
+    // consulta (ou o contrário) — uma data verdadeira sobre o número errado.
+    const estoqueDoProduto = valorPresente(p.estoque_previsto);
+    const estoque = estoqueDoProduto ? p.estoque_previsto : valores?.estoque_previsto;
+    const carimboDoSaldo = estoqueDoProduto
+      ? p.estoque_sincronizado_em
+      : detalhe?.carimbos?.estoque_sincronizado_em;
     const inativo = p.ativo === false || valores?.ativo === false;
     const grupo = rotuloGrupoProduto(p) || rotuloGrupoProduto(detalhe?.classificacao);
     const unidade = p.unidade || valores?.unidade || "";
+    // Código do fabricante: o número impresso na caixa do fornecedor. Medido no ERP real em
+    // 26/10, vem preenchido em 3 de 36 produtos — então é sinal, não ruído, e aparece só quando
+    // existe. É por ele que se confere "é este mesmo?" contra a embalagem na prateleira.
+    const fabricante =
+      typeof p.codigo_fabricante === "string" && p.codigo_fabricante.trim()
+        ? p.codigo_fabricante.trim()
+        : "";
 
     const temPreco = valorPresente(preco);
+    // Valor irrisório/nulo que a WM manda para produto sem preço no Icthus: é estado, não valor.
+    const semPreco = temPreco && precoNaoCadastrado(preco);
     const carregando = detalhe?.estado === ESTADO_PRECO.CARREGANDO;
     const falhou = detalhe?.estado === ESTADO_PRECO.FALHOU;
     const oferecerPreco = !temPreco && !carregando;
     const estoqueTexto = textoEstoque(estoque, unidade);
+    // Idade só onde há número para datar: idade solta não descreve nada, e carimbo ausente
+    // (`null` da WM) não vira "atualizado agora" — vira nada.
+    const idade = estoqueTexto ? idadeDoSaldo(carimboDoSaldo, agora) : null;
 
     // Marca e unidade podem faltar; o código nunca falta (candidato sem código não entra na
     // lista). Ausência de marca não vira texto: ela já se lê pela ausência.
@@ -620,7 +717,25 @@ export default function ProdutoPicker({
     // A marca sai do texto corrido para poder receber destaque: a WM casa descrição E marca,
     // então um item pode estar na lista por causa dela — e "MAHLE" aceso aqui é o que explica
     // uma descrição onde o termo não aparece em lugar nenhum.
-    const secundaria = [unidade, `Cód. ${codigo}`].filter(Boolean).join(" · ");
+    const secundaria = [unidade, `Cód. ${codigo}`, fabricante ? `Fab. ${fabricante}` : ""]
+      .filter(Boolean)
+      .join(" · ");
+
+    /*
+      O CÓDIGO DE BARRAS SÓ APARECE QUANDO FOI ELE QUE ACHOU O PRODUTO.
+
+      O campo de busca convida a bipar ou colar o código ("bipe/cole o código de barras"), e
+      isso funciona de verdade: medido no ERP real em 26/10, `2500209000002` resolve direto no
+      produto `0000209`. O que a atendente via depois do bipe era "PISO (((PROMOÇÃO)))" — uma
+      descrição onde os dígitos que ela acabou de passar não aparecem em lugar nenhum, sem nada
+      ligando as duas coisas.
+
+      Então ele entra no card exatamente nesse caso, com o trecho casado aceso como em qualquer
+      outro campo. Nos outros trinta cards fica fora: todo produto do catálogo tem código de
+      barras, e imprimi-lo sempre seria treze dígitos de ruído por linha.
+    */
+    const barras = typeof p.codigo_barras === "string" ? p.codigo_barras.trim() : "";
+    const barrasAchouOProduto = Boolean(barras) && termoCasaNoTexto(barras, casado);
 
     const aoAdicionar = () => {
       if (!disabled) adicionar(p, meta);
@@ -646,6 +761,15 @@ export default function ProdutoPicker({
                 <span className="wa-orc-skelValor" aria-hidden="true" />
                 <span className="wa-orc-srOnly">Consultando preço…</span>
               </>
+            ) : semPreco ? (
+              /*
+                O que a WM mandou aqui não é preço (ver `precoNaoCadastrado`). Mostrar
+                "R$ 0,01" nesta vaga seria oferecer um preço plausível — 5 de 24 produtos do
+                catálogo da loja vêm assim. A vaga do dinheiro diz o estado; nada de moeda.
+              */
+              <span className="wa-orc-semPreco" title={TITULO_PRECO_NAO_CADASTRADO}>
+                {ETIQUETA_PRECO_NAO_CADASTRADO}
+              </span>
             ) : temPreco ? (
               <strong className="wa-orc-candidato-preco">{formatMoedaOrcamento(preco)}</strong>
             ) : oferecerPreco ? (
@@ -679,6 +803,8 @@ export default function ProdutoPicker({
               </>
             ) : null}
             {secundaria}
+            {/* O código de barras, só quando foi ele que achou este produto (acima). */}
+            {barrasAchouOProduto ? <> · Barras {destacar(barras, casado)}</> : null}
             {/*
               Grupo e subgrupo NÃO vêm na lista — só na resposta resolvida. A etiqueta aparece
               quando o dado existe e some quando não, sem reservar buraco: numa loja de peças
@@ -688,11 +814,42 @@ export default function ProdutoPicker({
           </span>
           <span className="wa-orc-candidato-valor">
             {estoqueTexto ? (
-              <span className={classeEstoque(estoque)}>{estoqueTexto}</span>
+              <span
+                className={classeEstoque(estoque)}
+                title={estoqueNegativo(estoque) ? TITULO_SALDO_NEGATIVO : undefined}
+              >
+                {estoqueTexto}
+              </span>
             ) : null}
           </span>
+          {/*
+            Produto inativo DIZ A CONSEQUÊNCIA, e não só o estado. O contrato é explícito: a
+            preparação devolve `PRODUTO_INATIVO` com o índice do item, ou seja, o "Calcular" vai
+            recusar este produto. Avisar aqui — no instante em que ela está olhando o card — é o
+            que evita montar dez itens e tomar o erro com o cliente esperando.
+          */}
           {inativo ? (
-            <span className="wa-orc-candidato-inativo">Inativo no sistema da empresa</span>
+            <span className="wa-orc-candidato-inativo">
+              Inativo no sistema da empresa — o cálculo vai recusar este produto
+            </span>
+          ) : null}
+          {/*
+            A IDADE DO SALDO. Medido na base real em 26/10: mediana de 86,6 h (3,6 dias), com
+            alguns produtos em 0,1 h. As duas situações apareciam idênticas, e quem promete
+            entrega ao cliente decide em cima disso.
+
+            Calada até 24 h, âmbar a partir daí (`idadeDoSaldo`): saldo fresco não precisa de
+            alarde, e alarme em toda linha é alarme em nenhuma. Sem carimbo, nada é escrito.
+          */}
+          {idade ? (
+            <span
+              className={
+                idade.aviso ? "wa-orc-saldoIdade wa-orc-saldoIdade--aviso" : "wa-orc-saldoIdade"
+              }
+              title={idade.titulo || undefined}
+            >
+              {idade.texto}
+            </span>
           ) : null}
         </span>
         {/* O clique deste botão sobe para o card — ele é o mesmo gesto, com nome acessível. */}

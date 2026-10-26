@@ -37,6 +37,21 @@
  * `api/wmOrcamentosService.js`), então não há toast genérico competindo com o aviso daqui.
  *
  * ────────────────────────────────────────────────────────────────────────────
+ * "A LOJA ESTÁ NO AR?" — O AVISO QUE CHEGA ANTES DO TRABALHO PERDIDO
+ * ────────────────────────────────────────────────────────────────────────────
+ * As portas da WM caem SEPARADAMENTE: com o sincronizador da loja fora do ar, a busca de
+ * produto continua respondendo 200 (ela vem do acervo dentro da WM) enquanto cliente e
+ * `preparar` devolvem 503. O atendente montava dez itens, digitava o cliente e só descobria no
+ * Calcular que nada daquilo ia funcionar. `GET /erp/status` é consultado na abertura e o aviso
+ * aparece quando souber — ver `sondarErp` e `erpDisponibilidade.js` para o resto das regras.
+ *
+ * O "Calcular" **continua habilitado** com a loja fora do ar, e isso é escolha. O veredito tem
+ * até 30 s de cache no servidor, então ele pode estar velho justamente no instante bom: a loja
+ * voltou e o botão ainda estaria travado por uma informação vencida. Além disso é o Calcular que
+ * produz a verdade mais recente — e quando ele falha por queda, o drawer resonda. Desabilitar
+ * trocaria um aviso honesto por um impedimento que a tela não tem como garantir.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
  * O QUE ESTE DRAWER NÃO FAZ
  * ────────────────────────────────────────────────────────────────────────────
  * Não escuta Socket.IO (o MVP é request/response + leitura de estado após F5, por custo), não
@@ -69,14 +84,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TriangleAlert } from "lucide-react";
 import {
   consultarProdutosOrcamento,
+  consultarStatusErp,
   prepararOrcamento,
   confirmarOrcamento,
   extrairErroOrcamento,
 } from "../../api/wmOrcamentosService";
+import { avisoErpIndisponivel, erroSugereErpFora, lerStatusErp } from "./erpDisponibilidade";
 import {
   ESTADO_PRECO,
+  carimbosDoProduto,
   extrairValoresDoProduto,
   precisaConsultarPreco,
   produtoJaTemPreco,
@@ -250,6 +269,17 @@ export default function OrcamentoDrawer({
    */
   const precosRef = useRef({});
 
+  /**
+   * Veredito da sonda de disponibilidade do ERP — `{ alcancavel, motivo }` ou `null`.
+   *
+   * `null` é "não sabemos", e é o estado inicial E o estado depois de uma sonda que falhou. A
+   * tela desenha aviso só a partir de um veredito; silêncio é a resposta certa para o que não
+   * se sabe (ver `erpDisponibilidade.js`).
+   */
+  const [statusErp, setStatusErp] = useState(null);
+  const [verificandoErp, setVerificandoErp] = useState(false);
+  const statusAbortRef = useRef(null);
+
   const abortRef = useRef(null);
   const produtoFocusRef = useRef(null);
   /** Consultas de preço em voo, por código — abortadas ao fechar o drawer. */
@@ -295,6 +325,11 @@ export default function OrcamentoDrawer({
       } catch {
         /* ignore */
       }
+      try {
+        statusAbortRef.current?.abort();
+      } catch {
+        /* ignore */
+      }
       for (const controller of precoAbortsRef.current.values()) {
         try {
           controller?.abort();
@@ -306,6 +341,62 @@ export default function OrcamentoDrawer({
     },
     []
   );
+
+  /**
+   * "Dá para orçar agora?" — uma consulta, e ela NUNCA atrasa a abertura do drawer.
+   *
+   * ────────────────────────────────────────────────────────────────────────────
+   * POR QUE ISTO NÃO PODE BLOQUEAR A TELA
+   * ────────────────────────────────────────────────────────────────────────────
+   * Com a loja fora do ar a sonda leva ~2,5 s (medido em produção). Pôr um spinner na frente do
+   * drawer por isso seria cobrar de TODA abertura — inclusive das que vão dar certo — o preço do
+   * caso ruim, e numa tela que a atendente abre com o cliente esperando. Então o drawer abre na
+   * hora, a consulta corre ao lado, e o aviso aparece quando souber.
+   *
+   * ────────────────────────────────────────────────────────────────────────────
+   * QUANDO SE CONSULTA — E POR QUE NÃO EM LAÇO
+   * ────────────────────────────────────────────────────────────────────────────
+   * Na abertura; quando a pessoa pede ("Verificar de novo"); e quando o Calcular falha por um
+   * código que diz que a porta realtime caiu (`erroSugereErpFora`) — aí o veredito da tela
+   * acabou de ser desmentido pela realidade e insistir nele seria pior que não ter nenhum.
+   * Nada de `setInterval`: a sonda do backend já tem cache de 30 s e é coalescida, então um laço
+   * não traria notícia nova — só ruído e bateria.
+   *
+   * ────────────────────────────────────────────────────────────────────────────
+   * FALHAR AQUI É CALAR, NÃO ACUSAR
+   * ────────────────────────────────────────────────────────────────────────────
+   * Exceção, timeout, forma inesperada: o estado fica como estava. Na primeira consulta isso é
+   * `null` e a tela não desenha nada. Numa reconsulta, o veredito anterior permanece — ele veio
+   * de uma resposta de verdade, e uma chamada que não respondeu não é motivo para esquecê-lo.
+   * O que não se faz, em nenhum dos dois casos, é inventar "a loja está fora do ar" por causa
+   * de uma requisição nossa que não voltou.
+   */
+  const sondarErp = useCallback(async () => {
+    try {
+      statusAbortRef.current?.abort();
+    } catch {
+      /* ignore */
+    }
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    statusAbortRef.current = controller;
+    setVerificandoErp(true);
+    try {
+      const data = await consultarStatusErp({ signal: controller?.signal });
+      const lido = lerStatusErp(data);
+      if (lido) setStatusErp(lido);
+    } catch {
+      /* Silêncio deliberado: ver o parágrafo acima. */
+    } finally {
+      setVerificandoErp(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    void sondarErp();
+    // O veredito é da EMPRESA, não da conversa: trocar de conversa com o drawer aberto não
+    // muda se a loja está no ar, e resondar por isso só gastaria uma chamada.
+  }, [open, sondarErp]);
 
   /**
    * Preço do item que a atendente ACABOU de escolher — uma consulta, por código.
@@ -335,12 +426,26 @@ export default function OrcamentoDrawer({
       // Ramo resolvido: o preço já está na mão, com a procedência que veio com ele.
       if (produtoJaTemPreco(produto)) {
         const valores = extrairValoresDoProduto(produto);
-        if (valores) anotarPreco(codigo, { estado: ESTADO_PRECO.OK, valores, meta: meta ?? null });
+        // O carimbo do saldo viaja junto com o saldo: é ele que a linha do carrinho usa para
+        // dizer de quando é o número (ver `idadeDoSaldo`). Do MESMO produto, nunca de outro.
+        if (valores) {
+          anotarPreco(codigo, {
+            estado: ESTADO_PRECO.OK,
+            valores,
+            carimbos: carimbosDoProduto(produto),
+            meta: meta ?? null,
+          });
+        }
         return;
       }
 
       if (!precisaConsultarPreco(precosRef.current, produto)) return;
-      anotarPreco(codigo, { estado: ESTADO_PRECO.CARREGANDO, valores: null, meta: null });
+      anotarPreco(codigo, {
+        estado: ESTADO_PRECO.CARREGANDO,
+        valores: null,
+        carimbos: null,
+        meta: null,
+      });
 
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
       precoAbortsRef.current.set(codigo, controller);
@@ -353,14 +458,24 @@ export default function OrcamentoDrawer({
         anotarPreco(
           codigo,
           achado
-            ? { estado: ESTADO_PRECO.OK, valores: achado.valores, meta: achado.meta }
-            : { estado: ESTADO_PRECO.FALHOU, valores: null, meta: null }
+            ? {
+                estado: ESTADO_PRECO.OK,
+                valores: achado.valores,
+                carimbos: achado.carimbos,
+                meta: achado.meta,
+              }
+            : { estado: ESTADO_PRECO.FALHOU, valores: null, carimbos: null, meta: null }
         );
       } catch (err) {
         const { cancelado } = extrairErroOrcamento(err);
         // Cancelado é o drawer fechando: a entrada fica como está e morre com o cache.
         if (cancelado) return;
-        anotarPreco(codigo, { estado: ESTADO_PRECO.FALHOU, valores: null, meta: null });
+        anotarPreco(codigo, {
+          estado: ESTADO_PRECO.FALHOU,
+          valores: null,
+          carimbos: null,
+          meta: null,
+        });
       } finally {
         precoAbortsRef.current.delete(codigo);
       }
@@ -426,6 +541,13 @@ export default function OrcamentoDrawer({
       setErro(mensagem);
       if (campo) setAvisoCampo("Revise os dados informados e calcule de novo.");
       /*
+        O Calcular acabou de falhar por queda/demora da porta realtime. Seja o aviso ausente
+        (sonda disse "de pé" e a realidade discordou) ou presente e velho, é o momento em que
+        resondar vale: uma chamada, por um fato que acabou de acontecer na tela. Não é retry do
+        orçamento — nada do cálculo é refeito aqui.
+      */
+      if (erroSugereErpFora(codigo)) void sondarErp();
+      /*
         Duas dicas de cliente, e o que decide entre elas é o que a pessoa fez:
 
         · digitou o nome e não achou → quase sempre é o PREFIXO (a WM casa cliente pelo começo
@@ -444,7 +566,7 @@ export default function OrcamentoDrawer({
     } finally {
       setCalculando(false);
     }
-  }, [companyId, userId, patch]);
+  }, [companyId, userId, patch, sondarErp]);
 
   const calcular = useCallback(() => {
     const montado = montarBodyPreparar({ rascunho, conversaId });
@@ -605,6 +727,18 @@ export default function OrcamentoDrawer({
     return preparacao.assinatura !== assinaturaDoRascunho(rascunho);
   }, [preparacao, rascunho]);
 
+  const avisoErp = useMemo(() => avisoErpIndisponivel(statusErp), [statusErp]);
+
+  /**
+   * O aviso aparece onde o trabalho é MONTADO, e só ali.
+   *
+   * Nas etapas de prévia, resultado e incerto ele não acrescenta nada e tira espaço do que
+   * importa: quem chegou à prévia já calculou (a loja respondeu), e quem está no resultado já
+   * criou. O aviso existe para chegar ANTES do trabalho perdido — depois dele é só ruído.
+   */
+  const mostrarAvisoErp =
+    Boolean(avisoErp) && carregado && (etapa === ETAPA.FORM || etapa === ETAPA.AMBIGUIDADE);
+
   const descricaoItemAmbiguo = useMemo(() => {
     if (ambiguidade?.status !== STATUS_AMBIGUIDADE.PRODUTO) return "";
     const idx = ambiguidade?.indice_item;
@@ -634,6 +768,41 @@ export default function OrcamentoDrawer({
             ✕
           </button>
         </div>
+
+        {/*
+          Faixa de indisponibilidade do ERP. Fica FORA do corpo rolável, logo abaixo do
+          cabeçalho: dentro do scroll ela sairia de vista depois de dois produtos adicionados, e
+          é justamente a pessoa que está montando a cesta que precisa continuar vendo o aviso.
+
+          `role="status"` (e não `alert`): a notícia chega sozinha, segundos depois da abertura, e
+          interromper quem está digitando o nome do cliente com um anúncio assertivo atrapalharia
+          a tarefa que o próprio aviso diz que ainda pode ser feita.
+        */}
+        {mostrarAvisoErp ? (
+          <div className="wa-orc-erpAviso" role="status">
+            <TriangleAlert className="wa-orc-erpAviso-icone" size={18} strokeWidth={2.25} aria-hidden="true" />
+            <div className="wa-orc-erpAviso-texto">
+              <strong className="wa-orc-erpAviso-titulo">{avisoErp.titulo}</strong>
+              <span>{avisoErp.explicacao}</span>
+              <span className="wa-orc-erpAviso-acao">{avisoErp.recuperacao}</span>
+            </div>
+            {/*
+              Sem botão quando resondar não pode mudar nada (`nao_configurado`): até alguém
+              configurar a integração, o veredito é o mesmo, e um botão que só gira ensina a
+              atendente a não confiar nos botões desta tela.
+            */}
+            {avisoErp.oferecerVerificar ? (
+              <button
+                type="button"
+                className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-erpAviso-btn"
+                disabled={verificandoErp}
+                onClick={() => void sondarErp()}
+              >
+                {verificandoErp ? "Verificando…" : "Verificar de novo"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {!carregado ? (
           <div className="wa-orc-body">

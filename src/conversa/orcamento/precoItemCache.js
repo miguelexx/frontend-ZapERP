@@ -102,13 +102,40 @@ export function classificacaoDoProduto(produto) {
 }
 
 /**
+ * Os CARIMBOS DE TEMPO do produto — de quando é o número que a tela vai mostrar.
+ *
+ * Separados de `CAMPOS_VALOR` pela mesma razão de `classificacaoDoProduto`: eles não são valor.
+ * Nada aqui viaja para a criação, nada entra em conta nenhuma; são a procedência no tempo do
+ * `estoque_previsto` que vem ao lado.
+ *
+ * São DOIS, e não são intercambiáveis (o backend os projeta separados de propósito):
+ *   · `estoque_sincronizado_em` — quando a WM sincronizou o SALDO. É o que a tela diz, porque é
+ *     o saldo que ela mostra, e é por ele que alguém promete entrega.
+ *   · `sincronizado_em` — quando sincronizou o CADASTRO (descrição, preço, grupo). Outro
+ *     carimbo, outra afirmação. Atravessa para quem precisar, e a tela não o mistura com o
+ *     primeiro: dizer a idade do cadastro ao lado do saldo seria datar o número errado.
+ *
+ * @returns {{estoque_sincronizado_em?: string, sincronizado_em?: string}|null} só o que existe
+ */
+export function carimbosDoProduto(produto) {
+  if (!produto || typeof produto !== "object") return null;
+  const out = {};
+  for (const campo of ["estoque_sincronizado_em", "sincronizado_em"]) {
+    const v = produto[campo];
+    if (typeof v === "string" && v.trim()) out[campo] = v.trim();
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
  * Lê a resposta de `POST /produtos/consultar` feita POR CÓDIGO.
  *
  * Só o ramo resolvido (`status: "produto"`) serve: é o único que traz preço, e é o que uma
  * consulta por identificador deve devolver. Qualquer outra forma é tratada como "não vieram
  * valores" — nunca como oportunidade de pescar um preço de dentro de uma lista.
  *
- * @returns {{ valores: object, classificacao: object|null, meta: object|null }|null}
+ * @returns {{ valores: object, classificacao: object|null, carimbos: object|null,
+ *             meta: object|null }|null}
  */
 export function valoresDaRespostaPorCodigo(data, codigoEsperado) {
   if (!data || typeof data !== "object") return null;
@@ -123,6 +150,7 @@ export function valoresDaRespostaPorCodigo(data, codigoEsperado) {
   return {
     valores,
     classificacao: classificacaoDoProduto(produto),
+    carimbos: carimbosDoProduto(produto),
     meta: data.meta && typeof data.meta === "object" ? data.meta : null,
   };
 }
@@ -174,6 +202,7 @@ export default {
   extrairValoresDoProduto,
   produtoJaTemPreco,
   classificacaoDoProduto,
+  carimbosDoProduto,
   valoresDaRespostaPorCodigo,
   precisaConsultarPreco,
   procedenciaDosValores,

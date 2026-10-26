@@ -43,6 +43,7 @@ import {
   formatQuantidadeOrcamento,
   textoOuSemValor,
   normalizarQuantidadeParaEnvio,
+  precoNaoCadastrado,
   SEM_VALOR,
 } from "./orcamentoFormat.js";
 
@@ -119,6 +120,94 @@ export function precoExatoTexto(valor) {
   if (!decimais || decimais.length <= 2) return null;
   const exato = formatQuantidadeOrcamento(valor);
   return exato === SEM_VALOR ? null : exato;
+}
+
+/* ------------------------------------------------------------------ *
+ * Itens sem preço cadastrado — o portão antes do cliente
+ * ------------------------------------------------------------------ *
+ * O limiar e a razão dele estão em `precoNaoCadastrado` (`orcamentoFormat.js`). Aqui é só a
+ * leitura do CONJUNTO: quantos itens do orçamento estão nesse estado e como se diz isso.
+ *
+ * Existe porque marcar linha por linha não fecha o buraco: a linha marcada está no meio de uma
+ * lista que o atendente rola, e o acidente acontece no fim — quando o resumo vai para o
+ * cliente. A frase do conjunto é o que não deixa passar em silêncio, e ela muda de momento:
+ * antes de CRIAR no ERP ainda dá para corrigir o cadastro; antes de ENVIAR, o estrago é um
+ * preço falso na mão do cliente.
+ * ------------------------------------------------------------------ */
+
+/** Quantos nomes entram na frase antes de ela virar parede de texto. */
+const MAX_NOMES_NO_AVISO = 3;
+
+/**
+ * Nomes dos itens cujo `preco_unitario` não é um preço (ver `precoNaoCadastrado`).
+ *
+ * Item sem descrição utilizável entra pelo código ERP: o atendente precisa saber QUAL linha
+ * conferir, e "—" não é identificação.
+ *
+ * @param {object|null|undefined} previa `preparacao.previa` (ou a prévia confirmada)
+ * @returns {string[]} vazio quando não há nenhum — e vazio significa "não desenhe aviso"
+ */
+export function itensSemPrecoCadastrado(previa) {
+  const itens = previa && typeof previa === "object" && Array.isArray(previa.itens) ? previa.itens : [];
+  const nomes = [];
+  for (const bruto of itens) {
+    const item = bruto && typeof bruto === "object" ? bruto : {};
+    if (!precoNaoCadastrado(item.preco_unitario)) continue;
+    const descricao = textoOuSemValor(item.descricao);
+    if (descricao !== SEM_VALOR) {
+      nomes.push(descricao);
+      continue;
+    }
+    const codigo = textoOuSemValor(item.codigo_produto_erp);
+    nomes.push(codigo === SEM_VALOR ? "item sem identificação" : `cód. ${codigo}`);
+  }
+  return nomes;
+}
+
+/** `["A","B","C","D"]` → `"A, B, C e mais 1"`. Lista curta é lida; lista longa é pulada. */
+function listarNomes(nomes) {
+  if (nomes.length <= MAX_NOMES_NO_AVISO) {
+    if (nomes.length === 1) return nomes[0];
+    return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
+  }
+  const restantes = nomes.length - MAX_NOMES_NO_AVISO;
+  return `${nomes.slice(0, MAX_NOMES_NO_AVISO).join(", ")} e mais ${restantes}`;
+}
+
+/**
+ * O aviso do conjunto, ou `null` quando todo item tem preço de verdade.
+ *
+ * `momento` decide a frase porque decide a consequência:
+ *   · `"previa"` — ainda dá para arrumar o cadastro no ERP e recalcular;
+ *   · `"envio"` — o próximo passo é o texto ir para o cliente, e é dele que a frase fala.
+ *
+ * O aviso nunca diz o valor. Repetir "R$ 0,01" numa frase que explica que aquilo não é preço
+ * seria reinstalar exatamente a leitura que o aviso existe para desfazer.
+ *
+ * @param {object|null|undefined} previa prévia com os itens
+ * @param {{momento?: "previa"|"envio"}} [opcoes]
+ * @returns {{ quantidade: number, nomes: string[], texto: string }|null}
+ */
+export function avisoItensSemPreco(previa, { momento = "previa" } = {}) {
+  const nomes = itensSemPrecoCadastrado(previa);
+  if (!nomes.length) return null;
+
+  const um = nomes.length === 1;
+  const sujeito = um
+    ? "Um item deste orçamento está"
+    : `${nomes.length} itens deste orçamento estão`;
+  const lista = listarNomes(nomes);
+
+  const texto =
+    momento === "envio"
+      ? `${sujeito} sem preço cadastrado no sistema da empresa (${lista}). ` +
+        `O valor ${um ? "dele" : "deles"} no resumo não é um preço de venda — tire ${um ? "essa linha" : "essas linhas"} ` +
+        "do texto antes de enviar, ou peça para cadastrarem o preço no ERP e faça o orçamento de novo."
+      : `${sujeito} sem preço cadastrado no sistema da empresa (${lista}). ` +
+        `O valor ${um ? "dele" : "deles"} não é um preço de venda — peça para cadastrarem ` +
+        "o preço no ERP e calcule de novo.";
+
+  return { quantidade: nomes.length, nomes, texto };
 }
 
 /* ------------------------------------------------------------------ *
@@ -259,6 +348,24 @@ export function fatiarDestaque(texto, termo, { maximo = 3 } = {}) {
   }
   if (cursor < origem.length) pedacos.push({ texto: origem.slice(cursor), destaque: false });
   return pedacos;
+}
+
+/**
+ * O termo pesquisado aparece dentro deste texto?
+ *
+ * Mesma régua de `fatiarDestaque` (sem acento, sem caixa, trecho em qualquer posição) — é a
+ * pergunta "este campo é o motivo de o produto ter aparecido?", respondida sem produzir pedaços.
+ *
+ * Existe para o CÓDIGO DE BARRAS. O campo de busca convida a bipar ou colar um código ("bipe/
+ * cole o código de barras"), e medido no ERP real em 26/10/2026 isso funciona: `2500209000002`
+ * resolve direto no produto `0000209`. Só que o card então mostrava uma descrição onde os
+ * dígitos não aparecem em lugar nenhum — "PISO (((PROMOÇÃO)))" para quem bipou uma etiqueta —
+ * e nada ligava uma coisa à outra. Com esta pergunta, o código de barras entra no card
+ * EXATAMENTE quando ele é a razão do resultado, e fica fora dos outros trinta cards, onde seria
+ * só mais um número para varrer.
+ */
+export function termoCasaNoTexto(texto, termo) {
+  return ocorrenciasDoTermo(texto, termo).length > 0;
 }
 
 /** Título do bloco de ruído. Diz o que aquilo é, em vez de deixar a pessoa adivinhar. */
@@ -750,6 +857,53 @@ function canonicoView(objeto, chaveCodigo) {
 }
 
 /* ------------------------------------------------------------------ *
+ * O desconto, quando é o ERP que o aplica
+ * ------------------------------------------------------------------ *
+ * A prévia traz, por item, `valor_total_bruto` (antes do desconto) e `valor_desconto_unit` (o
+ * desconto POR UNIDADE). Medido ao vivo na MARGRE em 26/10/2026, os dois vêm neutros:
+ * `valor_desconto_unit: "0.00"` e `valor_total_bruto` idêntico a `valor_total`. Hoje, portanto,
+ * esta função devolve `null` em toda linha e a tela fica exatamente como era.
+ *
+ * Mas quem decide isso é o ERP, não nós: tabela promocional e política por cliente existem no
+ * Icthus, e no dia em que uma delas entrar o atendente vai ver um preço mais baixo do que o do
+ * cadastro sem nada na tela dizendo de onde ele veio — e não vai conseguir explicar o número ao
+ * cliente que perguntar. O desconto aparece quando existir, e só quando existir.
+ *
+ * `null` e `"0.00"` são coisas diferentes, e a diferença é o que esta função protege:
+ *   · `null` é a WM não ter informado desconto nenhum. Não se afirma nada.
+ *   · `"0.00"` é a WM afirmando que o desconto é zero. Também não há o que mostrar — mas por
+ *     outro motivo, e um dia o campo pode virar `"1.50"` sem nada mais mudar na resposta.
+ * Nos dois casos a tela não desenha linha de desconto; o que nunca acontece é "Desconto R$ 0,00"
+ * ocupando espaço em toda linha de todo orçamento.
+ *
+ * Nenhuma conta: o desconto não é derivado de `bruto - total`, o bruto não é conferido contra o
+ * total e nada é somado. Os dois números são os da WM, impressos como vieram (§8.1).
+ * ------------------------------------------------------------------ */
+
+/**
+ * Desconto do ERP nesta linha, ou `null` quando não há desconto a mostrar.
+ *
+ * @param {object|null|undefined} item um `previa.itens[]`
+ * @returns {{ descontoUnit: string, valorBruto: string|null }|null}
+ */
+export function descontoDoItemPrevia(item) {
+  if (!item || typeof item !== "object") return null;
+  const bruta = item.valor_desconto_unit;
+  // Leitura numérica só para DECIDIR se há desconto — o que a tela imprime é a string da WM,
+  // passada por `formatMoedaOrcamento`. Mesma régua de `precoNaoCadastrado`.
+  const n = typeof bruta === "string" || typeof bruta === "number" ? Number(String(bruta).trim()) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const descontoUnit = formatMoedaOrcamento(bruta);
+  if (descontoUnit === SEM_VALOR) return null;
+  // O bruto entra só quando existe E difere do líquido: repetir o mesmo número duas vezes na
+  // mesma linha, um deles riscado, faria a tela parecer errada.
+  const bruto = formatMoedaOrcamento(item.valor_total_bruto);
+  const liquido = formatMoedaOrcamento(item.valor_total);
+  const valorBruto = bruto !== SEM_VALOR && bruto !== liquido ? bruto : null;
+  return { descontoUnit, valorBruto };
+}
+
+/* ------------------------------------------------------------------ *
  * Prévia
  * ------------------------------------------------------------------ */
 
@@ -784,9 +938,21 @@ export function montarPreviaView(previa) {
       quantidade: formatQuantidadeExibicao(item.quantidade, unidade),
       precoUnitario: formatMoedaOrcamento(item.preco_unitario),
       precoExato: precoExatoTexto(item.preco_unitario),
+      /*
+        O valor que a WM mandou não é um preço (ver `precoNaoCadastrado`). A linha diz isso no
+        lugar do dinheiro — "R$ 0,01" ali é um preço plausível e é assim que um orçamento sem
+        preço passa por conferido. O valor em si continua visível em `precoExato`, nos
+        detalhes, porque é ele que o ERP vai gravar e é por ele que o suporte vai procurar.
+      */
+      precoNaoCadastrado: precoNaoCadastrado(item.preco_unitario),
       valorTotal: formatMoedaOrcamento(item.valor_total),
       // Estoque previsto PODE SER NEGATIVO no contrato; é texto de exibição e não entra em conta.
       estoque: formatQuantidadeExibicao(item.estoque_previsto, unidade),
+      /*
+        Desconto do ERP nesta linha — `null` na esmagadora maioria dos casos (hoje, em todos:
+        a MARGRE manda `"0.00"`). Quando existir, é o que explica um preço abaixo do cadastro.
+      */
+      desconto: descontoDoItemPrevia(item),
     };
   });
 
@@ -799,6 +965,8 @@ export function montarPreviaView(previa) {
     valorTotal: formatMoedaOrcamento(previa.valor_total),
     bloqueio: textoBloqueio(previa.bloquear_apos_criar),
     fonte: rotuloFonte(previa.meta),
+    // Aviso do CONJUNTO, acima da lista: a linha marcada no meio de dez some na rolagem.
+    avisoSemPreco: avisoItensSemPreco(previa, { momento: "previa" }),
   };
 }
 
@@ -993,6 +1161,7 @@ export default {
   candidatoRelevante,
   separarCandidatosPorRelevancia,
   fatiarDestaque,
+  termoCasaNoTexto,
   tituloCandidatosRuido,
   termoDeResgate,
   mensagemResgateBusca,
@@ -1002,6 +1171,9 @@ export default {
   textoBloqueio,
   textoBloqueado,
   precoExatoTexto,
+  descontoDoItemPrevia,
+  itensSemPrecoCadastrado,
+  avisoItensSemPreco,
   montarPreviaView,
   montarResultadoView,
   montarResumoOrcamento,

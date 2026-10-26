@@ -1318,12 +1318,13 @@ function ConversaViewBody() {
     products: catalogProducts,
     loading: catalogLoading,
     error: catalogError,
-    sendingId: catalogSendingId,
+    sending: catalogSending,
+    sendProgress: catalogSendProgress,
     sendingCatalog,
     openCatalog,
     closeCatalog,
     reloadCatalog,
-    sendProduct: sendCatalogProduct,
+    sendProducts: sendCatalogProducts,
     sendCatalogLink,
   } = useSendCatalog({ conversaId, showToast, composerRef });
 
@@ -3489,11 +3490,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
               products={catalogProducts}
               loading={catalogLoading}
               error={catalogError}
-              sendingId={catalogSendingId}
+              sending={catalogSending}
+              sendProgress={catalogSendProgress}
               sendingCatalog={sendingCatalog}
               onClose={closeCatalog}
               onReload={reloadCatalog}
-              onSendProduct={sendCatalogProduct}
+              onSendProducts={sendCatalogProducts}
               onSendCatalogLink={sendCatalogLink}
             />
           </Suspense>

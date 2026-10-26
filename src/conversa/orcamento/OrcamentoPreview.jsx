@@ -52,7 +52,11 @@
 
 import { useMemo } from "react";
 import { montarPreviaView } from "./orcamentoViewModel";
-import { SEM_VALOR } from "./orcamentoFormat";
+import {
+  SEM_VALOR,
+  TEXTO_PRECO_NAO_CADASTRADO,
+  TITULO_PRECO_NAO_CADASTRADO,
+} from "./orcamentoFormat";
 
 function ItemPrevia({ item }) {
   return (
@@ -61,10 +65,57 @@ function ItemPrevia({ item }) {
         <span className="wa-orc-item-titulo">{item.descricao}</span>
         {/* A unidade já vem colada na quantidade (`formatQuantidadeExibicao`): "2 UN". */}
         <span className="wa-orc-item-meta">
-          {item.quantidade} × {item.precoUnitario}
+          {item.quantidade} ×{" "}
+          {item.precoNaoCadastrado ? (
+            /*
+              Produto sem preço no cadastro do ERP. A vaga do preço diz o estado em vez do
+              valor: "R$ 0,01" aqui é lido como preço e aprovado sem pestanejar — e esta é a
+              tela da APROVAÇÃO. O número exato continua nos detalhes, abaixo.
+            */
+            <span className="wa-orc-semPreco" title={TITULO_PRECO_NAO_CADASTRADO}>
+              {TEXTO_PRECO_NAO_CADASTRADO}
+            </span>
+          ) : (
+            item.precoUnitario
+          )}
         </span>
       </div>
-      <strong className="wa-orc-previaItem-valor">{item.valorTotal}</strong>
+      {/*
+        O total DA LINHA continua à vista mesmo quando o preço não é preço: ele é o número que a
+        WM calculou e que o ERP vai gravar, e escondê-lo tiraria da tela a consequência do
+        cadastro faltando (um "R$ 0,02" num item de areia é justamente o que faz a atendente
+        parar). O que muda é o peso: sem o preto forte, ele deixa de parecer um valor conferido
+        e passa a pertencer, visualmente, à linha que está marcada logo acima.
+      */}
+      <strong
+        className={
+          item.precoNaoCadastrado
+            ? "wa-orc-previaItem-valor wa-orc-previaItem-valor--semPreco"
+            : "wa-orc-previaItem-valor"
+        }
+      >
+        {item.valorTotal}
+      </strong>
+      {/*
+        DESCONTO DO ERP, quando existe. Hoje não existe: medido ao vivo na MARGRE em 26/10/2026,
+        `valor_desconto_unit` vem `"0.00"` em toda linha e `valor_total_bruto` é igual ao
+        `valor_total` — e nesse caso esta linha simplesmente não é desenhada, nem como
+        "Desconto R$ 0,00".
+
+        Quando o ERP aplicar um (tabela promocional, política por cliente), o atendente precisa
+        ver de onde veio o preço: sem isto, um desconto real apareceria só como um total menor
+        que o do cadastro, e ele não teria como explicar o número ao cliente que perguntasse. O
+        valor cheio vem riscado porque é o que o desconto substituiu — e os dois são números da
+        WM, nada é subtraído aqui (`descontoDoItemPrevia`).
+      */}
+      {item.desconto ? (
+        <span className="wa-orc-item-desconto">
+          {item.desconto.valorBruto ? (
+            <s className="wa-orc-item-descontoDe">{item.desconto.valorBruto}</s>
+          ) : null}
+          Desconto do sistema: {item.desconto.descontoUnit} por {item.unidade || "unidade"}
+        </span>
+      ) : null}
       <div className="wa-orc-previaItem-detalhes">
         <span className="wa-orc-item-codigo">Cód. ERP {item.codigo}</span>
         {item.precoExato ? (
@@ -141,6 +192,18 @@ export default function OrcamentoPreview({
               Os dados do orçamento mudaram depois deste cálculo. Calcule de novo para ver os
               valores certos antes de criar.
             </span>
+          </div>
+        ) : null}
+
+        {/*
+          Itens sem preço cadastrado no ERP, ditos no CONJUNTO. A marcação por linha vive dentro
+          de uma lista que se rola; esta frase é o que não deixa o orçamento ser aprovado sem
+          alguém ter visto. Vem depois de "prévia desatualizada" de propósito: aquele aviso
+          invalida a tela inteira, e este fala do conteúdo dela.
+        */}
+        {view.avisoSemPreco ? (
+          <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
+            <span>{view.avisoSemPreco.texto}</span>
           </div>
         ) : null}
 

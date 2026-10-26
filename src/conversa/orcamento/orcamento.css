@@ -31,6 +31,14 @@
   --orc-gap-3: 16px;
 
   /*
+    Recuo lateral do painel, num token só. Ele existe porque a faixa de indisponibilidade do ERP
+    precisa ir de BORDA A BORDA (ela é moldura, não conteúdo) e para isso tem de desfazer
+    exatamente este recuo — que muda no celular. Com o número solto em dois lugares, a faixa
+    estourava 4px para fora do painel na media query.
+  */
+  --orc-inset: var(--orc-gap-3);
+
+  /*
     Raio vindo da ESCALA do projeto (`--ds-radius-*`), não de números soltos.
     O drawer tinha quatro linguagens de raio brigando na mesma tela: campo em cápsula (herdada
     do composer, que é um campo de CHAT), card em 10px, "ver preço" em cápsula e o "+" redondo.
@@ -105,7 +113,7 @@
   box-shadow: -24px 0 60px -28px rgba(8, 26, 43, 0.45);
   display: flex;
   flex-direction: column;
-  padding: 0 var(--orc-gap-3);
+  padding: 0 var(--orc-inset);
   min-height: 0;
   /*
     Uma entrada só, e é a do painel: ele desliza da borda de onde nasce, com a curva de saída
@@ -369,6 +377,87 @@
   color: var(--orc-aviso);
 }
 
+/*
+  ---- "A loja está no ar?" — a faixa de indisponibilidade do ERP ----
+
+  Mora IRMÃ do corpo rolável, logo abaixo do cabeçalho, pelo mesmo motivo que o rodapé:
+  dentro do scroll ela sairia de vista depois de dois produtos adicionados, e quem precisa
+  continuar vendo o aviso é justamente quem está montando a cesta.
+
+  Ela não é um `.wa-orc-alert`: aquele é um bloco DENTRO do conteúdo, com raio e margem, e este
+  é uma faixa de borda a borda que pertence à moldura do painel — mesma gramática do
+  `.wa-orcDrawer-head` acima dela, com o mesmo fio de 1px fechando embaixo. Sem raio e sem
+  sombra de propósito: um cartão flutuante aqui competiria com o painel em vez de fazer parte
+  dele.
+
+  ⚠️ Ela aparece de forma ASSÍNCRONA (a sonda leva até 2,5 s), então empurra o conteúdo do
+  corpo para baixo quando chega. É o preço aceito para não bloquear a abertura do drawer — e o
+  empurrão acontece no primeiro instante, antes de a pessoa ter alvo mirado. Reservar altura
+  permanente para um aviso que quase nunca aparece seria pior: tiraria linha útil da lista em
+  todas as aberturas boas para servir às poucas ruins.
+*/
+.wa-orc-erpAviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--orc-gap-1) var(--orc-gap-2);
+  /*
+    De borda a borda, e encostada no fio do cabeçalho: a margem negativa de cima CANCELA o
+    `margin-bottom` do `.wa-orcDrawer-head`, e as laterais desfazem o `--orc-inset` do painel.
+    Sem isso a faixa flutuaria num vão de 16px e leria como um cartão de aviso sobre um campo,
+    quando o que ela descreve é a condição da tela inteira.
+  */
+  margin: calc(-1 * var(--orc-gap-3)) calc(-1 * var(--orc-inset)) var(--orc-gap-3);
+  padding: var(--orc-gap-2) var(--orc-inset);
+  border-bottom: 1px solid var(--wa-panel-border);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
+  color: var(--orc-aviso);
+}
+
+/* Alinhado à PRIMEIRA linha do texto, não ao centro do bloco inteiro. */
+.wa-orc-erpAviso-icone {
+  flex: none;
+  margin-top: 1px;
+}
+
+.wa-orc-erpAviso-texto {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.wa-orc-erpAviso-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* A linha que diz O QUE FAZER. Um passo de peso acima da explicação, e nada além disso. */
+.wa-orc-erpAviso-acao {
+  font-weight: 500;
+}
+
+/*
+  O botão herda `.wa-btn-ghost`, que foi desenhado para fundo de painel — sobre o tingido âmbar
+  a borda dele desaparece. Então a borda e o texto saem do próprio âmbar: o controle continua
+  secundário (nada de botão cheio num aviso), mas visível na superfície onde está.
+*/
+.wa-orc-erpAviso-btn {
+  flex: none;
+  align-self: center;
+  border: 1px solid color-mix(in srgb, var(--orc-aviso) 42%, transparent);
+  color: var(--orc-aviso);
+}
+
+.wa-orc-erpAviso-btn:hover:not(:disabled) {
+  border-color: var(--orc-aviso);
+  background: color-mix(in srgb, var(--orc-aviso) 10%, transparent);
+}
+
 /* ---- Candidatos (produto, cliente, vendedor) ---- */
 
 .wa-orc-resultados {
@@ -547,7 +636,8 @@
   vira uma faixa: medido na tela.
 */
 .wa-orc-candidatoCard > .wa-orc-candidato-corpo > .wa-orc-candidato-tag,
-.wa-orc-candidatoCard > .wa-orc-candidato-corpo > .wa-orc-candidato-inativo {
+.wa-orc-candidatoCard > .wa-orc-candidato-corpo > .wa-orc-candidato-inativo,
+.wa-orc-candidatoCard > .wa-orc-candidato-corpo > .wa-orc-saldoIdade {
   grid-column: 1 / -1;
   justify-self: start;
 }
@@ -835,6 +925,32 @@
   }
 }
 
+/*
+  "Não cadastrado" / "Preço não cadastrado" — o que ocupa a vaga do dinheiro quando o valor que
+  a WM mandou não é um preço (`precoNaoCadastrado`, limiar documentado lá).
+
+  Precisa ser lido como ESTADO e não como valor, então tudo nele é o oposto do preço: peso
+  normal em vez de 600, âmbar em vez da cor do texto, caixa tingida em vez de número solto, e
+  sem `tabular-nums` — alinhar isto em coluna com os preços seria convidar o olho a comparar uma
+  frase com valores. A caixa é a mesma gramática do estoque e do "Inativo" que já existem aqui.
+
+  Nenhum `font-size` abaixo de 11px: é o piso desta folha para texto que precisa ser lido, e o
+  âmbar vem de `--orc-aviso`, que é a variante com contraste medido (5,6:1 no claro).
+*/
+.wa-orc-semPreco {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 6px;
+  border-radius: var(--orc-raio-controle);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
+  color: var(--orc-aviso);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: center;
+}
+
 .wa-orc-candidato-estoque {
   font-variant-numeric: tabular-nums;
 }
@@ -857,6 +973,57 @@
 .wa-orc-candidato-estoque--sem {
   color: var(--wa-text-muted);
   font-weight: 600;
+}
+
+/*
+  Saldo NEGATIVO — zero e negativo deixaram de dizer a mesma coisa (ver `textoEstoque`).
+
+  Medido no catálogo real em 26/10/2026: 8 de 36 produtos vinham negativos e 13 zerados, e as
+  duas faixas saíam em cinza com a frase "Sem estoque". Zero é "acabou"; negativo é o inventário
+  da loja errado, e o número não descreve a prateleira — é o caso que pede conferência antes de
+  prometer entrega, então sai do cinza e vai para o âmbar dos avisos desta folha.
+
+  Modificador, e não quarta faixa: a cor vem depois de `--sem` na cascata e o texto já mudou
+  ("Saldo -908 SC" × "Sem estoque"), então a cor nunca é o único sinal.
+*/
+.wa-orc-candidato-estoque--negativo {
+  color: var(--orc-aviso);
+}
+
+/*
+  A IDADE DO SALDO — "de quando é esse número".
+
+  Linha inteira abaixo dos valores, no card de busca e na linha do carrinho. Ocupa a largura toda
+  porque é uma frase, e frase não cabe na coluna de 104px dos valores (onde ela também brigaria
+  com os números alinhados em `tabular-nums`).
+
+  Calada por padrão: no caso bom — saldo de minutos — ela precisa ser verificável, não notada.
+  Sem caixa, sem borda, sem peso; 11px é o piso desta folha para texto que se lê.
+*/
+.wa-orc-saldoIdade {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--wa-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  Idade acima de 24 h (`IDADE_SALDO_AVISO_HORAS`): medido na base real, a MEDIANA era de 86,6 h.
+  Este é o caso em que alguém promete entrega em cima de um número de três dias atrás, então ele
+  ganha o âmbar e o peso dos outros avisos — e a mesma caixa tingida do "Não cadastrado" e do
+  "Inativo", que é a gramática de estado desta tela. A palavra continua dizendo tudo ("há 3
+  dias"), então quem não distingue a cor lê a mesma informação.
+*/
+.wa-orc-saldoIdade--aviso {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  justify-self: start;
+  padding: 1px 6px;
+  border-radius: var(--orc-raio-controle);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
+  color: var(--orc-aviso);
+  font-weight: 500;
 }
 
 /*
@@ -1430,6 +1597,42 @@
   white-space: nowrap;
 }
 
+/*
+  Total de uma linha cujo PREÇO não é preço. O número continua inteiro e no mesmo lugar — é o
+  que a WM calculou e o ERP vai gravar —, mas perde o peso de valor conferido e vai para o âmbar
+  da marcação logo acima, para os dois serem lidos como uma coisa só.
+*/
+.wa-orc-previaItem-valor--semPreco {
+  font-weight: 500;
+  color: var(--orc-aviso);
+}
+
+/*
+  DESCONTO DO ERP nesta linha. Hoje não aparece em lugar nenhum — a MARGRE manda
+  `valor_desconto_unit: "0.00"` e esta linha não é desenhada (ver `descontoDoItemPrevia`).
+
+  Quando aparecer, é explicação de preço, não aviso: o desconto é bom para o cliente e o que
+  estava faltando era a PROCEDÊNCIA do número. Por isso verde do saldo em vez do âmbar dos
+  problemas, e o valor cheio riscado ao lado, que é o que torna a frase conferível.
+*/
+.wa-orc-item-desconto {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--orc-saldo);
+  font-variant-numeric: tabular-nums;
+}
+
+/* O valor antes do desconto: riscado e calado — ele está ali para ser comparado, não lido. */
+.wa-orc-item-descontoDe {
+  color: var(--wa-text-muted);
+  text-decoration-thickness: 1px;
+}
+
 .wa-orc-previaItem-detalhes {
   grid-column: 1 / -1;
   display: flex;
@@ -1508,9 +1711,10 @@
 /* ---- Telas estreitas: o drawer ocupa a tela toda ---- */
 @media (max-width: 600px) {
   .wa-orcDrawer {
+    --orc-inset: 12px;
     width: 100vw;
     border-left: none;
-    padding: 12px 12px 0;
+    padding: 12px var(--orc-inset) 0;
     /* `dvh` acompanha a barra do navegador: com `100%` o rodapé some atrás dela no Safari. */
     height: 100dvh;
   }

@@ -44,13 +44,20 @@ import ClientePicker from "./ClientePicker";
 import ProdutoPicker from "./ProdutoPicker";
 import {
   classeEstoque,
+  estoqueNegativo,
   formatMoedaOrcamento,
+  idadeDoSaldo,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
+  precoNaoCadastrado,
   textoEstoque,
   textoOuSemValor,
+  TEXTO_PRECO_NAO_CADASTRADO,
+  TITULO_PRECO_NAO_CADASTRADO,
+  TITULO_SALDO_NEGATIVO,
 } from "./orcamentoFormat";
 import { ESTADO_PRECO, procedenciaDosValores, valorPresente } from "./precoItemCache";
+import useRelogioDeIdade from "./useRelogioDeIdade";
 import { rotuloFonte } from "./orcamentoViewModel";
 
 const MAX_ITENS = 50;
@@ -74,15 +81,19 @@ const MAX_ITENS = 50;
  * resolve preço no servidor para o orçamento inteiro. Nenhum valor é somado, derivado ou
  * herdado de outra linha.
  */
-function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco }) {
+function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco, agora }) {
   const q = normalizarQuantidadeParaEnvio(item.quantidade);
   const descricao = textoOuSemValor(item.descricao || item.busca);
   const valores = preco?.estado === ESTADO_PRECO.OK ? preco.valores : null;
   // A unidade do rascunho é a que sobrevive ao F5; a da consulta só preenche o que faltava.
   const unidade = item.unidade || valores?.unidade || "";
   const temPreco = valorPresente(valores?.preco_unitario);
+  const semPreco = temPreco && precoNaoCadastrado(valores.preco_unitario);
   // Mesma leitura do card de busca: o texto diz o número e a cor só reforça a faixa.
   const estoqueTexto = textoEstoque(valores?.estoque_previsto, unidade);
+  // E a mesma régua de idade: este é o MESMO saldo que o card mostrou, e ele continua
+  // envelhecendo enquanto o orçamento é montado. Sem carimbo, nada é escrito.
+  const idade = estoqueTexto ? idadeDoSaldo(preco?.carimbos?.estoque_sincronizado_em, agora) : null;
   const secundaria = [item.marca, item.codigo_produto_erp ? `Cód. ${item.codigo_produto_erp}` : ""]
     .filter(Boolean)
     .join(" · ");
@@ -106,16 +117,55 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco }
               </>
             ) : temPreco || estoqueTexto ? (
               <>
-                {temPreco ? (
+                {semPreco ? (
+                  /*
+                    Mesma régua do card de busca: valor irrisório da WM é "sem preço no
+                    cadastro", não um preço de um centavo. Aqui o item JÁ ESTÁ no orçamento, e é
+                    esta linha que o atendente relê antes de calcular.
+                  */
+                  <span className="wa-orc-semPreco" title={TITULO_PRECO_NAO_CADASTRADO}>
+                    {TEXTO_PRECO_NAO_CADASTRADO}
+                  </span>
+                ) : temPreco ? (
                   <strong className="wa-orc-item-preco">
                     {formatMoedaOrcamento(valores.preco_unitario)}
                   </strong>
                 ) : null}
                 {estoqueTexto ? (
-                  <span className={classeEstoque(valores.estoque_previsto)}>{estoqueTexto}</span>
+                  <span
+                    className={classeEstoque(valores.estoque_previsto)}
+                    title={
+                      estoqueNegativo(valores.estoque_previsto) ? TITULO_SALDO_NEGATIVO : undefined
+                    }
+                  >
+                    {estoqueTexto}
+                  </span>
                 ) : null}
+                {/*
+                  De quando é esse saldo. O item já está no orçamento e a atendente pode passar
+                  vários minutos montando o resto — a idade anda junto (`useRelogioDeIdade`).
+                */}
+                {idade ? (
+                  <span
+                    className={
+                      idade.aviso
+                        ? "wa-orc-saldoIdade wa-orc-saldoIdade--aviso"
+                        : "wa-orc-saldoIdade"
+                    }
+                    title={idade.titulo || undefined}
+                  >
+                    {idade.texto}
+                  </span>
+                ) : null}
+                {/*
+                  Inativo com a consequência: a preparação recusa este item com
+                  `PRODUTO_INATIVO` (contrato), então o "Calcular" não vai passar enquanto ele
+                  estiver aqui. "Inativo" sozinho deixava a atendente descobrir isso no erro.
+                */}
                 {valores?.ativo === false ? (
-                  <span className="wa-orc-candidato-inativo">Inativo</span>
+                  <span className="wa-orc-candidato-inativo">
+                    Inativo — o cálculo vai recusar
+                  </span>
                 ) : null}
               </>
             ) : null}
@@ -190,6 +240,17 @@ export default function OrcamentoForm({
   // Uma frase só de procedência para o carrinho inteiro, e ela vale pela linha mais fraca:
   // basta um valor de cópia para o conjunto não poder ser chamado de "consultado agora".
   const procedencia = rotuloFonte(procedenciaDosValores(precos));
+  /*
+    O relógio da idade do saldo, ligado só quando há carimbo em alguma linha.
+
+    A procedência acima fala de ONDE o valor veio; a idade fala de QUANDO ele foi tirado do ERP,
+    e é ela que muda a promessa de entrega. Montar um orçamento leva minutos, então o instante
+    de referência precisa andar — ver `useRelogioDeIdade`.
+  */
+  const temCarimbo = Object.values(precos || {}).some(
+    (p) => p?.estado === ESTADO_PRECO.OK && p.carimbos?.estoque_sincronizado_em
+  );
+  const agora = useRelogioDeIdade(temCarimbo);
 
   const adicionarProduto = useCallback(
     (produto, meta) => {
@@ -373,6 +434,7 @@ export default function OrcamentoForm({
                   onRemover={removerItem}
                   disabled={disabled}
                   preco={item.codigo_produto_erp ? precos?.[item.codigo_produto_erp] : null}
+                  agora={agora}
                 />
               ))}
             </ul>

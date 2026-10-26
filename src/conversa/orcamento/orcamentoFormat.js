@@ -157,6 +157,30 @@ export const PRECO_NAO_CADASTRADO_ATE = 0.01;
 export const TEXTO_PRECO_NAO_CADASTRADO = "Preço não cadastrado";
 
 /**
+ * A mesma coisa, curta, para a coluna de valores do card de busca.
+ *
+ * Duas strings porque a coluna tem 104px fixos e altura RESERVADA de 24px (ela existe para o
+ * card não se mexer quando o preço chega). "Preço não cadastrado" ali quebra em duas linhas e
+ * estoura os 24px — o card cresce 3px e a lista sobe sob o dedo de quem já estava mirando o
+ * card de baixo, que é exatamente o defeito que a altura reservada evita.
+ *
+ * Não é "Sem preço" nem "Preço ausente" de propósito: as duas se confundem com os outros dois
+ * estados que essa MESMA vaga já tem — "ver preço" (não consultado) e "tentar de novo" (a
+ * consulta falhou). "Não cadastrado" fala do cadastro do ERP, que é a diferença toda.
+ */
+export const ETIQUETA_PRECO_NAO_CADASTRADO = "Não cadastrado";
+
+/**
+ * A explicação longa, para `title` e para leitor de tela.
+ *
+ * Existe porque a etiqueta curta cabe na coluna de valores mas não explica a consequência, e
+ * "Preço não cadastrado" sozinho pode ser lido como defeito do ZapERP. O cadastro é no ERP da
+ * loja, e é lá que se resolve.
+ */
+export const TITULO_PRECO_NAO_CADASTRADO =
+  "Este produto não tem preço cadastrado no sistema da empresa. O valor que vem de lá não é um preço de venda.";
+
+/**
  * Este valor é "preço não cadastrado no ERP" em vez de preço?
  *
  * AUSÊNCIA NÃO ENTRA AQUI, e a diferença importa: `null`, `""` e texto fora do padrão são
@@ -182,6 +206,32 @@ export function precoNaoCadastrado(valor) {
  */
 export function estoqueSemSaldo(valor) {
   return nivelEstoque(valor) === NIVEL_ESTOQUE.SEM;
+}
+
+/**
+ * Saldo NEGATIVO — que não é a mesma coisa que estoque zerado.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * POR QUE ISTO TEM NOME PRÓPRIO
+ * ────────────────────────────────────────────────────────────────────────────
+ * Medido no catálogo real da Tijolar em 26/10/2026, numa amostra de 36 produtos resolvidos:
+ * **8 vinham com saldo negativo** (`-908.000`, `-3943.500`, `-170.000`) e **13 com zero**. Os
+ * dois casos são comuns, e eram apresentados pela mesma frase — "Sem estoque", com o número
+ * negativo entre parênteses.
+ *
+ * Mas eles não dizem a mesma coisa. Zero é "acabou": o ERP sabe que não tem. Negativo é o ERP
+ * tendo registrado mais saída do que entrada naquele item — ou seja, o INVENTÁRIO da loja está
+ * errado, e o número que a atendente está lendo não descreve a prateleira. Chamar `-3943,5` de
+ * "sem estoque" esconde justamente a parte que alguém precisa resolver.
+ *
+ * Não bloqueia nada, como o resto da faixa de estoque: o contrato permite vender nos dois casos
+ * e quem decide é o ERP. Isto só muda a PALAVRA e o peso.
+ *
+ * `false` para ausência, como `estoqueSemSaldo`: "não informado" não é "negativo".
+ */
+export function estoqueNegativo(valor) {
+  const n = numeroOuNull(valor);
+  return n !== null && n < 0;
 }
 
 /** Até quantas unidades o estoque ainda é "pouco". Acima disso, é folga. */
@@ -216,8 +266,18 @@ export function nivelEstoque(valor) {
  *
  * Quem não distingue verde de âmbar — e quem está com o celular no sol do balcão — continua
  * lendo a mesma informação, porque ela está no texto: "Sem estoque", "Estoque 3", "Estoque 120".
- * Estoque negativo mantém o número à vista entre parênteses: `-2,125` é informação do ERP sobre
- * uma venda já feita, e esconder isso atrás de "sem estoque" apagaria o que o número diz.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * ZERO E NEGATIVO NÃO DIZEM A MESMA COISA (e antes diziam)
+ * ────────────────────────────────────────────────────────────────────────────
+ * Até 26/10/2026 negativo saía como `Sem estoque (-908)`: a mesma frase do zero, com o número
+ * num aparte. Lido no balcão, "sem estoque" é "acabou" — e `-908` não é acabou, é o inventário
+ * da loja errado (ver `estoqueNegativo`). O aparte entre parênteses ainda é o número menos
+ * importante da frase que o contém.
+ *
+ * Agora são duas leituras diferentes: zero continua `Sem estoque`, e negativo vira
+ * `Saldo -908 SC` — a palavra muda, o número vem inteiro e sem aparte, e a classe o pinta de
+ * âmbar. Nenhuma das duas bloqueia venda; o ERP é que decide isso.
  *
  * O número passa por `formatQuantidadeExibicao`: estoque é quantidade, e `Estoque 13,000` num
  * saldo de treze unidades seria lido como treze mil (medido no catálogo real da empresa 20, que
@@ -231,9 +291,22 @@ export function textoEstoque(valor, unidade) {
   const nivel = nivelEstoque(valor);
   if (nivel === null) return "";
   if (nivel !== NIVEL_ESTOQUE.SEM) return `Estoque ${formatQuantidadeExibicao(valor, unidade)}`;
-  const n = numeroOuNull(valor);
-  return n < 0 ? `Sem estoque (${formatQuantidadeExibicao(valor, unidade)})` : "Sem estoque";
+  // O sinal já vem no número (`formatQuantidadeExibicao("-908.000")` → `-908`): a palavra "Saldo"
+  // existe para o negativo não ser lido como a contagem de uma prateleira.
+  if (estoqueNegativo(valor)) return `Saldo ${formatQuantidadeExibicao(valor, unidade)}`;
+  return "Sem estoque";
 }
+
+/**
+ * A explicação do saldo negativo, para `title` e leitor de tela.
+ *
+ * O card não tem espaço para dizer o que um saldo negativo significa, e "Saldo -908" sozinho
+ * pode ser lido como defeito do ZapERP. O defeito é de inventário, e é na loja que se resolve.
+ */
+export const TITULO_SALDO_NEGATIVO =
+  "O sistema da empresa registrou mais saída do que entrada neste produto, então o saldo dele " +
+  "ficou negativo. Não é o mesmo que estoque zerado: o número não descreve a prateleira. " +
+  "Confira o estoque antes de prometer entrega.";
 
 /**
  * A classe do estoque, num lugar só.
@@ -241,11 +314,116 @@ export function textoEstoque(valor, unidade) {
  * Mora aqui, e não em cada componente, porque card de busca, linha do carrinho e card de
  * ambiguidade mostram o MESMO número: três cópias da regra é como um deles acaba com a faixa
  * errada depois de um ajuste. Ausência devolve `""` — quem não tem valor não desenha nada.
+ *
+ * O negativo entra como MODIFICADOR de `--sem`, não como quarta faixa: `nivelEstoque` (e o
+ * `estoqueSemSaldo` que vive dele) responde "este saldo não vende sozinho?", e negativo
+ * continua respondendo sim. O que muda é a leitura na tela, então a diferença é de classe.
  */
 export function classeEstoque(valor) {
   const nivel = nivelEstoque(valor);
   if (nivel === null) return "";
-  return `wa-orc-candidato-estoque wa-orc-candidato-estoque--${nivel}`;
+  const base = `wa-orc-candidato-estoque wa-orc-candidato-estoque--${nivel}`;
+  return estoqueNegativo(valor) ? `${base} wa-orc-candidato-estoque--negativo` : base;
+}
+
+/* ------------------------------------------------------------------ *
+ * A IDADE DO SALDO — "352,5 em estoque" de quando?
+ * ------------------------------------------------------------------ *
+ * `meta.fonte: "tempo_real"` diz que a CONSULTA foi ao vivo. Não diz que o número é de agora, e
+ * a tela vinha deixando as duas coisas parecerem a mesma.
+ *
+ * Medido no ERP real da Tijolar em 26/10/2026, em 36 produtos resolvidos: a idade de
+ * `estoque_sincronizado_em` vinha em dois regimes, **0,2–2,5 h** ou **86,6 h (3,6 dias)**, com
+ * mediana de 86,6 h. São situações completamente diferentes para quem vai prometer entrega ao
+ * cliente — e apareciam idênticas, porque não apareciam.
+ *
+ * Duas coisas tornam isto correto em vez de decorativo:
+ *
+ *   · A IDADE ANDA. O valor foi buscado uma vez, o relógio não para, e o drawer fica aberto
+ *     enquanto a atendente conversa. Por isso `agora` é PARÂMETRO: quem exibe passa um instante
+ *     que avança (`useRelogioDeIdade`), e "há 50 min" vira "há 1 h" sozinho. Uma idade
+ *     congelada no instante da consulta seria uma segunda mentira em cima da primeira.
+ *
+ *   · SÃO DOIS CARIMBOS. `estoque_sincronizado_em` é do SALDO; `sincronizado_em` é do CADASTRO
+ *     (descrição, preço, grupo). Estas funções não sabem de qual deles se trata — recebem o ISO
+ *     que o chamador escolheu — e a tela só fala do saldo, porque é o saldo que ela mostra ao
+ *     lado. Usar um no lugar do outro afirmaria a idade errada sobre o número certo.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Daqui em diante a idade do saldo é AVISO, e não só informação.
+ *
+ * Vinte e quatro horas é o dia inteiro de movimento da loja: um saldo de ontem pode ter sido
+ * vendido hoje, e prometer entrega em cima dele é prometer o que ninguém conferiu. Abaixo disso
+ * a idade é dita, calada — alarme em tudo é alarme em nada.
+ */
+export const IDADE_SALDO_AVISO_HORAS = 24;
+
+const MS_MINUTO = 60 * 1000;
+const MS_HORA = 60 * MS_MINUTO;
+const MS_DIA = 24 * MS_HORA;
+
+/**
+ * Abaixo disto a idade é "agora".
+ *
+ * Noventa segundos, e não zero, por causa do relógio: o do servidor está 2–3 s adiantado em
+ * relação ao do navegador (medido na auditoria de 10/10), então um carimbo recém-emitido chega
+ * com idade NEGATIVA. Sem esta janela a tela diria "há -1 min" no caso mais favorável que
+ * existe, que é o dado fresquíssimo.
+ */
+const JANELA_AGORA_MS = 90 * 1000;
+
+/**
+ * Quanto tempo faz, em linguagem de gente: `"agora"`, `"há 12 min"`, `"há 3 h"`, `"há 3 dias"`.
+ *
+ * Arredonda para BAIXO, como se fala: 3,6 dias é "há 3 dias", não "há 4". Carimbo no futuro
+ * (relógio dessincronizado) cai em "agora" em vez de produzir idade negativa.
+ *
+ * @param {string|null|undefined} iso instante ISO-8601 vindo do backend
+ * @param {number} [agora] instante de referência em ms — PARÂMETRO porque o relógio anda
+ * @returns {string} vazio quando o carimbo não é uma data utilizável
+ */
+export function idadeLegivel(iso, agora = Date.now()) {
+  if (typeof iso !== "string") return "";
+  const t = Date.parse(iso.trim());
+  if (!Number.isFinite(t)) return "";
+  const base = typeof agora === "number" && Number.isFinite(agora) ? agora : Date.now();
+  const delta = base - t;
+  if (delta < JANELA_AGORA_MS) return "agora";
+  if (delta < MS_HORA) return `há ${Math.floor(delta / MS_MINUTO)} min`;
+  if (delta < MS_DIA) return `há ${Math.floor(delta / MS_HORA)} h`;
+  const dias = Math.floor(delta / MS_DIA);
+  return dias === 1 ? "há 1 dia" : `há ${dias} dias`;
+}
+
+/**
+ * A idade do SALDO, pronta para a tela — ou `null` quando não há carimbo.
+ *
+ * `null` é o caso em que não se escreve nada: a WM não mandou o carimbo (ou mandou algo que não
+ * é data), e inventar "atualizado agora" seria exatamente o defeito que esta linha existe para
+ * corrigir. Ausência de idade ≠ idade zero.
+ *
+ * @param {string|null|undefined} iso `estoque_sincronizado_em`
+ * @param {number} [agora] instante de referência em ms
+ * @returns {{ texto: string, idade: string, aviso: boolean, titulo: string }|null}
+ */
+export function idadeDoSaldo(iso, agora = Date.now()) {
+  const idade = idadeLegivel(iso, agora);
+  if (!idade) return null;
+  const t = Date.parse(String(iso).trim());
+  const base = typeof agora === "number" && Number.isFinite(agora) ? agora : Date.now();
+  const aviso = base - t >= IDADE_SALDO_AVISO_HORAS * MS_HORA;
+  return {
+    texto: `Saldo atualizado ${idade}`,
+    idade,
+    aviso,
+    // A consequência fica no título: o card diz a idade, e quem quiser saber o que fazer com
+    // ela tem a frase inteira. Só no caso que pede ação — "atualizado agora" não pede nenhuma.
+    titulo: aviso
+      ? `O sistema da empresa sincronizou este saldo ${idade}. Confira o estoque antes de ` +
+        "prometer entrega ao cliente."
+      : "",
+  };
 }
 
 /**
@@ -361,9 +539,16 @@ export default {
   formatQuantidadeOrcamento,
   formatQuantidadeExibicao,
   estoqueSemSaldo,
+  estoqueNegativo,
+  TITULO_SALDO_NEGATIVO,
+  idadeLegivel,
+  idadeDoSaldo,
+  IDADE_SALDO_AVISO_HORAS,
   precoNaoCadastrado,
   PRECO_NAO_CADASTRADO_ATE,
   TEXTO_PRECO_NAO_CADASTRADO,
+  ETIQUETA_PRECO_NAO_CADASTRADO,
+  TITULO_PRECO_NAO_CADASTRADO,
   nivelEstoque,
   textoEstoque,
   classeEstoque,

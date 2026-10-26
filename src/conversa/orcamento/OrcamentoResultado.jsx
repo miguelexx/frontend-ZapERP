@@ -43,7 +43,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { montarResultadoView, montarResumoOrcamento } from "./orcamentoViewModel";
+import {
+  avisoItensSemPreco,
+  montarResultadoView,
+  montarResumoOrcamento,
+} from "./orcamentoViewModel";
 import { SEM_VALOR } from "./orcamentoFormat";
 
 export default function OrcamentoResultado({
@@ -61,6 +65,16 @@ export default function OrcamentoResultado({
   // A prévia entra só para o resumo ganhar as linhas de item: o `200` da criação traz número,
   // cliente, vendedor e total, nunca os itens (§10). Sem ela o resumo cai para a forma curta.
   const resumo = useMemo(() => montarResumoOrcamento(resultado, { previa }), [resultado, previa]);
+  /*
+    Os itens só existem na prévia confirmada (§10 — o `200` da criação não os traz), então é
+    dela que sai o aviso. Sem prévia (depois de um F5, quando só há a operação lida do servidor)
+    não há item para examinar e o aviso simplesmente não aparece: calar é melhor que afirmar
+    sobre preço que esta tela não tem em mãos.
+  */
+  const avisoSemPreco = useMemo(
+    () => avisoItensSemPreco(previa, { momento: "envio" }),
+    [previa]
+  );
 
   const [copiado, setCopiado] = useState(false);
   const timerRef = useRef(null);
@@ -143,6 +157,18 @@ export default function OrcamentoResultado({
           {view.fonte ? <p className="wa-orc-origem">{view.fonte.texto}</p> : null}
 
           <h4 className="wa-orc-sectionTitle">Resumo para o cliente</h4>
+          {/*
+            ÚLTIMO PORTÃO. Daqui o texto vai para o campo de mensagem e, de lá, para o cliente —
+            e é só nesse ponto que um preço que não existe deixa de ser detalhe de tela e vira
+            um valor que o cliente leu. O aviso fica ACIMA do texto, para ser lido antes dele, e
+            fala do que acontece a seguir (tirar a linha, ou cadastrar o preço e refazer) em vez
+            de repetir a frase da prévia, que falava de corrigir antes de criar.
+          */}
+          {avisoSemPreco ? (
+            <div className="wa-orc-alert wa-orc-alert--aviso" role="alert">
+              <span>{avisoSemPreco.texto}</span>
+            </div>
+          ) : null}
           <pre className="wa-orc-resumoTexto">{resumo}</pre>
           {envioIndisponivel ? (
             <p className="wa-orc-hint wa-orc-hint--aviso">

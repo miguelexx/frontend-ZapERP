@@ -14,7 +14,8 @@ export function useSendCatalog({ conversaId, showToast, composerRef }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sendingId, setSendingId] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState(null); // { done, total } durante o envio em lote
   const [sendingCatalog, setSendingCatalog] = useState(false);
 
   const load = useCallback(async (signal) => {
@@ -48,32 +49,60 @@ export function useSendCatalog({ conversaId, showToast, composerRef }) {
   }, [composerRef, load]);
 
   const closeCatalog = useCallback(() => {
-    if (sendingId || sendingCatalog) return;
+    if (sending || sendingCatalog) return;
     setCatalogOpen(false);
-  }, [sendingId, sendingCatalog]);
+  }, [sending, sendingCatalog]);
 
-  const sendProduct = useCallback(async (product) => {
-    if (!product || sendingId) return;
-    setSendingId(product.id);
-    try {
-      await enviarProdutoConversa(conversaId, product);
+  // Envia 1..N produtos de forma sequencial (um cartão por produto), reutilizando o
+  // endpoint comprovado de produto único. Sequencial para não sobrecarregar a Whapi
+  // e preservar a ordem em que o atendente selecionou.
+  // onItemSent(product) é chamado após CADA produto entregue com sucesso, para que o
+  // modal remova esse item da seleção — assim um reenvio após falha parcial só manda
+  // de volta os que faltaram (não duplica os já enviados).
+  const sendProducts = useCallback(async (list, onItemSent) => {
+    const items = (Array.isArray(list) ? list : [list]).filter(Boolean);
+    if (items.length === 0 || sending) return;
+    setSending(true);
+    setSendProgress({ done: 0, total: items.length });
+    let enviados = 0;
+    let falhou = 0;
+    let ultimoErro = null;
+    for (let i = 0; i < items.length; i += 1) {
+      try {
+        await enviarProdutoConversa(conversaId, items[i]);
+        enviados += 1;
+        onItemSent?.(items[i]);
+      } catch (err) {
+        falhou += 1;
+        ultimoErro = err;
+      }
+      setSendProgress({ done: i + 1, total: items.length });
+    }
+    setSending(false);
+    setSendProgress(null);
+
+    if (falhou === 0) {
       showToast?.({
         type: "success",
-        title: "Produto enviado",
-        message: "O cartão do produto aparece na conversa quando o servidor confirmar.",
+        title: enviados > 1 ? `${enviados} produtos enviados` : "Produto enviado",
+        message: "Os cartões aparecem na conversa quando o servidor confirmar.",
       });
       setCatalogOpen(false);
-    } catch (err) {
-      const status = err?.response?.status;
+    } else if (enviados > 0) {
       showToast?.({
         type: "error",
-        title: status === 501 ? "Não disponível" : "Falha ao enviar produto",
-        message: err?.response?.data?.error || err?.message || "Não foi possível enviar o produto.",
+        title: "Envio parcial",
+        message: `${enviados} enviado(s), ${falhou} falhou(aram). Tente reenviar os que faltaram.`,
       });
-    } finally {
-      setSendingId(null);
+    } else {
+      const status = ultimoErro?.response?.status;
+      showToast?.({
+        type: "error",
+        title: status === 501 ? "Não disponível" : "Falha ao enviar",
+        message: ultimoErro?.response?.data?.error || ultimoErro?.message || "Não foi possível enviar os produtos.",
+      });
     }
-  }, [conversaId, sendingId, showToast]);
+  }, [conversaId, sending, showToast]);
 
   const sendCatalogLink = useCallback(async () => {
     if (sendingCatalog) return;
@@ -103,12 +132,13 @@ export function useSendCatalog({ conversaId, showToast, composerRef }) {
     products,
     loading,
     error,
-    sendingId,
+    sending,
+    sendProgress,
     sendingCatalog,
     openCatalog,
     closeCatalog,
     reloadCatalog: () => load(),
-    sendProduct,
+    sendProducts,
     sendCatalogLink,
   };
 }
