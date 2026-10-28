@@ -47,6 +47,14 @@ para o menu de anexos em qualquer largura (`ConversaView`). Cor e ponta (`::afte
 bolhas ficam **como estão**: a cor vive num gradiente e a ponta vem dos `--wa-bubble-*`;
 mexer só numa delas desencontra as duas.
 
+No telemóvel a barra inferior fica escondida (`transform: translateY(110%)`) e só sobe
+quando o atendente arrasta a pega do rodapé — gesto em `layouts/useBottomNavReveal.js`,
+classes `app-layout--navRetratil` / `is-navAberta` postas pelo `MainLayout`. Com conversa
+(ou thread do chat interno) aberta nada disto se aplica: o `app.css` já esconde a barra e
+zera o `padding-bottom` do `main-content`, inclusive com o teclado aberto. Os `:not(:has(…))`
+na regra do padding existem por causa disso — sem eles a pele vencia por especificidade e
+devolvia uma faixa branca acima do teclado.
+
 ## Componentes
 
 | Arquivo | Papel |

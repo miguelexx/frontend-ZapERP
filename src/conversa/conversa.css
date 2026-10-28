@@ -8161,6 +8161,111 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   animation: wa-menuFade 0.12s ease-out;
 }
 
+/* Menu de clique-direito (desktop, estilo WhatsApp Web): com barra de reações no topo */
+.wa-msgMenu--ctx {
+  padding: 7px;
+  border-radius: 14px;
+  box-shadow:
+    0 18px 48px rgba(15, 23, 42, 0.26),
+    0 2px 10px rgba(15, 23, 42, 0.12);
+  transform-origin: top left;
+  animation: wa-ctxMenuIn 0.13s cubic-bezier(0.22, 0.82, 0.22, 1);
+  will-change: transform, opacity;
+}
+
+[data-theme="dark"] .wa-msgMenu--ctx {
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@keyframes wa-ctxMenuIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Barra de reações dentro do menu desktop: pílula centralizada acima dos itens (estilo
+   WhatsApp Web). Cabe em uma linha no card (~268px) e quebra com elegância quando há o
+   botão "Remover reação". */
+.wa-msgMenu--ctx .wa-reactionPicker--menuMobile {
+  margin: 0 auto 4px;
+  max-width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  box-sizing: border-box;
+}
+
+.wa-msgMenu--ctx .wa-reactionPicker--menuMobile .wa-reactionPicker-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 18px;
+}
+
+.wa-msgMenu--ctx .wa-reactionPicker--menuMobile .wa-reactionPicker-more {
+  width: 26px;
+  height: 26px;
+  font-size: 20px;
+}
+
+.wa-msgMenu--ctx .wa-msgMenuSep {
+  margin: 4px 4px 6px;
+}
+
+/* Tema CLARO: pílula de reações clara, integrada ao card (como o WhatsApp Web claro) —
+   evita a pílula navy escura do bottom-sheet mobile pousada num menu branco. */
+.wa-msgMenu--ctx .wa-reactionPicker--menuMobile {
+  background: var(--ds-surface-1);
+  border: 1px solid var(--ds-border);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.wa-msgMenu--ctx .wa-reactionPicker-btn:hover:not(:disabled),
+.wa-msgMenu--ctx .wa-reactionPicker-btn:active:not(:disabled) {
+  background: var(--ds-hover);
+  transform: scale(1.12);
+}
+
+.wa-msgMenu--ctx .wa-reactionPicker-more {
+  background: var(--ds-hover);
+  color: var(--ds-text-secondary);
+}
+
+.wa-msgMenu--ctx .wa-reactionPicker-more:hover:not(:disabled),
+.wa-msgMenu--ctx .wa-reactionPicker-more:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-text-primary) 12%, transparent);
+}
+
+/* Tema ESCURO: mantém a pílula escura premium e os botões em branco. */
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker--menuMobile {
+  background: linear-gradient(180deg, rgba(44, 57, 65, 0.98), rgba(22, 34, 41, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker-btn:hover:not(:disabled),
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker-more {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker-more:hover:not(:disabled),
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker-more:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="dark"] .wa-msgMenu--ctx .wa-reactionPicker-remove {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .wa-msgMenu--sheet {
   left: 50% !important;
   right: auto !important;
@@ -8176,7 +8281,7 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   box-shadow:
     0 22px 62px rgba(0, 0, 0, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.055);
-  animation: wa-msgSheetIn 0.18s ease-out;
+  animation: wa-msgSheetIn 0.18s cubic-bezier(0.22, 0.82, 0.22, 1);
   /* max-height/bottom: definidos em JS (visualViewport + teclado iOS) */
   scroll-padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
   display: flex;
@@ -8185,16 +8290,46 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   min-height: 0;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform, opacity;
 }
 
 @keyframes wa-msgSheetIn {
   from {
-    opacity: 0.85;
-    transform: translateX(-50%) translateY(10px);
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px) scale(0.98);
   }
   to {
     opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* Saída suave (useMotionPresence mantém montado ~120ms ao fechar) */
+.wa-msgMenu[data-motion-state="closing"] {
+  animation: wa-menuFadeOut 0.12s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes wa-menuFadeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+.wa-msgMenu--sheet[data-motion-state="closing"] {
+  animation: wa-msgSheetOut 0.12s ease-in forwards;
+}
+
+@keyframes wa-msgSheetOut {
+  from {
+    opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
   }
 }
 
@@ -8206,9 +8341,14 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   font-weight: 480;
 }
 
-.wa-msgMenu--sheet .wa-msgMenuItem:hover,
-.wa-msgMenu--sheet .wa-msgMenuItem:active {
+.wa-msgMenu--sheet .wa-msgMenuItem:hover {
   background: rgba(255, 255, 255, 0.07);
+}
+
+/* Toque com retorno tátil (sem flash cinza do browser) */
+.wa-msgMenu--sheet .wa-msgMenuItem:active {
+  background: rgba(255, 255, 255, 0.11);
+  transform: scale(0.985);
 }
 
 .wa-msgMenuItem {
@@ -8222,8 +8362,10 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   color: var(--wa-text);
   font-size: 13px;
   line-height: 1.35;
-  transition: background .12s ease, color .12s ease;
+  transition: background .12s ease, color .12s ease, transform .12s ease;
   flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .wa-msgMenuItem:hover {
@@ -8260,7 +8402,9 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   animation: wa-msgMenuBackdropIn 0.2s ease-out;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
   touch-action: none;
+  will-change: opacity;
 }
 
 [data-theme="dark"] .wa-msgMenuBackdrop {
@@ -8273,6 +8417,29 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   }
   to {
     opacity: 1;
+  }
+}
+
+.wa-msgMenuBackdrop[data-motion-state="closing"] {
+  animation: wa-msgMenuBackdropOut 0.12s ease-in forwards;
+}
+
+@keyframes wa-msgMenuBackdropOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Acessibilidade: sem movimento, só presença imediata */
+@media (prefers-reduced-motion: reduce) {
+  .wa-msgMenu,
+  .wa-msgMenu--sheet,
+  .wa-msgMenuBackdrop,
+  .wa-bubble--menuOpen {
+    animation: none !important;
+  }
+  .wa-msgMenu--sheet .wa-msgMenuItem:active {
+    transform: none;
   }
 }
 

@@ -1,14 +1,49 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clamp, getVisualViewportLayout } from "../../utils/conversaViewHelpers";
 
+function shallowStyleEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
 export function useMessageMenu({ menuUsesBottomSheet } = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
   const menuAnchorRef = useRef(null);
   const menuBtnRef = useRef(null);
   const menuElRef = useRef(null);
+  const prevStyleRef = useRef(null);
+  const menuPointRef = useRef(null);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  // Desktop: clique-direito abre o menu ancorado no cursor (estilo WhatsApp Web).
+  const openMenuAtPoint = useCallback((x, y) => {
+    menuPointRef.current = { x, y };
+    setMenuOpen(true);
+  }, []);
+
+  // Evita re-render redundante: só publica o estilo quando algum valor realmente muda
+  // (o reflow no sheet recomputa a cada resize do teclado/rotação).
+  const applyMenuStyle = useCallback((next) => {
+    if (shallowStyleEqual(prevStyleRef.current, next)) return;
+    prevStyleRef.current = next;
+    setMenuStyle(next);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      prevStyleRef.current = null;
+      menuPointRef.current = null;
+    }
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -45,7 +80,7 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
     if (menuUsesBottomSheet) {
       const bottomPx = Math.max(8, keyboardInsetBottom + 6);
       const maxSheetPx = Math.max(200, Math.floor(visibleHeight - bottomPx - 14));
-      setMenuStyle({
+      applyMenuStyle({
         position: "fixed",
         left: 10,
         right: 10,
@@ -58,6 +93,49 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
         overscrollBehavior: "contain",
         zIndex: 10002,
         transformOrigin: "bottom center",
+      });
+      return;
+    }
+
+    // Clique-direito (desktop): menu ancorado no ponto do cursor, abrindo para a
+    // direita/baixo e virando quando não cabe — comportamento de context-menu nativo.
+    const point = menuPointRef.current;
+    if (point) {
+      const desiredW = 268;
+      const w = Math.max(220, Math.min(desiredW, vw - 16));
+      const menuH = Math.max(menuElRef.current?.offsetHeight || 0, 300);
+
+      let left = point.x + 2;
+      if (left + w > vw - 8) left = point.x - w - 2;
+      left = clamp(left, 8, Math.max(8, vw - w - 8));
+
+      const spaceBelow = visibleBottom - point.y - 10;
+      const spaceAbove = point.y - visibleTop - 10;
+      let placedV = "down";
+      let top = point.y + 2;
+      let maxHeight = Math.max(200, spaceBelow);
+      if (top + Math.min(menuH, maxHeight) > visibleBottom - 8 && spaceAbove > spaceBelow) {
+        placedV = "up";
+        top = Math.max(visibleTop + 8, point.y - menuH - 2);
+        maxHeight = Math.max(200, spaceAbove);
+      }
+      if (maxHeight < menuH - 12) {
+        const fitH = Math.min(menuH, visibleHeight - 16);
+        top = visibleTop + Math.max(8, (visibleHeight - fitH) / 2);
+        maxHeight = fitH;
+      }
+      top = clamp(top, visibleTop + 8, Math.max(visibleTop + 8, visibleBottom - Math.min(menuH, maxHeight) - 8));
+
+      applyMenuStyle({
+        position: "fixed",
+        top,
+        left,
+        width: w,
+        maxHeight,
+        overflowY: maxHeight < menuH - 4 ? "auto" : "visible",
+        WebkitOverflowScrolling: "touch",
+        zIndex: 10002,
+        transformOrigin: `${placedV === "up" ? "bottom" : "top"} left`,
       });
       return;
     }
@@ -97,7 +175,7 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
 
     top = clamp(top, visibleTop + 8, Math.max(visibleTop + 8, visibleBottom - Math.min(menuH, maxHeight) - 8));
 
-    setMenuStyle({
+    applyMenuStyle({
       position: "fixed",
       top,
       left,
@@ -108,7 +186,7 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
       zIndex: 10002,
       transformOrigin: `${placed === "up" ? "bottom" : "top"} ${Math.round(clamp(rect.right - left, 0, w))}px`,
     });
-  }, [menuUsesBottomSheet]);
+  }, [menuUsesBottomSheet, applyMenuStyle]);
 
   useLayoutEffect(() => {
     if (!menuOpen || menuUsesBottomSheet) return;
@@ -127,8 +205,14 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
     window.addEventListener("resize", onReflow);
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     vv?.addEventListener("resize", onReflow);
-    vv?.addEventListener("scroll", onReflow);
-    document.addEventListener("scroll", onReflow, true);
+    // No sheet a posição é fixa ao rodapé (só muda com teclado/rotação → resize). Ouvir
+    // scroll do documento aqui recomputava a cada tick de rolagem DENTRO do próprio sheet,
+    // gerando re-render em cascata e travando a lista de opções. Só o menu ancorado (desktop)
+    // precisa seguir o scroll da thread.
+    if (!menuUsesBottomSheet) {
+      vv?.addEventListener("scroll", onReflow);
+      document.addEventListener("scroll", onReflow, true);
+    }
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onReflow);
@@ -136,12 +220,13 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
       vv?.removeEventListener("scroll", onReflow);
       document.removeEventListener("scroll", onReflow, true);
     };
-  }, [menuOpen, computeMenuPosition]);
+  }, [menuOpen, menuUsesBottomSheet, computeMenuPosition]);
 
   return {
     menuOpen,
     setMenuOpen,
     closeMenu,
+    openMenuAtPoint,
     menuStyle,
     menuAnchorRef,
     menuBtnRef,

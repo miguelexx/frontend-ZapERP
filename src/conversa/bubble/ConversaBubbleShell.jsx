@@ -153,11 +153,34 @@ const Bubble = memo(function Bubble({
   const {
     menuOpen,
     setMenuOpen,
+    openMenuAtPoint,
     menuStyle,
     menuAnchorRef,
     menuBtnRef,
     menuElRef,
   } = useMessageMenu({ menuUsesBottomSheet });
+
+  // Desktop: menu aberto por clique-direito mostra a barra de reações no topo (igual WhatsApp
+  // Web). O menu da setinha (hover) segue enxuto, sem reações.
+  const [menuViaContext, setMenuViaContext] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) setMenuViaContext(false);
+  }, [menuOpen]);
+
+  const onBubbleContextMenuDesktop = useCallback(
+    (e) => {
+      // Em link/campo editável, deixa o menu nativo do navegador.
+      const el = e.target;
+      if (el && typeof el.closest === "function" && el.closest('a[href], input, textarea, [contenteditable="true"]')) {
+        return;
+      }
+      e.preventDefault();
+      if (selectMode) return;
+      setMenuViaContext(true);
+      openMenuAtPoint(e.clientX, e.clientY);
+    },
+    [selectMode, openMenuAtPoint]
+  );
 
   /*
    * A janela de edicao do WhatsApp (15 min) expira com o RELOGIO, nao com uma mudanca na
@@ -433,7 +456,7 @@ const Bubble = memo(function Bubble({
           isApagadaPeloCliente ? "wa-bubble--clientDeleted" : "",
         ].filter(Boolean).join(" ")}
         onPointerDown={mobileMessageChrome && !selectMode ? onBubblePointerDown : undefined}
-        onContextMenu={mobileMessageChrome ? onBubbleContextMenu : undefined}
+        onContextMenu={mobileMessageChrome ? onBubbleContextMenu : onBubbleContextMenuDesktop}
         role="group"
         aria-label="Mensagem"
       >
@@ -607,6 +630,7 @@ const Bubble = memo(function Bubble({
         menuStyle={menuStyle}
         menuElRef={menuElRef}
         mobileMessageChrome={mobileMessageChrome}
+        showReactionBar={mobileMessageChrome || menuViaContext}
         isCall={isCall}
         apagadaParaTodos={msg?.apagada_para_todos}
         out={out}

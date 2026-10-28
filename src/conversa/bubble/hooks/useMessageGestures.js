@@ -5,6 +5,8 @@ import {
   MEDIA_TAP_MOVE_PX,
   SKIP_NEXT_MEDIA_TAP_MS,
   MEDIA_POINTER_OPENED_MS,
+  GHOST_CLICK_MS,
+  GHOST_CLICK_SLOP_PX,
   LONG_PRESS_IGNORE_SELECTOR,
   LONG_PRESS_IGNORE_BUTTON_OR_LINK,
 } from "../utils/gestureConstants";
@@ -29,6 +31,73 @@ export function useMessageGestures({
   const pressMetaRef = useRef(null);
   const longPressCommittedRef = useRef(false);
   const blockMediaOpenUntilRef = useRef(0);
+  const ghostUntilRef = useRef(0);
+  const ghostOriginRef = useRef(null);
+  const ghostTeardownRef = useRef(null);
+
+  /**
+   * Engole o clique/mouse "fantasma" que o navegador dispara quando o dedo solta depois do
+   * long-press. Restrito à vizinhança do ponto do toque e a uma janela curta: assim o menu
+   * não abre um item sozinho nem se fecha ao soltar, e qualquer toque intencional (em outro
+   * ponto, ou depois da janela) continua passando normalmente.
+   */
+  const armGhostGuard = useCallback(() => {
+    const origin = pressMetaRef.current;
+    if (!origin) return; // sem coordenada (ex.: contextmenu desktop) não há fantasma a tratar
+    ghostOriginRef.current = { x: origin.x, y: origin.y };
+    ghostUntilRef.current = Date.now() + GHOST_CLICK_MS;
+    if (ghostTeardownRef.current) return; // listeners já instalados; só estendeu a janela
+
+    const near = (ev) => {
+      const o = ghostOriginRef.current;
+      return (
+        o &&
+        Math.abs(ev.clientX - o.x) <= GHOST_CLICK_SLOP_PX &&
+        Math.abs(ev.clientY - o.y) <= GHOST_CLICK_SLOP_PX
+      );
+    };
+    const swallow = (ev) => {
+      if (Date.now() > ghostUntilRef.current) return;
+      // Alguns engines sintetizam também um pointerdown de tipo "mouse"; ignoramos esse
+      // (que fecharia o backdrop), mas nunca o pointer real de toque.
+      if (ev.type === "pointerdown" && ev.pointerType && ev.pointerType !== "mouse") return;
+      if (!near(ev)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    // O dedo pode ficar parado segurando o menu: ao soltar, reinicia a janela para cobrir o
+    // fantasma dessa soltura específica (one-shot, não estende para toques seguintes).
+    const onLift = () => {
+      window.removeEventListener("pointerup", onLift, true);
+      window.removeEventListener("pointercancel", onLift, true);
+      ghostUntilRef.current = Date.now() + GHOST_CLICK_MS;
+    };
+    window.addEventListener("click", swallow, true);
+    window.addEventListener("mousedown", swallow, true);
+    window.addEventListener("mouseup", swallow, true);
+    window.addEventListener("pointerdown", swallow, true);
+    window.addEventListener("pointerup", onLift, true);
+    window.addEventListener("pointercancel", onLift, true);
+
+    ghostTeardownRef.current = () => {
+      window.removeEventListener("click", swallow, true);
+      window.removeEventListener("mousedown", swallow, true);
+      window.removeEventListener("mouseup", swallow, true);
+      window.removeEventListener("pointerdown", swallow, true);
+      window.removeEventListener("pointerup", onLift, true);
+      window.removeEventListener("pointercancel", onLift, true);
+      ghostTeardownRef.current = null;
+    };
+    const poll = () => {
+      const remaining = ghostUntilRef.current - Date.now();
+      if (remaining <= 0) {
+        ghostTeardownRef.current?.();
+        return;
+      }
+      window.setTimeout(poll, remaining + 30);
+    };
+    window.setTimeout(poll, GHOST_CLICK_MS + 30);
+  }, []);
 
   const clearSkipNextMediaTap = useCallback(() => {
     skipNextMediaTapRef.current = false;
@@ -77,8 +146,9 @@ export function useMessageGestures({
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
     } catch (_) {}
     armSkipNextMediaTap();
+    armGhostGuard();
     setMenuOpen(true);
-  }, [armSkipNextMediaTap, clearLongPressTracking, setMenuOpen]);
+  }, [armSkipNextMediaTap, armGhostGuard, clearLongPressTracking, setMenuOpen]);
 
   const onBubblePointerDown = useCallback(
     (e) => {
@@ -150,6 +220,7 @@ export function useMessageGestures({
   useEffect(() => () => {
     clearLongPressTracking();
     clearSkipNextMediaTap();
+    ghostTeardownRef.current?.();
     if (mediaPointerOpenedTimerRef.current != null) {
       clearTimeout(mediaPointerOpenedTimerRef.current);
       mediaPointerOpenedTimerRef.current = null;

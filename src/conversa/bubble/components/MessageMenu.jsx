@@ -9,6 +9,7 @@ export default function MessageMenu({
   menuStyle,
   menuElRef,
   mobileMessageChrome,
+  showReactionBar = false,
   isCall,
   apagadaParaTodos,
   out,
@@ -36,6 +37,7 @@ export default function MessageMenu({
     <>
       <div
         className={`wa-msgMenuBackdrop${menuUsesBottomSheet ? " wa-msgMenuBackdrop--sheet" : ""}`}
+        data-motion-state={motion.state}
         aria-hidden="true"
         style={!menuOpen ? { pointerEvents: "none" } : undefined}
         onPointerDown={(e) => {
@@ -49,14 +51,17 @@ export default function MessageMenu({
         data-motion-state={motion.state}
         inert={!menuOpen ? "" : undefined}
         aria-hidden={!menuOpen || undefined}
-        className={`wa-msgMenu${menuUsesBottomSheet ? " wa-msgMenu--sheet" : ""}`}
+        className={`wa-msgMenu${menuUsesBottomSheet ? " wa-msgMenu--sheet" : ""}${
+          !menuUsesBottomSheet && showReactionBar ? " wa-msgMenu--ctx" : ""
+        }`}
         style={menuStyle || { position: "fixed", top: -9999, left: -9999 }}
         role="menu"
         aria-label="Opções da mensagem"
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
       >
-        {mobileMessageChrome && !isCall && !apagadaParaTodos ? (
+        {showReactionBar && !isCall && !apagadaParaTodos ? (
           <>
             <ReactionPicker
               mobileSelected={false}

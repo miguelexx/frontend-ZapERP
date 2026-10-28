@@ -1876,7 +1876,15 @@ export function initSocket(token) {
   })
   socket.on("conversa_reaberta", (payload) => {
     logSocketConversaDebug("conversa_reaberta", payload)
-    void patchEverywhere(payload, { forceResync: true })
+    void (async () => {
+      await patchEverywhere(payload, { forceResync: true })
+      const p0 = unwrapSocketChatPayload(payload)
+      if (shouldIgnoreByCompany(p0)) return
+      const id = p0?.id ?? p0?.conversa_id
+      const convStore = useConversaStore.getState()
+      if (id == null || id === "" || String(convStore.selectedId) !== String(id)) return
+      await convStore.carregarAtendimentos?.(id)
+    })()
   })
   socket.on(SOCKET_EVENTS.CONVERSA_ATRIBUIDA, async (payload) => {
     const p0 = unwrapSocketChatPayload(payload)

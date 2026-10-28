@@ -306,6 +306,9 @@ export function timelineEventLabel(a, conversaCtx) {
     return "Atendimento finalizado";
   }
   if (acao === "reabriu") return "Conversa reaberta";
+  if (acao === "reabertura_automatica_inbound") return "Reaberta automaticamente (mensagem do cliente)";
+  if (acao === "reabertura_automatica_ausencia") return "Reaberta automaticamente após ausência";
+  if (acao === "alerta_sem_resposta_reabertura") return "Reaberta automaticamente por falta de resposta";
   return quem;
 }
 

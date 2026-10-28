@@ -22,6 +22,7 @@ import {
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useAuthStore } from "../auth/authStore";
 import { applyModoSimplesAttr } from "../auth/modoSimplesUi";
+import useBottomNavReveal from "./useBottomNavReveal";
 import { usePermissoesStore } from "../auth/permissoesStore";
 import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
 import GlobalNotifications from "../notifications/GlobalNotifications";
@@ -98,6 +99,11 @@ export default function MainLayout() {
   useEffect(() => {
     applyModoSimplesAttr(modoSimples);
   }, [modoSimples]);
+
+  // Modo simples no telemóvel: a barra inferior sai da frente e só sobe quando
+  // o atendente arrasta a pega. Fora daí o menu continua como sempre foi.
+  const barraRetratil = modoSimples && isMobileBottomNav;
+  const { aberta: barraAberta, fechar: fecharBarra, pegaProps } = useBottomNavReveal(barraRetratil);
 
   const navItems = useMemo(
     () =>
@@ -277,7 +283,9 @@ export default function MainLayout() {
   const userInitial = getUserInitial(user);
 
   return (
-    <div className="app-layout app-layout--crm app-layout--studio">
+    <div
+      className={`app-layout app-layout--crm app-layout--studio${barraRetratil ? " app-layout--navRetratil" : ""}${barraAberta ? " is-navAberta" : ""}`}
+    >
       <a href="#main-content" className="ds-skip-link">
         Pular para o conteúdo principal
       </a>
@@ -286,7 +294,16 @@ export default function MainLayout() {
       <WhapiDisconnectedOverlay />
       <InternalChatGlobalSocketBridge />
       <HelpDeskGlobalSocketBridge />
-      <aside className="sidebar sidebar--compact sidebar--v2" aria-label="Menu">
+      <aside
+        id="app-bottom-nav"
+        className="sidebar sidebar--compact sidebar--v2"
+        aria-label="Menu"
+        /* Ir para outro lugar fecha a barra; alternar o tema não, para dar
+           para voltar atrás sem reabrir. */
+        onClick={(e) => {
+          if (e.target.closest?.("a, .sidebar-logout")) fecharBarra();
+        }}
+      >
         <NavLink
           to="/atendimento"
           className="sidebar-brand"
@@ -343,6 +360,23 @@ export default function MainLayout() {
           </button>
         </div>
       </aside>
+
+      {barraRetratil && barraAberta ? (
+        <div className="zs-navBackdrop" aria-hidden="true" onPointerDown={fecharBarra} />
+      ) : null}
+
+      {barraRetratil ? (
+        <button
+          type="button"
+          className="zs-navHandle"
+          aria-label={barraAberta ? "Esconder o menu" : "Mostrar o menu"}
+          aria-expanded={barraAberta}
+          aria-controls="app-bottom-nav"
+          {...pegaProps}
+        >
+          <span className="zs-navHandle-pill" aria-hidden="true" />
+        </button>
+      ) : null}
 
       <main id="main-content" className="main-content main-content--crm" tabIndex={-1}>
         <Outlet />

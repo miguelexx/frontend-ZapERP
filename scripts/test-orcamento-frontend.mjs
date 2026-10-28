@@ -1630,74 +1630,6 @@ const { prefillRascunho } = draft;
       );
     }
 
-    /* ---- Os mais usados: atalho renderizado antes de qualquer tecla ---- */
-    {
-      globalThis.localStorage = new StorageFake();
-      const escopo = { companyId: 20, userId: 7 };
-      registrarProdutoUsado({
-        ...escopo,
-        produto: {
-          codigo_produto_erp: "4325",
-          descricao: "CIMENTO CAMPEAO AZUL CP 2 E 32 50KG",
-          marca: "",
-          unidade: "UN",
-          // Preço vai junto no objeto de propósito: ele NÃO pode sobreviver no atalho.
-          preco_unitario: "33.038",
-          estoque_previsto: "120.000",
-        },
-      });
-
-      const html = render(Componentes.Picker, { ...escopo, onAdicionar: () => {} });
-      assert(html.includes("Usados com frequência"), "render picker: o atalho aparece antes de digitar");
-      assert(
-        html.includes("CIMENTO CAMPEAO AZUL CP 2 E 32 50KG"),
-        "render picker: o produto usado antes está pronto para um toque"
-      );
-      assert(
-        /aria-label="Adicionar CIMENTO[^"]*ao orçamento"/.test(html),
-        "render picker: o atalho é um botão com nome acessível, não um bloco clicável mudo"
-      );
-      assert(
-        !/R\$/.test(html),
-        "render picker: o atalho NÃO guarda preço — valor velho no navegador pareceria atual"
-      );
-      assert(
-        !/Estoque|Sem estoque/.test(html),
-        "render picker: o atalho também não guarda estoque"
-      );
-      assert(
-        /wa-orc-verPreco/.test(html),
-        "render picker: o card oferece ver o preço, sem ter ido buscá-lo"
-      );
-      assert(
-        /aria-label="Ver preço de CIMENTO[^"]*"/.test(html),
-        "render picker: a afordância de preço se nomeia pelo produto"
-      );
-      assert(
-        (html.match(/wa-orc-candidato-valor/g) || []).length >= 2,
-        "render picker: as duas células de valor existem mesmo vazias — a coluna fica reservada"
-      );
-
-      // Outro usuário da mesma empresa não vê o atalho deste.
-      const outro = render(Componentes.Picker, { companyId: 20, userId: 8, onAdicionar: () => {} });
-      assert(
-        !outro.includes("Usados com frequência"),
-        "render picker: o atalho é por empresa + usuário — ninguém vê o do outro"
-      );
-
-      // Sem storage (janela privada): a busca continua, o atalho simplesmente não existe.
-      const semStorage = new StorageFake({ lancar: true });
-      globalThis.localStorage = semStorage;
-      const bloqueado = render(Componentes.Picker, { ...escopo, onAdicionar: () => {} });
-      assert(
-        !bloqueado.includes("Usados com frequência"),
-        "render picker: storage bloqueado não quebra o picker — só não há atalho"
-      );
-      assert(
-        /wa-orc-produtoBusca/.test(bloqueado),
-        "render picker: com ou sem atalho, o campo de busca continua lá"
-      );
-    }
   }
 
   /* ---- Preço não cadastrado: o HTML das três telas que o atendente lê ---- *
@@ -3538,13 +3470,6 @@ globalThis.localStorage = new StorageFake();
     "ver preço: nunca em laço sobre a lista"
   );
 
-  // O atalho é só memória local: ele não fala com a WM.
-  assert(
-    /registrarProdutoUsado\(/.test(limpo),
-    "atalho: o produto escolhido é registrado para virar atalho da próxima vez"
-  );
-  const registros = limpo.split("\n").filter((l) => /registrarProdutoUsado\(\{/.test(l));
-  assert(registros.length === 1, `atalho: registra de um lugar só (o item entrando no carrinho) — achei ${registros.length}`);
 
   // Enter: atalho de teclado, não gatilho de busca nem de consulta.
   const iniEnter = limpo.indexOf("const aoTeclarNaBusca");

@@ -292,7 +292,10 @@ export function chatRowIsStaleForTab(row, tab) {
 
 /** Minha fila do usuário logado — mesma regra do socket (`lista_realtime`). */
 export function conversaPertenceAMinhaFila(row, userId) {
-  if (!row || isGroupConversation(row)) return false;
+  if (!row) return false;
+  // Grupo entra na Minha fila só quando o próprio atendente o fixou (espelha o backend);
+  // o sort já leva `fixada` para o topo, então o grupo fica fixado na Minha fila.
+  if (isGroupConversation(row)) return row.fixada === true;
   if (row.aguardando_resposta_campanha === true) return false;
   const status = getStatusAtendimentoEffective(row);
   const atendenteId = row.atendente_id;

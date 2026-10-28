@@ -49,3 +49,91 @@ html[data-zap-simple="1"][data-theme="dark"] {
   --zs-chat-bg: #0b141a;
   --zs-header-bg: #202c33;
 }
+
+/* -----------------------------------------------------------------------
+   Barra inferior retrátil (modo simples, telemóvel)
+   Estado e gesto em `layouts/useBottomNavReveal.js`. A barra já é
+   `position: fixed` no mobile, por isso sai de cena só com transform —
+   nada no fluxo se mexe.
+----------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  html[data-zap-simple="1"] body .app-layout--navRetratil .sidebar {
+    transform: translateY(110%);
+    transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  html[data-zap-simple="1"] body .app-layout--navRetratil.is-navAberta .sidebar {
+    transform: translateY(0);
+  }
+
+  /*
+   * Com a barra fora, o conteúdo ganha a altura dela. Fica só a faixa da pega.
+   *
+   * Os `:not(:has(...))` não são enfeite: com a conversa (ou a thread do chat
+   * interno) aberta, o app.css já esconde a barra sozinho e zera este padding —
+   * e, com o teclado aberto, zera mesmo com `!important`. Sem o guarda, a regra
+   * daqui vencia por especificidade e devolvia uma faixa branca acima do teclado.
+   */
+  html[data-zap-simple="1"] body .app-layout--navRetratil:not(:has(.atendimento-layout.conversation-open)):not(:has(.internal-chat-root--thread-open)) .main-content {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0)) !important;
+  }
+
+  /* Pela mesma razão, sem barra para revelar a pega não tem o que fazer. */
+  html[data-zap-simple="1"] body .app-layout--navRetratil:has(.atendimento-layout.conversation-open) .zs-navHandle,
+  html[data-zap-simple="1"] body .app-layout--navRetratil:has(.atendimento-layout.conversation-open) .zs-navBackdrop,
+  html[data-zap-simple="1"] body .app-layout--navRetratil:has(.internal-chat-root--thread-open) .zs-navHandle,
+  html[data-zap-simple="1"] body .app-layout--navRetratil:has(.internal-chat-root--thread-open) .zs-navBackdrop {
+    display: none !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout--navRetratil .zs-navHandle {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    width: 160px;
+    height: calc(14px + env(safe-area-inset-bottom, 0));
+    padding: 0 0 env(safe-area-inset-bottom, 0);
+    margin: 0;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: grab;
+    /* Sem isto o arrasto vertical vira scroll da página e o gesto nunca chega. */
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Abaixo da barra (z-index 100): quando ela sobe, cobre a pega. */
+    z-index: 99;
+  }
+
+  html[data-zap-simple="1"] body .app-layout--navRetratil .zs-navHandle-pill {
+    width: 44px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--zs-text-2);
+    opacity: 0.34;
+    transition: opacity 160ms ease;
+  }
+
+  html[data-zap-simple="1"] body .app-layout--navRetratil .zs-navHandle:active .zs-navHandle-pill {
+    opacity: 0.6;
+  }
+
+  html[data-zap-simple="1"] body .app-layout--navRetratil .zs-navBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: transparent;
+  }
+}
+
+/* Fora do telemóvel a barra é o rail lateral — nada disto se aplica. */
+@media (min-width: 769px) {
+  html[data-zap-simple="1"] body .zs-navHandle,
+  html[data-zap-simple="1"] body .zs-navBackdrop {
+    display: none;
+  }
+}

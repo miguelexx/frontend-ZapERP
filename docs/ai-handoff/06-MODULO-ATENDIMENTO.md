@@ -50,6 +50,8 @@ Tablet: composer/header compactos ~741–1024px. Não use `100vh` cego; o shell 
 
 Permissões de ação: `canAssumir` / `canTransferir` / `canEncerrar` / `canReabrir` / `canPuxarFila` (role), não o catálogo pontuado.
 
+Painel Histórico (`useConversationTimeline` + `GET /chats/:id/atendimentos`): reabertura automática por inbound grava `reabertura_automatica_inbound`. Se a thread já estiver aberta, `conversa_reaberta` recarrega a timeline — não abre conversa sozinha.
+
 ## Fluxo de dados (visão)
 
 ```

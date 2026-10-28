@@ -146,7 +146,6 @@ import {
   valorPresente,
   valoresDaRespostaPorCodigo,
 } from "./precoItemCache";
-import { lerProdutosFrequentes, registrarProdutoUsado } from "./produtosFrequentes";
 import useRelogioDeIdade from "./useRelogioDeIdade";
 import {
   agruparCandidatosProduto,
@@ -247,16 +246,6 @@ export default function ProdutoPicker({
    * Vive só enquanto a busca é a mesma: valor de uma busca velha não pode pintar card novo.
    */
   const [detalhes, setDetalhes] = useState({});
-  /**
-   * Produtos mais usados por esta atendente. Lidos do navegador dela, zero chamada à WM.
-   *
-   * Lidos JÁ no primeiro render (inicializador preguiçoso) e não num efeito: o atalho é o
-   * caminho principal numa loja de giro repetido, e carregá-lo depois faria a tela piscar uma
-   * busca vazia antes de mostrar o que ela usa todo dia.
-   */
-  const [frequentes, setFrequentes] = useState(() =>
-    lerProdutosFrequentes({ companyId, userId })
-  );
 
   const inputRef = useRef(null);
   const abortRef = useRef(null);
@@ -333,20 +322,6 @@ export default function ProdutoPicker({
     },
     [cancelarEmVoo]
   );
-
-  const recarregarFrequentes = useCallback(() => {
-    setFrequentes(lerProdutosFrequentes({ companyId, userId }));
-  }, [companyId, userId]);
-
-  // O primeiro render já leu (acima). Daqui em diante só relê se o escopo mudar — reler a cada
-  // render pintaria a mesma lista num objeto novo e dispararia render de novo.
-  const escopoLidoRef = useRef(`${companyId}|${userId}`);
-  useEffect(() => {
-    const escopo = `${companyId}|${userId}`;
-    if (escopoLidoRef.current === escopo) return;
-    escopoLidoRef.current = escopo;
-    recarregarFrequentes();
-  }, [companyId, userId, recarregarFrequentes]);
 
   const buscar = useCallback(
     async (termoLimpo, paginaAlvo) => {
@@ -545,9 +520,6 @@ export default function ProdutoPicker({
       // "ver preço" deste card): é dele que ela fala. Candidato de lista não tem preço, e quem
       // o escolher vai receber a procedência da consulta por código que o drawer dispara.
       const procedencia = detalhe?.estado === ESTADO_PRECO.OK && detalhe.valores ? detalhe.meta : meta;
-      // O que ela escolhe hoje é o atalho dela amanhã. Só identificação do produto entra —
-      // preço e estoque jamais (ver `produtosFrequentes.js`).
-      registrarProdutoUsado({ companyId, userId, produto: resolvido });
       onAdicionar?.(resolvido, produtoJaTemPreco(resolvido) ? procedencia ?? null : null);
       // Limpa SÓ a busca de produto e devolve o foco: o carrinho e o resto do formulário ficam.
       setTermo("");
@@ -557,10 +529,9 @@ export default function ProdutoPicker({
       setResgate(null);
       termoConsultadoRef.current = "";
       limparDetalhes();
-      recarregarFrequentes();
       inputRef.current?.focus();
     },
-    [onAdicionar, companyId, userId, limparDetalhes, recarregarFrequentes]
+    [onAdicionar, limparDetalhes]
   );
 
   /**
@@ -589,7 +560,6 @@ export default function ProdutoPicker({
   // Esqueleto só quando não há nada na tela: trocar resultados visíveis por caixas cinzentas
   // tiraria da atendente o card que ela já estava mirando.
   const esqueleto = buscando && grupos.lista.length === 0;
-  const mostrarFrequentes = !buscando && !buscou && !erro && frequentes.length > 0;
   const podeEnter = !buscando && !disabled && grupos.lista.length > 0;
 
   /**
@@ -904,26 +874,6 @@ export default function ProdutoPicker({
           >
             Tentar de novo
           </button>
-        </div>
-      ) : null}
-
-      {/*
-        Os mais usados vêm ANTES da busca na tela porque vêm antes dela no uso: numa loja de giro
-        repetido, o item já está aqui e o campo acima nem precisa ser tocado.
-      */}
-      {mostrarFrequentes ? (
-        <div className="wa-orc-frequentes">
-          <p className="wa-orc-grupoTitulo">Usados com frequência</p>
-          <div className="wa-orc-resultados">
-            {frequentes.map((f) =>
-              renderCandidato({
-                codigo_produto_erp: f.codigo,
-                descricao: f.descricao,
-                marca: f.marca,
-                unidade: f.unidade,
-              })
-            )}
-          </div>
         </div>
       ) : null}
 
