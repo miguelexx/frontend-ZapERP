@@ -38,6 +38,8 @@ function ConversaHeader({
   badge,
   showPagamentoConcluidoBadge = false,
   encerramentoAusenciaHint,
+  /** Modo simples = pele WhatsApp: sem setor e sem transferir no cabeçalho. */
+  modoSimples = false,
   setorAtual,
   podeTransferirSetor,
   onOpenTransferirSetor,
@@ -150,32 +152,18 @@ function ConversaHeader({
           />
         ) : null}
         {/*
-          Orçamento WM (doc 36, D8): ação SEPARADA da de produtos, e só aqui no cabeçalho da
-          conversa. O painel de produtos também abre pela lista de conversas, sem `conversa_id`
-          e sem guarda de grupo — por isso o orçamento não é aba dele. O guarda é o mesmo do
-          produtos (`!isGroup && conversaId`, porque um orçamento tem UM comprador e o backend
-          revalida a conversa) MAIS o gate do módulo+permissão, que já vem resolvido em
-          `canCriarOrcamentoWm`.
+          Orçamento WM (doc 36, D8): deixou de ser um item discreto neste menu e virou botão de
+          verdade na barra de ações (`AtendimentoActions`, classe `wa-btn-orcamento`), para não
+          haver DOIS gatilhos para a mesma coisa. O gate (`!isGroup && conversaId &&
+          canCriarOrcamentoWm`) e o handler (`onOpenOrcamentoDrawer`) viajam agora até lá.
         */}
-        {!isGroup && conversaId && canCriarOrcamentoWm ? (
-          <HeaderOverflowSheetBtn
-            icon={<span aria-hidden="true">🧾</span>}
-            label="Novo orçamento"
-            onClick={() => {
-              onOpenOrcamentoDrawer?.();
-              close();
-            }}
-          />
-        ) : null}
       </>
     ),
     [
       canConsultarProdutos,
-      canCriarOrcamentoWm,
       conversaId,
       isGroup,
       onOpenAtendentes,
-      onOpenOrcamentoDrawer,
       onOpenProdutosPanel,
       onToggleTagPanel,
       onToggleTimeline,
@@ -187,10 +175,10 @@ function ConversaHeader({
   );
 
   /** Desktop/tablet largo: setor sempre na 2ª linha com divisor (como mock Aberta). */
-  const showSetorBelow = !headerCompact && !isGroup;
+  const showSetorBelow = !headerCompact && !isGroup && !modoSimples;
 
   const renderSetorControls = ({ omitSetorPrefix = false } = {}) => {
-    if (isGroup) return null;
+    if (isGroup || modoSimples) return null;
     if (setorAtual) {
       return (
         <>
@@ -409,6 +397,8 @@ function ConversaHeader({
         </div>
       </button>
 
+      {/* Modo simples: sem setor e, muitas vezes, sem ações — a linha some por CSS
+          (`:not(:has(button))`), para não sumir junto com o botão de orçamento. */}
       {headerCompact && !isGroup ? (
         <div className="wa-header-mobileRow2" aria-label="Setor e ações de atendimento">
           <div className="wa-header-mobileRow2-sector">{renderSetorControls({ omitSetorPrefix: true })}</div>
@@ -418,6 +408,8 @@ function ConversaHeader({
                 compactToolbar={headerAtendCompact}
                 splitCompactHeader
                 overflowTop={headerAtendCompact ? renderCompactOverflowTop : undefined}
+                showOrcamento={!isGroup && !!conversaId && canCriarOrcamentoWm}
+                onOrcamento={onOpenOrcamentoDrawer}
               />
             </div>
           </div>
@@ -456,6 +448,8 @@ function ConversaHeader({
                 <AtendimentoActions
                   compactToolbar={headerAtendCompact}
                   overflowTop={headerAtendCompact ? renderCompactOverflowTop : undefined}
+                  showOrcamento={!isGroup && !!conversaId && canCriarOrcamentoWm}
+                  onOrcamento={onOpenOrcamentoDrawer}
                 />
               </div>
             </div>

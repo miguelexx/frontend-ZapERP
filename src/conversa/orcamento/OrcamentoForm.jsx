@@ -39,7 +39,7 @@
  * lido como "orçamento de graça" (é a mesma razão do formatador próprio devolver "—").
  */
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import ClientePicker from "./ClientePicker";
 import ProdutoPicker from "./ProdutoPicker";
 import {
@@ -56,6 +56,11 @@ import {
   TITULO_PRECO_NAO_CADASTRADO,
   TITULO_SALDO_NEGATIVO,
 } from "./orcamentoFormat";
+import {
+  distribuirDescontoFinal,
+  normalizarPrecoNegociado,
+  podeDistribuirDesconto,
+} from "./precoNegociado";
 import { ESTADO_PRECO, procedenciaDosValores, valorPresente } from "./precoItemCache";
 import useRelogioDeIdade from "./useRelogioDeIdade";
 import { rotuloFonte } from "./orcamentoViewModel";
@@ -81,7 +86,17 @@ const MAX_ITENS = 50;
  * resolve preço no servidor para o orçamento inteiro. Nenhum valor é somado, derivado ou
  * herdado de outra linha.
  */
-function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco, agora }) {
+function ItemCarrinho({
+  item,
+  indice,
+  onQuantidade,
+  onRemover,
+  onPrecoNegociado,
+  onLimparPreco,
+  disabled,
+  preco,
+  agora,
+}) {
   const q = normalizarQuantidadeParaEnvio(item.quantidade);
   const descricao = textoOuSemValor(item.descricao || item.busca);
   const valores = preco?.estado === ESTADO_PRECO.OK ? preco.valores : null;
@@ -89,6 +104,50 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco, 
   const unidade = item.unidade || valores?.unidade || "";
   const temPreco = valorPresente(valores?.preco_unitario);
   const semPreco = temPreco && precoNaoCadastrado(valores.preco_unitario);
+
+  // Preço negociado pelo atendente NESTE orçamento. O cadastro do ERP não muda — isto é só desta
+  // linha, deste orçamento. Só se negocia produto já resolvido (com código); item ainda em busca,
+  // não (o backend tampouco o enviaria).
+  const negociado =
+    typeof item.preco_negociado === "string" && item.preco_negociado.trim()
+      ? item.preco_negociado.trim()
+      : null;
+  const podeNegociar = Boolean(item.codigo_produto_erp) && !disabled;
+  const [editandoPreco, setEditandoPreco] = useState(false);
+  const [precoDigitado, setPrecoDigitado] = useState("");
+  const [erroPreco, setErroPreco] = useState("");
+  const precoInputRef = useRef(null);
+
+  const abrirEdicaoPreco = useCallback(() => {
+    // Parte do valor negociado se já houver; senão do oficial conhecido, para o atendente editar
+    // em vez de digitar do zero. Vírgula é o separador natural no teclado BR.
+    const base = negociado || (temPreco && !semPreco ? String(valores.preco_unitario) : "");
+    setPrecoDigitado(base.replace(".", ","));
+    setErroPreco("");
+    setEditandoPreco(true);
+  }, [negociado, temPreco, semPreco, valores]);
+
+  const salvarPreco = useCallback(() => {
+    const r = normalizarPrecoNegociado(precoDigitado);
+    if (!r.ok) {
+      setErroPreco(r.motivo);
+      return;
+    }
+    onPrecoNegociado(indice, r.value);
+    setEditandoPreco(false);
+    setErroPreco("");
+  }, [precoDigitado, onPrecoNegociado, indice]);
+
+  const cancelarPreco = useCallback(() => {
+    setEditandoPreco(false);
+    setErroPreco("");
+  }, []);
+
+  const voltarAoOficial = useCallback(() => {
+    onLimparPreco(indice);
+    setEditandoPreco(false);
+    setErroPreco("");
+  }, [onLimparPreco, indice]);
   // Mesma leitura do card de busca: o texto diz o número e a cor só reforça a faixa.
   const estoqueTexto = textoEstoque(valores?.estoque_previsto, unidade);
   // E a mesma régua de idade: este é o MESMO saldo que o card mostrou, e ele continua
@@ -127,7 +186,14 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco, 
                     {TEXTO_PRECO_NAO_CADASTRADO}
                   </span>
                 ) : temPreco ? (
-                  <strong className="wa-orc-item-preco">
+                  /* Com preço negociado, o oficial fica riscado: é o que o desconto substituiu. */
+                  <strong
+                    className={
+                      negociado
+                        ? "wa-orc-item-preco wa-orc-item-preco--riscado"
+                        : "wa-orc-item-preco"
+                    }
+                  >
                     {formatMoedaOrcamento(valores.preco_unitario)}
                   </strong>
                 ) : null}
@@ -170,6 +236,96 @@ function ItemCarrinho({ item, indice, onQuantidade, onRemover, disabled, preco, 
               </>
             ) : null}
           </span>
+        ) : null}
+
+        {/*
+          Preço DESTE orçamento. O cadastro do ERP não muda; o valor do atendente é o
+          `preco_negociado` desta linha. Quando há negociação, o oficial aparece riscado acima e o
+          negociado em destaque aqui; o total e o desconto reais vêm da prévia da WM ao calcular.
+        */}
+        {editandoPreco ? (
+          <div className="wa-orc-precoEdit">
+            <label className="wa-orc-srOnly" htmlFor={`wa-orc-preco-${indice}`}>
+              Preço de {descricao} neste orçamento
+            </label>
+            <div className="wa-orc-precoEdit-campo">
+              <span className="wa-orc-precoEdit-prefixo" aria-hidden="true">
+                R$
+              </span>
+              <input
+                id={`wa-orc-preco-${indice}`}
+                ref={precoInputRef}
+                className="wa-input wa-orc-precoInput"
+                type="text"
+                inputMode="decimal"
+                autoFocus
+                value={precoDigitado}
+                maxLength={20}
+                placeholder="Preço"
+                aria-invalid={erroPreco ? "true" : undefined}
+                onChange={(e) => {
+                  setPrecoDigitado(e.target.value);
+                  if (erroPreco) setErroPreco("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    salvarPreco();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelarPreco();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="wa-btn wa-btn-primary wa-orc-btnSm"
+                onClick={salvarPreco}
+              >
+                Salvar
+              </button>
+              <button
+                type="button"
+                className="wa-btn wa-btn-ghost wa-orc-btnSm"
+                onClick={cancelarPreco}
+              >
+                Cancelar
+              </button>
+            </div>
+            {erroPreco ? <p className="wa-orc-item-erro">{erroPreco}</p> : null}
+          </div>
+        ) : negociado ? (
+          <div className="wa-orc-precoNegoc">
+            {/* O oficial já aparece riscado na linha de valores acima; aqui, só o preço que vale. */}
+            <span className="wa-orc-precoNegoc-rotulo">Preço deste orçamento</span>
+            <strong className="wa-orc-precoNegoc-valor">{formatMoedaOrcamento(negociado)}</strong>
+            <span className="wa-orc-precoNegoc-acoes">
+              <button
+                type="button"
+                className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-precoNegoc-btn"
+                disabled={disabled}
+                onClick={abrirEdicaoPreco}
+              >
+                Alterar
+              </button>
+              <button
+                type="button"
+                className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-precoNegoc-btn"
+                disabled={disabled}
+                onClick={voltarAoOficial}
+              >
+                Voltar ao oficial
+              </button>
+            </span>
+          </div>
+        ) : podeNegociar ? (
+          <button
+            type="button"
+            className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-precoNegoc-abrir"
+            onClick={abrirEdicaoPreco}
+          >
+            Alterar preço
+          </button>
         ) : null}
       </div>
       <div className="wa-orc-qtd">
@@ -252,6 +408,54 @@ export default function OrcamentoForm({
   );
   const agora = useRelogioDeIdade(temCarimbo);
 
+  /*
+    Desconto no TOTAL. A WM não tem campo de desconto global — só preço por item — então o
+    desconto é DISTRIBUÍDO proporcionalmente entre os itens, virando o `preco_negociado` de cada
+    linha. Regra (a menos surpreendente, dita na tela): aplicar um desconto no total SOBRESCREVE
+    as negociações por item; depois dá para ajustar uma linha; "Remover" volta tudo ao oficial.
+    O total conferido é sempre o da prévia da WM ao calcular, nunca esta conta.
+  */
+  const [descontoTipo, setDescontoTipo] = useState("reais");
+  const [descontoValor, setDescontoValor] = useState("");
+  const [descontoErro, setDescontoErro] = useState("");
+  const descontoDisponivel = podeDistribuirDesconto(itens, precos);
+  const temNegociacao = itens.some(
+    (i) => typeof i.preco_negociado === "string" && i.preco_negociado.trim()
+  );
+
+  const aplicarDescontoFinal = useCallback(() => {
+    const r = distribuirDescontoFinal({
+      itens,
+      precos,
+      tipo: descontoTipo,
+      valor: descontoValor,
+    });
+    if (!r.ok) {
+      setDescontoErro(r.motivo);
+      return;
+    }
+    onPatch((atual) => {
+      const lista = Array.isArray(atual.itens) ? atual.itens.slice() : [];
+      for (let i = 0; i < lista.length && i < r.precosNegociados.length; i++) {
+        lista[i] = { ...lista[i], preco_negociado: r.precosNegociados[i] };
+      }
+      return { itens: lista };
+    });
+    setDescontoErro("");
+  }, [itens, precos, descontoTipo, descontoValor, onPatch]);
+
+  const removerDescontos = useCallback(() => {
+    onPatch((atual) => {
+      const lista = (Array.isArray(atual.itens) ? atual.itens : []).map((it) => {
+        const { preco_negociado: _ignorado, ...resto } = it;
+        return resto;
+      });
+      return { itens: lista };
+    });
+    setDescontoValor("");
+    setDescontoErro("");
+  }, [onPatch]);
+
   const adicionarProduto = useCallback(
     (produto, meta) => {
       // Quem busca o preço é o drawer: o cache dele sobrevive às idas e voltas de etapa (uma
@@ -309,6 +513,33 @@ export default function OrcamentoForm({
       onPatch((atual) => {
         const lista = Array.isArray(atual.itens) ? atual.itens.slice() : [];
         lista.splice(indice, 1);
+        return { itens: lista };
+      });
+    },
+    [onPatch]
+  );
+
+  // Preço negociado de UMA linha — já chega normalizado (decimal com ponto, > 0) do editor.
+  const definirPrecoNegociado = useCallback(
+    (indice, valor) => {
+      onPatch((atual) => {
+        const lista = Array.isArray(atual.itens) ? atual.itens.slice() : [];
+        if (!lista[indice]) return {};
+        lista[indice] = { ...lista[indice], preco_negociado: valor };
+        return { itens: lista };
+      });
+    },
+    [onPatch]
+  );
+
+  // Voltar UMA linha ao preço oficial: tira o campo, não grava "".
+  const limparPrecoNegociado = useCallback(
+    (indice) => {
+      onPatch((atual) => {
+        const lista = Array.isArray(atual.itens) ? atual.itens.slice() : [];
+        if (!lista[indice]) return {};
+        const { preco_negociado: _ignorado, ...resto } = lista[indice];
+        lista[indice] = resto;
         return { itens: lista };
       });
     },
@@ -432,6 +663,8 @@ export default function OrcamentoForm({
                   indice={i}
                   onQuantidade={alterarQuantidade}
                   onRemover={removerItem}
+                  onPrecoNegociado={definirPrecoNegociado}
+                  onLimparPreco={limparPrecoNegociado}
                   disabled={disabled}
                   preco={item.codigo_produto_erp ? precos?.[item.codigo_produto_erp] : null}
                   agora={agora}
@@ -444,6 +677,118 @@ export default function OrcamentoForm({
             <p className="wa-orc-hint">Este orçamento já tem o máximo de {MAX_ITENS} itens.</p>
           ) : null}
         </section>
+
+        {/*
+          Desconto no TOTAL. A WM só aplica preço POR ITEM, então o desconto é distribuído entre as
+          linhas (vira `preco_negociado` de cada uma). O total conferido é o da prévia ao calcular.
+        */}
+        {itens.length > 0 ? (
+          <section className="wa-orc-section wa-orc-descontoFinal" aria-label="Desconto no total">
+            <h4 className="wa-orc-sectionTitle">Desconto no total</h4>
+
+            {descontoDisponivel ? (
+              <div className="wa-orc-descontoFinal-linha">
+                <div className="wa-orc-descontoTipo" role="group" aria-label="Desconto em reais ou porcentagem">
+                  <button
+                    type="button"
+                    className={
+                      descontoTipo === "reais"
+                        ? "wa-orc-descontoTipo-btn wa-orc-descontoTipo-btn--on"
+                        : "wa-orc-descontoTipo-btn"
+                    }
+                    aria-pressed={descontoTipo === "reais"}
+                    disabled={disabled}
+                    onClick={() => {
+                      setDescontoTipo("reais");
+                      setDescontoErro("");
+                    }}
+                  >
+                    R$
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      descontoTipo === "percent"
+                        ? "wa-orc-descontoTipo-btn wa-orc-descontoTipo-btn--on"
+                        : "wa-orc-descontoTipo-btn"
+                    }
+                    aria-pressed={descontoTipo === "percent"}
+                    disabled={disabled}
+                    onClick={() => {
+                      setDescontoTipo("percent");
+                      setDescontoErro("");
+                    }}
+                  >
+                    %
+                  </button>
+                </div>
+                <div className="wa-orc-descontoCampo">
+                  <span className="wa-orc-descontoPrefixo" aria-hidden="true">
+                    {descontoTipo === "reais" ? "R$" : "%"}
+                  </span>
+                  <input
+                    className="wa-input wa-orc-descontoInput"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={descontoTipo === "reais" ? "Valor" : "%"}
+                    value={descontoValor}
+                    maxLength={12}
+                    disabled={disabled}
+                    aria-label={descontoTipo === "reais" ? "Desconto em reais" : "Desconto em porcentagem"}
+                    aria-invalid={descontoErro ? "true" : undefined}
+                    onChange={(e) => {
+                      setDescontoValor(e.target.value);
+                      if (descontoErro) setDescontoErro("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        aplicarDescontoFinal();
+                      }
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-primary wa-orc-btnSm"
+                  disabled={disabled || !descontoValor.trim()}
+                  onClick={aplicarDescontoFinal}
+                >
+                  Aplicar
+                </button>
+              </div>
+            ) : (
+              <p className="wa-orc-hint">
+                Para um desconto no total, todos os itens precisam de preço. Você ainda pode ajustar
+                o preço de cada item acima.
+              </p>
+            )}
+
+            {descontoErro ? <p className="wa-orc-item-erro">{descontoErro}</p> : null}
+
+            {temNegociacao ? (
+              <div className="wa-orc-descontoFinal-ativo">
+                <span className="wa-orc-hint">
+                  Preços deste orçamento aplicados — o total final é calculado pelo sistema da
+                  empresa quando você calcular.
+                </span>
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-ghost wa-orc-btnSm"
+                  disabled={disabled}
+                  onClick={removerDescontos}
+                >
+                  Remover desconto
+                </button>
+              </div>
+            ) : descontoDisponivel ? (
+              <p className="wa-orc-hint">
+                O desconto é dividido entre os itens conforme o valor de cada um e substitui os
+                preços ajustados por item.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </div>
 
       {/*

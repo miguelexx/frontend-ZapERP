@@ -1120,14 +1120,6 @@ function StatusPill({
               <span className="chat-list-status-tech-staff-main zap-badge-aguardando-funcionario">
                 <span className="chat-list-status-tech-staff-label">Aguardando atendente</span>
               </span>
-              {String(esperaMinutosAnchorIso || "").trim() ? (
-                <EsperaMinutosInline
-                  anchorIso={String(esperaMinutosAnchorIso).trim()}
-                  className="chat-list-time-espera-min--staff-pill"
-                  format="hud"
-                  minuteTick={minuteTick}
-                />
-              ) : null}
             </span>
           ) : (
             <AwaitClienteBadge title="Aguardando resposta do cliente (modo simples)" auto />
@@ -1353,15 +1345,13 @@ function ChatRow({
   const modoSimplesAg = chat?.atendimento_modo_simples
     ? resolveModoSimplesAguardandoEffective(chat)
     : "";
-  /** Minutos ao lado do relógio só quando não estão na badge “Aguardando atendente”. */
-  const modoSimplesTimerNaBadge =
-    Boolean(chat?.atendimento_modo_simples) &&
-    !isGroupConversation(chat) &&
-    modoSimplesAg === "atendente";
+  /*
+   * Modo simples (pele WhatsApp): os minutos ficam SEMPRE ao lado do relógio.
+   * Dentro da badge eles empurravam nome e prévia para fora da linha na coluna
+   * estreita do desktop — a badge fica só com o rótulo.
+   */
   const mostrarEsperaMinutosAoLadoDoRelogio =
-    Boolean(esperaMinutosAnchor) &&
-    !aguardandoFuncionarioVisivelRow &&
-    !modoSimplesTimerNaBadge;
+    Boolean(esperaMinutosAnchor) && !aguardandoFuncionarioVisivelRow;
   // Borda esquerda acompanha a badge (modo simples inclusive — antes só cliente ganhava cor).
   const staffPremiumRowClass =
     aguardandoFuncionarioVisivelRow || modoSimplesAg === "atendente"

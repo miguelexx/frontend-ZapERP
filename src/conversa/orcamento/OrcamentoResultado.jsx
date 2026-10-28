@@ -57,6 +57,12 @@ export default function OrcamentoResultado({
   onEnviarAoCliente,
   onFechar,
   enviando = false,
+  /**
+   * Orçamento avulso (balcão): não há conversa para onde enviar. Em vez do botão "Enviar ao
+   * cliente" desabilitado — que aqui seria um botão morto e uma promessa ("próxima atualização")
+   * que não se aplica —, o "Copiar resumo" vira a ação principal. Fora do avulso nada muda.
+   */
+  avulso = false,
 }) {
   const view = useMemo(
     () => montarResultadoView(resultado, { jaEstavaCriado }),
@@ -170,7 +176,11 @@ export default function OrcamentoResultado({
             </div>
           ) : null}
           <pre className="wa-orc-resumoTexto">{resumo}</pre>
-          {envioIndisponivel ? (
+          {avulso ? (
+            <p className="wa-orc-hint">
+              Copie o resumo e cole no campo de mensagem da conversa com o cliente.
+            </p>
+          ) : envioIndisponivel ? (
             <p className="wa-orc-hint wa-orc-hint--aviso">
               O envio direto pela conversa será liberado na próxima atualização. Você pode copiar o
               resumo e enviar pelo campo de mensagem.
@@ -182,29 +192,47 @@ export default function OrcamentoResultado({
           )}
         </section>
       </div>
-      <footer className="wa-orc-foot">
-        <div className="wa-orc-acoes">
+      {avulso ? (
+        <footer className="wa-orc-foot">
+          <div className="wa-orc-acoes">
+            <button type="button" className="wa-btn wa-btn-ghost wa-orc-btnSm" onClick={onFechar}>
+              Fechar
+            </button>
+          </div>
           <button
             type="button"
-            className="wa-btn wa-btn-ghost wa-orc-btnSm"
+            className="wa-btn wa-btn-primary wa-orc-btnPrincipal"
             disabled={!resumo}
             onClick={copiarResumo}
           >
             {copiado ? "Copiado!" : "Copiar resumo"}
           </button>
-          <button type="button" className="wa-btn wa-btn-ghost wa-orc-btnSm" onClick={onFechar}>
-            Fechar
+        </footer>
+      ) : (
+        <footer className="wa-orc-foot">
+          <div className="wa-orc-acoes">
+            <button
+              type="button"
+              className="wa-btn wa-btn-ghost wa-orc-btnSm"
+              disabled={!resumo}
+              onClick={copiarResumo}
+            >
+              {copiado ? "Copiado!" : "Copiar resumo"}
+            </button>
+            <button type="button" className="wa-btn wa-btn-ghost wa-orc-btnSm" onClick={onFechar}>
+              Fechar
+            </button>
+          </div>
+          <button
+            type="button"
+            className="wa-btn wa-btn-primary wa-orc-btnPrincipal"
+            disabled={envioIndisponivel || enviando || !resumo}
+            onClick={() => onEnviarAoCliente?.(resumo)}
+          >
+            {enviando ? "Enviando…" : "Enviar ao cliente"}
           </button>
-        </div>
-        <button
-          type="button"
-          className="wa-btn wa-btn-primary wa-orc-btnPrincipal"
-          disabled={envioIndisponivel || enviando || !resumo}
-          onClick={() => onEnviarAoCliente?.(resumo)}
-        >
-          {enviando ? "Enviando…" : "Enviar ao cliente"}
-        </button>
-      </footer>
+        </footer>
+      )}
     </>
   );
 }

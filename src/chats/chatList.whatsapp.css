@@ -1,0 +1,496 @@
+/* =======================================================================================
+   MODO SIMPLES — pele WhatsApp da lista de conversas
+   Ativa por `html[data-zap-simple="1"]` (ver auth/modoSimplesUi.js).
+
+   Porquê o prefixo gigante `html[data-zap-simple="1"] body .app-layout #main-content`:
+   a lista leva três camadas de pele por cima (studio.css, conversations-studio.css,
+   premium-interactions.css), todas em `html body .app-layout--studio #main-content …`
+   e com `!important`. Sem igualar essa especificidade — e sem `!important` — nada aqui
+   ganharia. É a mesma convenção dessas camadas, não um atalho.
+
+   Regra do ficheiro: SÓ aparência. A altura real da linha tem de caber nos 76px (mobile)
+   / 80px (desktop) que `estimateChatListRowSize` reserva no modo simples — por isso o
+   título fica em 1 linha, as sublinhas do card saem e o meta vira grelha 2x2. Mexer
+   nestes pontos sem mexer na estimativa recorta as linhas na lista virtualizada.
+
+   Os tokens `--zs-*` vivem em `styles/zap-simples.css` (carregado no boot).
+======================================================================================= */
+
+/* -----------------------------------------------------------------------
+   Painel
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-root {
+  background: var(--zs-bg) !important;
+  border-right-color: var(--zs-divider) !important;
+}
+
+/* -----------------------------------------------------------------------
+   Cabeçalho — barra lisa, ícones sem caixa
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header {
+  background: var(--zs-bg) !important;
+  min-height: 56px !important;
+  padding: 6px 6px 6px 16px !important;
+  border-bottom: 1px solid var(--zs-divider) !important;
+  box-shadow: none !important;
+}
+
+/* Linha de acento azul sob o topo — fora. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header::after {
+  display: none !important;
+  content: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header-actions {
+  gap: 2px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header-btn,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header-actions .chat-list-header-btn:first-child {
+  width: 38px !important;
+  height: 38px !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--zs-icon) !important;
+  box-shadow: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header-btn:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-header-actions .chat-list-header-btn:first-child:hover {
+  background: var(--zs-hover) !important;
+  border-color: transparent !important;
+  color: var(--zs-text) !important;
+}
+
+/* -----------------------------------------------------------------------
+   Toolbar — busca + chips, sem molduras
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-toolbar {
+  background: var(--zs-bg) !important;
+  border-bottom: 1px solid var(--zs-divider) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-toolbar-row--search.chat-list-search-wrap {
+  padding: 8px 12px 6px !important;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-box {
+  background: var(--zs-panel) !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  min-height: 40px !important;
+  padding: 6px 16px !important;
+  box-shadow: none !important;
+  color: var(--zs-text-2) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-box:focus-within {
+  border-color: var(--zs-accent) !important;
+  box-shadow: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-input {
+  color: var(--zs-text) !important;
+  -webkit-text-fill-color: var(--zs-text) !important;
+  caret-color: var(--zs-text) !important;
+  font-size: 14px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-input::placeholder {
+  color: var(--zs-text-2) !important;
+  -webkit-text-fill-color: var(--zs-text-2) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chips-wrap,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chips-wrap--compact {
+  background: var(--zs-bg) !important;
+  border-bottom: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chips-scroll {
+  padding: 0 12px 8px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chips--scroll {
+  gap: 8px !important;
+}
+
+/* Chips iguais aos filtros do WhatsApp: contorno fino, ativo em tinta do accent. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip--primary {
+  min-height: 30px !important;
+  height: auto !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--zs-divider) !important;
+  background: transparent !important;
+  color: var(--zs-text-2) !important;
+  box-shadow: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip.is-active,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip--primary.is-active {
+  background: var(--zs-accent-soft) !important;
+  border-color: transparent !important;
+  color: var(--zs-accent-text) !important;
+  font-weight: 500 !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip-count {
+  background: transparent !important;
+  color: inherit !important;
+  opacity: 0.6 !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  padding: 0 !important;
+  min-width: auto !important;
+  height: auto !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip.is-active .chat-list-chip-count {
+  opacity: 1 !important;
+}
+
+/* Linha de contagem ("83 de 2779") — o WhatsApp não tem, e no modo simples
+   `middleSlot` é sempre null, por isso a faixa inteira sai. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-toolbar-row--meta {
+  display: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Lista — linhas lisas, divisória fina, sem cartões
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-scroll {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: var(--zs-bg) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-rows {
+  gap: 0 !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.zap-conversation-card {
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 8px 16px !important;
+  gap: 11px !important;
+  min-height: 0 !important;
+  /* Divisória encostada ao texto, como no WhatsApp. Vem do background porque o
+     ::after da linha pertence aos estados "premium" (abaixo são desligados). */
+  background-image: linear-gradient(
+    to right,
+    transparent 0 var(--zs-row-inset),
+    var(--zs-divider) var(--zs-row-inset)
+  ) !important;
+  background-repeat: no-repeat !important;
+  background-position: bottom left !important;
+  background-size: 100% 1px !important;
+}
+
+/* Barras de glow/acento dos estados premium. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row::after,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row::before {
+  display: none !important;
+  content: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.zap-conversation-card:not(.is-active):hover {
+  background-color: var(--zs-hover) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.is-active,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.zap-conversation-card.is-active {
+  background-color: var(--zs-active) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Cards coloridos por estado (âmbar/azul/alerta): a badge já comunica o estado. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row--await-staff-premium:not(.is-active),
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row--await-client-card:not(.is-active),
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row--somente-aberta-card:not(.is-active),
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row--reaberta-falta-card:not(.is-active),
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row--atendimento-calm:not(.is-active),
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row--atendimento-alerta:not(.is-active) {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-avatar {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+}
+
+/* --- Grelha 2x2 do WhatsApp -------------------------------------------
+   nome | hora
+   prévia | selo
+   `display: contents` em `-row-top` e `-row-meta` sobe os quatro elementos
+   para a mesma grelha sem tocar no JSX. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-main {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-top,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-meta {
+  display: contents !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-title-wrap {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-time {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  font-size: 12px !important;
+  color: var(--zs-text-2) !important;
+  font-weight: 400 !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-mid {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-statusRow,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-badge-sem-conversa {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+
+/* Título em 1 linha: é o que mantém a altura real dentro da estimativa fixa. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-title {
+  font-size: 15.5px !important;
+  line-height: 1.3 !important;
+  font-weight: 400 !important;
+  color: var(--zs-text) !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: block !important;
+  -webkit-line-clamp: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.has-unread .chat-list-title {
+  font-weight: 500 !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-preview,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.has-unread .chat-list-preview,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-previewText {
+  font-size: 13.5px !important;
+  line-height: 1.3 !important;
+  font-weight: 400 !important;
+  color: var(--zs-text-2) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.has-unread .chat-list-time {
+  color: var(--zs-accent-text) !important;
+}
+
+/* Sublinhas e etiquetas do card (setor, empresa, atendente, número, tags):
+   fora. É o "menos poluído possível" — e é o que garante que a linha nunca
+   ultrapassa a altura fixa reservada na virtualização. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-setor,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-empresa,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-assignee,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-atendente-admin,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-encontrado-por,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-whatsapp-instance,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-tags,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-wa-labels {
+  display: none !important;
+}
+
+/* Grupo: rótulo discreto, sem pílula colorida. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-badge-grupo {
+  background: transparent !important;
+  border: none !important;
+  color: var(--zs-text-2) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  padding: 0 0 0 2px !important;
+  box-shadow: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Selo de estado — a única cor da linha
+----------------------------------------------------------------------- */
+
+/* O wrapper do selo "Aguardando atendente" ganha uma cápsula azul-escura no
+   mobile (chatList.css, grelha `:has(.chat-list-status-tech--staff)`). Aqui ele
+   volta a ser só um contentor — a cor fica na pílula interna. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech--staff {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  color: inherit !important;
+  gap: 4px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech-staff-label,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech-staff-badge-icon {
+  color: inherit !important;
+  font-family: inherit !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+}
+
+/* Coluna direita não pode comer a prévia: o selo tem teto. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-statusRow {
+  max-width: 128px !important;
+  min-width: 0 !important;
+  width: max-content !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech-staff-main,
+html[data-zap-simple="1"] body .app-layout #main-content .zap-badge-aguardando-funcionario {
+  background: var(--zs-accent-soft) !important;
+  border: none !important;
+  color: var(--zs-accent-text) !important;
+  min-height: 20px !important;
+  height: auto !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  font-family: inherit !important;
+  letter-spacing: 0 !important;
+  width: max-content !important;
+  max-width: 100% !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech--await-client,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-badge-await,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-badge-sem-conversa {
+  background: var(--zs-panel) !important;
+  border: none !important;
+  color: var(--zs-text-2) !important;
+  min-height: 20px !important;
+  height: auto !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-statusRow,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-status-tech-staff-main,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-badge-await {
+  box-shadow: none !important;
+  animation: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-time-espera-min,
+html[data-zap-simple="1"] body .app-layout #main-content .chat-list-time-espera-min--staff-pill {
+  color: var(--zs-text-2) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  padding: 0 0 0 4px !important;
+}
+
+/* Menu de ações: sem moldura; a linha reserva-lhe a direita no toque. */
+html[data-zap-simple="1"] body .app-layout #main-content .chat-row-action-trigger {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--zs-text-2) !important;
+  box-shadow: none !important;
+  border-radius: 999px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .chat-row-action-trigger:is(:hover, .is-open) {
+  background: var(--zs-hover) !important;
+  border-color: transparent !important;
+  color: var(--zs-text) !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row,
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.zap-conversation-card {
+    padding-right: 36px !important;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Mobile
+----------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row,
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row.zap-conversation-card {
+    padding: 8px 14px !important;
+    padding-right: 36px !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-title {
+    font-size: 15px !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-preview,
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-previewText {
+    font-size: 13px !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-toolbar-row--search.chat-list-search-wrap {
+    padding: 8px 10px 6px !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chips-scroll {
+    padding: 0 10px 8px !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-chip {
+    min-height: 28px !important;
+    padding: 0 11px !important;
+    font-size: 12.5px !important;
+  }
+
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-row-meta {
+    max-width: none !important;
+  }
+}

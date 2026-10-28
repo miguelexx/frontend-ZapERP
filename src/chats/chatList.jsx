@@ -23,7 +23,7 @@ import { useChatStore } from "./chatsStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { listarTags } from "../api/tagService";
 import { useAuthStore } from "../auth/authStore";
-import { isSupervisorOrAdmin } from "../auth/permissions";
+import { isSupervisorOrAdmin, canCriarOrcamento } from "../auth/permissions";
 import {
   isGroupConversation,
   getStatusAtendimentoEffective,
@@ -38,6 +38,8 @@ import "../components/feedback/skeleton.css";
 import "../components/ui/button.css";
 import "./chatList.css";
 import "./chatList.chips-premium.css";
+/* Pele WhatsApp do modo simples — tem de carregar depois das duas de cima. */
+import "./chatList.whatsapp.css";
 import "../styles/zap-animations.css";
 import NovoContatoModal from "./NovoContatoModal";
 import { OPEN_CONVERSA_BY_PHONE_EVENT } from "./openConversaByPhoneBridge";
@@ -45,6 +47,12 @@ import { ZAPERP_FOCUS_CHAT_SEARCH_EVENT } from "../atendimento/atendimentoUiEven
 import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
 import { contactIdentitiesConflict } from "./chatContactIdentity";
 const ProdutoConsultaPanel = lazy(() => import("../conversa/ProdutoConsultaPanel"));
+/**
+ * Orçamento WM avulso (balcão): o MESMO drawer da conversa, montado aqui sem conversa aberta.
+ * `lazy` pelo mesmo motivo do painel de produtos — chunk só desce quando o módulo está ligado e
+ * alguém clica. Modo avulso: `conversaId=null`, sem `clienteNomeSugerido` e sem `onEnviarAoCliente`.
+ */
+const OrcamentoDrawer = lazy(() => import("../conversa/orcamento/OrcamentoDrawer"));
 export { getDisplayName };
 import {
   sortChatListByRecent,
@@ -208,6 +216,8 @@ export default function ChatList() {
   const sessionBootRef = useRef(null);
   const auxScopeKeyRef = useRef(null);
   const canConsultarProdutos = ["admin", "supervisor", "atendente"].includes(userRole);
+  // Orçamento avulso: mesmo gate de módulo+permissão do botão da conversa (doc 36, D2/D7).
+  const canCriarOrcamentoWm = canCriarOrcamento(user);
   const canVerSyncProdutos = ["admin", "supervisor"].includes(userRole);
   const canSincronizarProdutos = userRole === "admin";
 
@@ -343,6 +353,7 @@ export default function ChatList() {
 
   const [novoContatoModalOpen, setNovoContatoModalOpen] = useState(false);
   const [showProdutosPanel, setShowProdutosPanel] = useState(false);
+  const [showOrcamentoAvulso, setShowOrcamentoAvulso] = useState(false);
   const [confirmClear, setConfirmClear] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -1701,6 +1712,10 @@ export default function ChatList() {
     setShowProdutosPanel(true);
   }, []);
 
+  const handleOpenOrcamentoAvulso = useCallback(() => {
+    setShowOrcamentoAvulso(true);
+  }, []);
+
   const handleNovoContatoMenu = useCallback(
     (e) => {
       e.preventDefault();
@@ -2025,6 +2040,8 @@ export default function ChatList() {
         onNovaComunidade={handleNovaComunidadeMenu}
         canConsultarProdutos={canConsultarProdutos}
         onOpenProdutos={handleOpenProdutos}
+        canCriarOrcamentoWm={canCriarOrcamentoWm}
+        onOpenOrcamentoAvulso={handleOpenOrcamentoAvulso}
       />
 
       <ChatListBody
@@ -2139,6 +2156,25 @@ export default function ChatList() {
             canTriggerManualSync={canSincronizarProdutos}
             showToast={showToast}
             onEnviarParaConversa={(template) => queueComposerAppend(template)}
+          />
+        </Suspense>
+      ) : null}
+
+      {/*
+        Orçamento AVULSO (balcão): o MESMO OrcamentoDrawer da conversa, montado aqui sem conversa.
+        `conversaId={null}` liga o modo avulso no drawer (corpo de preparar sem conversa_id, e o
+        backend pula a checagem de acesso à conversa). Sem `clienteNomeSugerido` (o atendente
+        escolhe o cliente) e sem `onEnviarAoCliente` (não há conversa para onde enviar — o
+        resultado cai no "Copiar resumo"). Gate de módulo+permissão idêntico ao botão da conversa.
+      */}
+      {showOrcamentoAvulso && canCriarOrcamentoWm ? (
+        <Suspense fallback={null}>
+          <OrcamentoDrawer
+            open
+            onClose={() => setShowOrcamentoAvulso(false)}
+            conversaId={null}
+            companyId={user?.company_id ?? null}
+            userId={user?.id ?? null}
           />
         </Suspense>
       ) : null}

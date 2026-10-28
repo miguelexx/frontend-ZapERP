@@ -1680,6 +1680,46 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-danger {
   border-color: color-mix(in srgb, var(--wa-action-amber) 44%, transparent);
 }
 
+/* -------------------------
+   ORÇAMENTO (esmeralda — criar orçamento no ERP). Esmeralda = valor/comercial, distinta do
+   azul (transferir), do âmbar (aguardar) e do rosa (encerrar). Espelha o padrão dos vizinhos.
+------------------------- */
+.wa-actions .wa-btn-orcamento{
+  background: color-mix(in srgb, var(--light-success) 14%, transparent);
+  color: var(--light-success);
+  border-color: color-mix(in srgb, var(--light-success) 26%, transparent);
+  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.wa-actions .wa-btn-orcamento:hover:not(:disabled){
+  background: color-mix(in srgb, var(--light-success) 18%, var(--wa-panel));
+  border-color: color-mix(in srgb, var(--light-success) 38%, transparent);
+  box-shadow: 0 8px 18px -14px color-mix(in srgb, var(--light-success) 70%, transparent);
+}
+.wa-actions .wa-btn-orcamento:active:not(:disabled){
+  transform: translateY(0);
+}
+html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento{
+  background: var(--light-success-bg);
+  color: var(--light-success);
+  border-color: var(--light-success-border);
+}
+html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled){
+  background: color-mix(in srgb, var(--light-success) 16%, var(--light-surface));
+  border-color: color-mix(in srgb, var(--light-success) 55%, var(--light-success-border));
+  color: var(--light-success);
+}
+[data-theme="dark"] .wa-actions .wa-btn-orcamento{
+  background: transparent;
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+}
+[data-theme="dark"] .wa-actions .wa-btn-orcamento:hover:not(:disabled){
+  background: rgba(52, 211, 153, 0.1);
+  border-color: #34d399;
+  color: #6ee7b7;
+  box-shadow: none;
+}
+
 /* Ícone + texto nas ações de atendimento */
 .wa-atendBtn-icon {
   display: inline-flex;

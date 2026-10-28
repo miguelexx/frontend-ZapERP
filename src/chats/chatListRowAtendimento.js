@@ -487,6 +487,14 @@ export function esperaMinutosAnchorKey(c, pendentesIdSet) {
 /** Espaço vertical entre cards na lista (espelha --cl-chat-row-gap). */
 export const CHAT_LIST_ROW_GAP = 7;
 
+/**
+ * Modo simples (visual WhatsApp): linha de altura fixa, sem gap.
+ * O card perde sublinhas (setor/empresa/atendente/tags) e o título fica em 1 linha
+ * — ver chatList.whatsapp.css. Com isso a altura real nunca passa destes valores,
+ * e a lista fica uniforme como a do WhatsApp.
+ */
+export const CHAT_LIST_SIMPLE_ROW_SIZE = { mobile: 76, desktop: 80 };
+
 /** Métricas espelhadas do chatList.css — lista virtual usa altura fixa por item (sem measureElement). */
 const VIRTUAL_ROW_METRICS = {
   desktop: {
@@ -568,9 +576,13 @@ export function estimateChatListRowSize(
   isMobileLayout,
   pendentesIdSet = null,
   showAssigneeNames = false,
-  showAdminAtendente = false
+  showAdminAtendente = false,
+  modoSimples = false
 ) {
   const m = isMobileLayout ? VIRTUAL_ROW_METRICS.mobile : VIRTUAL_ROW_METRICS.desktop;
+  if (modoSimples) {
+    return isMobileLayout ? CHAT_LIST_SIMPLE_ROW_SIZE.mobile : CHAT_LIST_SIMPLE_ROW_SIZE.desktop;
+  }
   if (!chat) return m.minRow;
 
   const { displayName, isGroup } = getContactDisplay(chat);

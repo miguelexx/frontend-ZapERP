@@ -183,14 +183,24 @@ export function prefillRascunho({
   return prefill;
 }
 
-/** Item do carrinho: identidade do produto + quantidade. Nunca preço. */
+/** Decimal da WM (ponto, sem sinal), para o preço negociado persistido. */
+const PADRAO_DECIMAL_DRAFT = /^\d+(?:\.\d+)?$/;
+
+/**
+ * Item do carrinho: identidade do produto, quantidade e o preço NEGOCIADO pelo atendente.
+ *
+ * Preço CONSULTADO (o oficial do cadastro) continua fora daqui de propósito — um valor velho
+ * voltando do storage pareceria atual. O `preco_negociado` é DIFERENTE: é escolha do atendente
+ * (um desconto), não uma leitura do ERP, então sobreviver ao F5 é o comportamento certo. Entra só
+ * quando é decimal > 0; qualquer outra coisa é descartada (a linha volta ao preço oficial).
+ */
 function sanearItem(bruto) {
   if (!bruto || typeof bruto !== "object") return null;
   const codigo = typeof bruto.codigo_produto_erp === "string" ? bruto.codigo_produto_erp.trim() : "";
   const busca = typeof bruto.busca === "string" ? bruto.busca.trim() : "";
   if (!codigo && !busca) return null;
   const quantidade = typeof bruto.quantidade === "string" ? bruto.quantidade.trim() : "1";
-  return {
+  const item = {
     codigo_produto_erp: codigo.slice(0, 7),
     busca: codigo ? "" : busca.slice(0, 100),
     descricao: typeof bruto.descricao === "string" ? bruto.descricao.slice(0, 200) : "",
@@ -198,6 +208,11 @@ function sanearItem(bruto) {
     marca: typeof bruto.marca === "string" ? bruto.marca.slice(0, 80) : "",
     quantidade: quantidade || "1",
   };
+  const pn = typeof bruto.preco_negociado === "string" ? bruto.preco_negociado.trim() : "";
+  if (pn && pn.length <= 20 && PADRAO_DECIMAL_DRAFT.test(pn) && /[1-9]/.test(pn)) {
+    item.preco_negociado = pn;
+  }
+  return item;
 }
 
 /**

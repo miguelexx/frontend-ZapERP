@@ -1633,6 +1633,199 @@
   text-decoration-thickness: 1px;
 }
 
+/* ================================================================== *
+ * Preço negociado por item + desconto no total (balcão)
+ * ================================================================== */
+
+/*
+  Oficial substituído por uma negociação: riscado e calado. Ele fica à vista para o atendente
+  comparar, não para ser lido como o preço — o preço deste orçamento vem logo abaixo.
+*/
+.wa-orc-item-preco--riscado {
+  color: var(--wa-text-muted);
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* A linha do preço NEGOCIADO desta linha — o preço deste orçamento, não o cadastro. */
+.wa-orc-precoNegoc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--orc-gap-1) var(--orc-gap-2);
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-orc-precoNegoc-rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--wa-text-muted);
+}
+
+/* O valor que vale: destacado no verde do projeto (o mesmo do saldo em folga e do desconto). */
+.wa-orc-precoNegoc-valor {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--orc-saldo);
+  font-variant-numeric: tabular-nums;
+}
+
+.wa-orc-precoNegoc-oficial {
+  color: var(--wa-text-muted);
+  text-decoration-thickness: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wa-orc-precoNegoc-acoes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px var(--orc-gap-1);
+}
+
+/* "Alterar"/"Voltar ao oficial"/"Alterar preço": discretos, ação-texto como "Remover". */
+.wa-orc-precoNegoc-btn,
+.wa-orc-precoNegoc-abrir {
+  padding: 2px 6px;
+  min-height: 0;
+  font-size: 12px;
+  color: var(--wa-green);
+}
+
+.wa-orc-precoNegoc-abrir {
+  align-self: flex-start;
+}
+
+/* Editor inline do preço da linha. Cabe na coluna estreita do item: quebra quando precisa. */
+.wa-orc-precoEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wa-orc-precoEdit-campo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--orc-gap-1);
+}
+
+.wa-orc-precoEdit-prefixo,
+.wa-orc-descontoPrefixo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wa-text-muted);
+}
+
+.wa-input.wa-orc-precoInput {
+  flex: 1 1 88px;
+  min-width: 72px;
+  max-width: 140px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border-radius: var(--orc-raio-controle);
+  border: 1px solid var(--ds-border-strong, var(--wa-panel-border));
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.wa-input.wa-orc-precoInput:focus,
+.wa-input.wa-orc-precoInput:focus-visible,
+.wa-input.wa-orc-descontoInput:focus,
+.wa-input.wa-orc-descontoInput:focus-visible {
+  outline: none;
+  border-color: var(--wa-green);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring, rgba(46, 134, 255, 0.4));
+}
+
+/* ---- Desconto no total (rodapé do corpo) ---- */
+
+.wa-orc-descontoFinal-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--orc-gap-2);
+}
+
+/* Segmento R$ | % — um controle só, estilo "pill" dividido. */
+.wa-orc-descontoTipo {
+  display: inline-flex;
+  border: 1px solid var(--ds-border-strong, var(--wa-panel-border));
+  border-radius: var(--orc-raio-controle);
+  overflow: hidden;
+}
+
+.wa-orc-descontoTipo-btn {
+  min-width: 42px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--wa-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-transition, 140ms ease),
+    color var(--ds-transition, 140ms ease);
+}
+
+.wa-orc-descontoTipo-btn + .wa-orc-descontoTipo-btn {
+  border-left: 1px solid var(--ds-border-strong, var(--wa-panel-border));
+}
+
+.wa-orc-descontoTipo-btn--on {
+  background: var(--wa-green);
+  color: #fff;
+}
+
+.wa-orc-descontoTipo-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: -2px;
+}
+
+.wa-orc-descontoTipo-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wa-orc-descontoCampo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wa-input.wa-orc-descontoInput {
+  flex: 0 1 auto;
+  width: 96px;
+  min-width: 72px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border-radius: var(--orc-raio-controle);
+  border: 1px solid var(--ds-border-strong, var(--wa-panel-border));
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.wa-orc-descontoFinal-ativo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--orc-gap-1) var(--orc-gap-2);
+  margin-top: var(--orc-gap-1);
+}
+
+.wa-orc-descontoFinal-ativo .wa-orc-hint {
+  margin: 0;
+  flex: 1 1 200px;
+}
+
 .wa-orc-previaItem-detalhes {
   grid-column: 1 / -1;
   display: flex;

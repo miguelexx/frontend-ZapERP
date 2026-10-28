@@ -66,6 +66,8 @@ const ChatListRows = memo(function ChatListRows({
     const r = String(s.user?.role || s.user?.perfil || "").toLowerCase();
     return r === "admin" || r === "administrador";
   });
+  // Modo simples (visual WhatsApp): linhas coladas, altura fixa — ver chatList.whatsapp.css.
+  const modoSimples = useAuthStore((s) => s.user?.atendimento_modo_simples === true);
   const mobileSelectedId = useConversaStore((s) => (isMobileLayout ? s.selectedId : null));
   const selectedIdHighlight = useConversaStore((s) => (isMobileLayout ? null : s.selectedId));
   const mobileConversaAberta = isMobileLayout && mobileSelectedId != null;
@@ -131,9 +133,10 @@ const ChatListRows = memo(function ChatListRows({
         isMobileLayout,
         pendentesFuncionarioSet,
         showAssigneeNames && showResponsavelAtendimento,
-        isAdminViewer && showResponsavelAtendimento
+        isAdminViewer && showResponsavelAtendimento,
+        modoSimples
       ),
-    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer, showResponsavelAtendimento, waLabelsByConversa]
+    [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer, showResponsavelAtendimento, waLabelsByConversa, modoSimples]
   );
 
   // Identidade estável: getItemKey entra nas deps do memo de medidas do virtualizador
@@ -152,7 +155,7 @@ const ChatListRows = memo(function ChatListRows({
     count: chatsFiltrados.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: estimateRowSize,
-    gap: CHAT_LIST_ROW_GAP,
+    gap: modoSimples ? 0 : CHAT_LIST_ROW_GAP,
     overscan: isMobileLayout ? 4 : 10,
     scrollPaddingStart: 4,
     scrollPaddingEnd: 8,

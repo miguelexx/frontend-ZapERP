@@ -2,7 +2,7 @@ import { memo } from "react";
 import { createPortal } from "react-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { Icon } from "./chatListUiPrimitives";
-import { IconPackage, IconRefresh, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
+import { IconFileInvoice, IconPackage, IconRefresh, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
 import useMotionPresence from "../components/ui/useMotionPresence";
 
 function HeaderButton({ title, onClick, children, innerRef, disabled }) {
@@ -37,6 +37,9 @@ function ChatListHeaderBar({
   onNovaComunidade,
   canConsultarProdutos,
   onOpenProdutos,
+  /** Orçamento WM avulso (balcão): gate de módulo+permissão já resolvido pelo chamador (doc 36). */
+  canCriarOrcamentoWm,
+  onOpenOrcamentoAvulso,
 }) {
   const motion = useMotionPresence(showNovoMenu);
   return (
@@ -85,6 +88,12 @@ function ChatListHeaderBar({
         {canConsultarProdutos ? (
           <HeaderButton title="Consultar produtos" onClick={onOpenProdutos}>
             <IconPackage size={17} stroke={1.7} aria-hidden="true" />
+          </HeaderButton>
+        ) : null}
+
+        {canCriarOrcamentoWm ? (
+          <HeaderButton title="Novo orçamento" onClick={onOpenOrcamentoAvulso}>
+            <IconFileInvoice size={17} stroke={1.7} aria-hidden="true" />
           </HeaderButton>
         ) : null}
 
@@ -155,6 +164,8 @@ function ChatListHeaderBar({
 function headerPropsAreEqual(prev, next) {
   if (prev.showNovoMenu !== next.showNovoMenu) return false;
   if (prev.canConsultarProdutos !== next.canConsultarProdutos) return false;
+  if (prev.canCriarOrcamentoWm !== next.canCriarOrcamentoWm) return false;
+  if (prev.onOpenOrcamentoAvulso !== next.onOpenOrcamentoAvulso) return false;
   if (prev.menuPosition?.top !== next.menuPosition?.top) return false;
   if (prev.menuPosition?.left !== next.menuPosition?.left) return false;
   if (prev.menuPosition?.width !== next.menuPosition?.width) return false;

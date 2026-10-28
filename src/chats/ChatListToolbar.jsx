@@ -82,8 +82,13 @@ function ChatListToolbar({
     activeFilterTotalCount,
   });
 
+  // Modo simples = visual WhatsApp: o hero "Seu espaço de trabalho" sai da árvore
+  // (não basta ocultar por CSS — ele carrega a cena decorativa animada do headset).
+  const modoSimples = user?.atendimento_modo_simples === true;
+
   return (
     <div className="chat-list-toolbar">
+      {modoSimples ? null : (
       <div className="chat-list-heading">
         <div className="chat-list-heading__copy">
           <span className="chat-list-heading__eyebrow">SEU ESPAÇO DE TRABALHO</span>
@@ -100,6 +105,7 @@ function ChatListToolbar({
           <span className="chat-list-heading__note"><span />Atendimento<br />mais eficiente</span>
         </div>
       </div>
+      )}
       <div className="chat-list-search-wrap chat-list-toolbar-row--search">
         <div className="chat-list-search-row">
           <div className="chat-list-search-box">

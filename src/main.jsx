@@ -14,6 +14,8 @@ import "./styles/studio.css";
 import "./styles/conversations-studio.css";
 import "./styles/zap-animations.css";
 import "./styles/premium-interactions.css";
+import "./styles/zap-simples.css";
+import { applyModoSimplesAttr, readStoredModoSimples } from "./auth/modoSimplesUi";
 
 if (typeof window !== "undefined") {
   installVitePreloadRecovery(window);
@@ -48,6 +50,7 @@ function applyTheme() {
 }
 
 applyTheme();
+applyModoSimplesAttr(readStoredModoSimples());
 initServiceWorkerBridge();
 initNotificationDiagnostics();
 

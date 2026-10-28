@@ -154,7 +154,10 @@ const ESTADO_INCERTO = "INCERTO";
  * busca por nome caso contrário — o backend recusa os dois juntos.
  */
 function montarBodyPreparar({ rascunho, conversaId }) {
-  const body = { conversa_id: Number(conversaId) };
+  const body = {};
+  // Avulso (balcão): sem conversa, nenhum `conversa_id` vai no corpo — o backend o aceita ausente
+  // e pula a checagem de acesso à conversa. Com conversa, segue como sempre.
+  if (conversaId != null && conversaId !== "") body.conversa_id = Number(conversaId);
 
   if (rascunho.clienteCodigoErp) body.cliente_codigo_erp = rascunho.clienteCodigoErp;
   else body.cliente_busca = String(rascunho.clienteBusca || "").trim();
@@ -166,11 +169,16 @@ function montarBodyPreparar({ rascunho, conversaId }) {
   for (const item of rascunho.itens || []) {
     const q = normalizarQuantidadeParaEnvio(item.quantidade);
     if (!q.ok) return { ok: false, motivo: q.motivo };
-    if (item.codigo_produto_erp) {
-      itens.push({ codigo_produto_erp: item.codigo_produto_erp, quantidade: q.value });
-    } else {
-      itens.push({ busca: String(item.busca || "").trim(), quantidade: q.value });
+    const linha = item.codigo_produto_erp
+      ? { codigo_produto_erp: item.codigo_produto_erp, quantidade: q.value }
+      : { busca: String(item.busca || "").trim(), quantidade: q.value };
+    // Preço negociado pelo atendente nesta linha (opcional). Já chega normalizado no rascunho
+    // (decimal com ponto, > 0); vai byte a byte, e o backend recusa o resto. Ausente, a WM usa o
+    // oficial. Só faz sentido com produto resolvido (código) — item ainda em busca não negocia.
+    if (item.codigo_produto_erp && typeof item.preco_negociado === "string" && item.preco_negociado.trim()) {
+      linha.preco_negociado = item.preco_negociado.trim();
     }
+    itens.push(linha);
   }
   if (!itens.length) return { ok: false, motivo: "Adicione ao menos um produto." };
   body.itens = itens;
@@ -292,6 +300,17 @@ export default function OrcamentoDrawer({
     ativo: open,
     clienteNomeSugerido,
   });
+
+  /**
+   * Orçamento avulso (balcão): aberto a partir do topo do workspace, sem conversa. Sem
+   * `conversaId`, `useOrcamentoDraft` não tem chave e devolve `carregado=false` para sempre (o
+   * rascunho não é persistido, por construção) — então a prontidão da tela não pode depender só de
+   * `carregado`, ou o drawer ficaria preso em "Abrindo…". O rascunho começa vazio e o atendente
+   * escolhe cliente, vendedor e produtos normalmente; "Enviar ao cliente" não se aplica (não há
+   * conversa) e o resultado cai no "Copiar resumo".
+   */
+  const avulso = conversaId == null;
+  const prontoParaUsar = carregado || avulso;
 
   // Trocar de conversa com o drawer aberto reinicia o fluxo: a preparação do servidor está
   // amarrada a uma conversa, e reaproveitá-la em outra seria orçar para o cliente errado.
@@ -737,7 +756,7 @@ export default function OrcamentoDrawer({
    * criou. O aviso existe para chegar ANTES do trabalho perdido — depois dele é só ruído.
    */
   const mostrarAvisoErp =
-    Boolean(avisoErp) && carregado && (etapa === ETAPA.FORM || etapa === ETAPA.AMBIGUIDADE);
+    Boolean(avisoErp) && prontoParaUsar && (etapa === ETAPA.FORM || etapa === ETAPA.AMBIGUIDADE);
 
   const descricaoItemAmbiguo = useMemo(() => {
     if (ambiguidade?.status !== STATUS_AMBIGUIDADE.PRODUTO) return "";
@@ -804,7 +823,7 @@ export default function OrcamentoDrawer({
           </div>
         ) : null}
 
-        {!carregado ? (
+        {!prontoParaUsar ? (
           <div className="wa-orc-body">
             <p className="wa-orc-hint">Abrindo…</p>
           </div>
@@ -851,6 +870,7 @@ export default function OrcamentoDrawer({
             jaEstavaCriado={resultadoOperacao?.jaEstavaCriado === true}
             onEnviarAoCliente={typeof onEnviarAoCliente === "function" ? enviarAoCliente : undefined}
             onFechar={onClose}
+            avulso={avulso}
           />
         ) : etapa === ETAPA.PREVIA ? (
           <OrcamentoPreview

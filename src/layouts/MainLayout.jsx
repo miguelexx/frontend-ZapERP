@@ -21,6 +21,7 @@ import {
 } from "@tabler/icons-react";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useAuthStore } from "../auth/authStore";
+import { applyModoSimplesAttr } from "../auth/modoSimplesUi";
 import { usePermissoesStore } from "../auth/permissoesStore";
 import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
 import GlobalNotifications from "../notifications/GlobalNotifications";
@@ -90,6 +91,13 @@ export default function MainLayout() {
   const canAccessDisparo = canAcessarDisparo(user);
   const canAccessComunidades = ["admin", "administrador"].includes(String(user?.perfil || "").toLowerCase());
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
+
+  // Modo simples → pele WhatsApp (chatList.whatsapp.css). O atributo fica no <html>
+  // porque lista, conversa e shell são subárvores irmãs.
+  const modoSimples = user?.atendimento_modo_simples === true;
+  useEffect(() => {
+    applyModoSimplesAttr(modoSimples);
+  }, [modoSimples]);
 
   const navItems = useMemo(
     () =>

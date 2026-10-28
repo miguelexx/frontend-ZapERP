@@ -61,6 +61,11 @@
 - Provider principal: UltraMSG. Whapi é **segundo provider opcional** por instância (`provider='whapi'`), conectado pela aba Configurações → Whapi. O browser **não** chama `gate.whapi.cloud` nem `manager.whapi.cloud`; só o backend. Channel ID/token do canal **não** são preenchidos pelo usuário no fluxo SaaS (`provision-whapi`). Não implementar cliente Z-API.
 - Mídia: upload pelo backend; blob URL só otimista e com revoke.
 
+## Modo simples (pele WhatsApp)
+
+- `data-zap-simple="1"` no `<html>` espelha `user.atendimento_modo_simples`; a pele é `chats/chatList.whatsapp.css`.
+- Linha de altura **fixa** (`CHAT_LIST_SIMPLE_ROW_SIZE`) e `gap: 0`. Nada pode crescer além disso — título em 1 linha, sem sublinhas, sem faixas de tags. Detalhes e porquês em [07-LISTA-DE-CONVERSAS.md](07-LISTA-DE-CONVERSAS.md).
+
 ## Documentação
 
 - Código > estes arquivos. Se mudar invariante, atualize este doc no mesmo PR/tarefa.

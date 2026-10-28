@@ -1127,12 +1127,22 @@ function refQuantidade(bruta) {
   return q.ok ? q.value : "!";
 }
 
+/**
+ * Preço negociado como entra na assinatura: a string crua (byte a byte é o que viaja). Ausente
+ * vira "" para que mexer no preço de uma linha DEPOIS do cálculo marque a prévia como
+ * desatualizada — senão o atendente negociaria, veria um total, e o "Confirmar" gravaria outro.
+ */
+function refPrecoNegociado(bruto) {
+  return typeof bruto === "string" && bruto.trim() ? bruto.trim() : "";
+}
+
 /** Assinatura do rascunho da tela (`useOrcamentoDraft`). */
 export function assinaturaDoRascunho(rascunho) {
   if (!rascunho || typeof rascunho !== "object") return "";
   const itens = (Array.isArray(rascunho.itens) ? rascunho.itens : []).map((item) => [
     refItem(item?.codigo_produto_erp, item?.busca),
     refQuantidade(item?.quantidade),
+    refPrecoNegociado(item?.preco_negociado),
   ]);
   return assinaturaDe({
     cliente: refItem(rascunho.clienteCodigoErp, rascunho.clienteBusca),
@@ -1147,6 +1157,7 @@ export function assinaturaDoBody(body) {
   const itens = (Array.isArray(body.itens) ? body.itens : []).map((item) => [
     refItem(item?.codigo_produto_erp, item?.busca),
     refQuantidade(item?.quantidade),
+    refPrecoNegociado(item?.preco_negociado),
   ]);
   return assinaturaDe({
     cliente: refItem(body.cliente_codigo_erp, body.cliente_busca),

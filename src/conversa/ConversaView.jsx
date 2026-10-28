@@ -16,6 +16,8 @@ import {
   isConversaModoSimplesAtiva,
 } from "../utils/conversaUtils";
 import "./conversa.css";
+/* Pele WhatsApp do modo simples — tem de carregar depois de conversa.css. */
+import "./conversa.whatsapp.css";
 import "../styles/zap-animations.css";
 import {
   classifyOutboundAxiosError,
@@ -263,7 +265,7 @@ function ConversaViewBody() {
      no desktop largo. Abaixo de 1024px o rótulo espremia a barra e o textarea quebrava
      letra a letra — nesses casos o toggle vai para o menu (+). Cobre o vão 641–739px
      que antes ainda mostrava o toggle inline. */
-  const autocorrectToggleInMenu = useMatchMedia("(max-width: 1024px)");
+  const autocorrectToggleInMenuPorLargura = useMatchMedia("(max-width: 1024px)");
   /** Mobile/tablet: tecla Retorno do teclado virtual insere nova linha; enviar só pelo botão (evita enterKeyHint=send esconder o enter). */
   const composerEnterInsertsNewline = headerCompact || atendimentoTabletComposer;
   const composerAppendQueue = useConversaStore((s) => s.composerAppendQueue);
@@ -274,6 +276,10 @@ function ConversaViewBody() {
     () => isConversaModoSimplesAtiva(conversa, user),
     [conversa, user, user?.atendimento_modo_simples, conversa?.atendimento_modo_simples]
   );
+
+  /* Modo simples: o interruptor de correção sai do composer para o menu de anexos
+     em qualquer largura — no desktop ele ficava inline, ao lado do campo de texto. */
+  const autocorrectToggleInMenu = autocorrectToggleInMenuPorLargura || modoSimplesAtivo;
 
   const conversaElegivelAutoAssumir = useMemo(() => {
     if (modoSimplesAtivo) return false;
@@ -3103,6 +3109,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           badge={badge}
           showPagamentoConcluidoBadge={showPagamentoConcluidoBadge}
           encerramentoAusenciaHint={encerramentoAusenciaHint}
+          modoSimples={modoSimplesAtivo}
           setorAtual={setorAtual}
           podeTransferirSetor={podeTransferirSetor}
           onOpenTransferirSetor={handleOpenTransferirSetor}

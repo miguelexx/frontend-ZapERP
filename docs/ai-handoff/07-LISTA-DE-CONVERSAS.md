@@ -10,6 +10,43 @@ Actions que importam: `setChats`, `addChat` (upsert; preserva nome/foto/unread; 
 
 Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instance_id` + cliente/telefone.
 
+## Modo simples = pele WhatsApp (CONFIRMADO)
+
+`user.atendimento_modo_simples` vira o atributo `data-zap-simple="1"` no `<html>`
+(`auth/modoSimplesUi.js`, aplicado no boot por `main.jsx` e mantido por `MainLayout`).
+A pele vive em `chats/chatList.whatsapp.css`, importado **depois** de `chatList.css`
+e `chatList.chips-premium.css` em `chatList.jsx`.
+
+O que muda: o hero "Seu espaço de trabalho" sai da árvore (`ChatListToolbar`), a faixa
+de contagem some, cabeçalho/busca/chips ficam lisos, as linhas perdem o cartão e ganham
+régua divisória, e o card vira a grelha 2x2 do WhatsApp (nome|hora / prévia|selo) via
+`display: contents` em `.chat-list-row-top` e `.chat-list-row-meta`.
+
+**Invariantes — quebrar qualquer um recorta linhas na lista virtualizada:**
+
+- Altura é **fixa** no modo simples: `CHAT_LIST_SIMPLE_ROW_SIZE` (76 mobile / 80 desktop)
+  em `chatListRowAtendimento.js`, e `gap: 0` no virtualizador (`ChatListRows.jsx`).
+- A altura real tem de caber nesse valor. É por isso que a pele força o título em **1 linha**
+  e esconde sublinhas (setor, empresa, atendente, número) e as faixas de tags/etiquetas.
+  Ao reativar qualquer uma delas, suba a constante no mesmo commit.
+- Seletores da pele usam o prefixo `html[data-zap-simple="1"] body .app-layout #main-content`
+  + `!important`: é o mínimo para vencer `studio.css`, `conversations-studio.css` e
+  `premium-interactions.css`, que pintam a lista em `html body .app-layout--studio #main-content …`.
+- No modo simples os minutos de espera ficam **ao lado do relógio**, nunca dentro da badge
+  (`ChatListRow.jsx`): dentro dela empurravam nome e prévia para fora na coluna do desktop.
+
+A conversa tem a pele irmã em `conversa/conversa.whatsapp.css` (importada depois de
+`conversa.css`). Os tokens `--zs-*` das duas vivem em `styles/zap-simples.css`, carregado
+no boot — prefixo `--zs-` porque `conversa.css` já ocupa `--wa-bg`, `--wa-panel` e `--wa-text`
+no `:root`, e um `--wa-*` aqui sequestraria o fundo da thread e a cor das bolhas.
+
+Do lado da conversa, o modo simples também **esconde no JSX**: Transferir
+(`AtendimentoActions`, junto de Assumir/Encerrar, que já saíam), a linha de setor do
+cabeçalho (`ConversaHeader`, via prop `modoSimples`) e o interruptor de correção, que vai
+para o menu de anexos em qualquer largura (`ConversaView`). Cor e ponta (`::after`) das
+bolhas ficam **como estão**: a cor vive num gradiente e a ponta vem dos `--wa-bubble-*`;
+mexer só numa delas desencontra as duas.
+
 ## Componentes
 
 | Arquivo | Papel |

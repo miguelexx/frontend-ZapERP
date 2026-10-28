@@ -133,8 +133,20 @@ function IconPagamentoConcluido() {
   );
 }
 
+function IconAtendOrcamento() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
 function AtendimentoActionIcon({ id }) {
   switch (id) {
+    case "orcamento":
+      return <IconAtendOrcamento />;
     case "transferir":
       return <IconAtendTransfer />;
     case "aguardar_cliente":
@@ -154,6 +166,14 @@ function AtendimentoActionIcon({ id }) {
 /** No menu ⋯ (mobile): ícone opcional por ação secundária */
 function renderOverflowSheetIcon(id) {
   switch (id) {
+    case "orcamento":
+      return (
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3v5h5" />
+          <path d="M9 13h6M9 17h4" />
+        </svg>
+      );
     case "aguardar_cliente":
       return <IconAtendWait />;
     case "retomar_atendimento":
@@ -186,12 +206,16 @@ const MOBILE_TOOLBAR_PINNED_BASE = ["assumir", "transferir", "encerrar"];
  * @param {(close: () => void) => import("react").ReactNode} [props.overflowTop] — itens extras no topo do menu (tags, histórico…)
  * @param {import("react").ReactNode} [props.prepend] — ex.: ícone de histórico à esquerda (só mobile / ConversaView)
  * @param {boolean} [props.splitCompactHeader] — mobile 2 linhas: ⋯ na linha 1, botões inline na linha 2 (grid do header)
+ * @param {boolean} [props.showOrcamento] — Orçamento WM: gate de módulo+permissão+conversa já resolvido pelo cabeçalho (doc 36)
+ * @param {() => void} [props.onOrcamento] — abre o drawer de orçamento da conversa atual
  */
 export default function AtendimentoActions({
   compactToolbar = false,
   overflowTop,
   prepend,
   splitCompactHeader = false,
+  showOrcamento = false,
+  onOrcamento,
 }) {
   const user = useAuthStore((s) => s?.user) ?? null;
 
@@ -412,7 +436,9 @@ export default function AtendimentoActions({
     (isFila || isEmAtendimentoOuAguardandoManual) &&
     mesmaSetorOuSemRestricao;
 
+  // Modo simples não tem fila nem dono: transferir não faz sentido e só polui o topo.
   const podeTransferir =
+    !modoSimplesAtivo &&
     typeof canTransferir === "function" &&
     canTransferir(user) &&
     !isFechada &&
@@ -728,6 +754,21 @@ export default function AtendimentoActions({
       onClick: handleRetomarAtendimento,
       title: "Voltar para em atendimento",
       ariaLabel: "Retomar atendimento",
+    });
+  }
+  // Orçamento WM: botão de verdade na barra (antes era um item discreto no ⋯ do cabeçalho). O
+  // gate (módulo + permissão + conversa individual) já vem resolvido em `showOrcamento`, então
+  // aparece em qualquer estado do atendimento — igual ao gatilho antigo. Em mobile compact não é
+  // "pinned", logo cai no menu ⋯ automaticamente.
+  if (showOrcamento && typeof onOrcamento === "function") {
+    actions.push({
+      id: "orcamento",
+      className: "wa-btn-orcamento",
+      labelLong: "Orçamento",
+      labelShort: "Orçam.",
+      onClick: onOrcamento,
+      title: "Criar um orçamento para este cliente",
+      ariaLabel: "Criar orçamento",
     });
   }
   if (podeTransferir) {

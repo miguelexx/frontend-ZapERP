@@ -118,6 +118,13 @@ import {
 } from "../src/conversa/orcamento/erpDisponibilidade.js";
 
 import {
+  normalizarPrecoNegociado,
+  baseOficialDoItem,
+  podeDistribuirDesconto,
+  distribuirDescontoFinal,
+} from "../src/conversa/orcamento/precoNegociado.js";
+
+import {
   resolveOrcamentoTimeoutMs,
   HTTP_TIMEOUT_ORCAMENTO_STATUS_MS,
   HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS,
@@ -1264,6 +1271,31 @@ const { prefillRascunho } = draft;
       /wa-orc-btnPrincipal"[^>]*disabled/.test(htmlEnviandoCliente),
       "render resultado: durante o envio o botão principal fica desabilitado"
     );
+
+    /* ---- Orçamento AVULSO (balcão): sem conversa, sem "Enviar ao cliente" ---- *
+     * No avulso não há conversa para onde enviar. O botão "Enviar ao cliente" não pode aparecer
+     * (nem desabilitado — seria botão morto com promessa de "próxima atualização" que não se
+     * aplica): "Copiar resumo" vira a ação principal. */
+    const htmlAvulso = render(Componentes.Resultado, {
+      resultado: RESULTADO_WM,
+      previa: { itens: [{ descricao: "Notebook", quantidade: "1.000", preco_unitario: "3500.00" }] },
+      avulso: true,
+    });
+    assert(
+      !htmlAvulso.includes("Enviar ao cliente"),
+      "render resultado avulso: não há botão 'Enviar ao cliente' (sem conversa, seria botão morto)"
+    );
+    assert(
+      !/próxima atualização/i.test(htmlAvulso),
+      "render resultado avulso: a frase de 'próxima atualização' não se aplica ao balcão"
+    );
+    assert(
+      /wa-orc-btnPrincipal"[^>]*>\s*Copiar resumo/.test(htmlAvulso) &&
+        !/wa-orc-btnPrincipal"[^>]*disabled/.test(htmlAvulso),
+      "render resultado avulso: 'Copiar resumo' é a ação principal, habilitada"
+    );
+    assert(htmlAvulso.includes("Fechar"), "render resultado avulso: dá para fechar");
+    assert(/123456/.test(htmlAvulso), "render resultado avulso: o número do orçamento aparece igual");
 
     /* ---- Sessão 6: erro de falha segura na prévia ---- */
     const htmlErro = render(Componentes.Preview, {
@@ -4272,6 +4304,116 @@ assert(
   resolveOrcamentoTimeoutMs("/api/orcamentos/abc/confirmar") === HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS,
   "sonda: o novo ramo não muda o perfil do confirmar"
 );
+
+/* ------------------------------------------------------------------ *
+ * Preço negociado por item — a string sai no formato da WM, byte a byte
+ * ------------------------------------------------------------------ */
+{
+  // Vírgula do teclado BR vira ponto; a string sai como vai para a WM.
+  assert(normalizarPrecoNegociado("10,00").value === "10.00", 'preço: "10,00" vira "10.00"');
+  assert(normalizarPrecoNegociado("18.42").value === "18.42", 'preço: "18.42" passa igual');
+  assert(normalizarPrecoNegociado("  7,5 ").value === "7.5", "preço: apara bordas e converte vírgula");
+  assert(normalizarPrecoNegociado("1200").value === "1200", "preço: inteiro é válido");
+  // Zero, negativo e vazio são barrados LOCALMENTE (a WM recusaria com 400).
+  for (const ruim of ["0", "0,00", "0.000", "", "   ", "-5", "-0,01", "abc", "1.2.3", "R$ 10"]) {
+    assert(!normalizarPrecoNegociado(ruim).ok, `preço: ${JSON.stringify(ruim)} tem de ser recusado`);
+  }
+  assert(!normalizarPrecoNegociado(null).ok, "preço: null é recusado");
+  assert(!normalizarPrecoNegociado("1".repeat(21)).ok, "preço: longo demais é recusado");
+}
+
+/* ------------------------------------------------------------------ *
+ * Desconto no total — distribuição proporcional, resíduo na última linha
+ * ------------------------------------------------------------------ */
+{
+  const precos = {
+    P1: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "10.00" } },
+    P2: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "30.00" } },
+  };
+  const itens = [
+    { codigo_produto_erp: "P1", quantidade: "1" },
+    { codigo_produto_erp: "P2", quantidade: "1" },
+  ];
+
+  assert(baseOficialDoItem(itens[0], precos) === 10, "base: lê o preço oficial do cache");
+  assert(podeDistribuirDesconto(itens, precos) === true, "distribuir: disponível com todos os preços");
+
+  // R$ 8 de desconto sobre total 40 → 2 (P1, 1/4) e 6 (P2, 3/4). Soma do desconto = exata.
+  const r = distribuirDescontoFinal({ itens, precos, tipo: "reais", valor: "8" });
+  assert(r.ok, "distribuir R$: aceito");
+  assert(r.descontoCentavos === 800, "distribuir R$: desconto total em centavos");
+  assert(r.precosNegociados[0] === "8.00", "distribuir R$: P1 = 10 − 2 = 8,00");
+  assert(r.precosNegociados[1] === "24.00", "distribuir R$: P2 = 30 − 6 = 24,00");
+  // Exatidão: (10−8)*1 + (30−24)*1 = 8, igual ao pedido.
+
+  // % equivale ao mesmo quando é 20% de 40 = 8.
+  const rp = distribuirDescontoFinal({ itens, precos, tipo: "percent", valor: "20" });
+  assert(rp.ok && rp.descontoCentavos === 800, "distribuir %: 20% de 40 = 8");
+  assert(rp.precosNegociados[0] === "8.00" && rp.precosNegociados[1] === "24.00", "distribuir %: mesma divisão");
+
+  // Resíduo de arredondamento vai para a última linha e a soma bate exatamente.
+  const precos3 = {
+    A: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "10.00" } },
+    B: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "10.00" } },
+    C: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "10.00" } },
+  };
+  const itens3 = [
+    { codigo_produto_erp: "A", quantidade: "1" },
+    { codigo_produto_erp: "B", quantidade: "1" },
+    { codigo_produto_erp: "C", quantidade: "1" },
+  ];
+  const r3 = distribuirDescontoFinal({ itens: itens3, precos: precos3, tipo: "reais", valor: "1" });
+  assert(r3.ok, "distribuir resíduo: R$ 1 entre 3 iguais é aceito");
+  const somaDesc = r3.precosNegociados.reduce((acc, pn) => acc + (1000 - Math.round(Number(pn) * 100)), 0);
+  assert(somaDesc === 100, "distribuir resíduo: a soma dos descontos é exatamente R$ 1,00 (100c)");
+
+  // Guardas: zero/negativo, desconto que zera o orçamento, desconto que zera uma linha.
+  assert(!distribuirDescontoFinal({ itens, precos, tipo: "reais", valor: "0" }).ok, "distribuir: 0 é barrado");
+  assert(!distribuirDescontoFinal({ itens, precos, tipo: "reais", valor: "-5" }).ok, "distribuir: negativo é barrado");
+  assert(!distribuirDescontoFinal({ itens, precos, tipo: "reais", valor: "40" }).ok, "distribuir: zerar o total é barrado");
+  assert(!distribuirDescontoFinal({ itens, precos, tipo: "percent", valor: "100" }).ok, "distribuir: 100% é barrado");
+  // Desconto que zera UMA linha: 39,99 sobre 40 deixa P1 (que vale 10) negativo → barrado.
+  assert(!distribuirDescontoFinal({ itens, precos, tipo: "reais", valor: "39,99" }).ok, "distribuir: zerar uma linha é barrado");
+
+  // Item sem preço no cache trava a distribuição (não há base honesta).
+  const itensSemPreco = [...itens, { codigo_produto_erp: "P3", quantidade: "1" }];
+  assert(podeDistribuirDesconto(itensSemPreco, precos) === false, "distribuir: item sem preço desabilita");
+  assert(!distribuirDescontoFinal({ itens: itensSemPreco, precos, tipo: "reais", valor: "5" }).ok, "distribuir: item sem preço é recusado");
+
+  // Preço "não cadastrado" (irrisório) não serve de base.
+  const precosIrrisorio = { P1: { estado: ESTADO_PRECO.OK, valores: { preco_unitario: "0.010" } } };
+  assert(baseOficialDoItem({ codigo_produto_erp: "P1" }, precosIrrisorio) === null, "base: preço irrisório não é base");
+}
+
+/* ------------------------------------------------------------------ *
+ * Assinatura: mexer no preço negociado DEPOIS do cálculo desatualiza a prévia
+ * ------------------------------------------------------------------ */
+{
+  const base = {
+    clienteCodigoErp: "C1",
+    vendedorCodigoErp: "V1",
+    itens: [{ codigo_produto_erp: "P1", quantidade: "2" }],
+  };
+  const comPreco = {
+    ...base,
+    itens: [{ codigo_produto_erp: "P1", quantidade: "2", preco_negociado: "10.00" }],
+  };
+  assert(
+    assinaturaDoRascunho(base) !== assinaturaDoRascunho(comPreco),
+    "assinatura: negociar um preço muda a assinatura do rascunho"
+  );
+  // O corpo enviado carrega o mesmo campo, então a assinatura do corpo bate com a do rascunho.
+  const body = { cliente_codigo_erp: "C1", vendedor_codigo_erp: "V1", itens: [{ codigo_produto_erp: "P1", quantidade: "2", preco_negociado: "10.00" }] };
+  assert(
+    assinaturaDoBody(body) === assinaturaDoRascunho(comPreco),
+    "assinatura: corpo e rascunho coincidem com o preço negociado"
+  );
+  assert(
+    assinaturaDoBody({ cliente_codigo_erp: "C1", vendedor_codigo_erp: "V1", itens: [{ codigo_produto_erp: "P1", quantidade: "2" }] }) !==
+      assinaturaDoBody(body),
+    "assinatura: corpo sem × com preço negociado diferem"
+  );
+}
 
 if (falhas.length) {
   for (const f of falhas) console.error(`FALHOU: ${f}`);

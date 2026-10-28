@@ -1,0 +1,51 @@
+/* =======================================================================================
+   MODO SIMPLES — paleta da pele WhatsApp
+   Carregado no boot (main.jsx) porque as duas peles que a usam vivem em chunks
+   diferentes: `chats/chatList.whatsapp.css` e `conversa/conversa.whatsapp.css`.
+   O atributo `data-zap-simple` é posto por `auth/modoSimplesUi.js`.
+======================================================================================= */
+
+/* Prefixo `--zs-` (zap simples) de propósito: `conversa.css` já declara
+   `--wa-bg`, `--wa-panel` e `--wa-text` no `:root`, e um `--wa-*` aqui
+   sequestraria o fundo da thread e a cor das bolhas. */
+html[data-zap-simple="1"] {
+  --zs-bg: #ffffff;
+  --zs-panel: #f0f2f5;
+  --zs-divider: #e9edef;
+  --zs-text: #111b21;
+  --zs-text-2: #667781;
+  --zs-hover: #f5f6f6;
+  --zs-active: #f0f2f5;
+  --zs-icon: #54656f;
+  --zs-accent: var(--light-primary, #2e86ff);
+  --zs-accent-soft: color-mix(in srgb, var(--light-primary, #2e86ff) 12%, transparent);
+  --zs-accent-text: var(--light-primary-hover, #1e6fe8);
+  /* Lista colada: sem gap entre linhas (espelha `gap: 0` do virtualizador). */
+  --cl-chat-row-gap: 0px;
+  /* Avatar (48) + padding esquerdo (16) + gap (11) — início da régua divisória. */
+  --zs-row-inset: 75px;
+}
+
+html[data-zap-simple="1"][data-theme="dark"] {
+  --zs-bg: #111b21;
+  --zs-panel: #202c33;
+  --zs-divider: #222d34;
+  --zs-text: #e9edef;
+  --zs-text-2: #8696a0;
+  --zs-hover: #202c33;
+  --zs-active: #2a3942;
+  --zs-icon: #aebac1;
+  --zs-accent-soft: color-mix(in srgb, var(--zs-accent) 22%, transparent);
+  --zs-accent-text: #83b9ff;
+}
+
+html[data-zap-simple="1"] {
+  /* Fundo de conversa do WhatsApp (sem os rabiscos — não temos o asset). */
+  --zs-chat-bg: #efeae2;
+  --zs-header-bg: #f0f2f5;
+}
+
+html[data-zap-simple="1"][data-theme="dark"] {
+  --zs-chat-bg: #0b141a;
+  --zs-header-bg: #202c33;
+}

@@ -1,0 +1,226 @@
+/* =======================================================================================
+   MODO SIMPLES — pele WhatsApp da conversa
+   Par do `chats/chatList.whatsapp.css`; mesma chave (`html[data-zap-simple="1"]`) e
+   mesmo prefixo de especificidade, pelos mesmos motivos descritos lá.
+
+   Prefixo `--zs-` de propósito: `conversa.css` já declara `--wa-bg`, `--wa-panel` e
+   `--wa-text` no `:root`. Um `--wa-*` aqui sequestraria o fundo da thread e as bolhas.
+   Os tokens `--zs-*` vivem em `styles/zap-simples.css` (carregado no boot).
+
+   Carregado DEPOIS de `conversa.css` em `ConversaView.jsx`.
+======================================================================================= */
+
+/* -----------------------------------------------------------------------
+   Cabeçalho da conversa
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header {
+  background: var(--zs-header-bg) !important;
+  border-bottom: 1px solid var(--zs-divider) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding-block: 6px !important;
+  min-height: 0 !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header::before,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* A 2ª linha do cabeçalho mobile só existia para setor + transferir. A caixa do
+   setor fica sempre vazia aqui; a linha inteira só some quando também não sobrou
+   nenhum botão (com orçamento ligado, ela continua lá). */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-mobileRow2-sector {
+  display: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-mobileRow2:not(:has(button)) {
+  display: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-name {
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  color: var(--zs-text) !important;
+  letter-spacing: 0 !important;
+}
+
+/* O selo de estado vira a linha de status do WhatsApp ("online"), não uma pílula. */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-status-pill--meta {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--zs-text-2) !important;
+  animation: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-btn,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-moreBtn,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-atendToolbar-overflowWrap > button,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-back {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--zs-icon) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-btn:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-moreBtn:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-atendToolbar-overflowWrap > button:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-header-back:hover {
+  background: var(--zs-hover) !important;
+  color: var(--zs-text) !important;
+}
+
+/* Ações restantes (CRM, Orçamento, …) viram pílulas neutras: sem gradiente,
+   sem cor própria competindo com o conteúdo. */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-actions button,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-atendToolbar-btn,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-crmSendBtn {
+  background: transparent !important;
+  border: 1px solid var(--zs-divider) !important;
+  color: var(--zs-text-2) !important;
+  box-shadow: none !important;
+  border-radius: 999px !important;
+  font-weight: 400 !important;
+  animation: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-actions button:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-atendToolbar-btn:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-crmSendBtn:hover {
+  background: var(--zs-hover) !important;
+  color: var(--zs-text) !important;
+}
+
+/* -----------------------------------------------------------------------
+   Thread
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-messages {
+  background: var(--zs-chat-bg) !important;
+  box-shadow: none !important;
+}
+
+/* Grade/glow de fundo do tema ZapERP. */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-messages::before,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-messages::after {
+  display: none !important;
+  content: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-bubble {
+  font-weight: 400 !important;
+  font-size: 14.2px !important;
+  line-height: 19px !important;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13) !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Cores e “rabinho” das bolhas ficam como estão: a cor vive num gradiente e a
+   ponta (`::after`) vem dos tokens `--wa-bubble-*` do conversa.css. Mexer só numa
+   das pontas desencontra as duas — aqui a pele trata apenas de sombra e ritmo. */
+html[data-zap-simple="1"][data-theme="dark"] body .app-layout #main-content .wa-bubble {
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Divisor de dia: pílula discreta, como a do WhatsApp. */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-daySep-pill {
+  background: var(--zs-header-bg) !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--zs-text-2) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+}
+
+/*
+ * "Marcar como lida" é exclusivo do modo simples e aparecia como CTA azul
+ * grande no meio da thread. Vira uma pílula discreta, no estilo do divisor de dia.
+ */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-modoSimplesLidaBar-btn {
+  background: var(--zs-header-bg) !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--zs-text-2) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  min-height: 0 !important;
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-modoSimplesLidaBar-btn:hover:not(:disabled) {
+  background: var(--zs-hover) !important;
+  color: var(--zs-text) !important;
+}
+
+/* Bloco de histórico: o parágrafo explicativo da UltraMSG é um texto longo no
+   topo da thread. No modo simples fica só o botão, discreto. */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-loadOlderEnd {
+  display: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-loadOlderBtn {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--zs-accent-text) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  min-height: 0 !important;
+  padding: 4px 10px !important;
+}
+
+/* -----------------------------------------------------------------------
+   Composer
+----------------------------------------------------------------------- */
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer {
+  background: var(--zs-header-bg) !important;
+  border-top: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-shell .wa-footer textarea.wa-input,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-shell .wa-footer .wa-input {
+  background: var(--zs-bg) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  color: var(--zs-text) !important;
+  font-size: 15px !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-iconBtn,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-micBtn,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-stickerWrap > button,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-attachWrap > button {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--zs-icon) !important;
+}
+
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-iconBtn:hover,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-micBtn:hover {
+  background: var(--zs-hover) !important;
+  color: var(--zs-text) !important;
+}
+
+/* O botão de enviar é o único colorido — como o verde do WhatsApp, aqui no accent. */
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-sendBtn,
+html[data-zap-simple="1"] body .app-layout #main-content .wa-footer .wa-sendSplit-main {
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
