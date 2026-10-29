@@ -2128,10 +2128,26 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
 }
 
 .chat-list-avatar-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: var(--cl-radius-full);
+  /* Começa invisível sobre as iniciais e entra com fade quando a foto carrega — nunca um
+     anel vazio durante o download. */
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.chat-list-avatar-img.is-loaded {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-list-avatar-img {
+    transition: none;
+  }
 }
 
 .chat-list-avatar::after {

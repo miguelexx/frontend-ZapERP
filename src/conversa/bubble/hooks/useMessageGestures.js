@@ -7,6 +7,7 @@ import {
   MEDIA_POINTER_OPENED_MS,
   GHOST_CLICK_MS,
   GHOST_CLICK_SLOP_PX,
+  GHOST_MAX_HOLD_MS,
   LONG_PRESS_IGNORE_SELECTOR,
   LONG_PRESS_IGNORE_BUTTON_OR_LINK,
 } from "../utils/gestureConstants";
@@ -34,6 +35,8 @@ export function useMessageGestures({
   const ghostUntilRef = useRef(0);
   const ghostOriginRef = useRef(null);
   const ghostTeardownRef = useRef(null);
+  const ghostAwaitingLiftRef = useRef(false);
+  const ghostArmedAtRef = useRef(0);
 
   /**
    * Engole o clique/mouse "fantasma" que o navegador dispara quando o dedo solta depois do
@@ -41,11 +44,16 @@ export function useMessageGestures({
    * não abre um item sozinho nem se fecha ao soltar, e qualquer toque intencional (em outro
    * ponto, ou depois da janela) continua passando normalmente.
    */
-  const armGhostGuard = useCallback(() => {
+  const armGhostGuard = useCallback((pointerStillDown) => {
     const origin = pressMetaRef.current;
     if (!origin) return; // sem coordenada (ex.: contextmenu desktop) não há fantasma a tratar
     ghostOriginRef.current = { x: origin.x, y: origin.y };
     ghostUntilRef.current = Date.now() + GHOST_CLICK_MS;
+    ghostArmedAtRef.current = Date.now();
+    // Com o dedo ainda na tela a guarda fica ABERTA até a soltura: o menu das mensagens
+    // enviadas é mais alto, o utilizador segura mais tempo a ler, e expirar aqui deixava o
+    // clique fantasma acionar um item sozinho ao soltar.
+    ghostAwaitingLiftRef.current = Boolean(pointerStillDown);
     if (ghostTeardownRef.current) return; // listeners já instalados; só estendeu a janela
 
     const near = (ev) => {
@@ -57,10 +65,14 @@ export function useMessageGestures({
       );
     };
     const swallow = (ev) => {
+      if (ev.type === "pointerdown" && ev.pointerType && ev.pointerType !== "mouse") {
+        // Toque REAL novo: o fantasma é sintético e nunca gera pointerdown de toque. Logo,
+        // a partir daqui tudo é gesto genuíno — desarma para não engolir o clique do
+        // utilizador que toca num item logo após soltar.
+        ghostTeardownRef.current?.();
+        return;
+      }
       if (Date.now() > ghostUntilRef.current) return;
-      // Alguns engines sintetizam também um pointerdown de tipo "mouse"; ignoramos esse
-      // (que fecharia o backdrop), mas nunca o pointer real de toque.
-      if (ev.type === "pointerdown" && ev.pointerType && ev.pointerType !== "mouse") return;
       if (!near(ev)) return;
       ev.preventDefault();
       ev.stopPropagation();
@@ -70,6 +82,7 @@ export function useMessageGestures({
     const onLift = () => {
       window.removeEventListener("pointerup", onLift, true);
       window.removeEventListener("pointercancel", onLift, true);
+      ghostAwaitingLiftRef.current = false;
       ghostUntilRef.current = Date.now() + GHOST_CLICK_MS;
     };
     window.addEventListener("click", swallow, true);
@@ -86,9 +99,18 @@ export function useMessageGestures({
       window.removeEventListener("pointerdown", swallow, true);
       window.removeEventListener("pointerup", onLift, true);
       window.removeEventListener("pointercancel", onLift, true);
+      ghostAwaitingLiftRef.current = false;
       ghostTeardownRef.current = null;
     };
     const poll = () => {
+      // Dedo ainda em baixo: segura a guarda (com teto de segurança) em vez de expirar.
+      if (
+        ghostAwaitingLiftRef.current &&
+        Date.now() - ghostArmedAtRef.current < GHOST_MAX_HOLD_MS
+      ) {
+        window.setTimeout(poll, 250);
+        return;
+      }
       const remaining = ghostUntilRef.current - Date.now();
       if (remaining <= 0) {
         ghostTeardownRef.current?.();
@@ -135,7 +157,8 @@ export function useMessageGestures({
     if (typeof rm === "function") rm();
   }, []);
 
-  const commitLongPress = useCallback(() => {
+  /** @param pointerStillDown true quando o dedo ainda está na tela (timer do long-press). */
+  const commitLongPress = useCallback((pointerStillDown = true) => {
     if (longPressCommittedRef.current) {
       blockMediaOpenUntilRef.current = Date.now() + MEDIA_OPEN_BLOCK_MS;
       return;
@@ -146,7 +169,7 @@ export function useMessageGestures({
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
     } catch (_) {}
     armSkipNextMediaTap();
-    armGhostGuard();
+    armGhostGuard(pointerStillDown);
     setMenuOpen(true);
   }, [armSkipNextMediaTap, armGhostGuard, clearLongPressTracking, setMenuOpen]);
 
@@ -179,7 +202,8 @@ export function useMessageGestures({
         // Foto/vídeo: o browser manda pointercancel no lugar de pointerup para o menu nativo.
         // Só confirma se o dedo ficou parado o tempo do long-press — rolagem curta não abre o menu.
         if (!moved && elapsed >= LONG_PRESS_MS - 80) {
-          commitLongPress();
+          // Este é o próprio pointerup/pointercancel: o dedo JÁ saiu.
+          commitLongPress(false);
           return;
         }
         clearLongPressTracking();
@@ -196,7 +220,8 @@ export function useMessageGestures({
       };
 
       longPressTimerRef.current = window.setTimeout(() => {
-        commitLongPress();
+        // Dispara com o dedo AINDA na tela.
+        commitLongPress(true);
       }, LONG_PRESS_MS);
     },
     [mobileMessageChrome, selectMode, menuOpen, clearLongPressTracking, commitLongPress]
@@ -280,7 +305,8 @@ export function useMessageGestures({
       const elapsed = pressMetaRef.current ? Date.now() - pressMetaRef.current.t : 0;
       if (isMediaOpenBlocked() || elapsed >= LONG_PRESS_MS - 80) {
         swallowMediaOpen(e);
-        if (elapsed >= LONG_PRESS_MS - 80) commitLongPress();
+        // Estamos no pointerup da mídia: o dedo já saiu.
+        if (elapsed >= LONG_PRESS_MS - 80) commitLongPress(false);
         return;
       }
       // Toque curto: cancela o long-press antes do stopPropagation do viewer.

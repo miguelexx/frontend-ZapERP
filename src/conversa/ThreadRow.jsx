@@ -178,10 +178,13 @@ function ThreadRow({
   const isInitialPass = zapMsgsInitialPassRef?.current === true;
 
   let zapAnimateIn = false;
-  /* Só anima mensagens novas no fim do thread — histórico revelado no scroll não anima (evita jank). */
+  /* Só anima mensagens novas no fim do thread — histórico revelado no scroll não anima (evita jank).
+     O mobile TAMBÉM anima: era a plataforma onde enviar uma mensagem não tinha retorno nenhum
+     (a bolha surgia seca). A entrada é só transform+opacity, curta, limitada às 2 últimas linhas
+     e suprimida durante o scroll (.wa-messages.is-scrolling), com will-change solto no
+     animationend (.zap-anim-settled). */
   if (
     allowEnterAnimation &&
-    !mobileMessageChrome &&
     !isInitialPass &&
     seenMsgKeys &&
     messageKey != null &&

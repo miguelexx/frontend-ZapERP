@@ -101,6 +101,15 @@ html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-input
   font-size: 14px !important;
 }
 
+/* iOS Safari dá zoom automático ao focar um input com fonte < 16px. A regra de 14px acima
+   usa !important e anulava a correção global (@media max-width:640px → 16px), então o
+   celular dava zoom ao tocar na busca. Em qualquer dispositivo de toque, 16px. */
+@media (max-width: 640px), (pointer: coarse) {
+  html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-input {
+    font-size: 16px !important;
+  }
+}
+
 html[data-zap-simple="1"] body .app-layout #main-content .chat-list-search-input::placeholder {
   color: var(--zs-text-2) !important;
   -webkit-text-fill-color: var(--zs-text-2) !important;

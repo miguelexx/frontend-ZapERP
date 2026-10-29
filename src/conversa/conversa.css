@@ -2367,8 +2367,17 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
   pointer-events: none;
 }
 
+/* Abertura de conversa: a máscara ENTRA instantânea (não pode piscar o thread anterior nem
+   o topo antes do snap) e SAI com um settle. Antes era um flip binário de opacidade — o
+   thread aparecia de supetão ao abrir a conversa. Só opacidade: não mexe no layout nem na
+   geometria do virtualizador. */
+.wa-messages > * {
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .wa-messages.wa-messages--opening > * {
   opacity: 0;
+  transition: none;
 }
 
 /* Não mantém o grande glow animado competindo por composição enquanto a thread rola. */
@@ -4131,6 +4140,11 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   width: 14px;
   height: 10px;
   opacity:.9;
+}
+/* Entregue → lido: a confirmação é o retorno mais lido da conversa; passa a assentar
+   na cor em vez de saltar para azul num frame. */
+.wa-ticks{
+  transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease;
 }
 .wa-ticks.isDelivered{
   opacity: .92;
@@ -8959,6 +8973,23 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 .wa-row:has(> .wa-selectChk) > .wa-selectChk {
   align-self: center;
 }
+
+/* Entrada suave ao ligar o modo seleção: sem isto o check aparecia de supetão e a bolha
+   (sobretudo a ENVIADA, que é empurrada para a direita) saltava no mesmo frame. */
+.wa-row > .wa-selectChk {
+  animation: wa-selectChkIn 0.2s cubic-bezier(0.22, 0.82, 0.22, 1);
+}
+
+@keyframes wa-selectChkIn {
+  from {
+    opacity: 0;
+    transform: translateX(-7px) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
 .wa-row-out:has(> .wa-selectChk) > .wa-selectChk {
   margin-right: auto;
 }
@@ -9092,14 +9123,44 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   pointer-events: none;
+  will-change: opacity;
+  animation: wa-selectDimIn 0.18s ease-out;
+}
+
+@keyframes wa-selectDimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 [data-theme="dark"] .wa-messages.wa-messages--selectDim > .wa-messages-selectDim {
   background: rgba(0, 0, 0, 0.45);
 }
 
+/* Em toque, o backdrop-filter cobre a lista virtualizada inteira e re-rasteriza a cada
+   frame — era a principal fonte de travamento ao entrar em modo seleção. Mantemos o véu
+   (composição barata) e dispensamos o blur; o contraste é compensado no alfa. */
+@media (pointer: coarse) {
+  .wa-messages.wa-messages--selectDim > .wa-messages-selectDim {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(17, 27, 33, 0.46);
+  }
+
+  [data-theme="dark"] .wa-messages.wa-messages--selectDim > .wa-messages-selectDim {
+    background: rgba(0, 0, 0, 0.52);
+  }
+}
+
 .wa-messages.wa-messages--selectDim .wa-row:has(.wa-bubble.isSelected) {
   z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-row > .wa-selectChk,
+  .wa-bubble.isSelected,
+  .wa-messages.wa-messages--selectDim > .wa-messages-selectDim {
+    animation: none !important;
+  }
 }
 
 .wa-pinBar {

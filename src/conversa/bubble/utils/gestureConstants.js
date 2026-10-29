@@ -11,6 +11,9 @@ export const MEDIA_POINTER_OPENED_MS = 500;
 // (fora dessa área o toque é intencional e passa normalmente).
 export const GHOST_CLICK_MS = 450;
 export const GHOST_CLICK_SLOP_PX = 30;
+// Enquanto o dedo continua na tela (lendo o menu), a janela do fantasma NÃO pode expirar —
+// o fantasma só nasce na soltura. Este teto só existe para nunca vazar listeners.
+export const GHOST_MAX_HOLD_MS = 20000;
 
 export const LONG_PRESS_IGNORE_SELECTOR =
   '.wa-reactionBtn, .wa-reactionPicker, .wa-msgMenuBtn, .wa-selectChk, .wa-bubble-fileAction, .wa-audioPlayBtn, [role="slider"]';

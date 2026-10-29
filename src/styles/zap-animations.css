@@ -105,11 +105,11 @@
 @keyframes zapMessageIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -240,21 +240,50 @@
 
 /* ---- 8) Entrada de mensagens ---- */
 
+/* Chegada (recebida): discreta — sobe e assenta. */
 .wa-bubble.zap-message-enter {
-  animation: zapMessageIn 200ms ease-out;
+  animation: zapMessageIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, opacity;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .wa-bubble.zap-message-enter {
-    animation: none;
-    will-change: auto;
+/* Envio (sua mensagem): o momento autorado. Parte do canto do composer e assenta — a
+   direção codifica a autoria. Só transform/opacity, então roda no compositor. */
+.wa-row-out .wa-bubble.zap-message-enter {
+  animation-name: zapMessageOut;
+  animation-duration: 260ms;
+  transform-origin: 100% 100%;
+}
+
+@media (max-width: 640px) {
+  .wa-row-out .wa-bubble.zap-message-enter {
+    animation-duration: 220ms;
   }
 }
 
-.wa-bubble.zap-message-enter.zap-anim-settled {
+@keyframes zapMessageOut {
+  from {
+    opacity: 0;
+    transform: translate3d(10px, 10px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* Assentou: solta o compositor. Precisa cobrir também a regra (mais específica) de saída. */
+.wa-bubble.zap-message-enter.zap-anim-settled,
+.wa-row-out .wa-bubble.zap-message-enter.zap-anim-settled {
   animation: none;
   will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-bubble.zap-message-enter,
+  .wa-row-out .wa-bubble.zap-message-enter {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 /* ---- 9) Ripple nos botões de ação ---- */

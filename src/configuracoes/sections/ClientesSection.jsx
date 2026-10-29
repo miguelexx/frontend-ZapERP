@@ -216,7 +216,9 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
               {syncResult.error ? syncResult.error : syncResult.cancelando || cancelling
                 ? "Interrompendo a importação… aguarde o encerramento do lote atual."
                 : syncing
-                ? (syncResult.total_agenda
+                ? (syncResult.fase === "completando_nomes"
+                  ? `Completando nomes pela conversa: ${syncResult.nomes_verificados ?? 0} de ${syncResult.nomes_total ?? 0} contatos que vieram sem nome na lista do WhatsApp…`
+                  : syncResult.total_agenda
                   ? `Sincronizando: ${syncResult.verificados ?? 0} de ${syncResult.total_agenda} contatos; ${syncResult.criados ?? 0} novos, ${syncResult.atualizados ?? 0} atualizados, ${syncResult.fotos_atualizadas ?? 0} fotos.`
                   : syncResult.message || "Buscando contatos no WhatsApp…")
                 : syncResult.cancelado

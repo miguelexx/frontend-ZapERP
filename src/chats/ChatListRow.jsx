@@ -1457,6 +1457,7 @@ function ChatRow({
   const avatarSeed = displayName || phone || id || clienteId;
   const color = getAvatarColor(avatarSeed);
   const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [avatarAttempt, setAvatarAttempt] = useState(0);
   const avatarRetryTimerRef = useRef(null);
   const [opening, setOpening] = useState(false);
@@ -1502,6 +1503,7 @@ function ChatRow({
       avatarRetryTimerRef.current = null;
     }
     setImgError(false);
+    setImgLoaded(false);
     setAvatarAttempt(0);
     return () => {
       if (avatarRetryTimerRef.current != null) {
@@ -1606,7 +1608,13 @@ function ChatRow({
       data-cliente-id={clienteId ?? undefined}
       aria-label={`Conversa com ${displayName}`}
     >
-      <div className="chat-list-avatar" style={{ background: showAvatarImg ? "transparent" : color }} aria-hidden="true">
+      <div className="chat-list-avatar" style={{ background: color }} aria-hidden="true">
+        {/* Iniciais SEMPRE desenhadas por baixo: enquanto a foto baixa (ou se falhar) o
+            círculo mostra as iniciais coloridas em vez de um anel vazio. A foto entra por
+            cima com fade quando carrega (.is-loaded). */}
+        <span className="chat-list-avatar-text">
+          {isGroup ? "👥" : hasName ? initials(displayName) : "#"}
+        </span>
         {showAvatarImg ? (
           /* decoding="async": era o único <img> da lista sem isto, e a descodificação corria
              na main thread ao entrar a linha — ou seja, durante o scroll. Sem loading="lazy":
@@ -1616,16 +1624,13 @@ function ChatRow({
             key={`${avatarUrl}:${avatarAttempt}`}
             src={avatarUrl}
             alt=""
-            className="chat-list-avatar-img"
+            className={`chat-list-avatar-img${imgLoaded ? " is-loaded" : ""}`}
             referrerPolicy="no-referrer"
             decoding="async"
+            onLoad={() => setImgLoaded(true)}
             onError={handleAvatarError}
           />
-        ) : (
-          <span className="chat-list-avatar-text">
-            {isGroup ? "👥" : hasName ? initials(displayName) : "#"}
-          </span>
-        )}
+        ) : null}
       </div>
 
       <div className="chat-list-row-main">
