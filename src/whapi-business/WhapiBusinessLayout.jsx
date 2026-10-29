@@ -8,6 +8,7 @@ import {
   IconRobot,
   IconShoppingBag,
   IconTags,
+  IconUsersGroup,
 } from "@tabler/icons-react";
 import { listarInstanciasWhapi } from "../api/whapiInstancesService";
 import { isWhapiInstance } from "../api/whapiInstancesService";
@@ -38,6 +39,9 @@ export function whapiInstanceName(instance) {
 export default function WhapiBusinessLayout() {
   const user = useAuthStore((state) => state.user);
   const canManageProfile = isSupervisorOrAdmin(user);
+  const canAccessComunidades = ["admin", "administrador"].includes(
+    String(user?.perfil || "").toLowerCase()
+  );
   const [instances, setInstances] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loadingInstances, setLoadingInstances] = useState(true);
@@ -178,6 +182,12 @@ export default function WhapiBusinessLayout() {
           <NavLink to="/whatsapp-business/triagem-interativa" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
             <IconRobot size={18} stroke={1.8} />
             <span>Triagem Interativa</span>
+          </NavLink>
+        ) : null}
+        {canAccessComunidades ? (
+          <NavLink to="/whatsapp-business/comunidades" className={({ isActive }) => `wb-tab${isActive ? " is-active" : ""}`}>
+            <IconUsersGroup size={18} stroke={1.8} />
+            <span>Comunidades</span>
           </NavLink>
         ) : null}
       </nav>

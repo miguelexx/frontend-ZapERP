@@ -198,13 +198,7 @@ export default function AppRoutes() {
           />
           <Route
             path="/comunidades"
-            element={
-              <ProtectedRoute canAccess={canAccessComunidades} redirectTo="/atendimento">
-                <LazyPage>
-                  <Comunidades />
-                </LazyPage>
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/whatsapp-business/comunidades" replace />}
           />
           <Route
             path="/chatbot"
@@ -269,6 +263,16 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute canAccess={canAccessSupervisao} redirectTo="/whatsapp-business/labels">
                   <WhapiTriagemPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="comunidades"
+              element={
+                <ProtectedRoute canAccess={canAccessComunidades} redirectTo="/whatsapp-business/perfil">
+                  <LazyPage>
+                    <Comunidades />
+                  </LazyPage>
                 </ProtectedRoute>
               }
             />

@@ -16,7 +16,6 @@ import {
   IconMoon,
   IconSun,
   IconUsers,
-  IconUsersGroup,
   IconTicket,
 } from "@tabler/icons-react";
 import ZapERPLogo from "../brand/ZapERPLogo";
@@ -90,7 +89,6 @@ export default function MainLayout() {
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
   const canAccessDisparo = canAcessarDisparo(user);
-  const canAccessComunidades = ["admin", "administrador"].includes(String(user?.perfil || "").toLowerCase());
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
   // Modo simples → pele WhatsApp (chatList.whatsapp.css). O atributo fica no <html>
@@ -179,13 +177,6 @@ export default function MainLayout() {
           show: canAccessDisparo,
         },
         {
-          to: "/comunidades",
-          label: "Comunidades",
-          title: "Comunidades do WhatsApp",
-          icon: IconUsersGroup,
-          show: canAccessComunidades,
-        },
-        {
           to: "/configuracoes",
           label: "Configurações",
           title: "Configurações",
@@ -216,7 +207,6 @@ export default function MainLayout() {
       canAccessConfig,
       canAccessDashboard_,
       canAccessDisparo,
-      canAccessComunidades,
       canAccessHelpDesk,
       canAccessRespostasSalvas,
       canAccessSupervisao,
