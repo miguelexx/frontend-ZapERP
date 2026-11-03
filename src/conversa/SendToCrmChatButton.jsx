@@ -419,28 +419,37 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
           </form>
 
           <div className="wa-crmSend-movSection">
-            <div className="wa-crmSend-movDivider" aria-hidden />
-            <div className="wa-crmSend-fieldGroup">
-              <label className="wa-crmSend-label" htmlFor="wa-crmSend-mov">
-                Registrar movimentação
-              </label>
+            <div className="wa-crmSend-movCard">
+              <div className="wa-crmSend-movHead">
+                <span className="wa-crmSend-movIcon" aria-hidden>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                  </svg>
+                </span>
+                <div className="wa-crmSend-movHeadText">
+                  <label className="wa-crmSend-movTitle" htmlFor="wa-crmSend-mov">
+                    Registrar movimentação
+                  </label>
+                  <span className="wa-crmSend-movBadge">não muda a etapa</span>
+                </div>
+              </div>
               <p className="wa-crmSend-movHint">
-                Grava uma observação na oportunidade do cliente.{" "}
-                <strong>Não muda a etapa do funil.</strong>
+                Grava uma observação na oportunidade do cliente, mantendo a etapa atual do funil.
               </p>
               <textarea
                 id="wa-crmSend-mov"
-                className="wa-crmSend-textarea"
+                className="wa-crmSend-textarea wa-crmSend-movTextarea"
                 rows={2}
                 value={movTexto}
                 onChange={(e) => setMovTexto(e.target.value)}
-                placeholder="água de banho do banheiro 2 ok"
+                placeholder="Ex.: Cliente pediu para retornar na segunda-feira."
                 disabled={movSaving}
               />
               <div className="wa-crmSend-actions wa-crmSend-actions--mov">
                 <button
                   type="button"
-                  className="wa-crmSend-submitBtn"
+                  className="wa-crmSend-movBtn"
                   onClick={handleSaveMovimentacao}
                   disabled={movSaving || !movTexto.trim()}
                   aria-busy={movSaving}

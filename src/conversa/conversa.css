@@ -16326,14 +16326,14 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   border-radius: 10px;
   border: none;
   background: var(--ds-hover, rgba(255,255,255,0.06));
-  color: var(--wa-text-muted, rgba(255,255,255,0.5));
+  color: var(--ds-text-tertiary);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   z-index: 2;
 }
 .wa-crmSend-closeBtn:hover:not(:disabled) {
   background: var(--ds-hover-strong, rgba(255,255,255,0.1));
-  color: var(--wa-text, #fff);
+  color: var(--ds-text-primary);
 }
 
 .wa-crmSend-heroIcon {
@@ -16356,14 +16356,14 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 .wa-crmSend-title {
   font-size: 18px;
   font-weight: 750;
-  color: var(--wa-text, #fff);
+  color: var(--ds-text-primary);
   margin: 0;
   letter-spacing: -0.01em;
 }
 .wa-crmSend-subtitle {
   font-size: 13px;
   line-height: 1.5;
-  color: var(--wa-text-muted, rgba(255,255,255,0.5));
+  color: var(--ds-text-tertiary);
   margin: 6px 0 0;
 }
 
@@ -16404,44 +16404,115 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--wa-text-secondary, rgba(255,255,255,0.75));
+  color: var(--ds-text-secondary);
 }
 .wa-crmSend-labelHint {
   font-size: 11px;
   font-weight: 500;
-  color: var(--wa-text-muted, rgba(255,255,255,0.4));
+  color: var(--ds-text-muted);
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--ds-hover, rgba(255,255,255,0.06));
 }
 
-/* "Registrar movimentação": seção independente abaixo do envio de lead. */
+/* "Registrar movimentação": painel premium, independente do envio de lead.
+   Observação gravada na oportunidade do cliente SEM mudar a etapa do funil. */
 .wa-crmSend-movSection {
-  margin-top: 18px;
+  margin-top: 20px;
 }
-.wa-crmSend-movDivider {
-  height: 1px;
-  margin: 0 0 16px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--ds-border, rgba(255, 255, 255, 0.12)) 18%,
-    var(--ds-border, rgba(255, 255, 255, 0.12)) 82%,
-    transparent
-  );
+.wa-crmSend-movCard {
+  display: grid;
+  gap: 11px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--ds-border-strong, rgba(0, 0, 0, 0.08));
+  background:
+    linear-gradient(180deg, var(--ds-accent-muted, rgba(46, 134, 255, 0.08)) 0%, transparent 56%),
+    var(--ds-surface-1, rgba(127, 127, 127, 0.04));
+}
+.wa-crmSend-movHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wa-crmSend-movIcon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--ds-accent, #2E86FF);
+  background: var(--ds-accent-soft, rgba(46, 134, 255, 0.14));
+}
+.wa-crmSend-movHeadText {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wa-crmSend-movTitle {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ds-text-primary);
+}
+.wa-crmSend-movBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--ds-accent, #2E86FF);
+  background: var(--ds-accent-soft, rgba(46, 134, 255, 0.14));
+  white-space: nowrap;
 }
 .wa-crmSend-movHint {
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--wa-text-muted, rgba(255, 255, 255, 0.5));
+  color: var(--ds-text-tertiary);
 }
-.wa-crmSend-movHint strong {
-  color: var(--wa-text-secondary, rgba(255, 255, 255, 0.78));
-  font-weight: 600;
+.wa-crmSend-movTextarea {
+  min-height: 58px;
 }
 .wa-crmSend-actions--mov {
   justify-content: flex-end;
+  padding-top: 0;
+}
+/* Botão da movimentação: acento sólido azul, um pouco menor que o submit. */
+.wa-crmSend-movBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 11px;
+  font-size: 13.5px;
+  font-weight: 650;
+  font-family: inherit;
+  color: #fff;
+  background: linear-gradient(135deg, #1E6FE8 0%, #2E86FF 100%);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(46, 134, 255, 0.3);
+  transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+.wa-crmSend-movBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 6px 18px rgba(46, 134, 255, 0.38);
+}
+.wa-crmSend-movBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.wa-crmSend-movBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .wa-crmSend-textarea {
@@ -16460,7 +16531,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .wa-crmSend-textarea::placeholder {
-  color: var(--wa-text-muted, rgba(255,255,255,0.35));
+  color: var(--ds-text-muted);
 }
 .wa-crmSend-textarea:focus {
   outline: none;
@@ -16520,8 +16591,8 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   top: 50%;
   width: 8px;
   height: 8px;
-  border-right: 2px solid var(--wa-text-secondary, rgba(255,255,255,0.6));
-  border-bottom: 2px solid var(--wa-text-secondary, rgba(255,255,255,0.6));
+  border-right: 2px solid var(--ds-text-tertiary);
+  border-bottom: 2px solid var(--ds-text-tertiary);
   transform: translateY(-70%) rotate(45deg);
   pointer-events: none;
 }
@@ -16532,14 +16603,14 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--wa-text-muted, rgba(255,255,255,0.5));
+  color: var(--ds-text-tertiary);
   padding: 8px 0;
 }
 
 .wa-crmSend-etapasLabel {
   font-size: 13px;
   font-weight: 600;
-  color: var(--wa-text-secondary, rgba(255,255,255,0.75));
+  color: var(--ds-text-secondary);
 }
 
 .wa-crmSend-etapas {
@@ -16622,7 +16693,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   border-radius: 12px;
   border: 1px solid var(--ds-border, rgba(255,255,255,0.1));
   background: transparent;
-  color: var(--wa-text-secondary, rgba(255,255,255,0.7));
+  color: var(--ds-text-secondary);
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
