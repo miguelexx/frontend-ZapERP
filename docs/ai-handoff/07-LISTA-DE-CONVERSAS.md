@@ -10,6 +10,33 @@ Actions que importam: `setChats`, `addChat` (upsert; preserva nome/foto/unread; 
 
 Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instance_id` + cliente/telefone.
 
+## Linhas planas — para todos (CONFIRMADO)
+
+`chats/chatList.flat.css` (importado em `chatList.jsx` depois de `chatList.css` e
+`chatList.chips-premium.css`, antes da pele do modo simples) tira o "cartão" de cada
+conversa: fundo, borda, raio, sombra, tinta de estado e o espaço entre cards. Toolbar,
+busca, **chips de filtro** e cabeçalho ficam como estavam — não são deste ficheiro.
+
+- `CHAT_LIST_ROW_GAP` passou a `0` e `--cl-chat-row-gap` é redeclarado a `0px` em
+  `.chat-list-root`. O gap entra no virtualizador à parte, fora da estimativa — por isso
+  é seguro.
+- **O ficheiro não pode mexer em altura**: nada de padding da linha, tamanho de fonte do
+  título/prévia ou arranjo interno. Só cor, borda e sombra. Quem precisar de linhas de
+  duas alturas (o arranjo compacto do modo simples) tem de esconder setor/empresa/tags e
+  acertar a estimativa no mesmo commit.
+- Especificidade: prefixo `html body .app-layout #main-content .chat-list-root`, que empata
+  com studio/conversations-studio/premium-interactions e ganha por ordem de carregamento.
+  O modo simples usa o mesmo peso com o atributo no lugar do `.chat-list-root` e carrega
+  depois, por isso continua por cima.
+
+Dois acertos em `estimateChatListRowSize` vieram junto (ambos só **acrescentam** altura,
+nunca recortam):
+
+1. A linha de **tags** do card não era contada — cards com etiqueta ficavam recortados
+   (medido: até 17px no telemóvel). Agora reserva o mesmo que as etiquetas do WhatsApp.
+2. A margem final subiu de `+3` para `+6`: sobravam ~3px em cards com título de duas linhas
+   + setor. Com cartão isso ficava escondido na moldura; com linhas coladas, aparece.
+
 ## Modo simples = pele WhatsApp (CONFIRMADO)
 
 `user.atendimento_modo_simples` vira o atributo `data-zap-simple="1"` no `<html>`

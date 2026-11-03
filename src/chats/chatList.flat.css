@@ -1,0 +1,140 @@
+/* =======================================================================================
+   LISTA DE CONVERSAS — linhas planas (para TODOS, não só o modo simples)
+
+   Tira o "cartão" de cada conversa: fundo próprio, borda, raio, sombra, tinta de estado
+   e o espaço entre cards. No lugar fica uma linha corrida com régua fina, como a lista
+   do WhatsApp. Só isso — a toolbar, a busca, os chips de filtro e o cabeçalho ficam
+   exatamente como estavam.
+
+   NADA AQUI PODE MUDAR ALTURA DE LINHA. A lista é virtualizada por estimativa
+   (`estimateChatListRowSize`, sem `measureElement`): se o conteúdo real crescer além da
+   estimativa, a linha é recortada. Por isso não se mexe em padding da linha, tamanho de
+   fonte do título/prévia nem no arranjo interno do card — só em cor, borda e sombra.
+   O espaço ENTRE linhas é seguro: entra como `gap` no virtualizador, fora da estimativa.
+
+   Especificidade: o prefixo `html body .app-layout #main-content .chat-list-root` empata
+   com as camadas de pele do app (studio.css, conversations-studio.css,
+   premium-interactions.css, em `html body .app-layout--studio #main-content …`) e ganha
+   por ordem — este ficheiro carrega no chunk da lista, depois do CSS de entrada.
+   O empate é de propósito: `chatList.whatsapp.css` (modo simples) usa o mesmo peso com
+   o atributo no lugar do `.chat-list-root`, carrega depois e continua por cima.
+======================================================================================= */
+
+html body .app-layout #main-content .chat-list-root {
+  /* Lista corrida: sem respiro entre linhas (espelha `gap: 0` no virtualizador). */
+  --cl-chat-row-gap: 0px;
+  --cl-flat-divider: var(--cl-border);
+}
+
+/* -----------------------------------------------------------------------
+   Faixa da lista
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-scroll {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: var(--cl-surface) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-rows {
+  gap: 0 !important;
+}
+
+/* -----------------------------------------------------------------------
+   A linha
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-row,
+html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card {
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  /* Régua encostada ao texto. Vem do background e não de um ::after porque o
+     pseudo-elemento da linha pertence aos estados "premium" (desligados abaixo). */
+  background-image: linear-gradient(
+    to right,
+    transparent 0 var(--cl-flat-inset, 73px),
+    var(--cl-flat-divider) var(--cl-flat-inset, 73px)
+  ) !important;
+  background-repeat: no-repeat !important;
+  background-position: bottom left !important;
+  background-size: 100% 1px !important;
+}
+
+/* Barras de brilho/acento dos estados premium. */
+html body .app-layout #main-content .chat-list-root .chat-list-row::after,
+html body .app-layout #main-content .chat-list-root .chat-list-row::before {
+  display: none !important;
+  content: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
+html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card:not(.is-active):hover {
+  background-color: var(--ds-hover) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row.is-active,
+html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card.is-active {
+  background-color: var(--light-surface-selected) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] body .app-layout #main-content .chat-list-root .chat-list-row.is-active,
+html[data-theme="dark"] body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card.is-active {
+  background-color: var(--zaperp-card-hover) !important;
+}
+
+/*
+ * Tinta de estado no cartão inteiro (âmbar de "aguardando", verde de "aberta", …).
+ * Sai junto com o cartão: o selo à direita continua a dar a mesma informação, com a
+ * mesma cor. Para devolver, basta apagar este bloco.
+ */
+html body .app-layout #main-content .chat-list-root .chat-list-row--await-staff-premium:not(.is-active),
+html body .app-layout #main-content .chat-list-root .chat-list-row--await-client-card:not(.is-active),
+html body .app-layout #main-content .chat-list-root .chat-list-row--somente-aberta-card:not(.is-active),
+html body .app-layout #main-content .chat-list-root .chat-list-row--reaberta-falta-card:not(.is-active),
+html body .app-layout #main-content .chat-list-root .chat-list-row--atendimento-calm:not(.is-active),
+html body .app-layout #main-content .chat-list-root .chat-list-row--atendimento-alerta:not(.is-active),
+html body .app-layout #main-content .chat-list-root .chat-list-row--atendimento-tech:not(.is-active) {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Selos e ações — sem relevo, mantendo as cores que significam estado
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-status,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech,
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-main,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-await {
+  box-shadow: none !important;
+  animation: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-row-action-trigger {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  border-radius: 999px !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(:hover, .is-open) {
+  background: var(--ds-hover) !important;
+  border-color: transparent !important;
+}
+
+/* A régua começa depois do avatar; no mobile o avatar e o recuo são menores. */
+@media (max-width: 640px) {
+  html body .app-layout #main-content .chat-list-root {
+    --cl-flat-inset: 70px;
+  }
+}

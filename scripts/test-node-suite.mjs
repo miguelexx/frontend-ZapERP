@@ -40,6 +40,7 @@ const tests = [
   "test-cache-reconnect.mjs",
   "test-chat-media-display.mjs",
   "test-chat-search-prefix.mjs",
+  "test-company-timezone.mjs",
   "test-importar-clientes-helpers.mjs",
   "test-image-send-edit.mjs",
   "test-contact-conversation-routing.mjs",

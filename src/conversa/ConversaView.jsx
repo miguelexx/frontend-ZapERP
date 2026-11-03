@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { shallow } from "zustand/shallow";
+import { useCompanyTimezoneVersion } from "../utils/useCompanyTimezone";
 import { useConversaStore, getMessageListReactKey, isPendingOutgoingTemp } from "./conversaStore";
 import {
   enviarMensagem,
@@ -690,6 +691,8 @@ function ConversaViewBody() {
   );
 
   const isGroup = useMemo(() => isGroupConversation(conversa), [conversa]);
+  // Fuso da empresa (Configuracoes -> Geral -> Estado): muda os separadores de data.
+  const tzVersion = useCompanyTimezoneVersion();
 
   const podeAdicionarAtendente =
     ["admin", "supervisor", "atendente"].includes(userRole) &&
@@ -2784,9 +2787,11 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversaId]);
 
+  // tzVersion: trocar o estado da empresa muda o fuso dos separadores de data e de toda
+  // hora da thread — sem a dependencia, o memo serviria os separadores do fuso antigo.
   const mensagensComSeparadores = useMemo(
     () => buildMensagensComSeparadores(mensagens, isGroup),
-    [mensagens, isGroup]
+    [mensagens, isGroup, tzVersion]
   );
   useLayoutEffect(() => {
     mensagensComSeparadoresRef.current = mensagensComSeparadores;

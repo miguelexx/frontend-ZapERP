@@ -10,8 +10,38 @@ import PushNotificationsCard from "../../push/PushNotificationsCard";
 import SectionState from "../components/SectionState";
 import { useSectionResource } from "../hooks/useSectionResource";
 import { FONTES_OPCOES, FONT_FAMILIES } from "../brandFonts";
+import {
+  DEFAULT_TIMEZONE,
+  UF_OPTIONS,
+  defaultTimezoneForUf,
+  normalizeUf,
+  timezoneLabel,
+  ufNome,
+  zonesForUf,
+} from "../../ia/shared/brazilTimezones";
 
 const THEME_KEY = "theme";
+
+/** Hora atual no fuso escolhido — mostra na hora o efeito da troca de estado. */
+function RelogioDoFuso({ timezone }) {
+  const [agora, setAgora] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setAgora(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+  let hora = "";
+  try {
+    hora = new Intl.DateTimeFormat("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: timezone,
+    }).format(agora);
+  } catch {
+    hora = "";
+  }
+  if (!hora) return <>Fuso horário não reconhecido neste navegador.</>;
+  return <>Agora são {hora} neste fuso.</>;
+}
 
 function getStoredTheme() {
   try {
@@ -33,6 +63,7 @@ export function SecaoGeral({
   empresa,
   empresasWhatsapp = [],
   onSave,
+  onSaveFuso,
   onRefresh,
   onOpenConnectWhatsapp,
   onToggleModuloCampanhas,
@@ -47,6 +78,19 @@ export function SecaoGeral({
   const [logoMsg, setLogoMsg] = useState(null);
   const [senhaCampanhas, setSenhaCampanhas] = useState("");
   const [mostrarSenhaCampanhas, setMostrarSenhaCampanhas] = useState(false);
+  // Fuso da empresa: estado proprio (nao entra no "Salvar configuracoes gerais") porque
+  // mudar de estado reformata TODO horario do sistema — merece confirmacao separada.
+  const [fuso, setFuso] = useState(() => ({
+    estado: normalizeUf(empresa?.estado) || "",
+    timezone: empresa?.timezone || DEFAULT_TIMEZONE,
+  }));
+  // O que esta gravado no servidor, para saber se ha alteracao pendente. Nao sai de
+  // `empresa`: o save do fuso nao reescreve o recurso da secao (ver handleSaveFuso).
+  const [fusoSalvo, setFusoSalvo] = useState(() => ({
+    estado: normalizeUf(empresa?.estado) || "",
+    timezone: empresa?.timezone || DEFAULT_TIMEZONE,
+  }));
+  const [savingFuso, setSavingFuso] = useState(false);
 
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
@@ -80,6 +124,58 @@ export function SecaoGeral({
       showToast?.({ type: "error", title: "Erro", message: e?.response?.data?.error || "Não foi possível salvar." });
     } finally {
       setMostrarNomeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const carregado = {
+      estado: normalizeUf(empresa?.estado) || "",
+      timezone: empresa?.timezone || DEFAULT_TIMEZONE,
+    };
+    setFuso(carregado);
+    setFusoSalvo(carregado);
+  }, [empresa?.estado, empresa?.timezone]);
+
+  const zonasDoEstado = zonesForUf(fuso.estado);
+  const estadoMultiFuso = zonasDoEstado.length > 1;
+  const fusoAlterado =
+    fuso.estado !== fusoSalvo.estado || fuso.timezone !== fusoSalvo.timezone;
+
+  const handleEstadoChange = (uf) => {
+    const sigla = normalizeUf(uf) || "";
+    setFuso({
+      estado: sigla,
+      // Sem estado = Horario de Brasilia. Com estado = fuso padrao da UF (a segunda
+      // caixa deixa escolher a outra zona nos estados que tem duas).
+      timezone: sigla ? defaultTimezoneForUf(sigla) || DEFAULT_TIMEZONE : DEFAULT_TIMEZONE,
+    });
+  };
+
+  const handleSalvarFuso = async () => {
+    if (savingFuso) return;
+    setSavingFuso(true);
+    setMsg(null);
+    try {
+      const salvo = await onSaveFuso({ estado: fuso.estado, timezone: fuso.timezone });
+      const aplicado = {
+        estado: salvo?.estado || "",
+        timezone: salvo?.timezone || DEFAULT_TIMEZONE,
+      };
+      setFuso(aplicado);
+      setFusoSalvo(aplicado);
+      showToast?.({
+        type: "success",
+        title: "Fuso horário atualizado",
+        message: aplicado.estado
+          ? `Horários do sistema agora seguem o relógio de ${ufNome(aplicado.estado) || aplicado.estado}.`
+          : "Horários do sistema voltaram para o Horário de Brasília.",
+      });
+    } catch (e) {
+      const text = e?.response?.data?.error || "Não foi possível salvar o fuso horário.";
+      setMsg({ type: "err", text });
+      showToast?.({ type: "error", title: "Erro", message: text });
+    } finally {
+      setSavingFuso(false);
     }
   };
 
@@ -360,8 +456,99 @@ export function SecaoGeral({
           </div>
         </section>
 
+        <section className="config-geral-card config-geral-card--wide" aria-labelledby="config-geral-fuso">
+          <h5 id="config-geral-fuso" className="config-geral-card-title">Fuso horário da empresa</h5>
+          <p className="config-geral-card-desc">
+            Escolha o estado em que a empresa opera. Todo horário do sistema passa a seguir o relógio
+            desse estado: a hora das mensagens na lista e na conversa, os separadores de data, o horário
+            comercial, a pausa de almoço, o chatbot, o SLA e os alertas. Em Mato Grosso, por exemplo,
+            uma mensagem que chega às 15h de Brasília aparece como 14h.
+          </p>
+          <div className="config-geral-fields config-geral-fields--grid2">
+            <div className="ia-field">
+              <label htmlFor="empresa-estado">Estado (UF)</label>
+              <select
+                id="empresa-estado"
+                className="ia-select"
+                value={fuso.estado}
+                onChange={(e) => handleEstadoChange(e.target.value)}
+                disabled={savingFuso}
+              >
+                <option value="">Sem estado definido — Horário de Brasília</option>
+                {UF_OPTIONS.map((o) => (
+                  <option key={o.uf} value={o.uf}>
+                    {o.nome} ({o.uf})
+                  </option>
+                ))}
+              </select>
+              <span className="config-geral-field-hint">
+                Define o fuso de toda a plataforma para esta empresa.
+              </span>
+            </div>
+
+            {estadoMultiFuso ? (
+              <div className="ia-field">
+                <label htmlFor="empresa-fuso-regiao">Região do estado</label>
+                <select
+                  id="empresa-fuso-regiao"
+                  className="ia-select"
+                  value={fuso.timezone}
+                  onChange={(e) => setFuso((c) => ({ ...c, timezone: e.target.value }))}
+                  disabled={savingFuso}
+                >
+                  {zonasDoEstado.map((z) => (
+                    <option key={z.tz} value={z.tz}>
+                      {z.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="config-geral-field-hint">
+                  {ufNome(fuso.estado)} tem mais de um fuso — escolha o da sua operação.
+                </span>
+              </div>
+            ) : (
+              <div className="ia-field">
+                <label htmlFor="empresa-fuso-atual">Fuso aplicado</label>
+                <input
+                  id="empresa-fuso-atual"
+                  className="ia-input"
+                  value={`${timezoneLabel(fuso.timezone) || fuso.timezone} (${fuso.timezone})`}
+                  readOnly
+                  disabled
+                />
+                <span className="config-geral-field-hint">Derivado do estado escolhido.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="config-geral-card-divider" />
+          <div className="config-geral-toggle">
+            <div className="config-geral-toggle-text">
+              <span className="config-geral-toggle-label">
+                <RelogioDoFuso timezone={fuso.timezone} />
+              </span>
+              <span className="config-geral-toggle-hint">
+                {fusoAlterado
+                  ? "Alteração ainda não salva — clique em Salvar fuso horário."
+                  : "Este é o relógio que o sistema usa hoje para esta empresa."}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="ia-btn ia-btn--primary"
+              onClick={handleSalvarFuso}
+              disabled={savingFuso || !fusoAlterado}
+            >
+              {savingFuso ? "Salvando..." : "Salvar fuso horário"}
+            </button>
+          </div>
+        </section>
+
         <section className="config-geral-card" aria-labelledby="config-geral-horarios">
           <h5 id="config-geral-horarios" className="config-geral-card-title">Horário comercial</h5>
+          <p className="config-geral-card-desc">
+            Interpretado no fuso da empresa ({timezoneLabel(fuso.timezone) || fuso.timezone}).
+          </p>
           <div className="config-geral-fields config-geral-fields--grid2">
             <div className="ia-field">
               <label htmlFor="horario-inicio">Início</label>
@@ -583,6 +770,12 @@ export function SecaoGeral({
               const payload = { ...v };
               delete payload.modulo_campanhas_ativo;
               delete payload.senha_modulo_campanhas;
+              // O fuso tem card e botão próprios. Mandar aqui o estado que veio do GET
+              // reverteria uma troca feita neste card e ainda não recarregada.
+              delete payload.estado;
+              delete payload.estado_nome;
+              delete payload.timezone;
+              delete payload.timezone_label;
               await onSave(payload);
               setMsg({ type: "ok", text: "Configurações salvas com sucesso." });
             } catch (e) {
@@ -712,6 +905,25 @@ export default function GeralSection() {
     return updated;
   };
 
+  // Salva só o par (estado, fuso). Não mexe em `resource` de propósito: reescrever
+  // `empresa` reiniciaria o formulário geral e perderia edições não salvas do admin.
+  // Quem precisa do fuso novo é o empresaStore — ele alimenta o formatador de horas.
+  const handleSaveFuso = async ({ estado, timezone }) => {
+    const updated = await cfg.putEmpresa({ estado: estado || "", timezone: timezone || "" });
+    const empresaAtual = useEmpresaStore.getState().empresa || resource.data?.empresa || {};
+    useEmpresaStore.getState().setEmpresa({
+      ...empresaAtual,
+      estado: updated?.estado ?? "",
+      estado_nome: updated?.estado_nome ?? "",
+      timezone: updated?.timezone ?? "",
+      timezone_label: updated?.timezone_label ?? "",
+    });
+    return {
+      estado: updated?.estado ?? "",
+      timezone: updated?.timezone ?? "",
+    };
+  };
+
   const handleToggleModuloCampanhas = async ({ ativo, senha }) => {
     const payload = { modulo_campanhas_ativo: !!ativo };
     if (ativo) payload.senha_modulo_campanhas = senha;
@@ -730,6 +942,7 @@ export default function GeralSection() {
         empresasWhatsapp={resource.data.empresasWhatsapp}
         onOpenConnectWhatsapp={() => navigate("/configuracoes/whatsapp")}
         onSave={handleSave}
+        onSaveFuso={handleSaveFuso}
         onToggleModuloCampanhas={handleToggleModuloCampanhas}
         onRefresh={() => resource.reload().catch(() => {})}
       />

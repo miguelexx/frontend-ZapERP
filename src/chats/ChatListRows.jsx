@@ -8,6 +8,7 @@ import MemoChatRow from "./ChatListRow";
 import { useWhatsappInstancesStore } from "./whatsappInstancesStore";
 import { useWhatsappLabelsStore } from "./whatsappLabelsStore";
 import { chatRowStableKey } from "./chatRowStableKey";
+import { useCompanyTimezoneVersion } from "../utils/useCompanyTimezone";
 
 /** A partir deste tamanho, lista virtualizada (crítico na aba Todas no mobile). */
 export const CHAT_LIST_VIRTUAL_THRESHOLD = 24;
@@ -39,6 +40,7 @@ function renderChatListRow(c, selectedId, props) {
       minuteTick={props.minuteTick}
       showWhatsappInstanceUi={props.showWhatsappInstanceUi}
       showResponsavelAtendimento={props.showResponsavelAtendimento}
+      tzVersion={props.tzVersion}
     />
   );
 }
@@ -61,6 +63,9 @@ const ChatListRows = memo(function ChatListRows({
   showResponsavelAtendimento = false,
 }) {
   const showWhatsappInstanceUi = useWhatsappInstancesStore((s) => s.hasMultiple);
+  // Troca de estado da empresa (Configurações → Geral) muda o fuso de TODA hora exibida.
+  // As linhas são memoizadas: sem esta prop elas continuariam com o horário antigo.
+  const tzVersion = useCompanyTimezoneVersion();
   const showAssigneeNames = useEmpresaStore((s) => s.empresa?.exibir_atendentes_no_card === true);
   const isAdminViewer = useAuthStore((s) => {
     const r = String(s.user?.role || s.user?.perfil || "").toLowerCase();
@@ -105,6 +110,7 @@ const ChatListRows = memo(function ChatListRows({
       minuteTick,
       showWhatsappInstanceUi,
       showResponsavelAtendimento,
+      tzVersion,
     }),
     [
       onSelect,
@@ -117,6 +123,7 @@ const ChatListRows = memo(function ChatListRows({
       minuteTick,
       showWhatsappInstanceUi,
       showResponsavelAtendimento,
+      tzVersion,
     ]
   );
 
@@ -155,7 +162,7 @@ const ChatListRows = memo(function ChatListRows({
     count: chatsFiltrados.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: estimateRowSize,
-    gap: modoSimples ? 0 : CHAT_LIST_ROW_GAP,
+    gap: CHAT_LIST_ROW_GAP,
     overscan: isMobileLayout ? 4 : 10,
     scrollPaddingStart: 4,
     scrollPaddingEnd: 8,

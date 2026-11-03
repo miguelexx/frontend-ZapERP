@@ -395,6 +395,91 @@ test.describe("Configuracoes - regressões alvo", () => {
     await expect(page.getByText("Resposta Nova", { exact: true })).toBeVisible();
     await expect(page.getByText("Resposta Antiga", { exact: true })).toHaveCount(0);
   });
+
+  test("fuso horário da empresa: carrega o estado salvo e grava a troca", async ({ page }) => {
+    const api = await installConfigApi(page, {
+      payloads: {
+        "/config/empresa": {
+          id: 1,
+          nome: "ZapERP Config Test",
+          cor_primaria: "#2563eb",
+          nome_fonte: "inter",
+          estado: "MT",
+          estado_nome: "Mato Grosso",
+          timezone: "America/Cuiaba",
+          timezone_label: "Horário de Cuiabá",
+        },
+      },
+      onWrite: async ({ path, body }) => {
+        if (path !== "/config/empresa") return null;
+        return {
+          json: {
+            id: 1,
+            nome: "ZapERP Config Test",
+            estado: body?.estado || "",
+            estado_nome: body?.estado === "AM" ? "Amazonas" : "",
+            timezone: body?.timezone || "America/Sao_Paulo",
+            timezone_label: "",
+          },
+        };
+      },
+    });
+
+    await page.goto("/configuracoes?tab=geral");
+    await expect(page.getByRole("heading", { name: "Fuso horário da empresa" })).toBeVisible();
+
+    // O estado salvo volta selecionado e o fuso derivado aparece (não é editável à mão).
+    const estado = page.locator("#empresa-estado");
+    await expect(estado).toHaveValue("MT");
+    await expect(page.locator("#empresa-fuso-atual")).toHaveValue(/America\/Cuiaba/);
+
+    const salvar = page.getByRole("button", { name: "Salvar fuso horário" });
+    await expect(salvar).toBeDisabled();
+
+    // Estado com dois fusos abre a segunda caixa; o padrão é a primeira zona.
+    await estado.selectOption("AM");
+    await expect(page.locator("#empresa-fuso-regiao")).toHaveValue("America/Manaus");
+    await page.locator("#empresa-fuso-regiao").selectOption("America/Eirunepe");
+    await expect(salvar).toBeEnabled();
+    await salvar.click();
+
+    await expect.poll(() => api.writes.filter((w) => w.path === "/config/empresa").length).toBe(1);
+    const write = api.writes.find((w) => w.path === "/config/empresa");
+    expect(write).toMatchObject({
+      method: "PUT",
+      body: { estado: "AM", timezone: "America/Eirunepe" },
+    });
+    // Nada do formulário geral viaja junto: o card salva só o fuso.
+    expect(Object.keys(write.body)).toEqual(["estado", "timezone"]);
+    await expect(salvar).toBeDisabled();
+  });
+
+  test("salvar configurações gerais não reenvia o fuso", async ({ page }) => {
+    const api = await installConfigApi(page, {
+      payloads: {
+        "/config/empresa": {
+          id: 1,
+          nome: "ZapERP Config Test",
+          estado: "MT",
+          estado_nome: "Mato Grosso",
+          timezone: "America/Cuiaba",
+          timezone_label: "Horário de Cuiabá",
+        },
+      },
+    });
+
+    await page.goto("/configuracoes?tab=geral");
+    await expect(page.getByRole("heading", { name: "Configurações gerais" })).toBeVisible();
+    await page.getByRole("button", { name: "Salvar configurações gerais" }).click();
+
+    await expect.poll(() => api.writes.filter((w) => w.path === "/config/empresa").length).toBe(1);
+    const body = api.writes.find((w) => w.path === "/config/empresa").body || {};
+    expect(body).not.toHaveProperty("estado");
+    expect(body).not.toHaveProperty("timezone");
+    expect(body).not.toHaveProperty("estado_nome");
+    expect(body).not.toHaveProperty("timezone_label");
+  });
+
 });
 
 test.describe("Configuracoes - evidencias visuais", () => {

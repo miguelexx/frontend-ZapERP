@@ -81,12 +81,15 @@ export function chatRowPropsAreEqual(prev, next) {
     prev.currentUserId === next.currentUserId &&
     prev.currentUserName === next.currentUserName &&
     prev.showWhatsappInstanceUi === next.showWhatsappInstanceUi &&
-    prev.showResponsavelAtendimento === next.showResponsavelAtendimento
+    prev.showResponsavelAtendimento === next.showResponsavelAtendimento &&
+    prev.tzVersion === next.tzVersion
   ) {
     return true;
   }
   if (prev.showWhatsappInstanceUi !== next.showWhatsappInstanceUi) return false;
   if (prev.showResponsavelAtendimento !== next.showResponsavelAtendimento) return false;
+  // Fuso da empresa mudou: a hora da linha precisa ser reformatada.
+  if (prev.tzVersion !== next.tzVersion) return false;
   const a = prev.chat || {};
   const b = next.chat || {};
   const pa = rowPrefs(a);

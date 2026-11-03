@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buscarMensagensNaConversa } from "../conversaService";
 import { IconClose, IconSearch } from "../conversaViewIcons";
 import { formatHoraCurta, safeString } from "../utils/conversaViewHelpers";
+import { formatDiaEmpresa } from "../../utils/companyTimezone";
 
 const SEARCH_DEBOUNCE_MS = 320;
 const SEARCH_PAGE_LIMIT = 30;
@@ -18,11 +19,8 @@ function useDebouncedValue(value, delay) {
 function formatSearchDate(value) {
   const d = value ? new Date(value) : null;
   if (!d || Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(d);
+  // Fuso da empresa: a data do resultado precisa bater com o separador da thread.
+  return formatDiaEmpresa(d);
 }
 
 function escapeRegExp(value) {

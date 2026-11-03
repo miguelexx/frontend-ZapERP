@@ -2,6 +2,11 @@ import { resolveContactMetaFromMessage } from "../../utils/conversaUtils";
 import { getApiBaseUrl } from "../../api/baseUrl";
 import { CAPTION_BUNDLE_MAX_SEC, STICKER_RECENTS_LIMIT } from "../conversaConstants";
 import { parseToDate } from "../../utils/parseToDate.js";
+import {
+  formatDiaEmpresa,
+  formatHoraEmpresa,
+  isSameCompanyDay,
+} from "../../utils/companyTimezone.js";
 // Reexportado para nao mudar nada de quem ja importava daqui.
 export { parseToDate };
 
@@ -16,44 +21,34 @@ export function formatForwardHttpError(err) {
   return err?.message || "Falha de rede ou resposta inesperada.";
 }
 
+// Horarios da thread no fuso da empresa (Configuracoes -> Geral -> Estado), nunca no
+// fuso do aparelho e nunca mais em America/Sao_Paulo cravado.
 export function formatHora(ts) {
   const d = parseToDate(ts);
   if (!d) return "";
-  try {
-    return d.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "America/Sao_Paulo",
-    });
-  } catch {
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  }
+  const hora = formatHoraEmpresa(d);
+  if (hora) return hora;
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function formatDia(ts) {
   if (!ts) return "";
   try {
     const d = parseToDate(ts) || new Date(ts);
-    return d.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: "America/Sao_Paulo",
-    });
+    return formatDiaEmpresa(d);
   } catch {
     return "";
   }
 }
 
+// Mesmo dia = mesmo dia civil NO FUSO DA EMPRESA. Precisa casar com formatDia: comparar
+// getFullYear/getMonth/getDate (fuso do aparelho) colocaria o separador "ontem" em cima
+// de mensagens de hoje perto da meia-noite quando os dois fusos divergem.
 export function sameDay(a, b) {
   try {
     const da = parseToDate(a) || new Date(a);
     const db = parseToDate(b) || new Date(b);
-    return (
-      da.getFullYear() === db.getFullYear() &&
-      da.getMonth() === db.getMonth() &&
-      da.getDate() === db.getDate()
-    );
+    return isSameCompanyDay(da, db);
   } catch {
     return false;
   }
@@ -279,11 +274,7 @@ export function formatHoraCurta(ts) {
   if (!ts) return "";
   try {
     const d = parseToDate(ts) || new Date(ts);
-    return d.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "America/Sao_Paulo",
-    });
+    return formatHoraEmpresa(d);
   } catch {
     return "";
   }

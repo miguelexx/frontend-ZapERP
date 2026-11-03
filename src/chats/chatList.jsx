@@ -38,7 +38,9 @@ import "../components/feedback/skeleton.css";
 import "../components/ui/button.css";
 import "./chatList.css";
 import "./chatList.chips-premium.css";
-/* Pele WhatsApp do modo simples — tem de carregar depois das duas de cima. */
+/* Linhas planas (todos os utilizadores) — depois das duas de cima. */
+import "./chatList.flat.css";
+/* Pele WhatsApp do modo simples — por último, para ficar por cima das três. */
 import "./chatList.whatsapp.css";
 import "../styles/zap-animations.css";
 import NovoContatoModal from "./NovoContatoModal";

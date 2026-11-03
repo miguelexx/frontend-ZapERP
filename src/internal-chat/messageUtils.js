@@ -1,4 +1,5 @@
 import { previewTextFromMessageLike } from "./lastMessagePreview.js";
+import { formatHoraEmpresa } from "../utils/companyTimezone.js";
 
 /** @param {unknown} a @param {unknown} b */
 export function sameUserId(a, b) {
@@ -245,11 +246,15 @@ export function normalizeInternalMessage(raw, myUserId, otherUserId = null) {
   };
 }
 
+/** Hora no fuso da empresa — mesmo relógio do atendimento (Configurações → Geral). */
 export function formatMessageTime(iso) {
   if (iso == null || iso === "") return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return (
+    formatHoraEmpresa(d) ||
+    d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 export function sortMessagesAsc(list) {

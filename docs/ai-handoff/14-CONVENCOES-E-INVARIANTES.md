@@ -66,6 +66,14 @@
 - `data-zap-simple="1"` no `<html>` espelha `user.atendimento_modo_simples`; a pele é `chats/chatList.whatsapp.css`.
 - Linha de altura **fixa** (`CHAT_LIST_SIMPLE_ROW_SIZE`) e `gap: 0`. Nada pode crescer além disso — título em 1 linha, sem sublinhas, sem faixas de tags. Detalhes e porquês em [07-LISTA-DE-CONVERSAS.md](07-LISTA-DE-CONVERSAS.md).
 
+## Horários (fuso da empresa)
+
+- **Nunca** passe `timeZone: "America/Sao_Paulo"` (nem qualquer zona fixa) para `Intl`/`toLocale*` em tela de atendimento. Use `src/utils/companyTimezone.js`: `formatHoraEmpresa`, `formatDiaEmpresa`, `formatDiaCurtoEmpresa`, `companyDayKey`, `isSameCompanyDay`. SP cravado fazia uma empresa de Mato Grosso ver toda mensagem uma hora adiantada.
+- A fonte é `empresa.timezone` (de `GET /config/empresa`, escolhido em Configurações → Geral → Estado). O `empresaStore` é o **único** ponto que chama `setCompanyTimezone`; o valor fica em `localStorage` para já estar certo na primeira pintura.
+- Separador de data e rótulo de data têm de usar o **mesmo** dia civil: compare com `isSameCompanyDay`, nunca com `getFullYear/getMonth/getDate`.
+- Componente memoizado que mostra hora precisa de `useCompanyTimezoneVersion()` (prop `tzVersion` nas linhas da lista, dependência no memo dos separadores da thread) — senão a tela fica no fuso antigo depois que o admin troca o estado.
+- Fora do escopo de propósito: Dashboard e Dashboard IA (recorte analítico agregado em SP no backend) e Disparo (tem `fuso_horario` próprio por empresa na tabela de limites).
+
 ## Documentação
 
 - Código > estes arquivos. Se mudar invariante, atualize este doc no mesmo PR/tarefa.

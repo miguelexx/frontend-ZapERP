@@ -1,6 +1,15 @@
 /**
  * Formatação de presença WhatsApp (Whapi) para o header da conversa.
+ *
+ * "Hoje"/"ontem" e a hora seguem o fuso da empresa (Configurações → Geral → Estado),
+ * igual ao resto do atendimento — e não o fuso do aparelho de quem está atendendo.
  */
+
+import {
+  companyDayKey,
+  formatDiaCurtoEmpresa,
+  formatHoraEmpresa,
+} from "../../utils/companyTimezone";
 
 export function digitsOnlyPhone(value) {
   return String(value || "").replace(/\D/g, "");
@@ -32,23 +41,17 @@ function formatLastSeenUnix(lastSeen) {
   if (Number.isNaN(d.getTime())) return null;
 
   const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
+  const diaVisto = companyDayKey(d);
 
-  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  if (sameDay) return `visto por último hoje às ${time}`;
+  const time = formatHoraEmpresa(d) ||
+    d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (diaVisto && diaVisto === companyDayKey(now)) return `visto por último hoje às ${time}`;
 
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday =
-    d.getFullYear() === yesterday.getFullYear() &&
-    d.getMonth() === yesterday.getMonth() &&
-    d.getDate() === yesterday.getDate();
-  if (isYesterday) return `visto por último ontem às ${time}`;
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  if (diaVisto && diaVisto === companyDayKey(yesterday)) return `visto por último ontem às ${time}`;
 
-  const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const date = formatDiaCurtoEmpresa(d) ||
+    d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   return `visto por último em ${date} às ${time}`;
 }
 

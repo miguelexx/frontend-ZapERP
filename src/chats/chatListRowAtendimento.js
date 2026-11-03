@@ -10,6 +10,7 @@ import {
 import { parseToDate } from "../utils/parseToDate.js";
 import { getContactDisplay } from "./chatListDisplay";
 import { useWhatsappLabelsStore } from "./whatsappLabelsStore";
+import { isAutoTagAguardandoCliente } from "../atendimento/aguardarClientePrazo";
 
 /** Timestamp em ms alinhado ao horário exibido no card (ISO sem TZ = UTC, como no Supabase). */
 function toChatListTimestampMs(raw) {
@@ -484,8 +485,12 @@ export function esperaMinutosAnchorKey(c, pendentesIdSet) {
   return getEsperaMinutosAnchorIso(c, pendentesIdSet);
 }
 
-/** Espaço vertical entre cards na lista (espelha --cl-chat-row-gap). */
-export const CHAT_LIST_ROW_GAP = 7;
+/**
+ * Espaço vertical entre linhas da lista (espelha --cl-chat-row-gap).
+ * Zero desde que a lista deixou de ser feita de cartões — ver chatList.flat.css.
+ * Entra como `gap` do virtualizador, fora de `estimateChatListRowSize`.
+ */
+export const CHAT_LIST_ROW_GAP = 0;
 
 /**
  * Modo simples (visual WhatsApp): linha de altura fixa, sem gap.
@@ -637,6 +642,14 @@ export function estimateChatListRowSize(
     if (Array.isArray(waLabels) && waLabels.length > 0) mainBlock += m.waLabels;
   }
 
+  // Etiquetas do card (tags) ocupam outra linha própria e estavam fora da conta —
+  // cards com tag ficavam recortados na lista virtualizada. O filtro espelha o do
+  // ChatListRow: as tags automáticas de "aguardar cliente" não são desenhadas.
+  if (!isGroup && Array.isArray(chat?.tags)) {
+    const temTagVisivel = chat.tags.some((t) => t && !isAutoTagAguardandoCliente(t));
+    if (temTagVisivel) mainBlock += m.waLabels;
+  }
+
   const status = getStatusAtendimentoEffective(chat);
   if (
     status === "em_atendimento" &&
@@ -655,5 +668,11 @@ export function estimateChatListRowSize(
     rowHeight = Math.max(rowHeight, isMobileLayout ? 80 : 80);
   }
 
-  return Math.ceil(rowHeight) + 3;
+  /*
+   * Margem de segurança. Era 3 e deixava passar ~3px em cards com título de duas
+   * linhas + setor — o corte ficava disfarçado pela moldura do cartão. Com as linhas
+   * planas e coladas (chatList.flat.css) ele passou a aparecer, então subiu para 6.
+   * Sobra-estimar só acrescenta ar; sub-estimar recorta texto.
+   */
+  return Math.ceil(rowHeight) + 6;
 }
