@@ -6,10 +6,12 @@ import {
   isModoSimplesAguardandoAtendente,
   isModoSimplesAguardandoCliente,
   resolveModoSimplesAguardandoEffective,
+  exibirBadgePagamentoConcluido,
 } from "../utils/conversaUtils";
 import { parseToDate } from "../utils/parseToDate.js";
 import { getContactDisplay } from "./chatListDisplay";
 import { useWhatsappLabelsStore } from "./whatsappLabelsStore";
+import { useWhatsappInstancesStore } from "./whatsappInstancesStore";
 import { isAutoTagAguardandoCliente } from "../atendimento/aguardarClientePrazo";
 
 /** Timestamp em ms alinhado ao horário exibido no card (ISO sem TZ = UTC, como no Supabase). */
@@ -493,88 +495,61 @@ export function esperaMinutosAnchorKey(c, pendentesIdSet) {
 export const CHAT_LIST_ROW_GAP = 0;
 
 /**
- * Modo simples (visual WhatsApp): linha de altura fixa, sem gap.
- * O card perde sublinhas (setor/empresa/atendente/tags) e o título fica em 1 linha
- * — ver chatList.whatsapp.css. Com isso a altura real nunca passa destes valores,
- * e a lista fica uniforme como a do WhatsApp.
+ * Métricas da linha da lista — espelho EXATO de `chats/chatList.flat.css`, que por sua
+ * vez espelha os tokens `--zs-m-*` de `styles/zap-simples.css`. São três sítios que têm
+ * de andar juntos: a lista é virtualizada por estimativa (sem `measureElement`), logo o
+ * que passar daqui é recortado no ecrã.
+ *
+ * O arranjo medido é:
+ *     nome [+ sublinhas]   |  hora
+ *     prévia               |  selo
+ *     (faixa de etiquetas do WhatsApp)
+ *     (faixa de tags)
  */
-export const CHAT_LIST_SIMPLE_ROW_SIZE = { mobile: 76, desktop: 80 };
-
-/** Métricas espelhadas do chatList.css — lista virtual usa altura fixa por item (sem measureElement). */
-const VIRTUAL_ROW_METRICS = {
-  desktop: {
-    padY: 26,
-    avatar: 48,
-    titleLine: 17.5,
-    setor: 15,
-    assignee: 15,
-    assigneeAdmin: 26,
-    empresa: 15,
-    preview: 17,
-    mainGap: 2,
-    badgeGridExtra: 0,
-    statusSubLine: 18,
-    waLabels: 26,
-    minRow: 76,
-    titleWrapWidth: 210,
-  },
-  mobile: {
-    padY: 16,
-    avatar: 46,
-    titleLine: 16.2,
-    setor: 12.5,
-    assignee: 13.5,
-    assigneeAdmin: 24,
-    empresa: 13.5,
-    preview: 14.8,
-    mainGap: 3,
-    badgeGridExtra: 23,
-    statusSubLine: 17,
-    waLabels: 24,
-    minRow: 68,
-    titleWrapWidth: 168,
-  },
+const ROW_METRICS = {
+  avatar: 48,
+  /** padding vertical da linha: 8 em cima + 8 em baixo */
+  padY: 16,
+  title: 20,
+  subline: 15,
+  /** a pílula do atendente responsável leva avatar: 2 de margem + 18 */
+  sublineAdmin: 20,
+  time: 16,
+  preview: 18,
+  /** margin-top de `.chat-list-row-mid` / `.chat-list-statusRow` */
+  gap: 2,
+  /** faixa de etiquetas ou de tags: 4 de margem + 20 de conteúdo */
+  extraRow: 24,
+  /** selo simples */
+  badge: 20,
+  /** selo com segunda linha (cobrança, reaberta por falta, pagamento concluído) */
+  badgeStack: 44,
+  minRow: 64,
+  /** folga para arredondamento de fonte entre sistemas */
+  margem: 4,
 };
 
-function estimateTitleLineCount(name, extraInlinePx, titleWrapWidth) {
-  const text = String(name || "").trim();
-  if (!text) return 1;
-  const usable = Math.max(96, titleWrapWidth - extraInlinePx);
-  const charsPerLine = Math.max(10, Math.floor(usable / 7.4));
-  return Math.min(2, Math.ceil(text.length / charsPerLine));
-}
-
-function chatRowUsesMobileBadgeGrid(chat, pendentesIdSet) {
-  const status = getStatusAtendimentoEffective(chat);
-  const awaitClient =
-    status === "aguardando_cliente" || isConversaAguardandoCliente(chat);
-  const awaitStaff = isConversaAguardandoFuncionario(chat, pendentesIdSet);
-  return awaitClient || awaitStaff;
-}
-
-function estimateMetaColumnHeight(chat, pendentesIdSet, isMobileLayout) {
-  if (isMobileLayout && chatRowUsesMobileBadgeGrid(chat, pendentesIdSet)) return 0;
-
-  const status = getStatusAtendimentoEffective(chat);
-  let badge = 22;
+/** Selos que desenham uma segunda linha dentro de `.chat-list-statusRow`. */
+function seloTemSegundaLinha(chat) {
+  if (isCobrancaFinanceiraStatus(chat)) return true;
+  if (exibirBadgePagamentoConcluido(chat)) return true;
+  if (chat?.reaberta_por_falta_interacao === true) return true;
+  if (chat?.reaberta_falta_interacao_em) return true;
+  // Nota "Reaberto pelo cliente" — some sozinha ao fim de 2 minutos.
   if (
-    status === "aguardando_cliente" ||
-    isConversaAguardandoCliente(chat) ||
-    isConversaAguardandoFuncionario(chat, pendentesIdSet)
+    typeof chat?.ui_hint_reaberto_ausencia_cliente === "number" &&
+    Date.now() - chat.ui_hint_reaberto_ausencia_cliente < 120000
   ) {
-    badge = 28;
-  } else if (status === "pagamento_pendente" || status === "em_atraso") {
-    badge = 40;
-  } else if (status === "fechada" && String(chat?.finalizacao_motivo) === "ausencia_cliente") {
-    badge = 26;
+    return true;
   }
-
-  return 14 + 4 + badge;
+  return false;
 }
 
 /**
- * Altura fixa por card na virtualização — calculada pelo conteúdo (título até 2 linhas, setor, badges).
- * Deve ser >= altura real; measureElement fica desligado para o layout não “pular” após abrir/atualizar.
+ * Altura reservada para uma linha da lista. Tem de ser >= à altura real; sobrar só
+ * acrescenta ar, faltar recorta texto.
+ *
+ * @param {boolean} modoSimples  Esconde sublinhas e faixas de etiquetas (chatList.whatsapp.css).
  */
 export function estimateChatListRowSize(
   chat,
@@ -584,95 +559,70 @@ export function estimateChatListRowSize(
   showAdminAtendente = false,
   modoSimples = false
 ) {
-  const m = isMobileLayout ? VIRTUAL_ROW_METRICS.mobile : VIRTUAL_ROW_METRICS.desktop;
-  if (modoSimples) {
-    return isMobileLayout ? CHAT_LIST_SIMPLE_ROW_SIZE.mobile : CHAT_LIST_SIMPLE_ROW_SIZE.desktop;
+  const m = ROW_METRICS;
+  if (!chat) return m.minRow + m.margem;
+
+  const { isGroup } = getContactDisplay(chat);
+
+  // ---- 1ª faixa: nome (+ sublinhas) à esquerda, hora à direita ----
+  let blocoNome = m.title;
+  if (!modoSimples && !isGroup) {
+    if (String(chat?.encontrado_por || "").trim()) blocoNome += m.subline;
+
+    const temSetor =
+      chat?.departamento_id != null &&
+      Boolean(String(chat.setor ?? chat?.departamento?.nome ?? chat?.departamentos?.nome ?? "").trim());
+    if (temSetor) blocoNome += m.subline;
+
+    const nomesAtendimento =
+      showAssigneeNames || showAdminAtendente ? getAtendimentoAssigneeNames(chat) : [];
+    const temAdminAtendente =
+      showAdminAtendente && nomesAtendimento.length > 0 && isConversaEmAtendimentoBadge(chat);
+    if (temAdminAtendente) blocoNome += m.sublineAdmin;
+    else if (showAssigneeNames && nomesAtendimento.length > 0) blocoNome += m.subline;
+
+    // Número do WhatsApp: só aparece quando a empresa tem mais de uma instância.
+    if (
+      useWhatsappInstancesStore.getState().hasMultiple &&
+      String(
+        chat?.whatsapp_instance_nome ||
+          chat?.whatsappInstanceNome ||
+          chat?.whatsapp_instance_display_phone ||
+          chat?.whatsappInstanceDisplayPhone ||
+          ""
+      ).trim()
+    ) {
+      blocoNome += m.subline;
+    }
+
+    if (String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim()) {
+      blocoNome += m.subline;
+    }
   }
-  if (!chat) return m.minRow;
-
-  const { displayName, isGroup } = getContactDisplay(chat);
-  const prefs = rowPrefs(chat);
-  let inlineExtra = 0;
-  if (prefs.silenciado) inlineExtra += 18;
-  if (prefs.fixada) inlineExtra += 18;
-  if (prefs.favorita) inlineExtra += 18;
-  if (isGroup || chat?.tags?.[0]) inlineExtra += 44;
-
-  const titleLines = estimateTitleLineCount(displayName, inlineExtra, m.titleWrapWidth);
-  const hasSetor =
-    !isGroup && chat?.departamento_id != null
-      ? Boolean(
-          String(chat.setor ?? chat?.departamento?.nome ?? chat?.departamentos?.nome ?? "").trim()
-        )
-      : false;
-  const hasEmpresa = !isGroup
-    ? Boolean(String(chat?.cliente?.empresa ?? chat?.cliente_empresa ?? chat?.empresa ?? "").trim())
-    : false;
-  const assigneeNames =
-    (showAssigneeNames || showAdminAtendente) && !isGroup ? getAtendimentoAssigneeNames(chat) : [];
-  // Pill premium de admin (atendente responsável) só aparece em conversa em atendimento.
-  const hasAdminAtendente =
-    showAdminAtendente && assigneeNames.length > 0 && isConversaEmAtendimentoBadge(chat);
-  const hasAssignee = showAssigneeNames && assigneeNames.length > 0 && !hasAdminAtendente;
-  const assigneeExtra = hasAdminAtendente ? m.assigneeAdmin : hasAssignee ? m.assignee : 0;
-  const hasEncontradoPor = !isGroup && Boolean(String(chat?.encontrado_por || "").trim());
-
-  let titleBlock = titleLines * m.titleLine;
-  if (hasEncontradoPor) titleBlock += m.setor;
-  if (hasSetor) titleBlock += m.setor;
-  if (assigneeExtra) titleBlock += assigneeExtra;
-  if (hasEmpresa) titleBlock += m.empresa;
-
-  const metaCol = estimateMetaColumnHeight(chat, pendentesIdSet, isMobileLayout);
-  const mobileBadgeGrid = isMobileLayout && chatRowUsesMobileBadgeGrid(chat, pendentesIdSet);
-  let topBlock = titleBlock;
-  if (mobileBadgeGrid) {
-    topBlock = titleLines * m.titleLine + (hasEncontradoPor ? m.setor : 0) + (hasSetor ? m.setor : 0) + (hasEmpresa ? m.empresa : 0) + (hasAdminAtendente ? m.assigneeAdmin : 0) + m.badgeGridExtra;
-  } else if (metaCol > 0) {
-    topBlock = Math.max(titleBlock, metaCol);
-  }
-
-  let mainBlock = topBlock + m.mainGap + m.preview;
-
-  // Etiquetas do WhatsApp (Whapi) ocupam uma linha própria abaixo do título (não-grupo).
-  // A lista é virtualizada por estimativa (sem measureElement), então precisamos reservar
-  // a altura aqui — senão a linha recortaria/sobreporia o card seguinte.
-  if (!isGroup && chat?.id != null) {
-    const waLabels = useWhatsappLabelsStore.getState().byConversa?.[String(chat.id)];
-    if (Array.isArray(waLabels) && waLabels.length > 0) mainBlock += m.waLabels;
-  }
-
-  // Etiquetas do card (tags) ocupam outra linha própria e estavam fora da conta —
-  // cards com tag ficavam recortados na lista virtualizada. O filtro espelha o do
-  // ChatListRow: as tags automáticas de "aguardar cliente" não são desenhadas.
-  if (!isGroup && Array.isArray(chat?.tags)) {
-    const temTagVisivel = chat.tags.some((t) => t && !isAutoTagAguardandoCliente(t));
-    if (temTagVisivel) mainBlock += m.waLabels;
-  }
-
-  const status = getStatusAtendimentoEffective(chat);
-  if (
-    status === "em_atendimento" &&
-    typeof chat?.ui_hint_reaberto_ausencia_cliente === "number" &&
-    Date.now() - chat.ui_hint_reaberto_ausencia_cliente < 120000 &&
-    !mobileBadgeGrid
-  ) {
-    mainBlock += m.statusSubLine;
-  }
-
-  let rowHeight = Math.max(m.avatar, mainBlock) + m.padY;
-  rowHeight = Math.max(rowHeight, m.minRow);
-
-  if (mobileBadgeGrid) rowHeight = Math.max(rowHeight, isMobileLayout ? 80 : 80);
-  if (hasSetor && status === "em_atendimento" && chat?.atendente_id != null) {
-    rowHeight = Math.max(rowHeight, isMobileLayout ? 80 : 80);
-  }
+  const faixaNome = Math.max(blocoNome, m.time);
 
   /*
-   * Margem de segurança. Era 3 e deixava passar ~3px em cards com título de duas
-   * linhas + setor — o corte ficava disfarçado pela moldura do cartão. Com as linhas
-   * planas e coladas (chatList.flat.css) ele passou a aparecer, então subiu para 6.
-   * Sobra-estimar só acrescenta ar; sub-estimar recorta texto.
+   * 2ª faixa: prévia à esquerda, selo à direita.
+   * No modo simples o `StatusPill` sai mais cedo e desenha no máximo UMA pílula
+   * ("Aguardando atendente/cliente"), nunca as pilhas de cobrança ou de reabertura —
+   * por isso lá o selo é sempre de uma linha, e a lista fica toda à mesma altura.
    */
-  return Math.ceil(rowHeight) + 6;
+  const selo = !modoSimples && seloTemSegundaLinha(chat) ? m.badgeStack : m.badge;
+  const faixaPrevia = Math.max(m.preview, selo);
+
+  // ---- faixas extra, de largura inteira ----
+  let extras = 0;
+  if (!modoSimples && !isGroup) {
+    if (chat?.id != null) {
+      const etiquetas = useWhatsappLabelsStore.getState().byConversa?.[String(chat.id)];
+      if (Array.isArray(etiquetas) && etiquetas.length > 0) extras += m.extraRow;
+    }
+    if (Array.isArray(chat?.tags) && chat.tags.some((t) => t && !isAutoTagAguardandoCliente(t))) {
+      extras += m.extraRow;
+    }
+  }
+
+  const conteudo = faixaNome + m.gap + faixaPrevia + extras;
+  const altura = Math.max(m.avatar, conteudo) + m.padY;
+  return Math.ceil(Math.max(altura, m.minRow)) + m.margem;
 }

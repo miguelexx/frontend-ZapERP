@@ -78,3 +78,25 @@
 
 - Código > estes arquivos. Se mudar invariante, atualize este doc no mesmo PR/tarefa.
 - Marque `PENDENTE DE VALIDAÇÃO` o que não rodou no browser.
+
+## Selos e cor por contacto (2026-11-03)
+
+- Estado de conversa veste **uma cápsula e cinco tintas** (`--zs-st-*` em
+  `styles/zap-simples.css`), com uma marca redonda em `currentColor`. Estado novo = dois
+  tokens nos dois temas. Nem monospace, nem glifo unicode, nem painel sólido, nem
+  `animation: infinite`. Detalhe e tabela: [07-LISTA-DE-CONVERSAS.md](07-LISTA-DE-CONVERSAS.md).
+- A cápsula tem **20px**, que é o que `estimateChatListRowSize` reserva. Altura de selo é
+  parte do contrato de altura da lista virtual.
+- Cor por contacto é **OKLCH**, nunca HSL: em HSL o contraste do branco ia de 2.36:1 a
+  10.38:1 conforme o nome. Medido, não estimado.
+
+## Tique de envio (2026-11-03)
+
+- A regra do tique é **uma só**, em `utils/messageTicks.js` (`resolveTickState`). A bolha e
+  o card só traduzem o estado para a sua marcação. Pôr regra de status em
+  `bubbleStatus.js` ou em `ChatListRow.jsx` volta a fazer as duas telas discordarem — foi
+  assim que a mesma mensagem ficou com ✓✓ na conversa e ✓ no card.
+- Campo novo que o tique passe a ler entra **também** em `tickSignature`, senão a linha da
+  lista não repinta em tempo real.
+- `normalizeMensagemStatusKey` é das guardas de status (conversaStore, socket), não do
+  tique. Não trocar um pelo outro.

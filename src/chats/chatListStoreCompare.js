@@ -1,4 +1,5 @@
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
+import { tickSignature } from "../utils/messageTicks";
 import { chatRowContactSurfaceKey, chatRowLastPreviewKey } from "./chatListRowCompare";
 import {
   rowPrefs,
@@ -111,6 +112,10 @@ export function ultimaMensagemPreviewEqual(a, b) {
   if (!a || !b) return false;
   if (!ultimaMensagemRefsEqual(a, b)) return false;
   if (normalizeMensagemStatusKey(a) !== normalizeMensagemStatusKey(b)) return false;
+  // Comparar só o status deixava o card parado quando o que mudava era `lida_em`,
+  // `entregue_em` ou o `status` (e não o `status_mensagem`) — e o tique ficava a
+  // discordar da bolha até ao F5. A assinatura cobre tudo o que o tique lê.
+  if (tickSignature(a) !== tickSignature(b)) return false;
   if (String(a?.texto ?? a?.conteudo ?? "") !== String(b?.texto ?? b?.conteudo ?? "")) return false;
   const editedA = a?.editado === true || a?.editada === true;
   const editedB = b?.editado === true || b?.editada === true;
@@ -132,5 +137,7 @@ export function ultimaMensagemOutboundStatusKey(c) {
     u?.fromMe === true ||
     u?.from_me === true;
   if (!isOut) return "";
-  return normalizeMensagemStatusKey(u);
+  // Assinatura completa do tique, não só o status: é esta chave que faz a linha
+  // repintar em tempo real quando o ACK avança (ver `utils/messageTicks.js`).
+  return tickSignature(u);
 }

@@ -1,29 +1,159 @@
 /* =======================================================================================
-   LISTA DE CONVERSAS — linhas planas (para TODOS, não só o modo simples)
+   LISTA DE CONVERSAS — pele plana, para TODOS os utilizadores
 
-   Tira o "cartão" de cada conversa: fundo próprio, borda, raio, sombra, tinta de estado
-   e o espaço entre cards. No lugar fica uma linha corrida com régua fina, como a lista
-   do WhatsApp. Só isso — a toolbar, a busca, os chips de filtro e o cabeçalho ficam
-   exatamente como estavam.
+   Painel, cabeçalho, busca e linhas da lista. Os CHIPS DE FILTRO ficam de fora de
+   propósito: continuam com o estilo próprio de cada modo.
 
-   NADA AQUI PODE MUDAR ALTURA DE LINHA. A lista é virtualizada por estimativa
-   (`estimateChatListRowSize`, sem `measureElement`): se o conteúdo real crescer além da
-   estimativa, a linha é recortada. Por isso não se mexe em padding da linha, tamanho de
-   fonte do título/prévia nem no arranjo interno do card — só em cor, borda e sombra.
-   O espaço ENTRE linhas é seguro: entra como `gap` no virtualizador, fora da estimativa.
+   CONTRATO DE ALTURA — leia antes de mexer em qualquer número.
+   A lista é virtualizada por estimativa (`estimateChatListRowSize`, sem
+   `measureElement`): cada linha recebe uma altura calculada em JS e o que passar disso é
+   recortado. Por isso as medidas da linha estão fixadas aqui em `px` e espelhadas nas
+   métricas `--zs-m-*` de `styles/zap-simples.css` e no estimador. São três sítios que
+   andam juntos. Em concreto:
+     • o título é truncado numa linha (`--zs-m-title`) — nada de voltar a `-webkit-line-clamp: 2`;
+     • cada sublinha (setor, empresa, atendente, nº) mede `--zs-m-subline`, sem margens;
+     • prévia e selo partilham a 2ª linha, com `--zs-m-preview` / 20px;
+     • etiquetas e tags ficam em faixas próprias de `--zs-m-extra-row`.
 
-   Especificidade: o prefixo `html body .app-layout #main-content .chat-list-root` empata
-   com as camadas de pele do app (studio.css, conversations-studio.css,
-   premium-interactions.css, em `html body .app-layout--studio #main-content …`) e ganha
-   por ordem — este ficheiro carrega no chunk da lista, depois do CSS de entrada.
-   O empate é de propósito: `chatList.whatsapp.css` (modo simples) usa o mesmo peso com
-   o atributo no lugar do `.chat-list-root`, carrega depois e continua por cima.
+   Arranjo: `display: contents` em `.chat-list-row-top` e `.chat-list-row-meta` sobe os
+   quatro elementos para a mesma grelha, sem tocar no JSX:
+       nome   | hora
+       prévia | selo
+   (etiquetas e tags entram como faixas 3 e 4, de largura inteira).
+
+   Especificidade: `html body .app-layout #main-content .chat-list-root` empata com as
+   camadas de pele do app (studio.css, conversations-studio.css, premium-interactions.css,
+   em `html body .app-layout--studio #main-content …`) e ganha por ordem — este ficheiro
+   carrega no chunk da lista, depois do CSS de entrada. `chatList.whatsapp.css` usa o
+   mesmo peso com o atributo do modo simples no lugar do `.chat-list-root`, carrega a
+   seguir e continua por cima.
 ======================================================================================= */
 
+/* -----------------------------------------------------------------------
+   Painel e cabeçalho
+----------------------------------------------------------------------- */
+
 html body .app-layout #main-content .chat-list-root {
-  /* Lista corrida: sem respiro entre linhas (espelha `gap: 0` no virtualizador). */
-  --cl-chat-row-gap: 0px;
-  --cl-flat-divider: var(--cl-border);
+  background: var(--zs-bg) !important;
+  border-right-color: var(--zs-divider) !important;
+}
+
+html body .app-layout #main-content .chat-list-root.chat-list-root .chat-list-header {
+  background: var(--zs-bg) !important;
+  min-height: 56px !important;
+  padding: 6px 6px 6px 16px !important;
+  border-bottom: 1px solid var(--zs-divider) !important;
+  box-shadow: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-header::after {
+  display: none !important;
+  content: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-header-actions {
+  gap: 2px !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-header-btn,
+html body .app-layout #main-content .chat-list-root .chat-list-header-actions .chat-list-header-btn:first-child {
+  width: 38px !important;
+  height: 38px !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--zs-icon) !important;
+  box-shadow: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-header-btn:hover,
+html body .app-layout #main-content .chat-list-root .chat-list-header-actions .chat-list-header-btn:first-child:hover {
+  background: var(--zs-hover) !important;
+  border-color: transparent !important;
+  color: var(--zs-text) !important;
+}
+
+/* Ícones do cabeçalho: dois eram SVG à mão a 14px/1.5 e os outros vinham do
+   Tabler a 17px/1.7 — o "+" lia-se mais fino e mais pequeno que os vizinhos.
+   Um tamanho e um peso para todos. O `!important` é para o `style` inline do
+   wrapper `Icon`, que fixa 14px. */
+html body .app-layout #main-content .chat-list-root .chat-list-header-btn .chat-list-icon {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-header-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 1.7 !important;
+}
+
+/* -----------------------------------------------------------------------
+   Busca (os chips de filtro ficam como estão — não são deste ficheiro)
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-toolbar,
+html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap,
+html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap--compact {
+  background: var(--zs-bg) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-toolbar {
+  border-bottom: 1px solid var(--zs-divider) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap,
+html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap--compact {
+  border-bottom: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--search.chat-list-search-wrap {
+  padding: 8px 12px 6px !important;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-box {
+  background: var(--zs-panel) !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  min-height: 40px !important;
+  padding: 6px 16px !important;
+  box-shadow: none !important;
+  color: var(--zs-text-2) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-box:focus-within {
+  border-color: var(--zs-accent) !important;
+  box-shadow: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-input {
+  color: var(--zs-text) !important;
+  -webkit-text-fill-color: var(--zs-text) !important;
+  caret-color: var(--zs-text) !important;
+  font-size: 14px !important;
+}
+
+/* iOS Safari dá zoom ao focar um input com fonte < 16px. Em qualquer ecrã de toque, 16px. */
+@media (max-width: 640px), (pointer: coarse) {
+  html body .app-layout #main-content .chat-list-root .chat-list-search-input {
+    font-size: 16px !important;
+  }
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-input::placeholder {
+  color: var(--zs-text-2) !important;
+  -webkit-text-fill-color: var(--zs-text-2) !important;
+}
+
+/*
+ * Faixa "N conversas". Sai — a contagem já está no chip ativo. O `:not(:has(…))`
+ * preserva a faixa se algum dia voltar a levar o cartão de pendências (`middleSlot`).
+ */
+html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--meta:not(:has(.chat-list-toolbar-meta-left)) {
+  display: none !important;
 }
 
 /* -----------------------------------------------------------------------
@@ -33,7 +163,7 @@ html body .app-layout #main-content .chat-list-root {
 html body .app-layout #main-content .chat-list-root .chat-list-scroll {
   padding: 0 !important;
   gap: 0 !important;
-  background: var(--cl-surface) !important;
+  background: var(--zs-bg) !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-rows {
@@ -50,16 +180,21 @@ html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversat
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
+  min-height: 0 !important;
+  padding: var(--zs-m-pad-y) 16px !important;
+  gap: 11px !important;
+  align-items: center !important;
   /* Régua encostada ao texto. Vem do background e não de um ::after porque o
      pseudo-elemento da linha pertence aos estados "premium" (desligados abaixo). */
   background-image: linear-gradient(
     to right,
-    transparent 0 var(--cl-flat-inset, 73px),
-    var(--cl-flat-divider) var(--cl-flat-inset, 73px)
+    transparent 0 var(--zs-row-inset),
+    var(--zs-divider) var(--zs-row-inset)
   ) !important;
   background-repeat: no-repeat !important;
   background-position: bottom left !important;
   background-size: 100% 1px !important;
+  transition: background-color 120ms ease !important;
 }
 
 /* Barras de brilho/acento dos estados premium. */
@@ -71,21 +206,16 @@ html body .app-layout #main-content .chat-list-root .chat-list-row::before {
 
 html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
 html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card:not(.is-active):hover {
-  background-color: var(--ds-hover) !important;
+  background-color: var(--zs-hover) !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-row.is-active,
 html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card.is-active {
-  background-color: var(--light-surface-selected) !important;
+  background-color: var(--zs-active) !important;
   border: none !important;
   box-shadow: none !important;
-}
-
-html[data-theme="dark"] body .app-layout #main-content .chat-list-root .chat-list-row.is-active,
-html[data-theme="dark"] body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card.is-active {
-  background-color: var(--zaperp-card-hover) !important;
 }
 
 /*
@@ -105,36 +235,652 @@ html body .app-layout #main-content .chat-list-root .chat-list-row--atendimento-
   box-shadow: none !important;
 }
 
+html body .app-layout #main-content .chat-list-root .chat-list-avatar-text svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-avatar {
+  width: var(--zs-m-avatar) !important;
+  height: var(--zs-m-avatar) !important;
+  min-width: var(--zs-m-avatar) !important;
+  /* Rede de segurança da cor por contacto: `getAvatarColor` devolve OKLCH
+     num `style` inline. Num browser que não o entenda a declaração inline
+     cai inteira — sem isto ficariam iniciais brancas sobre nada. */
+  background-color: #64748b;
+}
+
 /* -----------------------------------------------------------------------
-   Selos e ações — sem relevo, mantendo as cores que significam estado
+   Grelha nome|hora / prévia|selo
 ----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-row-main {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  /* Zero de propósito: as faixas 3 e 4 (etiquetas/tags) só existem quando há conteúdo,
+     e com `row-gap` elas custariam espaço mesmo vazias. O respiro vem das margens. */
+  row-gap: 0;
+  align-items: center;
+  min-width: 0;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row-top,
+html body .app-layout #main-content .chat-list-root .chat-list-row-meta {
+  display: contents !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row-title-wrap {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  padding-right: 0 !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-time {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  height: var(--zs-m-time) !important;
+  line-height: var(--zs-m-time) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--zs-text-2) !important;
+  white-space: nowrap !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row-mid {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  margin-top: var(--zs-m-gap) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  margin-top: var(--zs-m-gap) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row-wa-labels {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin-top: 4px !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row-tags {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin-top: 4px !important;
+}
+
+/* -----------------------------------------------------------------------
+   Tipografia da linha — alturas fixas, espelhadas no estimador
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-title-line {
+  min-height: var(--zs-m-title) !important;
+  line-height: var(--zs-m-title) !important;
+}
+
+/* Uma linha, sempre: é o que torna a altura previsível. */
+html body .app-layout #main-content .chat-list-root .chat-list-title {
+  display: block !important;
+  font-size: 15px !important;
+  line-height: var(--zs-m-title) !important;
+  font-weight: 400 !important;
+  color: var(--zs-text) !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  -webkit-line-clamp: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-title {
+  font-weight: 500 !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-preview,
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview,
+html body .app-layout #main-content .chat-list-root .chat-list-previewText {
+  font-size: 13.5px !important;
+  line-height: var(--zs-m-preview) !important;
+  font-weight: 400 !important;
+  color: var(--zs-text-2) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-preview-line,
+html body .app-layout #main-content .chat-list-root .chat-list-preview {
+  min-height: var(--zs-m-preview) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-setor,
+html body .app-layout #main-content .chat-list-root .chat-list-empresa,
+html body .app-layout #main-content .chat-list-root .chat-list-assignee,
+html body .app-layout #main-content .chat-list-root .chat-list-encontrado-por,
+html body .app-layout #main-content .chat-list-root .chat-list-whatsapp-instance {
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: var(--zs-m-subline) !important;
+  height: var(--zs-m-subline) !important;
+  line-height: var(--zs-m-subline) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  color: var(--zs-text-2) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* A pílula do atendente responsável leva um avatar redondo: precisa de mais 5px. */
+html body .app-layout #main-content .chat-list-root .chat-list-atendente-admin {
+  margin: 2px 0 0 !important;
+  min-height: 18px !important;
+  height: 18px !important;
+  box-shadow: none !important;
+}
+
+/* Rótulo "Grupo" discreto, sem pílula colorida — e sem esticar a linha do nome. */
+html body .app-layout #main-content .chat-list-root .chat-list-badge-grupo {
+  background: transparent !important;
+  border: none !important;
+  color: var(--zs-text-2) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: var(--zs-m-title) !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 0 0 2px !important;
+  box-shadow: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Selos — altura previsível, cores que significam estado ficam
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  max-width: 176px !important;
+  width: max-content !important;
+  min-height: 0 !important;
+}
+
+/* Variantes com segunda linha (cobrança, reaberta, pagamento concluído) empilham. */
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow--pagamento-sub,
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow:has(.chat-list-statusRow-sub) {
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 4px !important;
+}
 
 html body .app-layout #main-content .chat-list-root .chat-list-status,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech,
-html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
-html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-main,
-html body .app-layout #main-content .chat-list-root .chat-list-badge-await {
+html body .app-layout #main-content .chat-list-root .chat-list-badge-await,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
+  min-height: 20px !important;
+  height: auto !important;
+  max-height: 20px !important;
+  padding: 2px 8px !important;
+  line-height: 16px !important;
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
   box-shadow: none !important;
   animation: none !important;
   text-shadow: none !important;
   filter: none !important;
 }
 
+/* Selos de rótulo comprido ("Reaberta por falta de interação…") cortam com reticências
+   em vez de ficarem a meio de uma palavra quando a coluna aperta. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-hud-text,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-reaberta-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-label {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staff,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-client {
+  box-shadow: none !important;
+  animation: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/*
+ * Selo "Aguardando atendente". No chatList.css a cápsula está no wrapper no telemóvel
+ * e na pílula interna no desktop — duas estruturas para o mesmo selo. Aqui é sempre o
+ * wrapper que faz a cápsula, para o rótulo e os minutos ficarem dentro da mesma peça.
+ */
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staff {
+  flex-wrap: nowrap !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-main {
+  /* Sobe o rótulo para a grelha flex da própria cápsula. Enquanto este
+     wrapper era um nível a mais, o rótulo não encolhia dentro dele e o
+     texto era cortado a meio da palavra em vez de ganhar reticências. */
+  display: contents !important;
+  font-family: inherit !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  /* `width: max-content` do chatList.css impedia o rótulo de encolher: em vez de
+     reticências, a cápsula cortava a palavra a meio. */
+  width: auto !important;
+  max-width: 100% !important;
+  flex: 0 1 auto !important;
+  color: inherit !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  line-height: 16px !important;
+  overflow: hidden !important;
+  animation: none !important;
+  filter: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-badge-icon {
+  color: inherit !important;
+  font-family: inherit !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-time-espera-min {
+  color: var(--zs-text-2) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: var(--zs-m-time) !important;
+  padding: 0 !important;
+}
+
+/* Dentro da cápsula do selo, os minutos herdam a cor dela. */
+html body .app-layout #main-content .chat-list-root .chat-list-time-espera-min--staff-pill {
+  color: inherit !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 9.5px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+  padding: 0 !important;
+  flex: 0 0 auto !important;
+  opacity: 0.85 !important;
+}
+
+/* Faixas de etiquetas/tags: uma linha, altura fixa. */
+html body .app-layout #main-content .chat-list-root .chat-list-row-wa-labels,
+html body .app-layout #main-content .chat-list-root .chat-list-row-tags {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 4px !important;
+  height: 20px !important;
+  overflow: hidden !important;
+}
+
+/* -----------------------------------------------------------------------
+   SISTEMA DE SELOS — uma cápsula, cinco tintas
+
+   Antes cada estado trazia a sua própria linguagem: "Em atendimento" e
+   "Finalizada" eram painéis navy sólidos (os elementos mais pesados do ecrã,
+   para a conversa já encerrada), "Aberta" uma pílula verde, "Aguardando
+   cliente" um contorno âmbar — todos em `ui-monospace`, cada um com um glifo
+   unicode diferente vindo de blocos tipográficos distintos, e dois deles a
+   animar em `infinite`.
+
+   Aqui o estado vive só na TINTA e numa marca redonda. Forma, tipo e tamanho
+   são os mesmos para todos, o que deixa a coluna direita ler-se como coluna.
+   O peso visual passa a seguir a urgência: finalizada é a mais calada.
+
+   `-fg` é texto E marca (a marca usa `currentColor`) — por isso cada estado
+   precisa de duas variáveis, não de seis.
+
+   ALTURA: a cápsula continua nos 20px que o estimador reserva (`m.badge`), e
+   as variantes empilhadas continuam a contar `m.badgeStack`. Não mexer.
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-status,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-await,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 5px !important;
+  min-height: 20px !important;
+  height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 8px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  font-family: inherit !important;
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  animation: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+}
+
+/* Varrimentos e brilhos dos painéis antigos. */
+html body .app-layout #main-content .chat-list-root .chat-list-status::before,
+html body .app-layout #main-content .chat-list-root .chat-list-status::after,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech::before,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech::after {
+  display: none !important;
+  content: none !important;
+  animation: none !important;
+}
+
+/* A marca. Os selos novos já usavam um span `.zap-dot`; os antigos traziam um
+   glifo unicode no meio do texto. `font-size: 0` apaga o glifo e deixa o mesmo
+   ponto para todos. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-hud-prefix,
+html body .app-layout #main-content .chat-list-root .zap-dot,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-pagamento-dot,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-atraso-dot,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-reaberta-dot,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-client-badge-icon,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-badge-icon {
+  display: inline-block !important;
+  flex: 0 0 auto !important;
+  width: var(--zs-dot) !important;
+  height: var(--zs-dot) !important;
+  min-width: var(--zs-dot) !important;
+  min-height: var(--zs-dot) !important;
+  max-height: var(--zs-dot) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+  color: inherit !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0.8 !important;
+  box-shadow: none !important;
+  animation: none !important;
+  filter: none !important;
+}
+
+/* O rótulo ocupa o resto e corta com reticências em vez de empurrar o nome. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-hud-text,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-pagamento-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-atraso-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-reaberta-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-client-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-pagamento-ok-label {
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  letter-spacing: 0 !important;
+  color: inherit !important;
+  text-shadow: none !important;
+}
+
+/* --- As cinco tintas ------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-status.open,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--pagamento-concluido {
+  color: var(--zs-st-open-fg) !important;
+  background: var(--zs-st-open-bg) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status.in {
+  color: var(--zs-st-live-fg) !important;
+  background: var(--zs-st-live-bg) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status.dispatched,
+html body .app-layout #main-content .chat-list-root .chat-list-status.awaiting-client,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-await,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-client,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--pagamento-pendente,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--reaberta-falta {
+  color: var(--zs-st-wait-fg) !important;
+  background: var(--zs-st-wait-bg) !important;
+}
+
+/* Escalada do prazo do cliente: só os dois últimos degraus ficam vermelhos. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--em-atraso,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-alarm-overdue,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-alarm-critical {
+  color: var(--zs-st-due-fg) !important;
+  background: var(--zs-st-due-bg) !important;
+}
+
+/* Finalizada — o estado mais calado da lista. */
+html body .app-layout #main-content .chat-list-root .chat-list-status.closed,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
+  color: var(--zs-st-done-fg) !important;
+  background: var(--zs-st-done-bg) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staff {
+  color: var(--zs-st-staff-fg) !important;
+  background: var(--zs-st-staff-bg) !important;
+}
+
+/* O separador entre rótulo e prazo vinha de outra linguagem. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-sep,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-prazo-sep {
+  width: 1px !important;
+  height: 9px !important;
+  margin: 0 1px !important;
+  border: none !important;
+  background: currentColor !important;
+  opacity: 0.3 !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-time {
+  color: inherit !important;
+  opacity: 0.8 !important;
+  font-family: inherit !important;
+  font-size: 9.5px !important;
+  font-weight: 400 !important;
+}
+
+/* O `-staff-main` ainda traz do chatList.css um balão com pseudo-elementos
+   próprios (brilho/varrimento). A cápsula agora é do wrapper. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-main::before,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-main::after {
+  display: none !important;
+  content: none !important;
+  animation: none !important;
+}
+
+/* Este selo é o único cujo JSX não traz um `.zap-dot`. Desenha-se aqui, para
+   a coluna não ter uma exceção sem marca. */
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staff::before {
+  content: "" !important;
+  display: inline-block !important;
+  flex: 0 0 auto !important;
+  width: var(--zs-dot) !important;
+  height: var(--zs-dot) !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+  opacity: 0.8 !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label {
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+}
+
+/* -----------------------------------------------------------------------
+   Etiquetas e tags — a mesma cápsula dos selos, em tom neutro
+   (as coloridas trazem a cor da etiqueta e ficam como estão)
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-tag-mini:not(.chat-list-tag-mini--colored, .chat-list-tag-more) {
+  height: 18px !important;
+  min-height: 18px !important;
+  padding: 0 8px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: var(--zs-panel) !important;
+  color: var(--zs-text-2) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-tag-mini--colored {
+  height: 18px !important;
+  min-height: 18px !important;
+  padding: 0 8px !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Hora — acento quando há não lidas, como no WhatsApp
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-time {
+  color: var(--zs-accent-text) !important;
+  font-weight: 500 !important;
+}
+
+/* -----------------------------------------------------------------------
+   Superfícies do browser — foco, seleção e barra de scroll saem do tema
+   em vez do default do browser
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-row:focus-visible {
+  outline: 2px solid var(--zs-accent) !important;
+  outline-offset: -2px !important;
+}
+
+html body .app-layout #main-content .chat-list-root ::selection {
+  background: color-mix(in srgb, var(--zs-accent) 24%, transparent);
+  color: var(--zs-text);
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--zs-text-2) 34%, transparent) transparent;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--zs-text-2) 30%, transparent);
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-scroll:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--zs-text-2) 46%, transparent);
+}
+
+/* -----------------------------------------------------------------------
+   Menu de ações
+----------------------------------------------------------------------- */
+
 html body .app-layout #main-content .chat-list-root .chat-row-action-trigger {
   background: transparent !important;
   border-color: transparent !important;
+  color: var(--zs-text-2) !important;
   box-shadow: none !important;
   border-radius: 999px !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(:hover, .is-open) {
-  background: var(--ds-hover) !important;
+  background: var(--zs-hover) !important;
   border-color: transparent !important;
+  color: var(--zs-text) !important;
 }
 
-/* A régua começa depois do avatar; no mobile o avatar e o recuo são menores. */
+/* No toque o botão está sempre visível: a linha reserva-lhe a direita. */
+@media (hover: none), (pointer: coarse) {
+  html body .app-layout #main-content .chat-list-root .chat-list-row,
+  html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card {
+    padding-right: 36px !important;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Mobile — só recuos; as medidas verticais são as mesmas
+----------------------------------------------------------------------- */
+
 @media (max-width: 640px) {
   html body .app-layout #main-content .chat-list-root {
-    --cl-flat-inset: 70px;
+    --zs-row-inset: 73px;
+  }
+
+  html body .app-layout #main-content .chat-list-root .chat-list-row,
+  html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card {
+    padding: var(--zs-m-pad-y) 14px !important;
+    padding-right: 36px !important;
+  }
+
+  html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--search.chat-list-search-wrap {
+    padding: 8px 10px 6px !important;
+  }
+
+  html body .app-layout #main-content .chat-list-root .chat-list-statusRow {
+    max-width: 170px !important;
   }
 }

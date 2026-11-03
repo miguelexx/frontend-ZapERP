@@ -1,6 +1,7 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { formatHoraEmpresa } from "../utils/companyTimezone";
+import { resolveTickState } from "../utils/messageTicks";
 import { useEmpresaStore } from "../auth/empresaStore";
 import { useAuthStore } from "../auth/authStore";
 import {
@@ -435,46 +436,25 @@ function getPreview(chat, { audioDurationSec } = {}) {
   return `${outPrefix}(sem texto)`;
 }
 
-function ChatTicks({ status, isGroup }) {
-  const raw = status;
-  const s = String(raw ?? "").trim();
-  const lower = s.toLowerCase();
-
-  // Alguns providers retornam ack numérico (0..4)
-  const maybeNum = typeof raw === "number" ? raw : /^\d+$/.test(lower) ? Number(lower) : null;
-  if (maybeNum != null && Number.isFinite(maybeNum)) {
-    if (maybeNum <= 0) return <span className="chat-ticks chat-ticks--pending" title="Enviando">✓</span>;
-    if (maybeNum === 1) return <span className="chat-ticks" title="Enviada">✓</span>;
-    if (maybeNum === 2) return <span className="chat-ticks" title="Entregue">✓✓</span>;
-    if (maybeNum >= 3 && !isGroup) return <span className="chat-ticks chat-ticks--read" title="Visualizada">✓✓</span>;
-    if (maybeNum >= 3 && isGroup) return <span className="chat-ticks" title="Entregue">✓✓</span>;
-  }
-
-  const isErr = lower === "erro" || lower === "error" || lower === "failed" || lower === "falhou";
-  const isPending = lower === "pending" || lower === "enviando";
-  const isSent =
-    !lower || lower === "sent" || lower === "enviado" || lower === "enviada" || lower === "send" || lower === "sending";
-  const isDelivered =
-    lower === "received" ||
-    lower === "delivered" ||
-    lower === "entregue" ||
-    lower === "entregada" ||
-    lower === "receivedcallback";
-  let isRead =
-    lower === "read" ||
-    lower === "seen" ||
-    lower === "lida" ||
-    lower === "visualizada" ||
-    lower === "played";
-  if (isGroup) isRead = false; // grupos: nunca mostrar azul
-
-  if (isErr) return <span className="chat-ticks chat-ticks--err" title="Erro ao enviar">⚠</span>;
-  if (isRead) return <span className="chat-ticks chat-ticks--read" title="Visualizada">✓✓</span>;
-  if (isDelivered) return <span className="chat-ticks" title="Entregue">✓✓</span>;
+function ChatTicks({ msg, isGroup }) {
+  /*
+   * A decisão é a MESMA da bolha da thread (`utils/messageTicks.js`). Antes era aqui, por
+   * comparação de strings exatas, e divergia: `device` (o ACK cru que o banco guarda) não
+   * casava com nada e virava tique único, enquanto a bolha já o lia como entregue. Era o
+   * caso do print de 03/11/2026 — ✓✓ na conversa, ✓ no card, até dar F5.
+   *
+   * Só a marcação é local. Nada de regra de status neste ficheiro.
+   */
+  const st = resolveTickState(msg, { isGroup, out: true });
+  if (!st) return null;
+  if (st.isErr) return <span className="chat-ticks chat-ticks--err" title="Erro ao enviar">⚠</span>;
+  if (st.isRead) return <span className="chat-ticks chat-ticks--read" title="Visualizada">✓✓</span>;
+  if (st.isDelivered) return <span className="chat-ticks" title="Entregue">✓✓</span>;
   // Sem símbolo de relógio (pedido do usuário): use um ✓ suave enquanto "pending"
-  if (isPending) return <span className="chat-ticks chat-ticks--pending" title="Enviando">✓</span>;
-  if (isSent) return <span className="chat-ticks" title="Enviada">✓</span>;
-  return <span className="chat-ticks" title={s}>✓</span>;
+  if (st.isPending || st.isRetry) {
+    return <span className="chat-ticks chat-ticks--pending" title={st.title || "Enviando"}>✓</span>;
+  }
+  return <span className="chat-ticks" title="Enviada">✓</span>;
 }
 
 function PreviewLine({ chat, audioDurationSec }) {
@@ -482,8 +462,6 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (!last) return <span className="chat-list-previewText">Sem mensagens</span>;
 
   const out = String(last?.direcao || "").toLowerCase() === "out";
-  // Mesma precedência da bolha e dos comparadores: status_mensagem é o ACK canônico.
-  const status = last?.status_mensagem ?? last?.status ?? chat?.status ?? "";
   const isGroup = isGroupConversation(chat);
   const atendentePrefix = out && last?.enviado_por_usuario && last?.usuario_nome
     ? `${last.usuario_nome}: `
@@ -521,7 +499,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     const durLabel = dur || "0:00";
     return (
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="audio" className={out ? "is-accent" : ""} />
         <span className={`chat-list-previewDur ${out ? "is-accent" : ""}`}>{atendentePrefix}{durLabel}</span>
       </span>
@@ -531,7 +509,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (tipo === "imagem") {
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="imagem" />
         <span className="chat-list-previewText">{atendentePrefix}{cap ? `Foto · ${cap}` : "Foto"}</span>
       </span>
@@ -540,7 +518,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (tipo === "video") {
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="video" />
         <span className="chat-list-previewText">{atendentePrefix}{cap ? `Vídeo · ${cap}` : "Vídeo"}</span>
       </span>
@@ -549,7 +527,7 @@ function PreviewLine({ chat, audioDurationSec }) {
   if (tipo === "sticker") {
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="sticker" />
         <span className="chat-list-previewText">{atendentePrefix}{cap ? `Figurinha · ${cap}` : "Figurinha"}</span>
       </span>
@@ -559,7 +537,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     const n = String(last?.nome_arquivo || "").trim();
     return (
       <span className="chat-list-previewLine">
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="arquivo" />
         <span className="chat-list-previewText">{atendentePrefix}{n || "Documento"}</span>
       </span>
@@ -585,7 +563,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     }
     return (
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="location" className={out ? "is-accent" : ""} />
         <span className="chat-list-previewText">{atendentePrefix}{line}</span>
       </span>
@@ -601,7 +579,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     const line = title || firstLine || "Enquete";
     return (
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <span className="chat-list-previewText" aria-hidden="true">
           📊
         </span>
@@ -628,7 +606,7 @@ function PreviewLine({ chat, audioDurationSec }) {
 
     return (
       <span className="chat-list-previewLine chat-list-previewLine--contact">
-        {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+        {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
         <PreviewIcon type="contact" className={out ? "is-accent" : ""} />
         <span className="chat-list-previewContact">
           {fotoPerfil ? (
@@ -652,7 +630,7 @@ function PreviewLine({ chat, audioDurationSec }) {
 
   return (
     <span className="chat-list-previewLine">
-      {out ? <ChatTicks status={status} isGroup={isGroup} /> : null}
+      {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
       <span className="chat-list-previewText">{isPlaceholderGenericMessageText(txt) ? "Mensagem" : `${atendentePrefix}${txt || "Sem mensagens"}`}</span>
     </span>
   );
@@ -753,12 +731,50 @@ function ReabertaFaltaInteracaoBadge({ sub = false }) {
   );
 }
 
+function IconeGrupoAvatar() {
+  /*
+   * Era o emoji "👥": renderizado pela fonte de emoji do sistema, a cores,
+   * dentro de um círculo de cor sólida — a única marca da lista que não vinha
+   * do mesmo traço dos outros ícones, e com desenho diferente em cada SO.
+   * Desenhado aqui no mesmo peso dos ícones do cabeçalho (1.7).
+   */
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M16 5.6a3 3 0 0 1 0 5.8" />
+      <path d="M17.5 14.3A5.5 5.5 0 0 1 20.5 19" />
+    </svg>
+  );
+}
+
 function getAvatarColor(seed = "") {
   const s = String(seed);
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   const hue = h % 360;
-  return `hsl(${hue}, 62%, 42%)`;
+  /*
+   * OKLCH, não HSL. Em HSL a claridade não é perceptual: com os mesmos
+   * `62% 42%`, o amarelo saía quase luminoso e o azul quase preto — medido,
+   * o branco das iniciais ia de 2.36:1 (reprova) a 10.38:1 conforme o nome do
+   * contacto, e a coluna de avatares andava aos saltos de peso.
+   * Em OKLCH a claridade é perceptual: `52% 0.12` dá 4.95:1 no pior ângulo
+   * (passa AA) com uma amplitude de 0.97 em toda a volta — a mesma presença
+   * para todos os contactos, mantendo um matiz próprio para cada um.
+   * O fallback para browsers sem OKLCH está em `chatList.flat.css`
+   * (`.chat-list-avatar`): sem ele as iniciais brancas ficariam sobre nada.
+   */
+  return `oklch(52% 0.12 ${hue})`;
 }
 
 /* =====================================================
@@ -1594,7 +1610,7 @@ function ChatRow({
             círculo mostra as iniciais coloridas em vez de um anel vazio. A foto entra por
             cima com fade quando carrega (.is-loaded). */}
         <span className="chat-list-avatar-text">
-          {isGroup ? "👥" : hasName ? initials(displayName) : "#"}
+          {isGroup ? <IconeGrupoAvatar /> : hasName ? initials(displayName) : "#"}
         </span>
         {showAvatarImg ? (
           /* decoding="async": era o único <img> da lista sem isto, e a descodificação corria

@@ -947,6 +947,11 @@ function applyStatusMensagemEvent(events) {
     const nextUm = { ...targetMsg, status_mensagem: statusCard, status: statusCard }
     if (whatsapp_id) nextUm.whatsapp_id = whatsapp_id
     if (em_retry != null) nextUm.em_retry = em_retry
+    // Os marcos de horário iam só para a thread. O tique do card lê-os pela mesma regra
+    // (`utils/messageTicks.js`): sem isto, um ACK que traz `lida_em` com o status preso
+    // virava ✓✓ azul na bolha e continuava ✓ no card.
+    if (entregue_em) nextUm.entregue_em = entregue_em
+    if (lida_em) nextUm.lida_em = lida_em
     if (
       ultimaMensagemRefsEqual(targetMsg, nextUm) &&
       normalizeMensagemStatusKey(targetMsg) === normalizeMensagemStatusKey(nextUm)

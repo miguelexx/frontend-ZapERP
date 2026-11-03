@@ -47,6 +47,7 @@ const tests = [
   "test-conversation-boundary.mjs",
   "test-conversa-refresh-races.mjs",
   "test-conversa-bubble.mjs",
+  "test-ticks-card-vs-bolha.mjs",
   "test-inbound-media-no-url.mjs",
   "test-media-update-no-notify.mjs",
   "test-conversa-composer.mjs",

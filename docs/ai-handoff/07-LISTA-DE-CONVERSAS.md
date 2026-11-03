@@ -10,64 +10,182 @@ Actions que importam: `setChats`, `addChat` (upsert; preserva nome/foto/unread; 
 
 Dedupe de row: `chatRowStableKey.js` → `conv:{id}` ou escopo `whatsapp_instance_id` + cliente/telefone.
 
-## Linhas planas — para todos (CONFIRMADO)
+## Pele da lista — três camadas (CONFIRMADO)
 
-`chats/chatList.flat.css` (importado em `chatList.jsx` depois de `chatList.css` e
-`chatList.chips-premium.css`, antes da pele do modo simples) tira o "cartão" de cada
-conversa: fundo, borda, raio, sombra, tinta de estado e o espaço entre cards. Toolbar,
-busca, **chips de filtro** e cabeçalho ficam como estavam — não são deste ficheiro.
+Carregam nesta ordem em `chatList.jsx`, e a ordem é o que faz cada uma ganhar da anterior:
 
-- `CHAT_LIST_ROW_GAP` passou a `0` e `--cl-chat-row-gap` é redeclarado a `0px` em
-  `.chat-list-root`. O gap entra no virtualizador à parte, fora da estimativa — por isso
-  é seguro.
-- **O ficheiro não pode mexer em altura**: nada de padding da linha, tamanho de fonte do
-  título/prévia ou arranjo interno. Só cor, borda e sombra. Quem precisar de linhas de
-  duas alturas (o arranjo compacto do modo simples) tem de esconder setor/empresa/tags e
-  acertar a estimativa no mesmo commit.
-- Especificidade: prefixo `html body .app-layout #main-content .chat-list-root`, que empata
-  com studio/conversations-studio/premium-interactions e ganha por ordem de carregamento.
-  O modo simples usa o mesmo peso com o atributo no lugar do `.chat-list-root` e carrega
-  depois, por isso continua por cima.
+| # | Ficheiro | Alcance |
+|---|----------|---------|
+| 1 | `chatList.css` + `chatList.chips-premium.css` | base histórica |
+| 2 | `chatList.flat.css` | **todos** — painel, cabeçalho, busca, linhas |
+| 3 | `chatList.whatsapp.css` | só `html[data-zap-simple="1"]` — chips + cartão reduzido |
 
-Dois acertos em `estimateChatListRowSize` vieram junto (ambos só **acrescentam** altura,
-nunca recortam):
+Os tokens (`--zs-*`) e as métricas (`--zs-m-*`) vivem em `styles/zap-simples.css`, carregado
+no boot porque a pele da conversa (`conversa/conversa.whatsapp.css`) está noutro chunk.
 
-1. A linha de **tags** do card não era contada — cards com etiqueta ficavam recortados
-   (medido: até 17px no telemóvel). Agora reserva o mesmo que as etiquetas do WhatsApp.
-2. A margem final subiu de `+3` para `+6`: sobravam ~3px em cards com título de duas linhas
-   + setor. Com cartão isso ficava escondido na moldura; com linhas coladas, aparece.
+Especificidade: a camada 2 usa `html body .app-layout #main-content .chat-list-root`, que
+empata com studio/conversations-studio/premium-interactions e ganha por ordem. A camada 3
+usa o mesmo peso com o atributo no lugar do `.chat-list-root`, e carrega depois.
 
-## Modo simples = pele WhatsApp (CONFIRMADO)
+**Os chips de filtro não são da camada 2 de propósito**: cada modo mantém o seu estilo.
+
+### Arranjo da linha
+
+`display: contents` em `.chat-list-row-top` e `.chat-list-row-meta` sobe os quatro
+elementos para a mesma grelha, sem tocar no JSX:
+
+```
+nome [+ sublinhas]   |  hora
+prévia               |  selo
+(faixa de etiquetas do WhatsApp)
+(faixa de tags)
+```
+
+`row-gap: 0` é intencional: as faixas 3 e 4 só existem quando há conteúdo, e com `row-gap`
+custariam espaço mesmo vazias. O respiro vem de `margin-top`.
+
+### CONTRATO DE ALTURA — três sítios que andam juntos
+
+A lista é virtualizada por **estimativa** (`estimateChatListRowSize`, sem `measureElement`):
+o que passar da altura reservada é recortado no ecrã. As medidas estão fixadas em três
+lugares que têm de bater certo:
+
+1. `styles/zap-simples.css` → tokens `--zs-m-*`
+2. `chats/chatList.flat.css` → aplica-os em `px` nas classes
+3. `chats/chatListRowAtendimento.js` → `ROW_METRICS` espelha os mesmos números
+
+Daí decorre que:
+
+- **o título é truncado numa linha** (`--zs-m-title`) — nada de voltar a `-webkit-line-clamp: 2`;
+- cada sublinha (setor, empresa, atendente, nº, "encontrado por") mede `--zs-m-subline`, sem margens;
+- prévia e selo partilham a 2ª faixa; selo normal = 20px, selo com segunda linha
+  (cobrança, reaberta por falta, pagamento concluído) = 44px;
+- etiquetas e tags ocupam `--zs-m-extra-row` cada;
+- `modoSimples` desconta sublinhas, faixas extra e a pilha de selo — no modo simples o
+  `StatusPill` sai mais cedo e desenha no máximo uma pílula, por isso a lista fica toda
+  à mesma altura (68px).
+
+Para validar depois de mexer: render com ~40 conversas variadas (nome curto/longo, com e
+sem setor, empresa, tags, todos os estados), rolar a lista inteira e comparar
+`el.scrollHeight - el.clientHeight` em cada `.chat-list-row`. Tem de dar zero em claro,
+escuro, telemóvel e desktop, nos dois modos.
+
+### Outras decisões desta pele
+
+- `CHAT_LIST_ROW_GAP` é `0` e `--cl-chat-row-gap` é `0px`: lista corrida, régua fina em
+  vez de cartões. O gap entra no virtualizador à parte, fora da estimativa.
+- A tinta de estado no cartão inteiro saiu; o selo à direita mantém a cor que significa estado.
+- O selo "Aguardando atendente" passa a ter a cápsula no **wrapper** (`.chat-list-status-tech--staff`)
+  e não na pílula interna. No `chatList.css` a cápsula mudava de sítio entre telemóvel e
+  desktop; unificar foi o que permitiu pôr rótulo e minutos dentro da mesma peça.
+- O hero "Seu espaço de trabalho" e a faixa "N conversas" saíram da toolbar.
+
+## Sistema de selos (CONFIRMADO 2026-11-03)
+
+Os selos da coluna direita tinham cinco linguagens a competir: "Em atendimento" e
+"Finalizada" eram painéis navy sólidos (os elementos mais pesados do ecrã, para uma
+conversa já encerrada), "Aberta" uma pílula verde, "Aguardando cliente" um contorno
+âmbar — todos em `ui-monospace`, cada um com um glifo unicode seu, e dois a animar em
+`infinite`. Hoje são **uma cápsula e cinco tintas**, em `chatList.flat.css`:
+
+| Tinta | Token | Estados |
+|---|---|---|
+| verde | `--zs-st-open-*` | Aberta, Pagamento concluído |
+| índigo | `--zs-st-live-*` | Em atendimento |
+| âmbar | `--zs-st-wait-*` | Aguardando cliente, Pagamento pendente, Disparo enviado, Reaberta por falta de interação |
+| vermelho | `--zs-st-due-*` | Em atraso, prazo do cliente vencido/crítico |
+| cinza | `--zs-st-done-*` | Finalizada, sem conversa |
+| azul | `--zs-st-staff-*` | Aguardando atendente |
+
+Regras que não se podem quebrar sem refazer o sistema inteiro:
+
+- **Dois tokens por estado, não seis.** `-fg` é o texto **e** a marca — a marca usa
+  `currentColor`. Quem acrescentar um estado acrescenta `-fg` e `-bg` nos dois temas
+  (`:root` e `[data-theme="dark"]` em `styles/zap-simples.css`) e nada mais.
+- **A marca é sempre o mesmo ponto** de `--zs-dot`, em `currentColor`. Os selos novos já
+  traziam um `<span class="zap-dot">`; os antigos tinham o glifo no meio do texto, por
+  isso a regra do ponto leva `font-size: 0` — é o que apaga o glifo. O selo "Aguardando
+  atendente" é o único sem span no JSX: o ponto é um `::before`, desenhado depois da regra
+  que apaga os pseudo-elementos dos painéis antigos (a ordem importa).
+- **Nada de `ui-monospace`.** `font-family: inherit` tem de descer até ao rótulo. Atenção
+  ao `-staff-main`, que ainda declara monospace no `chatList.css`: cortar no rótulo não
+  chega, porque `inherit` propaga o monospace do pai. O corte é no `-staff-main`, que
+  agora é `display: contents` — também foi isso que pôs o rótulo a encolher com
+  reticências em vez de ser cortado a meio da palavra.
+- **A cápsula mede 20px.** É o `m.badge` que `estimateChatListRowSize` reserva; as
+  variantes empilhadas contam `m.badgeStack`. Mudar a altura aqui recorta linhas.
+- **Peso visual segue a urgência:** finalizada é o estado mais calado da lista.
+
+## Avatares em OKLCH (CONFIRMADO 2026-11-03)
+
+`getAvatarColor` (`ChatListRow.jsx`) devolve `oklch(52% 0.12 <hue>)`, não HSL. Em HSL a
+claridade não é perceptual: com os mesmos `62% 42%`, o branco das iniciais media **2.36:1
+no pior ângulo (amarelo) e 10.38:1 no melhor** — reprovava AA conforme o nome do contacto
+e a coluna de avatares andava aos saltos de peso. Em OKLCH o pior ângulo dá **4.95:1 com
+uma amplitude de 0.97** em toda a volta: mesma presença para todos, matiz próprio para
+cada um. Não voltar a HSL "porque é mais simples" — o número é o motivo.
+
+O fallback vive em `chatList.flat.css` (`.chat-list-avatar { background-color: #64748b }`):
+a cor por contacto entra num `style` inline e, num browser sem OKLCH, essa declaração cai
+inteira — sem o fallback ficariam iniciais brancas sobre nada.
+
+O avatar de grupo deixou de ser o emoji `👥` (desenhado pela fonte do sistema, a cores,
+diferente em cada SO) e passou a ser `IconeGrupoAvatar`, SVG no mesmo traço 1.7 dos ícones
+do cabeçalho.
+
+## Tique de envio: card e bolha, uma decisão só (CONFIRMADO 2026-11-03)
+
+A mesma mensagem aparecia com ✓✓ na thread e ✓ no card. Eram duas regras: a bolha em
+`conversa/bubble/utils/bubbleStatus.js` e um `ChatTicks` próprio na lista, por comparação
+de strings exatas. Hoje a decisão vive em **`utils/messageTicks.js`** (`resolveTickState`),
+e cada tela só traduz o estado para a sua marcação — `wa-ticks` na bolha, `chat-ticks` no
+card. **Não voltar a pôr regra de status em nenhuma das duas telas.**
+
+As quatro divergências que existiam, todas no card:
+
+| # | O que a bolha fazia | O que o card fazia |
+|---|---|---|
+| 1 | `device` → entregue, `server` → enviado (ACK cru do banco, canonizado por tabela de rank) | não conhecia as palavras → ✓ genérico |
+| 2 | exibia o **maior** entre `status_mensagem` e `status` (linhas legadas divergem) | primeiro não-nulo: um `pending` velho vencia um `read` |
+| 3 | `lida_em` / `entregue_em` provam leitura e entrega com o status preso | ignorava os dois |
+| 4 | `whatsapp_id` significa que o provedor aceitou: nunca desenha "não enviei" | desenhava |
+
+A #1 era a do relato: aparecia logo ao abrir a lista, antes de qualquer evento de socket,
+porque o payload HTTP traz o ACK cru.
+
+**Tempo real.** Repintar depende de a assinatura do tique mudar. `tickSignature(msg)` cobre
+os nove campos que `resolveTickState` lê e entra em dois sítios de `chatListStoreCompare.js`:
+`ultimaMensagemOutboundStatusKey` (comparador da linha) e `ultimaMensagemPreviewEqual`
+(guarda do `setUltimaMensagem`). Antes só se comparava `status_mensagem`: um ACK que
+mexesse só em `status`, `lida_em` ou `entregue_em` não repintava nada até ao F5.
+`socket.js` passou também a levar `entregue_em` / `lida_em` para o card — iam só para a thread.
+
+`normalizeMensagemStatusKey` **não** mudou: continua a servir as guardas do conversaStore e
+do socket. Quem precisa do tique usa `tickSignature`.
+
+**Teste:** `scripts/test-ticks-card-vs-bolha.mjs` (na suíte Node) percorre 20 estados mais
+grupos e entrada, e exige a mesma marca nas duas telas; e verifica que a assinatura muda em
+cada um dos nove campos — se não mudasse, a linha ficaria parada.
+
+## Modo simples (CONFIRMADO)
 
 `user.atendimento_modo_simples` vira o atributo `data-zap-simple="1"` no `<html>`
 (`auth/modoSimplesUi.js`, aplicado no boot por `main.jsx` e mantido por `MainLayout`).
-A pele vive em `chats/chatList.whatsapp.css`, importado **depois** de `chatList.css`
-e `chatList.chips-premium.css` em `chatList.jsx`.
+O que o modo acrescenta à pele comum está em `chats/chatList.whatsapp.css`: chips no estilo
+dos filtros do WhatsApp e o cartão reduzido ao essencial (sem sublinhas nem faixas de
+etiquetas). O selo usa a mesma tinta de todos (ver o sistema de selos acima); o modo
+só aperta a coluna, que é mais estreita por não haver sublinhas. Resultado: lista toda à mesma altura (68px).
 
-O que muda: o hero "Seu espaço de trabalho" sai da árvore (`ChatListToolbar`), a faixa
-de contagem some, cabeçalho/busca/chips ficam lisos, as linhas perdem o cartão e ganham
-régua divisória, e o card vira a grelha 2x2 do WhatsApp (nome|hora / prévia|selo) via
-`display: contents` em `.chat-list-row-top` e `.chat-list-row-meta`.
+**Invariantes:**
 
-**Invariantes — quebrar qualquer um recorta linhas na lista virtualizada:**
-
-- Altura é **fixa** no modo simples: `CHAT_LIST_SIMPLE_ROW_SIZE` (76 mobile / 80 desktop)
-  em `chatListRowAtendimento.js`, e `gap: 0` no virtualizador (`ChatListRows.jsx`).
-- A altura real tem de caber nesse valor. É por isso que a pele força o título em **1 linha**
-  e esconde sublinhas (setor, empresa, atendente, número) e as faixas de tags/etiquetas.
-  Ao reativar qualquer uma delas, suba a constante no mesmo commit.
-- Seletores da pele usam o prefixo `html[data-zap-simple="1"] body .app-layout #main-content`
-  + `!important`: é o mínimo para vencer `studio.css`, `conversations-studio.css` e
-  `premium-interactions.css`, que pintam a lista em `html body .app-layout--studio #main-content …`.
-- No modo simples os minutos de espera ficam **ao lado do relógio**, nunca dentro da badge
-  (`ChatListRow.jsx`): dentro dela empurravam nome e prévia para fora na coluna do desktop.
+- A pele esconde sublinhas (setor, empresa, atendente, número) e as faixas de tags/etiquetas,
+  e `estimateChatListRowSize` desconta-as pelo parâmetro `modoSimples`. Reativar qualquer uma
+  sem mexer no estimador recorta linhas.
+- Os minutos de espera ficam **ao lado do relógio**, nunca dentro da badge (`ChatListRow.jsx`):
+  dentro dela empurravam nome e prévia para fora na coluna estreita do desktop.
 
 A conversa tem a pele irmã em `conversa/conversa.whatsapp.css` (importada depois de
-`conversa.css`). Os tokens `--zs-*` das duas vivem em `styles/zap-simples.css`, carregado
-no boot — prefixo `--zs-` porque `conversa.css` já ocupa `--wa-bg`, `--wa-panel` e `--wa-text`
-no `:root`, e um `--wa-*` aqui sequestraria o fundo da thread e a cor das bolhas.
-
-Do lado da conversa, o modo simples também **esconde no JSX**: Transferir
+`conversa.css`), e o modo simples também **esconde no JSX**: Transferir
 (`AtendimentoActions`, junto de Assumir/Encerrar, que já saíam), a linha de setor do
 cabeçalho (`ConversaHeader`, via prop `modoSimples`) e o interruptor de correção, que vai
 para o menu de anexos em qualquer largura (`ConversaView`). Cor e ponta (`::after`) das

@@ -1,5 +1,4 @@
 import { memo } from "react";
-import { IconHeadset } from "@tabler/icons-react";
 import { isSupervisorOrAdmin } from "../auth/permissions";
 import AdminAtendenteFilter from "./AdminAtendenteFilter";
 import { ChatListSearchBox } from "./ChatListSearchBox";
@@ -82,30 +81,12 @@ function ChatListToolbar({
     activeFilterTotalCount,
   });
 
-  // Modo simples = visual WhatsApp: o hero "Seu espaço de trabalho" sai da árvore
-  // (não basta ocultar por CSS — ele carrega a cena decorativa animada do headset).
-  const modoSimples = user?.atendimento_modo_simples === true;
-
+  /*
+   * O hero "Seu espaço de trabalho" saiu da lista: ocupava um terço do ecrã no
+   * telemóvel e não dizia nada que os chips já não digam.
+   */
   return (
     <div className="chat-list-toolbar">
-      {modoSimples ? null : (
-      <div className="chat-list-heading">
-        <div className="chat-list-heading__copy">
-          <span className="chat-list-heading__eyebrow">SEU ESPAÇO DE TRABALHO</span>
-          <h1>Conversas<span aria-hidden="true">.</span></h1>
-          <p className="chat-list-heading__description">Organize, responda e acompanhe todos os seus atendimentos em um só lugar.</p>
-        </div>
-        <div className="chat-list-heading__scene" aria-hidden="true">
-          <span className="chat-list-heading__orbit" />
-          <span className="chat-list-heading__plate" />
-          <span className="chat-list-heading__icon">
-            <IconHeadset className="chat-list-heading__headset-depth" size={42} stroke={2.6} />
-            <IconHeadset className="chat-list-heading__headset" size={42} stroke={2.6} />
-          </span>
-          <span className="chat-list-heading__note"><span />Atendimento<br />mais eficiente</span>
-        </div>
-      </div>
-      )}
       <div className="chat-list-search-wrap chat-list-toolbar-row--search">
         <div className="chat-list-search-row">
           <div className="chat-list-search-box">
