@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import api from "../api/http";
-import { getCrmEtapas, postLeadFromConversa } from "../api/crmService";
+import { getCrmEtapas, postLeadFromConversa, postMovimentacaoFromConversa } from "../api/crmService";
 import { useNotificationStore } from "../notifications/notificationStore";
 
 export function IconFunnelSend() {
@@ -70,6 +70,9 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   const [funis, setFunis] = useState([]);
   const [selectedFunilId, setSelectedFunilId] = useState(null);
   const [etapasLoading, setEtapasLoading] = useState(false);
+  // "Registrar movimentação": observação na oportunidade SEM mudar a etapa.
+  const [movTexto, setMovTexto] = useState("");
+  const [movSaving, setMovSaving] = useState(false);
   const successTimerRef = useRef(null);
 
   useEffect(() => {
@@ -87,6 +90,7 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   // cai no formato de funil único (`etapas`) ou no envio simples — sem erro.
   useEffect(() => {
     if (!modalOpen) return;
+    setMovTexto(""); // começa com o campo de movimentação limpo a cada abertura
     let cancelled = false;
     setEtapasLoading(true);
     getCrmEtapas()
@@ -254,6 +258,34 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
     }
   }
 
+  // "Registrar movimentação": grava uma observação na oportunidade do cliente no
+  // CRM Avançado SEM mudar a etapa do funil. É uma ação independente do envio de
+  // lead acima — pode ser usada mesmo depois de o cliente já estar no funil.
+  async function handleSaveMovimentacao() {
+    const texto = movTexto.trim();
+    if (!conversaId || movSaving || crmEnabled === false || !texto) return;
+    setMovSaving(true);
+    try {
+      await postMovimentacaoFromConversa(Number(conversaId), texto);
+      setMovTexto("");
+      showToast({
+        type: "success",
+        title: "Movimentação registrada",
+        message: "A observação foi gravada na oportunidade do cliente, sem mudar a etapa.",
+      });
+    } catch (err) {
+      // getApiError prioriza a `message` real do CRM — em especial o 409 ("o
+      // cliente ainda não está em nenhuma etapa do funil").
+      showToast({
+        type: "error",
+        title: "Não foi possível registrar",
+        message: getApiError(err),
+      });
+    } finally {
+      setMovSaving(false);
+    }
+  }
+
   if (isGroup || !conversaId || crmEnabled === false) {
     return null;
   }
@@ -385,6 +417,39 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               </div>
             )}
           </form>
+
+          <div className="wa-crmSend-movSection">
+            <div className="wa-crmSend-movDivider" aria-hidden />
+            <div className="wa-crmSend-fieldGroup">
+              <label className="wa-crmSend-label" htmlFor="wa-crmSend-mov">
+                Registrar movimentação
+              </label>
+              <p className="wa-crmSend-movHint">
+                Grava uma observação na oportunidade do cliente.{" "}
+                <strong>Não muda a etapa do funil.</strong>
+              </p>
+              <textarea
+                id="wa-crmSend-mov"
+                className="wa-crmSend-textarea"
+                rows={2}
+                value={movTexto}
+                onChange={(e) => setMovTexto(e.target.value)}
+                placeholder="água de banho do banheiro 2 ok"
+                disabled={movSaving}
+              />
+              <div className="wa-crmSend-actions wa-crmSend-actions--mov">
+                <button
+                  type="button"
+                  className="wa-crmSend-submitBtn"
+                  onClick={handleSaveMovimentacao}
+                  disabled={movSaving || !movTexto.trim()}
+                  aria-busy={movSaving}
+                >
+                  {movSaving ? <><IconSpinnerMini /> A salvar…</> : "Salvar movimentação"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>,
       document.body

@@ -16415,6 +16415,35 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   background: var(--ds-hover, rgba(255,255,255,0.06));
 }
 
+/* "Registrar movimentação": seção independente abaixo do envio de lead. */
+.wa-crmSend-movSection {
+  margin-top: 18px;
+}
+.wa-crmSend-movDivider {
+  height: 1px;
+  margin: 0 0 16px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--ds-border, rgba(255, 255, 255, 0.12)) 18%,
+    var(--ds-border, rgba(255, 255, 255, 0.12)) 82%,
+    transparent
+  );
+}
+.wa-crmSend-movHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wa-text-muted, rgba(255, 255, 255, 0.5));
+}
+.wa-crmSend-movHint strong {
+  color: var(--wa-text-secondary, rgba(255, 255, 255, 0.78));
+  font-weight: 600;
+}
+.wa-crmSend-actions--mov {
+  justify-content: flex-end;
+}
+
 .wa-crmSend-textarea {
   width: 100%;
   box-sizing: border-box;

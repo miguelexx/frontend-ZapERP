@@ -198,6 +198,38 @@ export async function postLeadFromConversa(conversaId: number, body?: Record<str
   return { status: res.status, data: res.data };
 }
 
+/** Resposta POST /movimentacao/from-conversa (200/422/409/403). */
+export interface MovimentacaoResponse {
+  ok?: boolean;
+  oportunidade?: { id?: string | number; titulo?: string } | null;
+  etapa?: { id?: string | number; nome?: string } | null;
+  movimentacao?: { id?: string | number; criadoEm?: string } | null;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Registra uma movimentação (observação) na oportunidade do cliente no CRM
+ * Avançado SEM mudar a etapa do funil. Reaproveita os mesmos ids da conversa que
+ * o "Enviar ao CRM" (/lead) usa — o backend os completa a partir da conversa.
+ *
+ * Lança em erro (o chamador trata no catch). A mensagem REAL do CRM vem em
+ * `err.response.data.message` — em especial o 409 ("o cliente ainda não está em
+ * nenhuma etapa do funil"), que o backend repassa como 422 + message. Suprimimos
+ * os toasts globais de 403/500 para o chat mostrar a mensagem certa uma só vez.
+ */
+export async function postMovimentacaoFromConversa(conversaId: number, texto: string) {
+  const { data } = await api.post<MovimentacaoResponse>(
+    `${CRM}/movimentacao/from-conversa/${conversaId}`,
+    { texto },
+    {
+      skipGlobal403Toast: true,
+      skipGlobal500Toast: true,
+    } as Parameters<typeof api.post>[2] & { skipGlobal403Toast?: boolean; skipGlobal500Toast?: boolean }
+  );
+  return data;
+}
+
 /** Uma etapa (coluna do funil) do CRM Avançado, para os botões de "Enviar ao CRM". */
 export interface CrmEtapaBotao {
   id: string | null;
