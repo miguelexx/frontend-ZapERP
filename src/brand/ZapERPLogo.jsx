@@ -1,4 +1,5 @@
-import { useRef, useEffect, useId } from "react";
+import { useRef, useEffect } from "react";
+import { ZapERPZ, ZapERPWordmark } from "./ZapERPMarks";
 import "./ZapERPLogo.css";
 
 /**
@@ -28,7 +29,6 @@ export default function ZapERPLogo({
   const s = String(size || "md");
 
   const rootRef = useRef(null);
-  const gradId = `zpl-z-${useId().replace(/:/g, "")}`;
 
   useEffect(() => {
     if (!interactive || !rootRef.current) return;
@@ -134,48 +134,25 @@ export default function ZapERPLogo({
     >
       {v !== "wordmark" && (
         <span className="zpl-mark" aria-hidden="true">
-          <svg className="zpl-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id={gradId} x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse">
-                <stop offset="0" stopColor="#1746C9" />
-                <stop offset="0.52" stopColor="#1E6FE8" />
-                <stop offset="1" stopColor="#2E9BFF" />
-              </linearGradient>
-            </defs>
-            {/* Z geométrico com gradiente da marca */}
-            <path
-              className="zpl-z"
-              d="M12 12 H52 V24 L28 41 H52 V52 H12 V40 L36 23 H12 Z"
-              fill={`url(#${gradId})`}
-              stroke={`url(#${gradId})`}
-              strokeWidth="2.6"
-              strokeLinejoin="round"
-            />
-            {/* Raio (energia) cruzando o Z */}
-            <path
-              className="zpl-bolt"
-              d="M36 18 L25 34 L31.5 33 L28 47 L40 29 L33.5 30 L38 18 Z"
-              fill="var(--zpl-bolt, #F2F8FF)"
-              stroke="rgba(9, 32, 84, 0.14)"
-              strokeWidth="0.6"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <ZapERPZ className="zpl-svg" />
         </span>
       )}
 
       {v !== "compact" && (
         <span className="zpl-word">
-          <span className="zpl-name" aria-label={name}>
-            {String(name || "").trim().toLowerCase() === "zaperp" ? (
-              <>
-                <span className="zpl-nameZap">Zap</span>
-                <span className="zpl-nameERP">ERP</span>
-              </>
-            ) : (
+          {/*
+           * O nome é o lettering da marca, não texto. Enquanto era texto saía em Inter
+           * — a letra angular do logo não existe em nenhuma fonte instalada, por isso
+           * "a mais parecida" era sempre uma imitação. Um `name` diferente de "ZapERP"
+           * (marca branca de outra empresa) continua a ser texto, que é o correto.
+           */}
+          {String(name || "").trim().toLowerCase() === "zaperp" ? (
+            <ZapERPWordmark className="zpl-wordSvg" />
+          ) : (
+            <span className="zpl-name" aria-label={name}>
               <span className="zpl-nameFull">{name}</span>
-            )}
-          </span>
+            </span>
+          )}
 
           {tagline && <span className="zpl-tagline">{tagline}</span>}
         </span>

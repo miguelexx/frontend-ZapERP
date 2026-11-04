@@ -18,6 +18,22 @@
   user-select: none;
 }
 
+/* Modo reconexão (supervisor/admin): o QR ocupa a tela, então o fundo deixa de
+   pulsar vermelho — vira um backdrop escuro com aura de alerta, legível e premium. */
+.whapi-down-overlay--connect {
+  padding: 16px;
+  background: #0b1116;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(200, 16, 46, 0.42) 0%, rgba(11, 17, 22, 0) 60%),
+    radial-gradient(circle at 50% 110%, rgba(31, 168, 85, 0.22) 0%, rgba(11, 17, 22, 0) 55%),
+    #0b1116;
+  animation: none;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
 @keyframes whapi-down-pulse {
   0%,
   100% {

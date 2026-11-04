@@ -1,0 +1,463 @@
+/* Cartão de reconexão por QR Code — estilo WhatsApp Web, dentro do overlay de canal caído.
+   Tokens do tema do sistema; sem segundo design system. */
+
+.wa-rc {
+  --wa-rc-green: #1fa855;
+  --wa-rc-green-dark: #128c45;
+  --wa-rc-surface: #fff;
+  --wa-rc-surface-soft: #f6f7f9;
+  --wa-rc-text: #0f172a;
+  --wa-rc-muted: #5b6672;
+  --wa-rc-border: #e6e9ec;
+  --wa-rc-danger: #c8102e;
+
+  width: min(980px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: var(--wa-rc-surface);
+  color: var(--wa-rc-text);
+  text-align: left;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.45),
+    0 2px 0 rgba(255, 255, 255, 0.5) inset;
+  animation: wa-rc-in 0.22s ease-out both;
+}
+
+@keyframes wa-rc-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
+/* ---------------------------------------------------------------- alerta */
+.wa-rc__alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(90deg, #c8102e 0%, #a2001a 100%);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.wa-rc__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
+  animation: wa-rc-pulse 1.6s ease-out infinite;
+}
+
+@keyframes wa-rc-pulse {
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+/* ----------------------------------------------------------------- corpo */
+.wa-rc__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  padding: 28px 30px;
+}
+
+.wa-rc__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--wa-rc-green-dark);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.wa-rc__title {
+  margin: 12px 0 16px;
+  font-size: clamp(1.45rem, 2.6vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.wa-rc__lead {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--wa-rc-muted);
+}
+
+.wa-rc__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+
+.wa-rc__steps li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--wa-rc-text);
+}
+
+.wa-rc__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--wa-rc-green);
+  color: var(--wa-rc-green-dark);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- moldura */
+.wa-rc__main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.wa-rc__qr {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 268px;
+  height: 268px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--wa-rc-border);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  text-align: center;
+}
+
+.wa-rc__qrImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  border-radius: 6px;
+}
+
+.wa-rc__qr--ok {
+  color: var(--wa-rc-green-dark);
+  border-color: color-mix(in srgb, var(--wa-rc-green) 40%, #fff);
+  background: color-mix(in srgb, var(--wa-rc-green) 8%, #fff);
+}
+
+.wa-rc__qr--muted,
+.wa-rc__qr--loading {
+  background: var(--wa-rc-surface-soft);
+}
+
+.wa-rc__qrMsg {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wa-rc-text);
+  max-width: 220px;
+}
+
+.wa-rc__qrCount {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wa-rc-muted);
+}
+
+.wa-rc__skeleton {
+  width: 172px;
+  height: 172px;
+  border-radius: 10px;
+  background: linear-gradient(100deg, #e9edf1 30%, #f6f8fa 50%, #e9edf1 70%);
+  background-size: 220% 100%;
+  animation: wa-rc-shimmer 1.2s linear infinite;
+}
+
+@keyframes wa-rc-shimmer {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -40% 0;
+  }
+}
+
+.wa-rc__renew {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--wa-rc-muted);
+}
+
+/* ------------------------------------------------------- código por telefone */
+.wa-rc__phone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 268px;
+  min-height: 268px;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--wa-rc-surface-soft);
+  border: 1px solid var(--wa-rc-border);
+  text-align: center;
+}
+
+.wa-rc__phoneLead {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.wa-rc__phoneHint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--wa-rc-muted);
+}
+
+.wa-rc__phoneErr {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wa-rc-danger);
+}
+
+.wa-rc__code {
+  margin: 4px 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+  color: var(--wa-rc-green-dark);
+}
+
+.wa-rc__input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--wa-rc-border);
+  background: #fff;
+  color: var(--wa-rc-text);
+  font-size: 16px; /* 16px evita o zoom do iOS ao focar */
+}
+
+.wa-rc__input:focus-visible {
+  outline: 2px solid var(--wa-rc-green);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------- botões */
+.wa-rc__primary,
+.wa-rc__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--wa-rc-green);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.14s ease, transform 0.12s ease;
+}
+
+.wa-rc__primary:hover,
+.wa-rc__retry:hover {
+  background: var(--wa-rc-green-dark);
+}
+
+.wa-rc__primary:active,
+.wa-rc__retry:active {
+  transform: translateY(1px);
+}
+
+.wa-rc__primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wa-rc__link {
+  align-self: flex-start;
+  margin-top: 16px;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  color: var(--wa-rc-green-dark);
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Dentro do painel de código o conteúdo é centralizado — o link acompanha. */
+.wa-rc__phone .wa-rc__link {
+  align-self: center;
+  margin-top: 2px;
+}
+
+.wa-rc__link--arrow::after {
+  content: " ›";
+  text-decoration: none;
+}
+
+.wa-rc__ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--wa-rc-border);
+  background: transparent;
+  color: var(--wa-rc-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wa-rc__ghost:hover:not(:disabled) {
+  border-color: var(--wa-rc-green);
+  color: var(--wa-rc-green-dark);
+}
+
+.wa-rc__ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------------- rodapé */
+.wa-rc__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  border-top: 1px solid var(--wa-rc-border);
+  background: var(--wa-rc-surface-soft);
+  border-radius: 0 0 20px 20px;
+}
+
+.wa-rc__channel {
+  font-size: 13px;
+  color: var(--wa-rc-muted);
+}
+
+.wa-rc__footActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------------ tema escuro */
+[data-theme="dark"] .wa-rc {
+  --wa-rc-surface: #10161c;
+  --wa-rc-surface-soft: #161e26;
+  --wa-rc-text: #e8edf2;
+  --wa-rc-muted: #9aa7b4;
+  --wa-rc-border: #27323d;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .wa-rc__num {
+  color: #4ade80;
+  border-color: #2f9e5a;
+}
+
+[data-theme="dark"] .wa-rc__brand,
+[data-theme="dark"] .wa-rc__link,
+[data-theme="dark"] .wa-rc__code {
+  color: #4ade80;
+}
+
+[data-theme="dark"] .wa-rc__input {
+  background: #0c1116;
+  color: var(--wa-rc-text);
+}
+
+/* O QR precisa de fundo claro para o celular ler — não escurecer a moldura com código. */
+[data-theme="dark"] .wa-rc__qr--muted,
+[data-theme="dark"] .wa-rc__qr--loading {
+  background: var(--wa-rc-surface-soft);
+  border-color: var(--wa-rc-border);
+}
+
+[data-theme="dark"] .wa-rc__skeleton {
+  background: linear-gradient(100deg, #1b242d 30%, #243039 50%, #1b242d 70%);
+  background-size: 220% 100%;
+}
+
+/* ------------------------------------------------------------------ mobile */
+@media (max-width: 860px) {
+  .wa-rc__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding: 20px 18px 22px;
+  }
+
+  .wa-rc__main {
+    order: -1;
+  }
+
+  .wa-rc__title {
+    margin: 10px 0 12px;
+  }
+
+  .wa-rc__qr,
+  .wa-rc__phone {
+    width: min(268px, 78vw);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+  }
+
+  .wa-rc__link {
+    align-self: center;
+  }
+
+  .wa-rc__foot {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-rc,
+  .wa-rc__dot,
+  .wa-rc__skeleton {
+    animation: none;
+  }
+}

@@ -52,7 +52,7 @@
 
   /* --- Métricas da linha da lista (espelhadas no estimador) --- */
   --zs-m-avatar: 48px;
-  --zs-m-pad-y: 8px;          /* em cima e em baixo → 16 no total */
+  --zs-m-pad-y: 12px;         /* em cima e em baixo → 24 no total (ROW_METRICS.padY) */
   --zs-m-title: 20px;         /* 1 linha, sempre (o título é truncado) */
   --zs-m-subline: 15px;       /* setor, empresa, atendente, nº, "encontrado por" */
   --zs-m-time: 16px;
@@ -96,7 +96,7 @@
 
 /* -----------------------------------------------------------------------
    Barra inferior retrátil (modo simples, telemóvel)
-   Estado e gesto em `layouts/useBottomNavReveal.js`. A barra já é
+   Estado e gesto em `layouts/useNavReveal.js`. A barra já é
    `position: fixed` no mobile, por isso sai de cena só com transform —
    nada no fluxo se mexe.
 ----------------------------------------------------------------------- */
@@ -104,11 +104,14 @@
 @media (max-width: 768px) {
   html[data-zap-simple="1"] body .app-layout--navRetratil .sidebar {
     transform: translateY(110%);
-    transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    /* Fora do ecrã e fora da ordem de tabulação (ver a nota do rail). */
+    visibility: hidden;
+    transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1), visibility 220ms ease;
   }
 
   html[data-zap-simple="1"] body .app-layout--navRetratil.is-navAberta .sidebar {
     transform: translateY(0);
+    visibility: visible;
   }
 
   /*
@@ -179,5 +182,108 @@
   html[data-zap-simple="1"] body .zs-navHandle,
   html[data-zap-simple="1"] body .zs-navBackdrop {
     display: none;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Rail lateral retrátil (desktop)
+   Mesmo gesto da barra do telemóvel, no eixo X (`layouts/useNavReveal.js`).
+   Ao contrário da barra, NÃO está preso ao modo simples: vale para todos.
+----------------------------------------------------------------------- */
+
+@media (min-width: 769px) {
+  /*
+   * O rail é um item em fluxo do `.app-layout` (flex), por isso só o transladar
+   * deixaria uma coluna vazia de 68px. Tirá-lo do fluxo é o que devolve a
+   * largura ao conteúdo — que é o ponto de o esconder.
+   */
+  html body .app-layout--railRetratil .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    /* Escondido também para o teclado: sem isto o Tab entrava nos links do menu
+       que estão fora do ecrã. `visibility` transita em degrau — some no fim da
+       animação de saída e volta no início da de entrada, que é o que se quer. */
+    visibility: hidden;
+    transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      visibility 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  html body .app-layout--railRetratil.is-railAberto .sidebar {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: 0 10px 34px rgba(11, 20, 26, 0.16);
+  }
+
+  [data-theme="dark"] body .app-layout--railRetratil.is-railAberto .sidebar {
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.44);
+  }
+
+  /* Faixa fina encostada à borda: é onde se agarra para puxar o menu. */
+  html body .app-layout--railRetratil .zs-railHandle {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 14px;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: grab;
+    /* Sem isto o arrasto vira seleção/scroll e o gesto nunca chega ao hook. */
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Abaixo do rail (60): quando ele entra, cobre a pega. */
+    z-index: 59;
+  }
+
+  html body .app-layout--railRetratil .zs-railHandle-pill {
+    width: 4px;
+    height: 44px;
+    border-radius: 999px;
+    background: var(--zs-text-2);
+    opacity: 0.3;
+    transition: opacity 160ms ease, height 160ms ease;
+  }
+
+  html body .app-layout--railRetratil .zs-railHandle:hover .zs-railHandle-pill,
+  html body .app-layout--railRetratil .zs-railHandle:active .zs-railHandle-pill {
+    opacity: 0.6;
+    height: 64px;
+  }
+
+  html body .app-layout--railRetratil .zs-railHandle:focus-visible {
+    outline: 2px solid var(--zs-accent);
+    outline-offset: -2px;
+  }
+
+  html body .app-layout--railRetratil .zs-railBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: transparent;
+  }
+}
+
+/* No telemóvel o menu é a barra de baixo — a pega lateral não existe. */
+@media (max-width: 768px) {
+  html body .zs-railHandle,
+  html body .zs-railBackdrop {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .app-layout--railRetratil .sidebar,
+  html body .app-layout--navRetratil .sidebar {
+    transition: none;
   }
 }

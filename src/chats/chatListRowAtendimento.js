@@ -509,7 +509,7 @@ export const CHAT_LIST_ROW_GAP = 0;
 const ROW_METRICS = {
   avatar: 48,
   /** padding vertical da linha: 8 em cima + 8 em baixo */
-  padY: 16,
+  padY: 24,
   title: 20,
   subline: 15,
   /** a pílula do atendente responsável leva avatar: 2 de margem + 18 */

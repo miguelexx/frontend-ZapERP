@@ -294,8 +294,12 @@ test.describe("Configuracoes - contratos protegidos", () => {
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       buffer: Buffer.from("PK\u0003\u0004"),
     });
-    await expect(page.getByText("ALEXIA CRISTINA MARCHEZAN DOS SANTOS")).toBeVisible();
-    await expect(page.getByText("5534999514579")).toBeVisible();
+    // Escopo na tabela da prévia: o mesmo nome e o mesmo telefone também aparecem no
+    // bloco "Telefone compartilhado" (um <option> do seletor de nome principal), e um
+    // getByText solto bate nos dois.
+    const previa = page.locator("table").filter({ hasText: "Tags (série)" });
+    await expect(previa.getByText("ALEXIA CRISTINA MARCHEZAN DOS SANTOS", { exact: true })).toBeVisible();
+    await expect(previa.getByText("5534999514579", { exact: true })).toBeVisible();
     const confirmar = page.getByRole("button", { name: /Confirmar importação/ });
     await expect(confirmar).toBeEnabled();
     await confirmar.click();
@@ -334,10 +338,11 @@ test.describe("Configuracoes - regressões alvo", () => {
     await page.goto("/configuracoes");
     await expect(page).toHaveURL(/\/atendimento/);
 
+    // installSession usa addInitScript, que roda de novo a CADA navegação: gravar a
+    // sessão com page.evaluate não adianta, o goto seguinte a sobrescreve pelo visitante.
+    // Registrar outro init script deixa o atendente por último — é ele que vale.
     const atendente = { ...admin, perfil: "atendente", role: "atendente" };
-    await page.evaluate((user) => {
-      localStorage.setItem("zap_erp_auth", JSON.stringify({ token: "config-local-token", user }));
-    }, atendente);
+    await installSession(page, atendente);
     await page.goto("/configuracoes?tab=tags");
     await expect(page).toHaveURL(/tab=respostas/);
     await expect(page.getByRole("heading", { name: "Respostas salvas", level: 1 })).toBeVisible();

@@ -619,6 +619,17 @@ function ModalImportarClientes({ onClose, onImported }) {
   const [confirmarNomesManuais, setConfirmarNomesManuais] = useState(false);
   const [vincularAlunosMesmoTelefone, setVincularAlunosMesmoTelefone] = useState(false);
   const [resultado, setResultado] = useState(null);
+  // A lista só é recarregada quando o modal fecha. Recarregar logo após importar põe a
+  // seção em "loading", o esqueleto substitui o conteúdo e leva o modal junto — o
+  // resumo da importação (e o "Baixar relatório") sumiam antes de serem vistos.
+  const importouRef = useRef(false);
+
+  const fecharModal = () => {
+    const importou = importouRef.current;
+    importouRef.current = false;
+    onClose?.();
+    if (importou) onImported?.();
+  };
 
   const rodarPreview = async (arquivo, mapOverride, principaisOverride) => {
     setLoading(true);
@@ -687,7 +698,7 @@ function ModalImportarClientes({ onClose, onImported }) {
       });
       setResultado(data);
       setStep("done");
-      onImported?.();
+      importouRef.current = true;
     } catch (e) {
       setErro(e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Erro ao importar clientes.");
     } finally {
@@ -771,7 +782,7 @@ function ModalImportarClientes({ onClose, onImported }) {
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
-      onClick={onClose}
+      onClick={fecharModal}
     >
       <div
         style={{
@@ -801,11 +812,16 @@ function ModalImportarClientes({ onClose, onImported }) {
         ) : null}
 
         {step === "select" || (!preview && step !== "done") ? (
-          <div className="ia-field">
-            <label className="ia-btn ia-btn--primary" style={{ display: "inline-block", cursor: "pointer" }}>
+          <div className="ia-btn-row">
+            <label className="ia-btn ia-btn--primary" style={{ cursor: "pointer" }}>
               {loading ? "Analisando…" : "Selecionar arquivo .xlsx"}
               <input type="file" accept=".xlsx" onChange={handleFile} disabled={loading} style={{ display: "none" }} />
             </label>
+            {/* Sem este botão o primeiro passo do modal não tinha saída visível: só
+                clicando fora. As outras etapas (prévia e resultado) já fechavam. */}
+            <button type="button" className="ia-btn ia-btn--outline" onClick={fecharModal} disabled={loading}>
+              Cancelar
+            </button>
           </div>
         ) : null}
 
@@ -990,7 +1006,7 @@ function ModalImportarClientes({ onClose, onImported }) {
                 Trocar arquivo
                 <input type="file" accept=".xlsx" onChange={handleFile} disabled={loading} style={{ display: "none" }} />
               </label>
-              <button type="button" className="ia-btn ia-btn--outline" onClick={onClose} disabled={loading}>
+              <button type="button" className="ia-btn ia-btn--outline" onClick={fecharModal} disabled={loading}>
                 Cancelar
               </button>
             </div>
@@ -1035,7 +1051,7 @@ function ModalImportarClientes({ onClose, onImported }) {
                   Baixar relatório (.csv)
                 </button>
               ) : null}
-              <button type="button" className="ia-btn ia-btn--primary" onClick={onClose}>
+              <button type="button" className="ia-btn ia-btn--primary" onClick={fecharModal}>
                 Fechar
               </button>
             </div>

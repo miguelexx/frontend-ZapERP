@@ -697,3 +697,57 @@ aparecer vermelho em mensagem entregue, o defeito é no backend que escreveu `er
 Mantido de antes (correto e não mexido): `pending`/`status_indefinido` COM id desenham tique de
 enviada — ali não há afirmação de falha, só ausência de ACK. E `MessageRetry` segue avisando
 "Reenviar mesmo assim / pode duplicá-la" quando há id.
+
+## Barra de ações do cabeçalho — desktop (CONFIRMADO 2026-11-03)
+
+`conversa/conversa.polish.css`, carregado entre `conversa.css` e `conversa.whatsapp.css`.
+
+**Escopo: tudo dentro de `@media (min-width: 641px)`.** O telemóvel ficou intocado por
+pedido explícito do Miguel — uma regra acrescentada fora da media query muda o telemóvel.
+
+O cabeçalho tinha quatro botões em quatro linguagens (medido no render, não a olho):
+
+| Botão | Antes | Agora |
+|---|---|---|
+| CRM | preenchido, raio 999, peso 700 | tinta de accent |
+| Transferir | fundo azul + borda azul, raio 8, peso 600 | tinta índigo |
+| Aguardar cliente | branco + borda cinza, raio 8, peso 600 | tinta âmbar |
+| Encerrar | fundo rosa + borda vermelha, raio 8, peso 600 | tinta vermelha |
+| Definir setor | 82x19, borda azul, raio 6, peso 400 | 89x26, cápsula, accent |
+
+Todos a **36px, 13px/600, raio 999, sem borda**. O que muda entre eles é só a TINTA, e as
+tintas são as mesmas `--zs-st-*` que a lista de conversas usa nos selos de estado — uma
+linguagem de cor para o produto inteiro. Índigo é o "em atendimento" da lista, âmbar é o
+"a aguardar", vermelho é o destrutivo. Só o **Assumir** fica preenchido a sólido: é a
+única ação do cabeçalho que tem de ser feita antes de qualquer outra.
+
+O `--zs-st-due-fg` da lista (laranja-tijolo, afinado para um selo de "em atraso") **não**
+serve para o Encerrar: ali a cor é o que diz "isto encerra", por isso é vermelho de
+verdade (`#be123c` / `#fda4af`).
+
+Houve um primeiro corte que deixou estes botões neutros (fundo transparente). Perdeu
+presença a mais — são a barra de comando do atendimento e têm de ser vistos. A correção
+não foi voltar às cinco linguagens, foi dar superfície dentro da mesma cápsula.
+
+Entraram também foco de teclado (`:focus-visible`), resposta ao premir (`scale(.97)`,
+removida em `prefers-reduced-motion`) e estado desativado visível.
+
+`.wa-loadOlderHistory` passou a coluna: a linha era um `flex` sem quebra onde o botão
+"Buscar histórico no WhatsApp" e o parágrafo explicativo disputavam a mesma largura.
+
+**Não duplicar a entrada das mensagens.** `zapMessageIn` / `zapMessageOut`
+(`styles/zap-animations.css`) já é o momento autorado da página — a bolha de saída parte
+do canto do composer, com `prefers-reduced-motion` tratado.
+
+### Medido e deixado como está (telemóvel)
+
+Fica registado porque foi medido, não porque se resolveu:
+
+- `.wa-bubble-text` é **700** no telemóvel e 400 no desktop — o corpo da conversa em
+  negrito. Nenhuma regra casa com o elemento ao varrer `document.styleSheets`, e a cadeia
+  de ancestrais está toda a 400, por isso o peso vem de outro sítio por identificar.
+  O mesmo com `textarea.wa-input` (16px/700) e `.wa-daySep-pill` (11px/700).
+- Alvos de toque do cabeçalho abaixo de 40px: Voltar 34x34, Mais opções 32x32,
+  Transferir 68x31, Encerrar 81x34 e **Definir setor 34x18**.
+- `.wa-loadOlderBtn` desenha uma elipse de 103x80 (o rótulo quebra em quatro linhas
+  dentro de um raio de 999px).

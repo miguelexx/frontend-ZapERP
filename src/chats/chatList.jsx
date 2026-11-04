@@ -1908,6 +1908,8 @@ export default function ChatList() {
 
   const showSetorFilter = isAppAdmin(user);
   const showAusenciaLote = isSupervisorOrAdmin(user);
+  // Só quem passa no gate de /configuracoes/whatsapp pode cair direto no QR Code.
+  const podeAbrirConexaoWhatsapp = isSupervisorOrAdmin(user);
 
   const handleClearAdminAtendenteFilter = useCallback(() => {
     clearChatSearch();
@@ -2023,7 +2025,13 @@ export default function ChatList() {
             <button
               type="button"
               className="chat-list-zapi-alert__link"
-              onClick={() => navigate("/configuracoes")}
+              onClick={() =>
+                // Quem pode abrir a tela de conexão vai direto para o QR Code
+                // (a página gera o código sozinha); os demais, para Configurações.
+                navigate(
+                  podeAbrirConexaoWhatsapp ? "/configuracoes/whatsapp" : "/configuracoes"
+                )
+              }
             >
               Reconectar
             </button>

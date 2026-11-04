@@ -74,6 +74,7 @@ const tests = [
   "test-sw-asset-cache-prune.mjs",
   "test-sw-index-fresco.mjs",
   "test-thread-media-prefetch.mjs",
+  "test-whapi-reconnect-qr.mjs",
 ];
 
 const failures = [];

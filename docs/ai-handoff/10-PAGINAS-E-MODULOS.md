@@ -44,6 +44,8 @@ Sem `can()`. `internalChatService.js`. Socket `internal_chat:*`. Bridge global n
 
 O `MainLayout` também monta `WhapiDisconnectedOverlay` (2026-09-15): tela vermelha só quando a sessão Whapi está comprovadamente fora do AUTH (`UNAUTHORIZED` etc.). `not_configured` / erro (caso clássico: 2+ canais sem `is_default`) **não** acendem. Em `/configuracoes` o overlay fica oculto para o painel Whapi continuar usável.
 
+**QR na própria tela (2026-11-03):** com o canal caído, quem é `isSupervisorOrAdmin` não vê mais só o aviso vermelho — recebe `components/WhapiReconnectCard.jsx` (estilo WhatsApp Web: passos 1-2-3, moldura do QR, "Entrar com número de telefone") sobre o backdrop escuro `.whapi-down-overlay--connect`. Atendente continua com a tela vermelha (as rotas `/instances/*` são supervisor/admin: ele levaria 403). Fiação: `components/useWhapiReconnect.js` (lista canais com `refresh:1`, escolhe o CAÍDO, status a cada 6s, QR renovado a cada 20s, 429 vira contagem regressiva com retry automático) + `components/whapiReconnectLogic.js` (regras puras: alvo, estado da moldura, clamp do 429, telefone/código). Ao autenticar, o cartão chama `onConnected` → `revalidate()` do `useWhapiChannelStatus` (+2,5s e +6s) e o overlay apaga sem esperar o poll de 60s. Coberto por `scripts/test-whapi-reconnect-qr.mjs`.
+
 ## Supervisão — `pages/Supervisao.jsx` + `supervisao/`
 
 `isSupervisorOrAdmin` (role). `supervisaoService.js`: resumo, pendentes, relatório diário, movimentação. Refresh ~30s. Grupos fora da lista de pendentes (**CONFIRMADO** na auditoria da página).

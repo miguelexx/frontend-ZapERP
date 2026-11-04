@@ -63,7 +63,10 @@ Daí decorre que:
 - etiquetas e tags ocupam `--zs-m-extra-row` cada;
 - `modoSimples` desconta sublinhas, faixas extra e a pilha de selo — no modo simples o
   `StatusPill` sai mais cedo e desenha no máximo uma pílula, por isso a lista fica toda
-  à mesma altura (68px).
+  à mesma altura (76px);
+- o respiro vertical da linha é `--zs-m-pad-y` (12px em cima e em baixo), espelhado em
+  `ROW_METRICS.padY` como **24** — o dobro, porque o estimador soma os dois de uma vez.
+  Mexer num sem mexer no outro recorta ou sobra em TODAS as linhas de uma vez.
 
 Para validar depois de mexer: render com ~40 conversas variadas (nome curto/longo, com e
 sem setor, empresa, tags, todos os estados), rolar a lista inteira e comparar
@@ -174,7 +177,7 @@ cada um dos nove campos — se não mudasse, a linha ficaria parada.
 O que o modo acrescenta à pele comum está em `chats/chatList.whatsapp.css`: chips no estilo
 dos filtros do WhatsApp e o cartão reduzido ao essencial (sem sublinhas nem faixas de
 etiquetas). O selo usa a mesma tinta de todos (ver o sistema de selos acima); o modo
-só aperta a coluna, que é mais estreita por não haver sublinhas. Resultado: lista toda à mesma altura (68px).
+só aperta a coluna, que é mais estreita por não haver sublinhas. Resultado: lista toda à mesma altura (76px).
 
 **Invariantes:**
 
@@ -193,12 +196,31 @@ bolhas ficam **como estão**: a cor vive num gradiente e a ponta vem dos `--wa-b
 mexer só numa delas desencontra as duas.
 
 No telemóvel a barra inferior fica escondida (`transform: translateY(110%)`) e só sobe
-quando o atendente arrasta a pega do rodapé — gesto em `layouts/useBottomNavReveal.js`,
-classes `app-layout--navRetratil` / `is-navAberta` postas pelo `MainLayout`. Com conversa
-(ou thread do chat interno) aberta nada disto se aplica: o `app.css` já esconde a barra e
-zera o `padding-bottom` do `main-content`, inclusive com o teclado aberto. Os `:not(:has(…))`
-na regra do padding existem por causa disso — sem eles a pele vencia por especificidade e
-devolvia uma faixa branca acima do teclado.
+quando o atendente arrasta a pega do rodapé — classes `app-layout--navRetratil` /
+`is-navAberta` postas pelo `MainLayout`. Com conversa (ou thread do chat interno) aberta
+nada disto se aplica: o `app.css` já esconde a barra e zera o `padding-bottom` do
+`main-content`, inclusive com o teclado aberto. Os `:not(:has(…))` na regra do padding
+existem por causa disso — sem eles a pele vencia por especificidade e devolvia uma faixa
+branca acima do teclado.
+
+### Rail lateral retrátil, no desktop (CONFIRMADO 2026-11-03)
+
+O mesmo, no eixo X: o rail de ícones sai de vista e só entra quando se arrasta (ou se
+clica) a pega de 14px encostada à borda esquerda. Classes `app-layout--railRetratil` /
+`is-railAberto`. **Não está preso ao modo simples — vale para todos.**
+
+O gesto dos dois é o mesmo hook, `layouts/useNavReveal.js`, com a opção `eixo`
+(`"y"` para a barra, `"x"` para o rail): duas cópias seriam duas oportunidades de o limiar
+de arrasto ou o toque divergirem.
+
+Duas coisas que não são detalhe:
+
+- O rail é um item **em fluxo** do `.app-layout` (que é `display: flex`), por isso escondê-lo
+  só com `transform` deixaria uma coluna vazia de 68px. A regra põe-no `position: fixed` —
+  é isso que devolve a largura ao conteúdo, que é o ponto de o esconder.
+- Os dois menus levam `visibility: hidden` quando fechados. Sem isso o `Tab` entrava nos
+  links fora do ecrã. `visibility` transita em degrau: some no fim da animação de saída e
+  volta no início da de entrada, por isso não se vê nada a piscar.
 
 ## Componentes
 
@@ -212,7 +234,7 @@ devolvia uma faixa branca acima do teclado.
 | Header/Toolbar/AdvancedFilters | UI de filtros |
 | `hooks/useChatListFilterState.js` | estado serializável (abas, busca, avançados); `useChatListFilters.js` continua o compute in-memory no Body |
 | `hooks/useWhatsappInstanceStatus.js` | banner WhatsApp desconectado (`GET /chats/zapi-status`, nome legado) |
-| `hooks/useWhapiChannelStatus.js` | overlay vermelho (`GET /chats/whapi-status`); só acende com sessão comprovadamente caída. `not_configured` não pinta a tela. Em `MainLayout` via `WhapiDisconnectedOverlay` (oculto em `/configuracoes`) |
+| `hooks/useWhapiChannelStatus.js` | overlay vermelho (`GET /chats/whapi-status`); só acende com sessão comprovadamente caída. `not_configured` não pinta a tela. Em `MainLayout` via `WhapiDisconnectedOverlay` (oculto em `/configuracoes`). Expõe `revalidate()` — reconexão pelo QR do overlay apaga a tela na hora, sem esperar o poll de 60s |
 | `hooks/useChatListPagination.js` | carregar mais + auto-avanço de página vazia |
 | `hooks/useChatListResync.js` | nonce do store (debounce no **store**, não no hook), refresh 5 min, `zapi_sync_contatos` |
 | `hooks/useChatListCounts.js` | deriva números dos chips a partir de `chatFilterCounts` já carregados |

@@ -78,9 +78,18 @@
 .zpl--md { --zpl-gap: 10px; }
 .zpl--lg { --zpl-gap: 12px; }
 
-.zpl--sm .zpl-mark { width: 32px; height: 32px; }
-.zpl--md .zpl-mark { width: 40px; height: 40px; }
-.zpl--lg .zpl-mark { width: 48px; height: 48px; }
+/*
+ * O "Z" do logo original NÃO é quadrado: 516x448.5, ou seja 1.15:1. A caixa segue a
+ * altura e deixa a largura vir da proporção — forçar um quadrado espremia a letra.
+ */
+.zpl--sm .zpl-mark { height: 30px; }
+.zpl--md .zpl-mark { height: 36px; }
+.zpl--lg .zpl-mark { height: 44px; }
+
+/* O lettering tem 718.5x145.5 (4.94:1) e é dimensionado pela altura, como o Z. */
+.zpl--sm .zpl-wordSvg { height: 15px; }
+.zpl--md .zpl-wordSvg { height: 17px; }
+.zpl--lg .zpl-wordSvg { height: 21px; }
 
 .zpl--sm .zpl-name { font-size: 16px; }
 .zpl--md .zpl-name { font-size: 18px; }
@@ -107,9 +116,28 @@
 }
 
 .zpl-svg {
-  width: 100%;
+  width: auto;
   height: 100%;
   display: block;
+  /* O vetor oficial é monocromático: a cor da marca entra por aqui e muda com o tema. */
+  color: var(--zpl-z, #1e6fd9);
+}
+
+.zpl-wordSvg {
+  width: auto;
+  display: block;
+  /* "Zap" herda esta cor; "ERP" usa --zpl-erp (ver ZapERPMarks.jsx). */
+  color: var(--zpl-zap, #0b1b33);
+  --zpl-erp: var(--zpl-z, #1e6fd9);
+}
+
+[data-theme="dark"] .zpl-svg {
+  color: var(--zpl-z-dark, #2e9bff);
+}
+
+[data-theme="dark"] .zpl-wordSvg {
+  color: var(--zpl-zap-dark, #e9edef);
+  --zpl-erp: var(--zpl-z-dark, #2e9bff);
 }
 
 .zpl-bubble {

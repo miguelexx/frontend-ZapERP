@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getWhapiChannelStatus } from "../chatService";
 
 /** Revalidação periódica do canal Whapi (o overlay vermelho precisa acender e sumir sozinho). */
@@ -37,6 +37,9 @@ export function isWhapiOverlayDisconnected(s) {
 export function useWhapiChannelStatus() {
   const [disconnected, setDisconnected] = useState(false);
   const consecutiveDownRef = useRef(0);
+  // Checagem sob demanda: quem reconecta pela própria tela não pode esperar até
+  // 60s de poll para o overlay apagar. Uma leitura conectada apaga na hora.
+  const checarRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +66,8 @@ export function useWhapiChannelStatus() {
         });
     };
 
+    checarRef.current = checar;
+
     const first = setTimeout(checar, WHAPI_STATUS_FIRST_DELAY_MS);
     // Aba oculta não pinta overlay: pausa o poll e deixa o handler de foco revalidar na volta.
     const intervalo = setInterval(() => {
@@ -80,6 +85,7 @@ export function useWhapiChannelStatus() {
 
     return () => {
       cancelled = true;
+      checarRef.current = null;
       clearTimeout(first);
       clearInterval(intervalo);
       document.removeEventListener("visibilitychange", aoFocar);
@@ -87,5 +93,9 @@ export function useWhapiChannelStatus() {
     };
   }, []);
 
-  return { whapiDisconnected: disconnected };
+  const revalidate = useCallback(() => {
+    checarRef.current?.();
+  }, []);
+
+  return { whapiDisconnected: disconnected, revalidate };
 }

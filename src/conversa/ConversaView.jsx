@@ -17,7 +17,9 @@ import {
   isConversaModoSimplesAtiva,
 } from "../utils/conversaUtils";
 import "./conversa.css";
-/* Pele WhatsApp do modo simples — tem de carregar depois de conversa.css. */
+/* Barra de ações, alvos de toque e acabamento — todos os utilizadores. */
+import "./conversa.polish.css";
+/* Pele WhatsApp do modo simples — tem de carregar depois das duas de cima. */
 import "./conversa.whatsapp.css";
 import "../styles/zap-animations.css";
 import {

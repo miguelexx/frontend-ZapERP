@@ -1,0 +1,364 @@
+/* =======================================================================================
+   PÁGINA DE ATENDIMENTO — barra de ações e acabamento do CABEÇALHO (DESKTOP)
+
+   ESCOPO: tudo neste ficheiro vive dentro de `@media (min-width: 641px)`, por pedido
+   explícito do Miguel (03/11/2026): no telemóvel não se mexe em nada. 640px é o mesmo
+   corte que o `conversa.css` já usa para o cabeçalho `--atendMobile`. Acrescentar uma
+   regra fora da media query aqui muda o telemóvel — não o faça.
+
+   Carrega depois de `conversa.css` e antes de `conversa.whatsapp.css` (modo simples).
+
+   O diagnóstico, medido no render e não a olho. Cabeçalho do desktop: quatro botões e
+   quatro linguagens a competir numa tela cuja ação principal — responder — está no
+   composer, não aqui:
+
+     CRM              75x34  preenchido,                     raio 999, peso 700
+     Transferir      112x34  fundo azul claro + borda azul,  raio 8,   peso 600
+     Aguardar cliente 154x34 branco + borda cinza,           raio 8,   peso 600
+     Encerrar        104x34  fundo rosa + borda vermelha,    raio 8,   peso 600
+     Definir setor    82x19  branco + borda azul,            raio 6,   peso 400
+
+   Passam a ter uma forma só, com TRÊS níveis de ênfase: preenchido só para "Assumir"
+   (a única que tem de ser feita antes de qualquer outra), tinta de accent para o CRM,
+   neutro para o resto, e vermelho de texto para o destrutivo.
+
+   NÃO se mexe na entrada das mensagens: `zapMessageIn` / `zapMessageOut` em
+   `styles/zap-animations.css` já é o momento autorado da página (a bolha de saída parte
+   do canto do composer), com `prefers-reduced-motion` tratado. Duplicar isso seria ruído.
+======================================================================================= */
+
+@media (min-width: 641px) {
+  html body .app-layout #main-content .wa-header {
+    /* Uma altura para todos os botões da barra. */
+    --wa-act-h: 36px;
+    --wa-act-fs: 13px;
+    --wa-act-gap: 6px;
+    /* Tinta neutra do estado de passagem — segue o tema, não é cinza fixo. */
+    --wa-act-hover: color-mix(in srgb, var(--wa-text) 8%, transparent);
+    --wa-act-fg: color-mix(in srgb, var(--wa-text) 78%, transparent);
+  }
+
+  /* ---------------------------------------------------------------------
+     1. A forma — igual para todos
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-secondary,
+    .wa-btn-transferir,
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento,
+    .wa-btn-orcamento,
+    .wa-btn-pagamento-concluido,
+    .wa-btn-danger,
+    .wa-crmSendBtn,
+    .wa-header-setorBtn
+  ) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: var(--wa-act-gap) !important;
+    height: var(--wa-act-h) !important;
+    min-height: var(--wa-act-h) !important;
+    padding: 0 12px !important;
+    border: none !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    background-image: none !important;
+    color: var(--wa-act-fg) !important;
+    font-size: var(--wa-act-fs) !important;
+    /* 600 para todos. Era 600, 700 e até 750 — um peso sintético que o Inter
+       resolve a esmo; o problema nunca foi o peso ser alto, era ser diferente
+       em cada botão. */
+    font-weight: 600 !important;
+    letter-spacing: 0 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    animation: none !important;
+    transition: background-color 140ms ease, color 140ms ease, transform 110ms ease !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     1b. A tinta de cada ação
+
+     O primeiro corte deixou tudo transparente e a barra perdeu presença: estes
+     botões são o comando do atendimento e têm de ser vistos. Voltam a ter
+     superfície — na mesma cápsula e nas MESMAS tintas de estado que a lista de
+     conversas usa (`--zs-st-*`), para o produto ter uma linguagem de cor só em
+     vez de cada botão inventar a sua.
+
+       Transferir / orçamento  → índigo  (o estado "em atendimento" da lista)
+       Aguardar cliente/pagam. → âmbar   (o estado "a aguardar")
+       Encerrar                → vermelho (destrutivo)
+       CRM                     → accent da marca
+       Assumir                 → o único PREENCHIDO: tem de ser feito primeiro
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-transferir,
+    .wa-btn-orcamento
+  ) {
+    background: var(--zs-st-live-bg, rgba(99, 102, 241, 0.12)) !important;
+    color: var(--zs-st-live-fg, #4338ca) !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento
+  ) {
+    background: var(--zs-st-wait-bg, rgba(245, 158, 11, 0.14)) !important;
+    color: var(--zs-st-wait-fg, #b45309) !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-btn-secondary {
+    background: var(--wa-act-hover) !important;
+    color: var(--wa-text) !important;
+  }
+
+  /* Hover: a mesma tinta mais densa. A cor não muda, só a presença — assim o
+     botão nunca "troca de identidade" ao passar o rato. */
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-transferir,
+    .wa-btn-orcamento
+  ):hover:not(:disabled) {
+    background: color-mix(in srgb, var(--zs-st-live-fg, #4338ca) 22%, transparent) !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento
+  ):hover:not(:disabled) {
+    background: color-mix(in srgb, var(--zs-st-wait-fg, #b45309) 24%, transparent) !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-btn-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wa-text) 14%, transparent) !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     2. Os três níveis de ênfase
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-assumir-destaque,
+    .wa-btn-pagamento-concluido
+  ) {
+    background: var(--zs-accent, #2e86ff) !important;
+    color: #fff !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-assumir-destaque
+  ):hover:not(:disabled) {
+    background: var(--zs-accent-text, #1e6fe8) !important;
+    color: #fff !important;
+  }
+
+  /* CRM mantém a cor da marca, mas em tinta e não em bloco: continua a ser o botão
+     azul da barra sem gritar mais alto do que a conversa. */
+  html body .app-layout #main-content .wa-header .wa-crmSendBtn {
+    background: var(--zs-accent-soft, rgba(46, 134, 255, 0.12)) !important;
+    color: var(--zs-accent-text, #1e6fe8) !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-crmSendBtn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--zs-accent, #2e86ff) 24%, transparent) !important;
+    color: var(--zs-accent-text, #1e6fe8) !important;
+  }
+
+  /* Encerrar: destrutivo. Continua a ser o único vermelho da barra — perde o bloco
+     rosa e a borda, mantém a cor, que é o que o torna reconhecível. */
+  /* Encerrar: destrutivo, e o único vermelho da barra. Tem superfície como os
+     outros — o que o separa é a cor, não o peso nem a forma. */
+  html body .app-layout #main-content .wa-header .wa-btn-danger {
+    background: var(--zs-st-due-bg, rgba(220, 38, 38, 0.11)) !important;
+    /* Vermelho de verdade, não o `--zs-st-due-fg` da lista: aquele é laranja-tijolo,
+       afinado para um selo de "em atraso". Aqui a cor é o que diz "isto encerra". */
+    color: #be123c !important;
+  }
+
+  [data-theme="dark"] body .app-layout #main-content .wa-header .wa-btn-danger {
+    color: #fda4af !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--zs-st-due-fg, #dc2626) 24%, transparent) !important;
+  }
+
+  /* Botões só de ícone: quadrados, não cápsulas largas. */
+  html body .app-layout #main-content .wa-header :is(.wa-header-btn, .wa-atendBtn--micro) {
+    width: var(--wa-act-h) !important;
+    height: var(--wa-act-h) !important;
+    min-width: var(--wa-act-h) !important;
+    min-height: var(--wa-act-h) !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    color: var(--wa-act-fg) !important;
+    box-shadow: none !important;
+    transition: background-color 140ms ease, color 140ms ease, transform 110ms ease !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(.wa-header-btn, .wa-atendBtn--micro):hover:not(:disabled) {
+    background: var(--wa-act-hover) !important;
+    color: var(--wa-text) !important;
+  }
+
+  /* Ícones da barra num tamanho só. */
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-secondary,
+    .wa-btn-transferir,
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento,
+    .wa-btn-orcamento,
+    .wa-btn-danger,
+    .wa-crmSendBtn,
+    .wa-header-setorBtn,
+    .wa-header-btn
+  ) svg {
+    width: 16px !important;
+    height: 16px !important;
+    stroke-width: 1.9 !important;
+  }
+
+  /* O botão do setor vive na faixa de metadados, não na barra principal: fica mais
+     pequeno de propósito, mas com o mesmo vocabulário. Tinha 82x19 — e 19px de altura
+     não é um alvo, é um acidente. */
+  html body .app-layout #main-content .wa-header .wa-header-setorBtn {
+    height: 26px !important;
+    min-height: 26px !important;
+    padding: 0 10px !important;
+    font-size: 11.5px !important;
+    background: var(--zs-accent-soft, rgba(46, 134, 255, 0.12)) !important;
+    color: var(--zs-accent-text, #1e6fe8) !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-header-setorBtn:hover:not(:disabled) {
+    background: var(--zs-accent-soft, rgba(46, 134, 255, 0.12)) !important;
+    color: var(--zs-accent-text, #1e6fe8) !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-setorBtn-label {
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     3. Resposta ao clique e foco de teclado
+     O foco vinha do default do browser; a barra não dava retorno ao premir.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-secondary,
+    .wa-btn-transferir,
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento,
+    .wa-btn-orcamento,
+    .wa-btn-pagamento-concluido,
+    .wa-btn-danger,
+    .wa-crmSendBtn,
+    .wa-header-setorBtn,
+    .wa-header-btn,
+    .wa-atendBtn--micro
+  ):active:not(:disabled) {
+    transform: scale(0.97) !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-secondary,
+    .wa-btn-transferir,
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento,
+    .wa-btn-orcamento,
+    .wa-btn-pagamento-concluido,
+    .wa-btn-danger,
+    .wa-crmSendBtn,
+    .wa-header-setorBtn,
+    .wa-header-btn,
+    .wa-atendBtn--micro
+  ):focus-visible {
+    outline: 2px solid var(--zs-accent, #2e86ff) !important;
+    outline-offset: 2px !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-transferir,
+    .wa-btn-aguardar-cliente,
+    .wa-btn-danger,
+    .wa-crmSendBtn,
+    .wa-header-setorBtn
+  ):disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     4. "Buscar histórico no WhatsApp"
+     A linha é um `flex` sem quebra com o botão e o parágrafo explicativo lado a
+     lado, a disputar a mesma largura. Em coluna cada um fica com a largura toda.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-loadOlderHistory {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  html body .app-layout #main-content .wa-loadOlderBtn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  html body .app-layout #main-content .wa-loadOlderEnd {
+    max-width: 52ch !important;
+    margin-inline: auto !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     5. Hora da mensagem
+     Estava a 10.5px/700: um carimbo em negrito ao lado de um texto que é 400.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-inlineMeta {
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     6. Movimento reduzido
+     O `transform` do premir some; a mudança de cor fica, porque é ela que
+     confirma que o botão recebeu o clique.
+  --------------------------------------------------------------------- */
+
+  @media (prefers-reduced-motion: reduce) {
+    html body .app-layout #main-content .wa-header :is(
+      .wa-btn-primary,
+      .wa-btn-secondary,
+      .wa-btn-transferir,
+      .wa-btn-aguardar-cliente,
+      .wa-btn-aguardar-pagamento,
+      .wa-btn-orcamento,
+      .wa-btn-pagamento-concluido,
+      .wa-btn-danger,
+      .wa-crmSendBtn,
+      .wa-header-setorBtn,
+      .wa-header-btn,
+      .wa-atendBtn--micro
+    ):active:not(:disabled) {
+      transform: none !important;
+    }
+  }
+}

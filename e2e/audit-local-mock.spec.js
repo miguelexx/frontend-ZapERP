@@ -259,7 +259,8 @@ test("composer mantém teclado, carregamento lazy, pickers e cancelamento de ane
     await expect(page.locator(".wa-selectChk[aria-pressed='true']")).toHaveCount(2);
     await receivedImage.click();
     await expect(page.locator(".wa-selectChk[aria-pressed='true']")).toHaveCount(1);
-    await page.getByRole("button", { name: "Fechar seleção" }).click();
+    // O botão da barra de seleção chama-se "Cancelar seleção" desde a4167 (SelectionBar refinada).
+    await page.getByRole("button", { name: "Cancelar seleção" }).click();
     await page.locator(".wa-bubble").first().hover();
     await page.locator(".wa-msgMenuBtn").first().click();
     await page.screenshot({ path: testInfo.outputPath("premium-message-menu.png") });
@@ -791,6 +792,15 @@ test("abertura e envio mantêm o thread visualmente estável", async ({ page }, 
   const threadRoot = page.locator(".wa-messages-virtual-root");
   await expect(threadRoot).toBeVisible();
   await expect(page.locator(".wa-messages")).not.toHaveClass(/wa-messages--opening/);
+
+  // A revelação da thread tem transition de 220ms (conversa.css: a máscara "SAI com um
+  // settle"). Ler a opacidade no instante em que a classe --opening some pega o fade no
+  // meio; o que importa é que ele TERMINE em 1 e sem animação pendurada.
+  await expect
+    .poll(() => threadRoot.evaluate((element) => Number(getComputedStyle(element).opacity)), {
+      timeout: 2_000,
+    })
+    .toBe(1);
 
   const revealStyle = await threadRoot.evaluate((element) => {
     const style = getComputedStyle(element);
