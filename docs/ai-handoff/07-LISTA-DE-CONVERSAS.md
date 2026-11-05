@@ -96,6 +96,64 @@ escuro, telemóvel e desktop, nos dois modos.
   para a página atrás e dar o salto elástico.
 - A tinta de estado no cartão inteiro saiu; o selo à direita mantém a cor que significa estado.
 
+### `width: auto` é obrigatório com `margin-inline` na linha (CONFIRMADO 2026-11-05)
+
+O `chatList.css` dá `width: 100%` à `.chat-list-row`. Quando a camada 2 lhe pôs
+`margin-inline`, os dois passaram a **somar-se em vez de se descontarem**: a linha ficava
+com a largura cheia do scroller e, empurrada pela margem esquerda, passava 16px (12 no
+telemóvel) da borda direita. O `overflow-x: hidden` do scroller recortava a diferença — e o
+que caía no corte era o **chevron de ações**, que é o elemento mais à direita.
+
+Reproduzido a 497px: scroller com `clientWidth` 495 e `scrollWidth` **501**; linha de x=6 a
+x=501. Corrigido com `width: auto` + `max-width: none` na mesma regra da margem — e **não**
+com `calc(100% - 16px)`, para a largura derivar da margem sozinha e o valor do telemóvel
+(6px) não precisar de um segundo `calc` a espelhá-lo. Depois: `scrollWidth` 495 = 495,
+linha de x=6 a x=489.
+
+Funciona nos dois modos da lista porque quem é absoluto é o `.chat-list-row-virtual-slot`
+(`ChatListRows.jsx`), não a linha: a linha é sempre um bloco em fluxo dentro do slot.
+
+**Regra:** qualquer margem horizontal nova na linha exige que a largura continue `auto`.
+Repor `width: 100%` ali volta a cortar o cartão.
+
+### A matiz do escuro é a da MARCA, não a do WhatsApp (CONFIRMADO 2026-11-05)
+
+Os neutros escuros vinham da paleta do WhatsApp e estavam a **202–206°**, enquanto o shell
+da aplicação está a **216.9°** e o accent a **214.7°**. Doze graus de desvio num quase-preto
+não se lêem como "outra cor" — lêem como **sujidade**: ao lado do azul do shell, o painel
+parecia esverdeado e lavado. Era isto o "fundo feio", não a luminosidade.
+
+Todos os tons escuros foram reconvertidos para **215°** mantendo a luminosidade original
+(±0.1pp) e subindo a saturação ~8% para encostar aos 36% do shell. Contraste, hierarquia e
+degraus entre planos ficaram iguais; mudou só a família de cor.
+
+| Token | Antes | Depois |
+|---|---|---|
+| `--zs-bg` | `#111b21` | `#101822` |
+| `--zs-well` | `#0c141a` | `#0c121b` |
+| `--zs-panel` / `--zs-hover` / `--zs-header-bg` | `#202c33` | `#1f2834` |
+| `--zs-divider` | `#222d34` | `#212935` |
+| `--zs-active` | `#2a3942` | `#293443` |
+| `--zs-row-hover` | `#18232b` | `#17202c` |
+| `--zs-text-2` | `#8696a0` | `#8591a1` |
+| `--zs-icon` | `#aebac1` | `#adb6c2` |
+| `--zs-chat-bg` | `#0b141a` | `#0b111a` |
+
+**Tom novo no escuro entra a 215°.** Contraste medido depois: prévia 5.87:1 no poço e
+5.13:1 na passagem, nome 15.94:1, selo "Aberta" 5.97:1 — tudo acima de 4.5:1.
+
+### O poço é um degradê, não um tom chapado (CONFIRMADO 2026-11-05)
+
+Com duas ou três conversas, 80% do painel é área vazia: um retângulo preto liso de 700px
+lê como buraco. `--zs-well` → `--zs-well-base` são 1.6 pontos de luminosidade entre o topo
+e a base — chega para a superfície ter vida sem virar efeito, e a luz vem de cima como no
+resto do produto.
+
+**O degradê vive na `.chat-list-root`, que NÃO rola**, e o `.chat-list-scroll` ficou
+`background: transparent` por cima. Pôr o degradê no scroller obrigava a repintá-lo a cada
+frame de scroll, no caminho mais quente da aplicação. Dar fundo opaco ao scroller tapa o
+degradê e devolve o retângulo chapado.
+
 ### Os TRÊS PLANOS da lista (CONFIRMADO 2026-11-05)
 
 Até aqui o painel, o cabeçalho, a faixa de rolagem e as linhas partilhavam `--zs-bg`: a
@@ -137,10 +195,41 @@ margem esquerda da lista, a meia altura. É a afordância do menu retrátil, nã
 — mas em repouso usa `--zs-text-2` cheio e lê-se como um risco solto sobre o poço. Medido,
 não alterado.
 
-**Fica por decidir:** com cinco conversas abertas seguidas, cinco cápsulas verdes "Aberta"
-idênticas são o elemento mais ruidoso da lista, e o estado que menos informa. O sistema de
-selos é de 03/11 e deliberado, por isso não foi mexido — mas se o verde for atenuado, é
-aqui que se nota.
+### A cápsula é para quem pede alguma coisa (CONFIRMADO 2026-11-05)
+
+Com cinco conversas abertas seguidas, cinco cápsulas verdes "Aberta" idênticas eram o
+elemento mais ruidoso do ecrã — presas ao estado que menos informa. `exibir_badge_aberta`
+é ligado pelo backend (`conversationListController`) em **toda** conversa individual com
+mensagem ou atendente que não seja disparo: é o estado PADRÃO, não um pedido de ação.
+
+Regra que passa a valer, e que é o que mantém o sistema coerente:
+
+> A **cápsula** marca o estado que pede alguma coisa ao atendente. O estado padrão não
+> leva cápsula — leva a marca e o rótulo.
+
+| Selo | Tratamento |
+|---|---|
+| Aberta | **sem cápsula**, marca + rótulo em `--zs-st-idle-fg` |
+| Em atendimento · Aguardando cliente · Aguardando atendente · Em atraso | cápsula cheia |
+| Finalizada | cápsula cheia, na tinta mais calada (`--zs-st-done-*`) |
+| Pagamento concluído | cápsula cheia **verde** — ficou o único dono do verde |
+
+- `.chat-list-status.open` e `.chat-list-status-tech--pagamento-concluido` partilhavam o
+  mesmo seletor. **Foram separados**: mexer no verde sem os separar calaria também a
+  confirmação de pagamento, que é rara e vale notar.
+- **A caixa não mudou: 20px**, que é o que `estimateChatListRowSize` reserva. O que saiu
+  foi a massa, não a altura — medido em claro, escuro, 420px e 1280px, com `transbordo`
+  a dar `[]` e as linhas todas a 72px.
+- `padding-left` cai para 2px (sem fundo, 8px deixavam a marca a flutuar). O da **direita
+  fica**: é ele que alinha a borda óptica deste selo com a dos que têm cápsula nas outras
+  linhas.
+- **A tinta calada não é a mesma nos dois temas, e isso é de propósito.** No escuro,
+  tirar a cápsula SOBE o contraste: `--zs-st-open-fg` (#6ee7b7) sobre o poço dá 12:1 e
+  ficaria mais brilhante que o nome do contacto. Daí `--zs-st-idle-fg` ser uma menta
+  travada. Medido: **5.9:1** no escuro e **5.45:1** no claro, contra 15.8/16.4:1 do nome —
+  acima do mínimo legível e claramente abaixo do nome, que é a hierarquia que se queria.
+- Efeito colateral bom: com o verde fora, a **pílula azul de não-lidas** passa a ser o
+  único elemento que salta na coluna direita. É o que de facto pede ação.
 - O selo "Aguardando atendente" passa a ter a cápsula no **wrapper** (`.chat-list-status-tech--staff`)
   e não na pílula interna. No `chatList.css` a cápsula mudava de sítio entre telemóvel e
   desktop; unificar foi o que permitiu pôr rótulo e minutos dentro da mesma peça.

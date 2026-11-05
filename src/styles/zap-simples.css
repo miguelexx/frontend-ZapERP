@@ -88,6 +88,7 @@
      SEM sombra é um contorno; sombra sem anel é uma mancha. */
   --zs-chrome: var(--zs-bg);
   --zs-well: #f7f8fa;
+  --zs-well-base: #f1f3f7;
   --zs-row-hover: #eef1f4;
   --zs-row-sel-bg: color-mix(in srgb, var(--zs-accent) 9%, #ffffff);
   --zs-row-sel-ring: color-mix(in srgb, var(--zs-accent) 38%, transparent);
@@ -97,19 +98,32 @@
   --zs-avatar-ring: rgba(15, 23, 42, 0.08);
 }
 
+/*
+ * Escuro afinado à MATIZ DA MARCA (2026-11-05).
+ *
+ * Os neutros escuros vinham da paleta do WhatsApp e estavam a ~202–206° de matiz,
+ * enquanto o shell da aplicação está a 216.9° e o accent a 214.7°. Doze graus de
+ * desvio num quase-preto não se lêem como "outra cor" — lêem como SUJIDADE: ao
+ * lado do azul do shell, o painel da lista parecia esverdeado e lavado.
+ *
+ * Todos os tons abaixo foram reconvertidos para **215°** mantendo a LUMINOSIDADE
+ * original (±0.1pp) e subindo a saturação ~8% para encostar aos 36% do shell. Ou
+ * seja: o contraste, a hierarquia e os degraus entre planos não mudaram — mudou
+ * só a família de cor. Qualquer tom novo aqui entra a 215°.
+ */
 [data-theme="dark"] {
-  --zs-bg: #111b21;
-  --zs-panel: #202c33;
-  --zs-divider: #222d34;
+  --zs-bg: #101822;
+  --zs-panel: #1f2834;
+  --zs-divider: #212935;
   --zs-text: #e9edef;
-  --zs-text-2: #8696a0;
-  --zs-hover: #202c33;
-  --zs-active: #2a3942;
-  --zs-icon: #aebac1;
+  --zs-text-2: #8591a1;
+  --zs-hover: #1f2834;
+  --zs-active: #293443;
+  --zs-icon: #adb6c2;
   --zs-accent-soft: color-mix(in srgb, var(--zs-accent) 22%, transparent);
   --zs-accent-text: #83b9ff;
-  --zs-chat-bg: #0b141a;
-  --zs-header-bg: #202c33;
+  --zs-chat-bg: #0b111a;
+  --zs-header-bg: #1f2834;
 
   --zs-st-live-fg: #c7d2fe;
   --zs-st-live-bg: rgba(129, 140, 248, 0.18);
@@ -135,9 +149,16 @@
      é a hairline entre os dois somada à sombra do cartão selecionado.
      O selecionado é azul da marca sobre o poço, não cinzento: `--zs-active`
      (#2a3942) era a paleta do WhatsApp e não dizia nada sobre o ZapERP. */
-  --zs-well: #0c141a;
-  --zs-row-hover: #18232b;
-  --zs-row-sel-bg: color-mix(in srgb, var(--zs-accent) 14%, #0c141a);
+  /* O poço é um DEGRADÊ, não um tom chapado. Com duas ou três conversas, 80% do
+     painel é área vazia: um retângulo preto liso de 700px de altura lê como buraco.
+     1.6 pontos de luminosidade entre o topo e a base chegam para a superfície ter
+     vida sem virar efeito — a luz vem de cima, como no resto do produto.
+     O degradê vive na `.chat-list-root`, que NÃO rola; o scroller fica
+     transparente por cima, para não repintar o gradiente a cada frame de scroll. */
+  --zs-well: #0c121b;
+  --zs-well-base: #090e15;
+  --zs-row-hover: #17202c;
+  --zs-row-sel-bg: color-mix(in srgb, var(--zs-accent) 14%, #0c121b);
   --zs-row-sel-ring: color-mix(in srgb, var(--zs-accent) 52%, transparent);
   --zs-row-sel-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 20px -12px rgba(0, 0, 0, 0.8);
   --zs-row-sel-text: #ffffff;

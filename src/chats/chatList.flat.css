@@ -33,8 +33,17 @@
    Painel e cabeçalho
 ----------------------------------------------------------------------- */
 
+/*
+ * O painel carrega o DEGRADÊ do poço, não o scroller.
+ *
+ * A chrome (cabeçalho, busca, chips) tem fundo opaco próprio e tapa o topo do
+ * degradê; o que sobra por baixo é a faixa da lista. Pôr o degradê aqui em vez
+ * de no `.chat-list-scroll` é o que evita repintá-lo a cada frame de scroll —
+ * esta caixa não rola.
+ */
 html body .app-layout #main-content .chat-list-root {
   background: var(--zs-chrome) !important;
+  background-image: linear-gradient(to bottom, var(--zs-well) 0%, var(--zs-well-base) 100%) !important;
   border-right-color: var(--zs-divider) !important;
 }
 
@@ -177,7 +186,9 @@ html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--meta
 html body .app-layout #main-content .chat-list-root .chat-list-scroll {
   padding: 0 !important;
   gap: 0 !important;
-  background: var(--zs-well) !important;
+  /* Transparente: quem pinta o poço é o degradê da `.chat-list-root`, por baixo.
+     Fundo opaco aqui tapava o degradê e devolvia o retângulo chapado. */
+  background: transparent !important;
   box-shadow: inset 0 1px 0 var(--zs-divider) !important;
 }
 /* Barra de rolagem, foco e seleção já estão vestidos na secção
@@ -212,6 +223,22 @@ html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversat
   box-shadow: none !important;
   min-height: 0 !important;
   margin-inline: 8px !important;
+  /*
+   * `width: auto` é OBRIGATÓRIO com `margin-inline`. O `chatList.css` dá
+   * `width: 100%` à linha; com margem, os dois somam-se em vez de se descontarem:
+   * a linha ficava com a largura CHEIA do scroller e, empurrada pela margem
+   * esquerda, passava 16px (12 no telemóvel) da borda direita. O `overflow-x:
+   * hidden` do scroller recortava a diferença — e o que caía no corte era o
+   * chevron de ações, encostado à direita. Reproduzido a 497px: scroller com
+   * 495 de cliente, linha de x=6 a x=501.
+   *
+   * `auto` e não `calc(100% - 16px)`: assim a largura deriva da margem sozinha,
+   * e o valor do telemóvel (6px) não precisa de um segundo `calc` a espelhá-lo.
+   * Funciona nos dois modos da lista — estática e virtual —, porque quem é
+   * absoluto é o `.chat-list-row-virtual-slot`, não a linha.
+   */
+  width: auto !important;
+  max-width: none !important;
   padding: var(--zs-m-pad-y) 8px !important;
   gap: 11px !important;
   align-items: center !important;
