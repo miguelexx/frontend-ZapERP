@@ -397,67 +397,12 @@ html body .app-layout #main-content .chat-list-root .chat-list-row-mid {
   margin-top: var(--zs-m-gap) !important;
 }
 
-/*
- * 2.ª faixa da coluna direita: contagem de não lidas + selo de estado.
- *
- * O `.chat-list-unread` existe no `chatList.css` desde sempre, mas estava
- * escondido com `display: none !important` — regra acrescentada no commit que
- * trouxe a etiqueta "aguardando". Ou seja, o selo de estado SUBSTITUIU a
- * contagem naquele sítio. Aqui ela volta sem desfazer essa decisão: os dois
- * coexistem, lado a lado, em vez de um trocar pelo outro.
- *
- * Altura: a faixa continua a valer `max(prévia 18, selo 20)` = 20px, que é o
- * que `estimateChatListRowSize` reserva. A contagem tem 20px — não cresce nada.
- */
-html body .app-layout #main-content .chat-list-root .chat-list-row-metaBottom {
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
   grid-column: 2;
   grid-row: 2;
   justify-self: end;
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 4px;
-  min-width: 0;
-  max-width: 176px;
   margin-top: var(--zs-m-gap) !important;
-}
-
-/* Dentro do wrapper deixam de se posicionar sozinhos; a margem é do wrapper. */
-html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
-html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
-  margin-top: 0 !important;
-  min-width: 0 !important;
-}
-
-/* A contagem não encolhe: quem cede largura é o selo, que trunca. */
-html body .app-layout #main-content .chat-list-root .chat-list-unread {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex: 0 0 auto !important;
-  min-width: 20px !important;
-  height: 20px !important;
-  padding: 0 6px !important;
-  border-radius: 999px !important;
-  background: var(--zs-accent, #2e86ff) !important;
-  color: #fff !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  line-height: 1 !important;
-  font-variant-numeric: tabular-nums !important;
-  box-shadow: none !important;
-}
-
-html body .app-layout #main-content .chat-list-root .chat-list-row-wa-labels {
-  grid-column: 1 / -1;
-  grid-row: 3;
-  margin-top: 4px !important;
-}
-
-html body .app-layout #main-content .chat-list-root .chat-list-row-tags {
-  grid-column: 1 / -1;
-  grid-row: 4;
-  margin-top: 4px !important;
 }
 
 /* -----------------------------------------------------------------------
@@ -558,7 +503,6 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-grupo {
 
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow {
   display: flex !important;
-  flex: 0 1 auto !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: center !important;

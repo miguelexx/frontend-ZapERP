@@ -8,14 +8,6 @@ import { buildAudioRetryPayload } from "../utils/bubbleRetry";
 import { temIdDoProvedor } from "../utils/bubbleStatus";
 import { canReprocessInboundMedia, requestInboundMediaReprocess } from "../utils/inboundMediaReprocess";
 
-const rotuloVelocidade = (rate) => (rate === 1 ? "1×" : `${rate}×`);
-
-/** Próxima do ciclo 1× → 1.5× → 2× → 1×. */
-function proximaVelocidadeDe(atual) {
-  const i = WA_AUDIO_SPEEDS.indexOf(atual);
-  return WA_AUDIO_SPEEDS[(i < 0 ? 0 : i + 1) % WA_AUDIO_SPEEDS.length];
-}
-
 function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, initialDuration, sentAtLabel, reprocessMedia, offlineAudioDisponivel = false, estaOffline = false }) {
   const {
     audioRef,
@@ -50,7 +42,6 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
   const elAtual = audioRef.current;
   const temBufferLocal = !!elAtual && ((Number(elAtual.currentTime) || 0) > 0 || Number(elAtual.readyState) >= 2);
   const playBloqueadoOffline = estaOffline && !offlineAudioDisponivel && !playing && !temBufferLocal;
-  const proximaVelocidade = proximaVelocidadeDe(playbackRate);
 
   return (
     <div className={`wa-audioPlayer ${playing ? "isPlaying" : ""}`}>
@@ -102,44 +93,36 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
               {formatMmSs(dur || 0)}
             </span>
           </div>
-          {/*
-            * UM botão que alterna, não três sempre abertos.
-            *
-            * Os três ocupavam cerca de um terço da largura do player e mostravam
-            * permanentemente duas opções que ninguém escolheu — num sítio onde o que
-            * interessa é a onda e a duração. Agora mostra a velocidade atual e um toque
-            * passa à seguinte, como no WhatsApp.
-            *
-            * O `onPointerUp` + `pointerSpeedRef` ficam como estavam: existem para o toque
-            * não disparar duas vezes (pointer e depois click) e para o `keepMobileKeyboardOpen`
-            * não deixar o teclado fechar no telemóvel.
-            */}
           <div className="wa-audioSpeedGroup" role="group" aria-label="Velocidade de reprodução">
-            <button
-              type="button"
-              className={`wa-audioSpeedBtn ${playbackRate !== 1 ? "isActive" : ""}`}
-              onPointerDown={keepMobileKeyboardOpen}
-              onPointerUp={(e) => {
-                if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
-                e.preventDefault();
-                e.stopPropagation();
-                pointerSpeedRef.current = true;
-                applyPlaybackRate(proximaVelocidade);
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (pointerSpeedRef.current) {
-                  pointerSpeedRef.current = false;
-                  return;
-                }
-                applyPlaybackRate(proximaVelocidade);
-              }}
-              aria-label={`Velocidade ${rotuloVelocidade(playbackRate)}. Tocar para ${rotuloVelocidade(proximaVelocidade)}`}
-              title={`Velocidade ${rotuloVelocidade(playbackRate)} — tocar para ${rotuloVelocidade(proximaVelocidade)}`}
-            >
-              {rotuloVelocidade(playbackRate)}
-            </button>
+            {WA_AUDIO_SPEEDS.map((rate) => (
+              <button
+                key={rate}
+                type="button"
+                className={`wa-audioSpeedBtn ${playbackRate === rate ? "isActive" : ""}`}
+                onPointerDown={keepMobileKeyboardOpen}
+                onPointerUp={(e) => {
+                  if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  pointerSpeedRef.current = true;
+                  applyPlaybackRate(rate);
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (pointerSpeedRef.current) {
+                    pointerSpeedRef.current = false;
+                    return;
+                  }
+                  applyPlaybackRate(rate);
+                }}
+                aria-pressed={playbackRate === rate}
+                aria-label={rate === 1 ? "Velocidade normal" : `Velocidade ${rate} vezes`}
+                title={rate === 1 ? "1×" : `${rate}×`}
+              >
+                {rate === 1 ? "1×" : `${rate}×`}
+              </button>
+            ))}
           </div>
         </div>
         <div className="wa-audioSub">

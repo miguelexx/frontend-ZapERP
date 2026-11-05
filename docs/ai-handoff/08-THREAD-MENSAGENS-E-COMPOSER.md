@@ -992,14 +992,16 @@ tardia do browser ainda chega.
 podem diferir 1 s (visto: 0:03 → 0:02 quando a resposta chega). É desacordo de
 arredondamento entre as duas pontas, não o bug acima.
 
-### Velocidade: um botão, não três
+### Velocidade: os três botões (revertido em 05/11/2026)
 
-`.wa-audioSpeedGroup` desenhava os três (`1× 1.5× 2×`) sempre abertos — cerca de um terço
-da largura do player, mostrando em permanência duas opções que ninguém escolheu, num
-sítio onde o que interessa é a onda e a duração. Passou a um botão que mostra a
-velocidade atual e alterna no ciclo 1× → 1.5× → 2× → 1×.
+Em 05/11 os três (`1× 1.5× 2×`) passaram a UM botão que alternava no ciclo — ocupavam
+cerca de um terço da largura do player. **Foi revertido no mesmo dia, a pedido do
+Miguel:** os três voltam a estar sempre à vista.
 
-O `onPointerUp` + `pointerSpeedRef` ficaram como estavam: existem para o toque não
-disparar duas vezes (pointer e depois click) e para o `keepMobileKeyboardOpen` não deixar
-o teclado fechar no telemóvel. Verificado no browser: o ciclo devolve
-`1× → 1.5× → 2× → 1×`, o `playbackRate` do elemento acompanha, e tocar continua a andar.
+Ficam como estavam, incluindo o `onPointerUp` + `pointerSpeedRef`, que existem para o
+toque não disparar duas vezes (pointer e depois click) e para o `keepMobileKeyboardOpen`
+não deixar o teclado fechar no telemóvel.
+
+Verificado no browser: três botões, cada clique põe o `playbackRate` do elemento em
+1 / 1.5 / 2 e marca o `isActive` certo; tocar continua a andar.
+
