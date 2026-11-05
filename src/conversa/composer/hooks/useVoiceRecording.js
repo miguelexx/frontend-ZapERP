@@ -17,6 +17,7 @@ import {
   pickRecordedDurationMs,
   pickRecordingMimeType,
 } from "../utils/recordedAudio";
+import { audioTraceInicio, audioTraceMarca } from "../utils/audioSendTrace";
 
 export function useVoiceRecording({
   conversaId,
@@ -239,7 +240,9 @@ export function useVoiceRecording({
           return;
         }
         try {
+          audioTraceMarca("blob pronto", { bytes: blob.size, tipo: finalType });
           const metadata = await inspectRecordedAudioBlob(blob);
+          audioTraceMarca("duração inspecionada");
           if (metadata.error === "decode_error") {
             console.warn("[audio] <audio> não decodificou a gravação; usando duração medida e enviando mesmo assim.");
           }
@@ -268,6 +271,7 @@ export function useVoiceRecording({
             new File([blob], `audio-${now}.${extension}`, { type: finalType, lastModified: now }),
             { durationMs, elapsedMs, mimeType: finalType, bytes: blob.size }
           );
+          audioTraceMarca("ficheiro montado");
           await onSendAudioFile?.(file);
         } catch (sendError) {
           console.error("Erro ao enviar áudio gravado:", sendError);
@@ -300,6 +304,9 @@ export function useVoiceRecording({
   }, [cleanupSession, conversaId, isRecording, onSendAudioFile, podeEnviar, showToast]);
 
   const stopRecording = useCallback(() => {
+    // Marco zero: é aqui que o utilizador largou o botão de enviar.
+    audioTraceInicio();
+    audioTraceMarca("clique em enviar");
     if (!mediaRecorderRef.current && !isRecording) {
       cleanupSession({ releaseMic: true });
       return;

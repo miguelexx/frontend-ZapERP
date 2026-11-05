@@ -31,6 +31,7 @@ import {
 import { OUTBOX_MODO_OFFLINE, OUTBOX_MODO_INCERTO } from "../offlineOutbox";
 import { enqueueMediaOutboxItem, removeMediaOutboxItem } from "../mediaOutbox";
 import { scheduleOutboxAutoFlush } from "../outboxAutoFlush";
+import { audioTraceMarca, audioTraceFim } from "../composer/utils/audioSendTrace";
 
 /**
  * Persiste a mídia na outbox durável (IndexedDB) quando a falha é de rede/incerta — a
@@ -189,6 +190,7 @@ export function useConversationOutboundMedia({
       });
       const revertOutgoingStatus = applyOutgoingStatusOptimistic();
       const revertModoSimples = appendOutgoingOptimisticMessage(optimisticMsg);
+      audioTraceMarca("bolha otimista na store");
       clearPending();
   
       const formData = new FormData();
@@ -284,12 +286,14 @@ export function useConversationOutboundMedia({
       // A bolha otimista + lock por arquivo já impedem duplo envio do mesmo vídeo.
       if (!isVideoSend) setSendingTracked(true);
       try {
+        audioTraceMarca("upload começou");
         const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
           timeout: resolveUploadTimeoutMs(file),
           skipGlobalNetworkToast: true,
           skipGlobal500Toast: true,
         });
   
+        audioTraceFim("servidor respondeu");
         const reconciliations = extractArquivoApiReconciliations(data, conversaId, [tempId]);
         if (reconciliations.length) {
           reconciliations.forEach(({ tempId: tid, realMsg }) => reconciliarMensagem(tid, realMsg));

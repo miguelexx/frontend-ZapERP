@@ -34,12 +34,12 @@
 ----------------------------------------------------------------------- */
 
 html body .app-layout #main-content .chat-list-root {
-  background: var(--zs-bg) !important;
+  background: var(--zs-chrome) !important;
   border-right-color: var(--zs-divider) !important;
 }
 
 html body .app-layout #main-content .chat-list-root.chat-list-root .chat-list-header {
-  background: var(--zs-bg) !important;
+  background: var(--zs-chrome) !important;
   min-height: 56px !important;
   padding: 6px 6px 6px 16px !important;
   border-bottom: 1px solid var(--zs-divider) !important;
@@ -96,7 +96,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-header-btn svg {
 html body .app-layout #main-content .chat-list-root .chat-list-toolbar,
 html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap,
 html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap--compact {
-  background: var(--zs-bg) !important;
+  background: var(--zs-chrome) !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-toolbar {
@@ -160,11 +160,30 @@ html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--meta
    Faixa da lista
 ----------------------------------------------------------------------- */
 
+/*
+ * O POÇO. A faixa de rolagem afunda um degrau abaixo da chrome (cabeçalho, busca,
+ * chips) para as linhas terem sobre o que flutuar. Antes partilhavam `--zs-bg` e a
+ * lista inteira era um plano único — a linha selecionada era a ÚNICA superfície do
+ * ecrã, e por isso lia como um bloco pousado no nada em vez de "estou aqui".
+ *
+ * O degrau de luminância é pequeno de propósito (#111b21 → #0c141a): quem o torna
+ * legível é a hairline do `box-shadow`, não o salto de cor. Lista escura que salta
+ * dois tons entre painel e poço fica listrada.
+ *
+ * `box-shadow` em vez de `border-top`: a borda entrava no fluxo e empurrava a
+ * primeira linha 1px para baixo — num virtualizador por estimativa, 1px por linha
+ * acumula e recorta a última.
+ */
 html body .app-layout #main-content .chat-list-root .chat-list-scroll {
   padding: 0 !important;
   gap: 0 !important;
-  background: var(--zs-bg) !important;
+  background: var(--zs-well) !important;
+  box-shadow: inset 0 1px 0 var(--zs-divider) !important;
 }
+/* Barra de rolagem, foco e seleção já estão vestidos na secção
+   "Superfícies do browser", mais abaixo neste ficheiro. Não duplicar aqui:
+   uma 2ª declaração de `::-webkit-scrollbar-thumb` entrava em conflito com a
+   de lá (6px) e deixava o polegar com zero de largura visível. */
 
 html body .app-layout #main-content .chat-list-root .chat-list-rows {
   gap: 0 !important;
@@ -215,7 +234,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-row::before {
 @media (hover: hover) {
   html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
   html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card:not(.is-active):hover {
-    background-color: var(--zs-hover) !important;
+    background-color: var(--zs-row-hover) !important;
     border-color: transparent !important;
     box-shadow: none !important;
     /* Entrada mais lenta que a saída: o realce acende suave e apaga depressa. */
@@ -225,15 +244,46 @@ html body .app-layout #main-content .chat-list-root .chat-list-row::before {
 
 /* No toque o retorno vem do premir, não da passagem. */
 html body .app-layout #main-content .chat-list-root .chat-list-row:active {
-  background-color: var(--zs-active) !important;
+  background-color: var(--zs-row-hover) !important;
   transition: background-color 40ms linear !important;
 }
 
+/*
+ * O CARTÃO SELECIONADO. Era `--zs-active` (#2a3942) — a paleta do WhatsApp, um
+ * cinzento que não diz nada sobre o ZapERP e que, sem nada por baixo, lia como
+ * "desativado" em vez de "selecionado".
+ *
+ * Passa a ser o azul da marca sobre o poço, com três peças que só funcionam juntas:
+ * o fundo diz o estado, o anel de 1px desenha a borda do objeto, e a sombra —
+ * com DESLOCAMENTO e desfoque, não um halo de raio zero — é o que o levanta do
+ * poço. Tirar qualquer uma devolve um retângulo colorido.
+ *
+ * O anel é um `box-shadow` inset e não um `border`: borda real somaria 2px à
+ * largura da linha e empurraria a grelha nome|hora para dentro.
+ */
 html body .app-layout #main-content .chat-list-root .chat-list-row.is-active,
 html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card.is-active {
-  background-color: var(--zs-active) !important;
+  background-color: var(--zs-row-sel-bg) !important;
   border: none !important;
-  box-shadow: none !important;
+  box-shadow:
+    inset 0 0 0 1px var(--zs-row-sel-ring),
+    var(--zs-row-sel-shadow) !important;
+  transition:
+    background-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* No cartão selecionado o nome vai a contraste pleno: é o degrau que confirma a
+   escolha sem precisar de mais cor. A prévia fica onde está — subir as duas
+   achataria a hierarquia que o nome e a prévia já têm. */
+html body .app-layout #main-content .chat-list-root .chat-list-row.is-active .chat-list-title {
+  color: var(--zs-row-sel-text) !important;
+}
+
+/* Aro do avatar: a foto deixa de ficar colada ao poço. 1px, da cor do primeiro
+   plano a baixa opacidade — não é uma borda, é o limite do objeto. */
+html body .app-layout #main-content .chat-list-root .chat-list-avatar {
+  box-shadow: inset 0 0 0 1px var(--zs-avatar-ring);
 }
 
 /*
@@ -320,12 +370,55 @@ html body .app-layout #main-content .chat-list-root .chat-list-row-mid {
   margin-top: var(--zs-m-gap) !important;
 }
 
-html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
-html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
+/*
+ * 2.ª faixa da coluna direita: contagem de não lidas + selo de estado.
+ *
+ * O `.chat-list-unread` existe no `chatList.css` desde sempre, mas estava
+ * escondido com `display: none !important` — regra acrescentada no commit que
+ * trouxe a etiqueta "aguardando". Ou seja, o selo de estado SUBSTITUIU a
+ * contagem naquele sítio. Aqui ela volta sem desfazer essa decisão: os dois
+ * coexistem, lado a lado, em vez de um trocar pelo outro.
+ *
+ * Altura: a faixa continua a valer `max(prévia 18, selo 20)` = 20px, que é o
+ * que `estimateChatListRowSize` reserva. A contagem tem 20px — não cresce nada.
+ */
+html body .app-layout #main-content .chat-list-root .chat-list-row-metaBottom {
   grid-column: 2;
   grid-row: 2;
   justify-self: end;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+  max-width: 176px;
   margin-top: var(--zs-m-gap) !important;
+}
+
+/* Dentro do wrapper deixam de se posicionar sozinhos; a margem é do wrapper. */
+html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
+html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
+  margin-top: 0 !important;
+  min-width: 0 !important;
+}
+
+/* A contagem não encolhe: quem cede largura é o selo, que trunca. */
+html body .app-layout #main-content .chat-list-root .chat-list-unread {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  padding: 0 6px !important;
+  border-radius: 999px !important;
+  background: var(--zs-accent, #2e86ff) !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  font-variant-numeric: tabular-nums !important;
+  box-shadow: none !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-row-wa-labels {
@@ -438,6 +531,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-grupo {
 
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow {
   display: flex !important;
+  flex: 0 1 auto !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
@@ -700,10 +794,32 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-pagam
 
 /* --- As cinco tintas ------------------------------------------------- */
 
-html body .app-layout #main-content .chat-list-root .chat-list-status.open,
+/*
+ * Verde cheio só para PAGAMENTO CONCLUÍDO — um evento que vale notar.
+ *
+ * "Aberta" partilhava este seletor e saiu dele a 05/11. É o estado PADRÃO da
+ * lista (o backend liga-o em toda a conversa individual com mensagem ou
+ * atendente), logo não pede ação; cinco cápsulas verdes idênticas numa coluna
+ * eram o elemento mais ruidoso do ecrã a servir a informação que menos vale.
+ *
+ * A regra que fica: a CÁPSULA é para o estado que pede alguma coisa ao
+ * atendente. O estado padrão não leva cápsula — leva a marca e o rótulo.
+ * A caixa continua a ser a mesma (20px, o que o `estimateChatListRowSize`
+ * reserva); o que sai é a massa, não a altura.
+ */
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--pagamento-concluido {
   color: var(--zs-st-open-fg) !important;
   background: var(--zs-st-open-bg) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-status.open {
+  color: var(--zs-st-idle-fg) !important;
+  background: var(--zs-st-idle-bg) !important;
+  /* Sem fundo, o rótulo é a única massa: 8px de recuo à esquerda deixavam a
+     marca a flutuar longe do texto do selo seguinte. O recuo da direita fica,
+     porque é ele que alinha a borda ÓPTICA deste selo com a dos que têm
+     cápsula nas outras linhas. */
+  padding-left: 2px !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-status.in {

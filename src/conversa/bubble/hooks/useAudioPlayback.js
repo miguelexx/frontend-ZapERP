@@ -238,10 +238,27 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
     const onLoaded = () => {
       setIndisponivel(false);
       const d = Number(el.duration);
-      if (Number.isFinite(d) && d > 0) {
+      /*
+       * Leitura CURTA DEMAIS do elemento (05/11/2026).
+       *
+       * Para um blob do MediaRecorder (WebM/Opus) o `duration` em `loadedmetadata` não é
+       * de confiar — é o mesmo problema que o `recordedAudio.js` documenta do outro lado:
+       * "um valor PARCIAL que parece válido: a auditoria de 10/10/2026 gravou 16 s e leu
+       * 14 s aqui". O ramo do `Infinity` logo abaixo já tratava o caso óbvio; o valor
+       * parcial passava e SOBRESCREVIA a semente, que veio da gravação medida ou do
+       * servidor. Via-se a duração da bolha a saltar (0:03 → 0:02) logo depois de enviar.
+       *
+       * Só se recusa a leitura quando ela é MENOR que a semente: a falha documentada é
+       * sempre por defeito. Uma leitura igual ou maior continua a ganhar, como antes.
+       * E a sonda de `durationchange` é a mesma do `Infinity`, por isso uma correção
+       * tardia do browser ainda chega.
+       */
+      const semente = normalizeAudioDuration(initialDurationRef.current);
+      const leituraCurtaDeMais = Number.isFinite(d) && d > 0 && semente > 0 && d < semente - 0.75;
+      if (Number.isFinite(d) && d > 0 && !leituraCurtaDeMais) {
         setDur(d);
         rememberAudioDuration(msgKey, d);
-      } else if (d === Infinity && !durationProbeRef.current) {
+      } else if ((d === Infinity || leituraCurtaDeMais) && !durationProbeRef.current) {
         durationProbeRef.current = true;
         const onDurationFix = () => {
           const fixed = Number(el.duration);
@@ -263,6 +280,8 @@ export function useAudioPlayback({ src, candidates, msgKey, initialDuration, rep
         const cleanupFix = () => el.removeEventListener("durationchange", onDurationFix);
         durationFixCleanupRef.current = cleanupFix;
         el.addEventListener("durationchange", onDurationFix);
+        // Buscar muito além do fim força o browser a varrer o stream e a corrigir a
+        // duração. Vale para os dois casos: `Infinity` e leitura curta demais.
         try { el.currentTime = 1e101; } catch { /* ignore */ }
       }
       try {

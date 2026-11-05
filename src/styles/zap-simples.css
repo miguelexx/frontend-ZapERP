@@ -39,8 +39,17 @@
   --zs-dot: 5px;
   --zs-st-live-fg: #4338ca;   /* em atendimento */
   --zs-st-live-bg: rgba(99, 102, 241, 0.12);
-  --zs-st-open-fg: #047857;   /* aberta */
+  --zs-st-open-fg: #047857;   /* pagamento concluído (e, até 05/11, "aberta") */
   --zs-st-open-bg: rgba(16, 185, 129, 0.13);
+  /* "Aberta" é o estado PADRÃO da lista — o backend liga-o em toda a conversa
+     individual com mensagem ou atendente. Não pede ação nenhuma, e mesmo assim
+     levava a cápsula verde cheia: com cinco conversas abertas seguidas, cinco
+     blocos verdes idênticos eram o elemento mais ruidoso do ecrã, preso à
+     informação que menos vale. Fica sem cápsula: a marca e o rótulo chegam.
+     Tinta medida para ficar ABAIXO do nome do contacto e acima do mínimo
+     legível (5.2:1 no claro, 5.0–5.9:1 no escuro, em poço/passagem/selecionado). */
+  --zs-st-idle-fg: #36705c;
+  --zs-st-idle-bg: transparent;
   --zs-st-wait-fg: #b45309;   /* aguardando cliente / disparo */
   --zs-st-wait-bg: rgba(245, 158, 11, 0.14);
   --zs-st-done-fg: #475569;   /* finalizada — o estado mais calado da lista */
@@ -63,6 +72,29 @@
   /* Lista corrida: sem respiro entre linhas (espelha `gap: 0` no virtualizador).
      O respiro entre cartões vem do realce arredondado, não de um gap. */
   --cl-chat-row-gap: 0px;
+
+  /* --- Planos da lista (2026-11-05) -----------------------------------
+     A lista era um plano só: painel, cabeçalho, faixa de rolagem e linhas
+     partilhavam `--zs-bg`, e a única superfície do ecrã era o realce da
+     linha selecionada. Sem nada por baixo, o realce não lê como "aqui
+     estou" — lê como um bloco cinzento pousado no nada.
+
+     Agora são três: a CHROME (cabeçalho + busca + chips) fica à superfície,
+     o POÇO (a faixa de rolagem) afunda um degrau, e o cartão selecionado
+     sobe acima dos dois. É a mesma linguagem do resto do produto: a linha
+     continua transparente em repouso, como foi decidido a 04/11.
+
+     `--zs-row-*` são um conjunto: fundo, anel e sombra andam juntos. Anel
+     SEM sombra é um contorno; sombra sem anel é uma mancha. */
+  --zs-chrome: var(--zs-bg);
+  --zs-well: #f7f8fa;
+  --zs-row-hover: #eef1f4;
+  --zs-row-sel-bg: color-mix(in srgb, var(--zs-accent) 9%, #ffffff);
+  --zs-row-sel-ring: color-mix(in srgb, var(--zs-accent) 38%, transparent);
+  --zs-row-sel-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 6px 16px -10px rgba(15, 23, 42, 0.35);
+  --zs-row-sel-text: var(--zs-text);
+  /* Aro do avatar: separa a foto do poço sem desenhar uma borda. */
+  --zs-avatar-ring: rgba(15, 23, 42, 0.08);
 }
 
 [data-theme="dark"] {
@@ -83,6 +115,11 @@
   --zs-st-live-bg: rgba(129, 140, 248, 0.18);
   --zs-st-open-fg: #6ee7b7;
   --zs-st-open-bg: rgba(16, 185, 129, 0.16);
+  /* No escuro, tirar a cápsula SOBE o contraste do rótulo (#6ee7b7 sobre o poço
+     dá 12:1 — ficaria mais brilhante que o nome do contacto). Por isso a tinta
+     calada não é a mesma: é uma menta travada, que lê o estado sem gritar. */
+  --zs-st-idle-fg: #5a9e86;
+  --zs-st-idle-bg: transparent;
   --zs-st-wait-fg: #fcd34d;
   --zs-st-wait-bg: rgba(245, 158, 11, 0.16);
   --zs-st-done-fg: #94a3b8;
@@ -91,6 +128,20 @@
   --zs-st-staff-bg: rgba(96, 165, 250, 0.2);
   --zs-st-due-fg: #fca5a5;
   --zs-st-due-bg: rgba(248, 113, 113, 0.18);
+
+  /* Planos da lista, no escuro.
+     `--zs-well` é mais FRIO e mais fundo que o painel (#111b21): a diferença é
+     pequena de propósito — o que faz o degrau ler-se não é o salto de luminância,
+     é a hairline entre os dois somada à sombra do cartão selecionado.
+     O selecionado é azul da marca sobre o poço, não cinzento: `--zs-active`
+     (#2a3942) era a paleta do WhatsApp e não dizia nada sobre o ZapERP. */
+  --zs-well: #0c141a;
+  --zs-row-hover: #18232b;
+  --zs-row-sel-bg: color-mix(in srgb, var(--zs-accent) 14%, #0c141a);
+  --zs-row-sel-ring: color-mix(in srgb, var(--zs-accent) 52%, transparent);
+  --zs-row-sel-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 20px -12px rgba(0, 0, 0, 0.8);
+  --zs-row-sel-text: #ffffff;
+  --zs-avatar-ring: rgba(255, 255, 255, 0.08);
 }
 
 /* -----------------------------------------------------------------------

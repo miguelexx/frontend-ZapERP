@@ -743,10 +743,21 @@ do canto do composer, com `prefers-reduced-motion` tratado.
 
 Fica registado porque foi medido, não porque se resolveu:
 
-- `.wa-bubble-text` é **700** no telemóvel e 400 no desktop — o corpo da conversa em
-  negrito. Nenhuma regra casa com o elemento ao varrer `document.styleSheets`, e a cadeia
-  de ancestrais está toda a 400, por isso o peso vem de outro sítio por identificar.
-  O mesmo com `textarea.wa-input` (16px/700) e `.wa-daySep-pill` (11px/700).
+- ~~`.wa-bubble-text` é **700** no telemóvel … o peso vem de outro sítio por identificar.~~
+  **IDENTIFICADO em 05/11/2026: `src/styles/app.css:1068`**, bloco
+  `@media (max-width: 640px)` com o comentário *"Atendimento mobile: tipografia em negrito
+  na lista e no chat"*. Põe `font-weight: 700` em 17 seletores de uma vez — incluindo
+  `.wa-bubble-text`, `.wa-bubble-caption`, `.wa-daySep-pill` e `.wa-input`, que é
+  exatamente a lista de "mistérios" que estava aqui. Não é bug, é uma decisão deliberada;
+  o que ela atropela é o `font-weight: 520` que o `conversa.css:17570` escolheu para a
+  bolha no mesmo breakpoint (sem a `app.css`, o computado cai para 520).
+
+  **Porque é que a varredura anterior não achou:** `document.styleSheets` só dá
+  `selectorText` nas regras de estilo; dentro de `@media`/`@supports`/`@layer` a regra está
+  em `rule.cssRules` e um scan não recursivo passa por cima. Para estas caças, usar o
+  motor em vez do CSSOM: `CDPSession` → `DOM.querySelector` + `CSS.getMatchedStylesForNode`
+  devolve as regras que casam, por ordem de cascata, com `media` e `important`. Foi assim
+  que apareceu à primeira.
 - Alvos de toque do cabeçalho abaixo de 40px: Voltar 34x34, Mais opções 32x32,
   Transferir 68x31, Encerrar 81x34 e **Definir setor 34x18**.
 - `.wa-loadOlderBtn` desenha uma elipse de 103x80 (o rótulo quebra em quatro linhas
@@ -880,3 +891,115 @@ Mesma linguagem do cartão da lista, em `conversa.polish.css` (logo, só desktop
   A forma quadrada mantém-se: é a escolha do `conversa.css`.
 
 O `overscroll-behavior-y: contain` do `.wa-messages` já existia; não foi preciso mexer.
+
+## Telemóvel: as duas exceções em `conversa.polish.css` (CONFIRMADO 2026-11-05)
+
+O ficheiro é de desktop (`@media (min-width: 641px)`). No fim há um bloco
+`@media (max-width: 640px)` com **duas** coisas, e só essas — nenhuma muda a aparência:
+
+1. **A elipse do "Buscar histórico no WhatsApp".** A linha é um `flex` sem quebra onde o
+   botão e o parágrafo disputam a mesma largura; ao botão sobravam 103px e o rótulo
+   quebrava em quatro linhas dentro de um raio de 999px. Em coluna passou a 215x40.
+
+2. **Alvos de toque.** Medidos a 393px: Voltar 34x34, Mais opções 32x32, Transferir
+   68x31, Encerrar 81x34 e "Definir setor" **34x18**. Duas técnicas, porque o cabeçalho
+   não permite uma só:
+   - Voltar e Mais opções ficam **do tamanho desenhado**: a área cresce num `::before`
+     invisível de 42px. (`::after` não servia — o `zap-animations.css` já o usa nos
+     `.zap-action-btn`.)
+   - Definir setor, Transferir e Encerrar vivem em wrappers com `overflow: hidden` (para
+     truncar nomes de setor compridos), que cortam o pseudo à altura do wrapper. Ali o
+     alvo tem de vir do próprio botão, por isso **crescem para 38px**. O cabeçalho ficou
+     ~10px mais alto; é o preço de três controlos tocáveis.
+   - O "Definir setor" levou também respiro lateral: só a altura deixava um retângulo em
+     pé com a palavra espremida. E o wrapper `.wa-header-mobileRow2-sector` perdeu a caixa
+     própria — com o botão a 38px via-se uma caixa dentro de outra, ao lado de duas
+     cápsulas limpas.
+
+Acrescentar ali uma regra de cor, tipo ou forma é mudar o telemóvel, que é o que não se
+quer.
+
+## Áudio: o que foi medido e o que mudou (CONFIRMADO 2026-11-05)
+
+### Medições (microfone falso do Chromium, módulos reais do dev server)
+
+| | custo |
+|---|---|
+| `inspectRecordedAudioBlob`, 2 s de gravação | 80 ms |
+| idem, 12 s | 42 ms |
+| idem, 30 s | 316 ms |
+| idem, 60 s | 314 ms |
+| `garantirConversaAbertaParaEnvio` com conversa aberta | imediato (não faz HTTP) |
+| clique em enviar → bolha otimista na thread | **~130 ms**, estável em 7 amostras |
+
+O timeout de 1500 ms em `RECORDED_AUDIO_METADATA_TIMEOUT_MS` **nunca** foi atingido, nem
+com 60 s de áudio. A hipótese de que a inspeção da duração segurava a bolha está
+**descartada por medição** — não a mude por causa disso.
+
+Relatou-se "não aparece de primeira", **no telemóvel**. Reproduzi as quatro combinações
+— desktop e telemóvel, conversa curta (renderizador estático) e longa de 220 mensagens
+(virtualizado) — e a bolha apareceu sempre em **~123 ms**. **Não reproduziu.**
+
+Um aviso para quem repetir a medição: numa primeira tentativa vi 613 ms e quase tratei
+isso como o bug. Era o custo do `page.screenshot()` dentro do laço de amostragem a
+deslocar as próprias amostras. Tirar o screenshot do laço devolveu os 123 ms. Medir o
+instrumento antes de acreditar nele.
+
+### Cronómetro no aparelho real — `composer/utils/audioSendTrace.js`
+
+Como o atraso depende de algo do aparelho (codec do iOS, que grava mp4 e não webm; CPU
+mais lenta; rede), o caminho ficou instrumentado para medir **lá**, em vez de se adivinhar
+daqui.
+
+Ligar no telemóvel, no console do browser:
+
+    localStorage.setItem("zap_audio_trace", "1")
+
+Recarregar, gravar, enviar. Sai uma linha do tempo como esta (medida no emulador):
+
+```
+     0ms  (+    0ms)  clique em enviar
+    12ms  (+   12ms)  blob pronto  {"bytes":34179,"tipo":"audio/webm;codecs=opus"}
+    79ms  (+   67ms)  duração inspecionada
+    80ms  (+    1ms)  ficheiro montado
+   143ms  (+   63ms)  bolha otimista na store
+   149ms  (+    6ms)  upload começou
+  1366ms  (+ 1217ms)  servidor respondeu
+```
+
+É o **delta** que interessa: ele diz em que troço o tempo foi. Desligar com
+`localStorage.removeItem("zap_audio_trace")`.
+
+Com a flag desligada cada marca é uma leitura de variável e um `return` — sem
+`performance.now()`, sem strings. Por isso pode ficar no caminho quente.
+
+### Duração que saltava depois de enviar
+
+`useAudioPlayback`, em `loadedmetadata`, aceitava qualquer `el.duration` finito e
+sobrescrevia a semente (`initialDuration`, vinda da gravação medida ou do servidor).
+
+Para blob do MediaRecorder essa leitura não é de confiar — é o mesmo problema que o
+`recordedAudio.js` documenta do outro lado: *"um valor PARCIAL que parece válido: a
+auditoria de 10/10/2026 gravou 16 s e leu 14 s aqui"*. O ramo do `Infinity` já tratava o
+caso óbvio; o valor parcial passava e a duração da bolha saltava logo após o envio.
+
+Agora a leitura **só é recusada quando é MENOR que a semente** (margem de 0.75 s) — a
+falha documentada é sempre por defeito, e uma leitura igual ou maior continua a ganhar.
+Nesse caso usa-se a mesma sonda de `durationchange` do `Infinity`, por isso uma correção
+tardia do browser ainda chega.
+
+**Fica conhecido:** o cliente arredonda a duração ao enviar e o servidor devolve a dele;
+podem diferir 1 s (visto: 0:03 → 0:02 quando a resposta chega). É desacordo de
+arredondamento entre as duas pontas, não o bug acima.
+
+### Velocidade: um botão, não três
+
+`.wa-audioSpeedGroup` desenhava os três (`1× 1.5× 2×`) sempre abertos — cerca de um terço
+da largura do player, mostrando em permanência duas opções que ninguém escolheu, num
+sítio onde o que interessa é a onda e a duração. Passou a um botão que mostra a
+velocidade atual e alterna no ciclo 1× → 1.5× → 2× → 1×.
+
+O `onPointerUp` + `pointerSpeedRef` ficaram como estavam: existem para o toque não
+disparar duas vezes (pointer e depois click) e para o `keepMobileKeyboardOpen` não deixar
+o teclado fechar no telemóvel. Verificado no browser: o ciclo devolve
+`1× → 1.5× → 2× → 1×`, o `playbackRate` do elemento acompanha, e tocar continua a andar.

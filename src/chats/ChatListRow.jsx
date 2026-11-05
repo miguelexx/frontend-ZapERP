@@ -1692,18 +1692,37 @@ function ChatRow({
                 <EsperaMinutosInline anchorIso={esperaMinutosAnchor} minuteTick={minuteTick} />
               ) : null}
             </div>
-            {semConversa ? (
-              <span className="chat-list-badge-sem-conversa" title="Clique para iniciar conversa">Sem conversa</span>
-            ) : (
-              <StatusPill
-                status={statusEff}
-                exibirBadgeAberta={chat?.exibir_badge_aberta}
-                chat={chat}
-                aguardandoFuncionario={isConversaAguardandoFuncionario(chat, pendentesFuncionarioSet)}
-                esperaMinutosAnchorIso={esperaMinutosAnchor}
-                minuteTick={minuteTick}
-              />
-            )}
+            {/*
+              * Contagem de não lidas + selo de estado partilham a 2.ª faixa da grelha.
+              * Vão num wrapper porque `.chat-list-row-meta` é `display: contents`: sem
+              * ele os dois cairiam na MESMA célula e sobrepunham-se.
+              *
+              * A contagem vem primeiro (encostada à prévia) e não encolhe; quem cede
+              * largura é o selo, que já trunca com reticências. O número é o que diz
+              * "há trabalho aqui" — é ele que tem de aparecer inteiro.
+              */}
+            <div className="chat-list-row-metaBottom">
+              {unread > 0 ? (
+                <span
+                  className="chat-list-unread"
+                  aria-label={`${unread} ${unread === 1 ? "mensagem não lida" : "mensagens não lidas"}`}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+              {semConversa ? (
+                <span className="chat-list-badge-sem-conversa" title="Clique para iniciar conversa">Sem conversa</span>
+              ) : (
+                <StatusPill
+                  status={statusEff}
+                  exibirBadgeAberta={chat?.exibir_badge_aberta}
+                  chat={chat}
+                  aguardandoFuncionario={isConversaAguardandoFuncionario(chat, pendentesFuncionarioSet)}
+                  esperaMinutosAnchorIso={esperaMinutosAnchor}
+                  minuteTick={minuteTick}
+                />
+              )}
+            </div>
           </div>
         </div>
         {waLabels.length > 0 ? (

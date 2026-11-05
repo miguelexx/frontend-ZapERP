@@ -1,10 +1,15 @@
 /* =======================================================================================
    PÁGINA DE ATENDIMENTO — barra de ações e acabamento do CABEÇALHO (DESKTOP)
 
-   ESCOPO: tudo neste ficheiro vive dentro de `@media (min-width: 641px)`, por pedido
-   explícito do Miguel (03/11/2026): no telemóvel não se mexe em nada. 640px é o mesmo
-   corte que o `conversa.css` já usa para o cabeçalho `--atendMobile`. Acrescentar uma
-   regra fora da media query aqui muda o telemóvel — não o faça.
+   ESCOPO: o grosso do ficheiro vive dentro de `@media (min-width: 641px)` — no
+   telemóvel o DESENHO não se mexe (pedido de 03/11/2026). 640px é o mesmo corte que o
+   `conversa.css` já usa para o cabeçalho `--atendMobile`.
+
+   No fim há um bloco `@media (max-width: 640px)`, pedido em 05/11/2026, com DUAS coisas
+   e só essas: a elipse do botão de histórico e os alvos de toque. Nenhuma delas muda o
+   aspeto — a primeira corrige um layout partido, a segunda cresce a área de toque sem
+   tocar no tamanho desenhado. Acrescentar ali uma regra de cor, tipo ou forma é mudar o
+   telemóvel, que é o que não se quer.
 
    Carrega depois de `conversa.css` e antes de `conversa.whatsapp.css` (modo simples).
 
@@ -523,5 +528,112 @@
     html body .app-layout #main-content .wa-selectChk--hover {
       transition: none !important;
     }
+  }
+}
+
+
+/* =======================================================================================
+   TELEMÓVEL — duas correções, nenhuma de aparência
+======================================================================================= */
+
+@media (max-width: 640px) {
+  /* ---------------------------------------------------------------------
+     1. "Buscar histórico no WhatsApp" deixa de ser uma elipse
+
+     A linha é um `flex` sem quebra onde o botão e o parágrafo explicativo
+     disputam a mesma largura. O botão pede `width: 100%` e sobram-lhe 103px:
+     o rótulo quebra em QUATRO linhas dentro de um raio de 999px e desenha uma
+     elipse de 103x80. Em coluna cada um fica com a largura toda.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-loadOlderHistory {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  html body .app-layout #main-content .wa-loadOlderBtn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     2. Alvos de toque
+
+     Medido no cabeçalho da conversa a 393px: Voltar 34x34, Mais opções 32x32,
+     Transferir 68x31, Encerrar 81x34 e "Definir setor" 34x18 — dezoito pixels
+     de altura não é um alvo, é um acidente.
+
+     Duas técnicas, porque o cabeçalho não permite uma só:
+
+     a) Voltar e Mais opções estão em wrappers que não cortam: a área cresce num
+        `::before` invisível e o botão fica EXATAMENTE do tamanho desenhado.
+        (`::after` não servia — o `zap-animations.css` já o usa nos
+        `.zap-action-btn`.)
+
+     b) Definir setor, Transferir e Encerrar vivem dentro de
+        `.wa-header-mobileRow2-sector` e da barra de ações, que têm
+        `overflow: hidden` para truncar nomes de setor compridos. Ali o
+        `::before` é cortado à altura do wrapper (24px no caso do setor), por
+        isso o alvo tem de vir do próprio botão. Estes CRESCEM — é a única forma,
+        e é o que estava a ser pedido ao chamar 18px de defeito.
+  --------------------------------------------------------------------- */
+
+  /* (a) sem mexer no desenho */
+  html body .app-layout #main-content .wa-header :is(.wa-header-back, .wa-header-btn) {
+    position: relative;
+  }
+
+  html body .app-layout #main-content .wa-header :is(.wa-header-back, .wa-header-btn)::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    right: -5px;
+    top: 50%;
+    height: 42px;
+    transform: translateY(-50%);
+    /* Só área: não pinta nada. */
+    background: transparent;
+    border-radius: inherit;
+  }
+
+  /* (b) crescem, porque o wrapper corta o pseudo */
+  html body .app-layout #main-content .wa-header .wa-header-setorBtn {
+    /* 38 como os vizinhos: a linha já tem essa altura por causa deles,
+       por isso subir daqui não custa um pixel de cabeçalho. */
+    min-height: 38px !important;
+    /* Só a altura deixava um retângulo em pé (34 de largura por 38 de altura),
+       com a palavra espremida. Com respiro lateral volta a ser uma cápsula,
+       da mesma família do "Transf." e do "Encerr." ao lado. */
+    padding: 0 12px !important;
+  }
+
+  /*
+   * O wrapper tem caixa própria (fundo e contorno). Com o botão pequeno isso
+   * passava; agora que ele tem 38px vê-se uma caixa dentro de outra, ao lado de
+   * duas cápsulas limpas. Fica uma só: o wrapper passa a ser só arrumação e
+   * quem desenha é o botão.
+   */
+  html body .app-layout #main-content .wa-header .wa-header-mobileRow2-sector {
+    min-height: 38px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  html body .app-layout #main-content .wa-header :is(
+    .wa-btn-primary,
+    .wa-btn-transferir,
+    .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento,
+    .wa-btn-orcamento,
+    .wa-btn-danger,
+    .wa-crmSendBtn
+  ) {
+    min-height: 38px !important;
   }
 }

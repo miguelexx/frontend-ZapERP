@@ -95,6 +95,52 @@ escuro, telemóvel e desktop, nos dois modos.
 - `overscroll-behavior: contain` no scroller: chegar ao fim da lista deixava o scroll passar
   para a página atrás e dar o salto elástico.
 - A tinta de estado no cartão inteiro saiu; o selo à direita mantém a cor que significa estado.
+
+### Os TRÊS PLANOS da lista (CONFIRMADO 2026-11-05)
+
+Até aqui o painel, o cabeçalho, a faixa de rolagem e as linhas partilhavam `--zs-bg`: a
+lista era **um plano só**, e o realce da linha selecionada era a única superfície do ecrã.
+Sem nada por baixo, esse realce (`--zs-active`, #2a3942 — paleta do WhatsApp) lia como
+"desativado" em vez de "selecionado", e não dizia nada sobre o ZapERP.
+
+| Plano | Token | Escuro | Claro | Quem o usa |
+|---|---|---|---|---|
+| Chrome | `--zs-chrome` | #111b21 | #ffffff | `.chat-list-root`, cabeçalho, busca, chips |
+| Poço | `--zs-well` | #0c141a | #f7f8fa | `.chat-list-scroll` |
+| Passagem | `--zs-row-hover` | #18232b | #eef1f4 | `.chat-list-row:hover` e `:active` |
+| Selecionado | `--zs-row-sel-*` | azul 14% + anel + sombra | azul 9% + anel + sombra | `.chat-list-row.is-active` |
+
+Regras que não se podem perder:
+
+- **O degrau chrome↔poço é pequeno de propósito.** Quem o torna legível é a hairline
+  (`box-shadow: inset 0 1px 0 var(--zs-divider)` no scroller), não o salto de luminância.
+  Lista escura que salta dois tons entre painel e poço fica listrada.
+- **A hairline é `box-shadow`, não `border-top`.** Borda real entra no fluxo e empurra a
+  primeira linha 1px; num virtualizador por estimativa isso acumula e recorta a última.
+- **`--zs-row-sel-bg`, `-ring` e `-shadow` são um conjunto.** O fundo diz o estado, o anel
+  de 1px desenha o limite do objeto e a sombra — com deslocamento e desfoque, nunca um halo
+  de raio zero — levanta-o do poço. Tirar uma devolve um retângulo colorido.
+- **O anel é `box-shadow` inset, não `border`.** Borda somaria 2px à largura e empurraria a
+  grelha nome|hora para dentro.
+- **A linha continua TRANSPARENTE em repouso**, como decidido a 04/11. O que mudou foi o
+  que está por baixo dela, não ela.
+- Nada disto toca no box model: `transbordo` medido em claro, escuro, 420px e 1280px deu
+  `[]` e todas as linhas a 72px. O contrato de altura fica intacto.
+
+**Barra de rolagem, foco e `::selection` vivem na secção "Superfícies do browser"**, no fim
+do `chatList.flat.css`. Não declarar `::-webkit-scrollbar-thumb` noutro sítio do ficheiro:
+uma 2ª declaração entra em conflito com a de lá (6px) e pode deixar o polegar com zero de
+largura visível.
+
+**A pega do rail** (`zs-railHandle-pill`, `layouts/useNavReveal.js`) desenha-se por cima da
+margem esquerda da lista, a meia altura. É a afordância do menu retrátil, não um artefacto
+— mas em repouso usa `--zs-text-2` cheio e lê-se como um risco solto sobre o poço. Medido,
+não alterado.
+
+**Fica por decidir:** com cinco conversas abertas seguidas, cinco cápsulas verdes "Aberta"
+idênticas são o elemento mais ruidoso da lista, e o estado que menos informa. O sistema de
+selos é de 03/11 e deliberado, por isso não foi mexido — mas se o verde for atenuado, é
+aqui que se nota.
 - O selo "Aguardando atendente" passa a ter a cápsula no **wrapper** (`.chat-list-status-tech--staff`)
   e não na pílula interna. No `chatList.css` a cápsula mudava de sítio entre telemóvel e
   desktop; unificar foi o que permitiu pôr rótulo e minutos dentro da mesma peça.
@@ -403,3 +449,45 @@ As correções desta auditoria foram verificadas por leitura de fluxo, TypeScrip
 - sanitizeChatRowForSidebarCache conserva nove campos escalares de modo simples, campanha, finalização automática, reabertura e pagamento. Cache antigo só ganha esses campos ao ser regravado; formato e TTL permanecem.
 - Regra atual de resync preservada: aproximadamente seis eventos ou cinco segundos, com force imediato. Referências históricas acima a throttle de 2,5s não descrevem esse hook atual.
 - Não há certificação integral: guard de membership otimista pode bloquear rollback; Minha fila pode truncar pelo badge desatualizado; estimativa de altura e outros cenários precisam da validação descrita no relatório. Não retirar proteções nem religar medidas dinâmicas preventivamente.
+
+## Contagem de não lidas (CONFIRMADO 2026-11-05)
+
+`.chat-list-unread` existe no `chatList.css` desde sempre, mas estava escondido com
+`display: none !important`. Essa regra entrou no commit `ffa5ff812` ("etiqueta
+aguardando") — ou seja, **o selo de estado substituiu a contagem naquele sítio**. Não foi
+descuido, foi decisão.
+
+A contagem voltou sem desfazer isso: os dois **coexistem**, lado a lado, em vez de um
+trocar pelo outro. Quem precisa do estado continua a vê-lo; quem varre a lista à procura
+de trabalho tem o número.
+
+- `ChatListRow.jsx` ganhou um wrapper `.chat-list-row-metaBottom` à volta da contagem e
+  do `StatusPill`. É preciso porque `.chat-list-row-meta` é `display: contents`: sem o
+  wrapper os dois caíam na MESMA célula da grelha e sobrepunham-se.
+- A contagem vem primeiro e **não encolhe** (`flex: 0 0 auto`); quem cede largura é o
+  selo, que já trunca com reticências. O número é o que diz "há trabalho aqui".
+- Acima de 99 mostra `99+`.
+- **Altura: não mexe.** A faixa continua a valer `max(prévia 18, selo 20)` = 20px, que é
+  o que `estimateChatListRowSize` reserva, e a pílula tem 20px.
+- **Custo conhecido:** a coluna 2 da grelha é `auto`, logo a sua largura é o máximo entre
+  a hora (faixa 1) e esta faixa. Com a contagem presente a coluna cresce ~30px e o nome
+  trunca mais cedo nas linhas com não lidas. É a mesma geometria do WhatsApp, e acontece
+  só onde há mensagens por ler.
+
+## Ícones do app (CONFIRMADO 2026-11-05)
+
+`public/brand/pwa-192.png`, `pwa-512.png` e `apple-touch-icon.png` eram ainda a marca
+VERDE anterior (balão + lettering). Foram regerados a partir de `zaperp-z.svg`: Z branco
+sobre o azul da marca (`#1e6fd9`), que é a mesma convenção dos antigos — fundo de cor,
+marca a branco.
+
+Dois pormenores que fazem a diferença entre certo e quase-certo:
+
+- O `zaperp-z.svg` traz `fill="#1e6fd9"` FIXO no `<g>`, não `currentColor`. Quem gerar
+  outra vez tem de trocar o fill, senão sai Z azul sobre fundo azul — invisível.
+- O manifest declara `purpose: "any maskable"`. Num ícone maskable o sistema recorta a
+  tela em círculo ou squircle e só os **80% centrais** são garantidos. Por isso o Z ocupa
+  **48%** da largura: cabe inteiro em qualquer máscara.
+
+O `theme_color` (`#0d6efd`) já era azul; não foi preciso mexer. O `logo-base.png` (verde,
+856 KB) continua no repo e não é referenciado por nada.
