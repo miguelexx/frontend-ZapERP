@@ -48,12 +48,20 @@ export function usePendingOutgoingLifecycle({
 
     const flushPendingOutbox = async () => {
       if (cancelled || isBrowserOffline() || !outboxHasItems()) return;
+      let enviadas = 0;
       try {
-        await executarFlushGlobal("conversa_aberta");
+        const r = await executarFlushGlobal("conversa_aberta");
+        enviadas = Number(r?.enviadas) || 0;
       } catch (e) {
         console.warn("[outbox] flush falhou:", e?.message || e);
       }
-      if (!cancelled && conversaId) {
+      /*
+       * O refresh existe para reconciliar o que a FILA acabou de enviar. Se o flush não enviou
+       * nada — caso normal quando a fila só tem o item "em voo" do envio ao vivo, que
+       * `outboxHasItems()` conta mas `flushOutbox` ignora — não há nada a reconciliar e o GET
+       * completo da conversa é puro desperdício (e, com este efeito reexecutando, vira laço).
+       */
+      if (!cancelled && conversaId && enviadas > 0) {
         try {
           void refresh({ silent: true });
         } catch (_) {

@@ -75,13 +75,34 @@ escuro, telemóvel e desktop, nos dois modos.
 
 ### Outras decisões desta pele
 
-- `CHAT_LIST_ROW_GAP` é `0` e `--cl-chat-row-gap` é `0px`: lista corrida, régua fina em
-  vez de cartões. O gap entra no virtualizador à parte, fora da estimativa.
+- `CHAT_LIST_ROW_GAP` é `0` e `--cl-chat-row-gap` é `0px`. O gap entra no virtualizador
+  à parte, fora da estimativa.
+- **A régua entre linhas saiu (2026-11-04).** A linha é um cartão arredondado que flutua
+  sobre o painel, como no WhatsApp para desktop: `border-radius: 10px`, `margin-inline: 8px`
+  (6 no telemóvel) e realce só na passagem do cursor ou na seleção. O `--zs-row-inset`, que
+  só servia para dizer onde a régua começava, foi removido.
+  - A margem é **só horizontal**. O virtualizador prende a linha a `height: 100%` do seu
+    slot, por isso margem vertical faria a linha transbordar. O respiro entre cartões não
+    falta: nunca há dois realçados ao mesmo tempo.
+  - `margem 8 + padding 8` dá os mesmos 16px de recuo que o avatar tinha com `padding: 16`,
+    por isso nada se deslocou.
+- O `:hover` está dentro de `@media (hover: hover)`. Sem isso, no telemóvel o realce ficava
+  preso na última linha tocada — o `:hover` não se solta em ecrã tátil. No toque o retorno
+  vem do `:active`.
+- Movimento: entrada a 160ms com `cubic-bezier(0.16, 1, 0.3, 1)` e saída a 90ms `ease-out`.
+  Sair mais depressa do que entrar é o que faz o cursor parecer deslizar em vez de ligar e
+  desligar um interruptor. Tudo isto cai em `prefers-reduced-motion`.
+- `overscroll-behavior: contain` no scroller: chegar ao fim da lista deixava o scroll passar
+  para a página atrás e dar o salto elástico.
 - A tinta de estado no cartão inteiro saiu; o selo à direita mantém a cor que significa estado.
 - O selo "Aguardando atendente" passa a ter a cápsula no **wrapper** (`.chat-list-status-tech--staff`)
   e não na pílula interna. No `chatList.css` a cápsula mudava de sítio entre telemóvel e
   desktop; unificar foi o que permitiu pôr rótulo e minutos dentro da mesma peça.
 - O hero "Seu espaço de trabalho" e a faixa "N conversas" saíram da toolbar.
+- Hierarquia do nome vs. prévia (2026-11-04): nome a **600** (700 com mensagens por ler,
+  para o degrau continuar a notar-se) e prévia a **12.5px**. Nem o peso nem o corpo da
+  letra mexem na altura — `--zs-m-title` e `--zs-m-preview` fixam as `line-height` —, por
+  isso o contrato de altura não é afetado.
 
 ## Sistema de selos (CONFIRMADO 2026-11-03)
 

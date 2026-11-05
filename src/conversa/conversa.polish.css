@@ -290,16 +290,76 @@
     outline-offset: 2px !important;
   }
 
+  /* A lista estava incompleta: `.wa-btn-secondary`, `.wa-btn-aguardar-pagamento`,
+     `.wa-btn-pagamento-concluido` e os botões de ícone ficavam opacos e com ar de clicáveis
+     enquanto `busy` os tinha desabilitados. Desabilitado tem de se ver em TODOS. */
   html body .app-layout #main-content .wa-header :is(
     .wa-btn-primary,
+    .wa-btn-secondary,
     .wa-btn-transferir,
     .wa-btn-aguardar-cliente,
+    .wa-btn-aguardar-pagamento,
+    .wa-btn-orcamento,
+    .wa-btn-pagamento-concluido,
     .wa-btn-danger,
     .wa-crmSendBtn,
-    .wa-header-setorBtn
+    .wa-header-setorBtn,
+    .wa-header-btn,
+    .wa-atendBtn--micro
   ):disabled {
     opacity: 0.45 !important;
     cursor: not-allowed !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     3b. O véu de pressão (`.zap-action-btn::after`, styles/zap-animations.css)
+
+     O véu global é `rgba(255,255,255,.2)`. Em tema ESCURO lê-se como pressão; em tema
+     CLARO, sobre um botão de tinta pálida (Encerrar: fundo rosa, texto carmim), o branco
+     DESBOTA o botão — o retorno ao clique ficava ao contrário do pretendido.
+
+     `currentColor` resolve os dois temas e os três níveis de ênfase de uma vez: o véu passa
+     a ser a própria tinta do botão. Preenchido (Assumir, texto branco) → clareia; de tinta
+     (Encerrar, texto carmim) → escurece com o próprio carmim. Sem tabela de cores nova.
+
+     Só desktop, como todo este ficheiro. No telemóvel o véu branco continua como estava,
+     por instrução do Miguel de não mexer lá — o mesmo defeito existe e fica registado no
+     doc 08.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-header .zap-action-btn::after {
+    background: currentColor !important;
+  }
+
+  html body .app-layout #main-content .wa-header .zap-action-btn:active:not(:disabled)::after {
+    opacity: 0.16 !important;
+  }
+
+  /* Botão desabilitado não dá retorno de pressão nenhum. */
+  html body .app-layout #main-content .wa-header .zap-action-btn:disabled::after {
+    opacity: 0 !important;
+    transform: scale(0) !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     3c. A barra enquanto a ação viaja à rede
+
+     Assumir / Encerrar / Reabrir trocam a barra de botões em ~115 ms (patch otimista na
+     store), mas a barra continua travada até o POST responder — e tem de continuar: o
+     botão que SUBSTITUI o clicado nasce no mesmo sítio, e com a barra viva o 2.º clique de
+     um duplo clique cai nele (Encerrar → Reabrir desfaz o encerramento num gesto só;
+     reproduzido em 04/11/2026).
+
+     O que faltava não era destravar, era DIZER que está a processar: a 45% e sem cursor
+     próprio, o travado lia-se como partido.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-header .wa-actions[aria-busy="true"] {
+    cursor: progress !important;
+  }
+
+  html body .app-layout #main-content .wa-header .wa-actions[aria-busy="true"] :is(button, a) {
+    cursor: progress !important;
   }
 
   /* ---------------------------------------------------------------------
@@ -359,6 +419,109 @@
       .wa-atendBtn--micro
     ):active:not(:disabled) {
       transform: none !important;
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     7. A bolha fala a mesma língua do cartão da lista
+
+     Ao passar o cursor, a bolha SALTAVA: `translateY(-0.5px)` mais uma sombra
+     que crescia. Numa thread cheia isso faz a superfície inteira oscilar à
+     medida que o cursor atravessa — e é pintura por frame, tanto que o próprio
+     `conversa.css` já a desliga durante o scroll (`.is-scrolling`) por causar
+     engasgo ao arrastar.
+
+     Fica só a tinta, com os tempos da lista: entra em 160ms com desaceleração
+     natural, sai em 90ms. A bolha já é um cartão arredondado; não precisa de
+     se mexer para dizer que está sob o cursor.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-messages .wa-bubble {
+    transition:
+      box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+      outline 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  @media (hover: hover) {
+    html body .app-layout #main-content .wa-messages .wa-bubble:hover {
+      /* Sem salto. A sombra de `conversa.css` continua a fazer o realce. */
+      transform: none !important;
+    }
+
+    html body .app-layout #main-content .wa-messages .wa-bubble:not(:hover) {
+      /* Saída mais rápida que a entrada, como na lista. */
+      transition-duration: 90ms !important;
+      transition-timing-function: ease-out !important;
+    }
+  }
+
+  /*
+   * Num ecrã tátil o `:hover` não se solta: a última bolha tocada ficava com o
+   * realce preso até se tocar noutra. Em `hover: none` não há realce nenhum.
+   */
+  @media (hover: none) {
+    html body .app-layout #main-content .wa-messages .wa-bubble:hover {
+      transform: none !important;
+      box-shadow: inherit !important;
+    }
+  }
+
+  /* O botão de menu da mensagem é a razão de haver `:hover` na bolha — aparece
+     com a mesma curva, para o conjunto ler como um gesto só. */
+  html body .app-layout #main-content .wa-messages :is(.wa-msgMenuBtn, .wa-msgMenuBtn--top) {
+    transition:
+      opacity 160ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html body .app-layout #main-content .wa-messages .wa-bubble,
+    html body .app-layout #main-content .wa-messages :is(.wa-msgMenuBtn, .wa-msgMenuBtn--top) {
+      transition: none !important;
+    }
+
+    html body .app-layout #main-content .wa-messages .wa-bubble:hover {
+      transform: none !important;
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     8. A caixa de seleção que flutua ao lado da bolha
+
+     `.wa-selectChk--hover` tem fundo branco a 92% e contorno a 22% de preto.
+     Sobre o papel de parede claro da conversa esse contorno some: o que aparece
+     ao lado da bolha é um quadrado branco vazio, que ao lado do botão de reação
+     (que tem ícone) lê-se como um controlo por carregar, não como "selecionar".
+
+     Contorno mais firme e uma sombra curta — o mesmo que a torna legível também
+     por cima de uma imagem. A forma quadrada fica: é a escolha do `conversa.css`.
+  --------------------------------------------------------------------- */
+
+  html body .app-layout #main-content .wa-selectChk--hover {
+    border-color: color-mix(in srgb, var(--wa-text) 34%, transparent) !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14) !important;
+    transition:
+      opacity 160ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  [data-theme="dark"] body .app-layout #main-content .wa-selectChk--hover {
+    background: color-mix(in srgb, var(--wa-panel) 94%, transparent) !important;
+    border-color: color-mix(in srgb, #e9edef 44%, transparent) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  @media (hover: hover) {
+    html body .app-layout #main-content .wa-selectChk--hover:hover {
+      border-color: color-mix(in srgb, var(--zs-accent, #2e86ff) 70%, transparent) !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html body .app-layout #main-content .wa-selectChk--hover {
+      transition: none !important;
     }
   }
 }

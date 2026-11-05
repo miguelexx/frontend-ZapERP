@@ -272,6 +272,24 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     });
   }, []);
 
+  /*
+   * Abrir uma conversa já deixa o cursor na caixa: clicar na conversa e escrever, sem
+   * o clique extra na caixa de texto.
+   *
+   * O `focusInput()` SEM `force` é o que torna isto seguro no telemóvel. A guarda lá
+   * dentro não rouba o foco em ponteiro grosso, só devolve o foco a quem já o tinha —
+   * por isso o teclado NÃO salta por cima da conversa que o utilizador acabou de abrir.
+   * Trocar para `force: true` aqui abriria o teclado a cada toque numa conversa.
+   *
+   * Depende de `podeEnviar` porque a caixa só aceita texto quando dá para responder; e
+   * volta a correr quando ela passa a true (por exemplo logo depois de assumir), que é
+   * exatamente quando o atendente quer escrever.
+   */
+  useEffect(() => {
+    if (!conversaId || !podeEnviar) return;
+    focusInput();
+  }, [conversaId, podeEnviar, focusInput]);
+
   const syncTextareaHeight = useCallback(() => {
     const el = inputRef.current;
     if (!el || el.tagName !== "TEXTAREA") return;

@@ -174,27 +174,31 @@ html body .app-layout #main-content .chat-list-root .chat-list-rows {
    A linha
 ----------------------------------------------------------------------- */
 
+/*
+ * A linha é um cartão arredondado que flutua sobre o painel, como no WhatsApp para
+ * desktop: sem régua entre linhas, e o realce de passagem/seleção com cantos.
+ *
+ * A margem é só HORIZONTAL. O virtualizador prende a linha a `height: 100%` do seu
+ * slot (`chatList.css`), por isso margem vertical faria a linha transbordar — e o
+ * respiro entre cartões não falta: nunca há dois realçados ao mesmo tempo.
+ *
+ * margem 8 + padding 8 = os mesmos 16px de recuo que o avatar já tinha.
+ */
 html body .app-layout #main-content .chat-list-root .chat-list-row,
 html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card {
   background-color: transparent !important;
+  background-image: none !important;
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: 10px !important;
   box-shadow: none !important;
   min-height: 0 !important;
-  padding: var(--zs-m-pad-y) 16px !important;
+  margin-inline: 8px !important;
+  padding: var(--zs-m-pad-y) 8px !important;
   gap: 11px !important;
   align-items: center !important;
-  /* Régua encostada ao texto. Vem do background e não de um ::after porque o
-     pseudo-elemento da linha pertence aos estados "premium" (desligados abaixo). */
-  background-image: linear-gradient(
-    to right,
-    transparent 0 var(--zs-row-inset),
-    var(--zs-divider) var(--zs-row-inset)
-  ) !important;
-  background-repeat: no-repeat !important;
-  background-position: bottom left !important;
-  background-size: 100% 1px !important;
-  transition: background-color 120ms ease !important;
+  /* Saída mais rápida que a entrada e desaceleração natural: é o que faz o cursor
+     parecer deslizar em vez de ligar e desligar um interruptor. */
+  transition: background-color 90ms ease-out !important;
 }
 
 /* Barras de brilho/acento dos estados premium. */
@@ -204,11 +208,25 @@ html body .app-layout #main-content .chat-list-root .chat-list-row::before {
   content: none !important;
 }
 
-html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
-html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card:not(.is-active):hover {
-  background-color: var(--zs-hover) !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+/*
+ * `@media (hover: hover)`: sem isto, no telemóvel o realce FICA preso na última
+ * linha tocada até se tocar noutra — o `:hover` não se solta em ecrã tátil.
+ */
+@media (hover: hover) {
+  html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
+  html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card:not(.is-active):hover {
+    background-color: var(--zs-hover) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    /* Entrada mais lenta que a saída: o realce acende suave e apaga depressa. */
+    transition: background-color 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+}
+
+/* No toque o retorno vem do premir, não da passagem. */
+html body .app-layout #main-content .chat-list-root .chat-list-row:active {
+  background-color: var(--zs-active) !important;
+  transition: background-color 40ms linear !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-row.is-active,
@@ -336,7 +354,10 @@ html body .app-layout #main-content .chat-list-root .chat-list-title {
   display: block !important;
   font-size: 15px !important;
   line-height: var(--zs-m-title) !important;
-  font-weight: 400 !important;
+  /* Negrito: o nome é o que se procura ao varrer a lista. O peso não mexe na
+     altura da linha (`--zs-m-title` é fixo), por isso o contrato de altura
+     continua de pé. */
+  font-weight: 600 !important;
   color: var(--zs-text) !important;
   letter-spacing: 0 !important;
   white-space: nowrap !important;
@@ -345,14 +366,19 @@ html body .app-layout #main-content .chat-list-root .chat-list-title {
   -webkit-line-clamp: none !important;
 }
 
+/* Com mensagens por ler o nome pesa ainda mais — era 500 contra 400, agora
+   700 contra 600, para o degrau continuar a notar-se. */
 html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-title {
-  font-weight: 500 !important;
+  font-weight: 700 !important;
 }
 
+/* Mais pequena que o nome, para o contraste de tamanho fazer o trabalho junto
+   com o de peso. A `line-height` continua presa a `--zs-m-preview`: mudar o
+   corpo da letra aqui não mexe na altura da linha. */
 html body .app-layout #main-content .chat-list-root .chat-list-preview,
 html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview,
 html body .app-layout #main-content .chat-list-root .chat-list-previewText {
-  font-size: 13.5px !important;
+  font-size: 12.5px !important;
   line-height: var(--zs-m-preview) !important;
   font-weight: 400 !important;
   color: var(--zs-text-2) !important;
@@ -814,6 +840,9 @@ html body .app-layout #main-content .chat-list-root ::selection {
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-scroll {
+  /* Chegar ao fim da lista deixava o scroll passar para a página atrás e dar o
+     salto elástico. Contido, a lista para onde acaba. */
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--zs-text-2) 34%, transparent) transparent;
 }
@@ -866,14 +895,12 @@ html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(
 ----------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
-  html body .app-layout #main-content .chat-list-root {
-    --zs-row-inset: 73px;
-  }
-
   html body .app-layout #main-content .chat-list-root .chat-list-row,
   html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card {
-    padding: var(--zs-m-pad-y) 14px !important;
-    padding-right: 36px !important;
+    /* 6 + 8 = os mesmos 14px de recuo de antes. */
+    margin-inline: 6px !important;
+    padding: var(--zs-m-pad-y) 8px !important;
+    padding-right: 32px !important;
   }
 
   html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--search.chat-list-search-wrap {
@@ -882,5 +909,18 @@ html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(
 
   html body .app-layout #main-content .chat-list-root .chat-list-statusRow {
     max-width: 170px !important;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Movimento reduzido — o realce continua, sem a transição
+----------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html body .app-layout #main-content .chat-list-root .chat-list-row,
+  html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
+  html body .app-layout #main-content .chat-list-root .chat-list-row:active,
+  html body .app-layout #main-content .chat-list-root .chat-row-action-trigger {
+    transition: none !important;
   }
 }

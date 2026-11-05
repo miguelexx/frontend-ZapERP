@@ -60,10 +60,9 @@
   --zs-m-gap: 2px;            /* entre a linha do nome e a da prévia */
   --zs-m-extra-row: 24px;     /* faixa de etiquetas do WhatsApp / de tags */
 
-  /* Lista corrida: sem respiro entre linhas (espelha `gap: 0` no virtualizador). */
+  /* Lista corrida: sem respiro entre linhas (espelha `gap: 0` no virtualizador).
+     O respiro entre cartões vem do realce arredondado, não de um gap. */
   --cl-chat-row-gap: 0px;
-  /* Avatar + padding esquerdo + gap — onde começa a régua divisória. */
-  --zs-row-inset: 75px;
 }
 
 [data-theme="dark"] {

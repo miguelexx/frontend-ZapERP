@@ -498,6 +498,42 @@ export default function AtendimentoActions({
   const podeReabrir =
     typeof canReabrir === "function" && canReabrir(user) && isFechada;
 
+  /*
+   * Assumir / Encerrar / Reabrir são OTIMISTAS na store (`patchConversa` + `updateChat` antes
+   * do await, `revert` no erro): a barra troca de botões em ~115 ms, sem esperar a rede.
+   *
+   * O `busy` TEM de continuar a travar a barra até a resposta chegar, e a razão não é a
+   * duplicação do POST — é CLIQUE ATRAVESSADO. Como o botão que substitui o clicado nasce
+   * no MESMO sítio (Encerrar → Reabrir), um duplo clique com a barra viva faz o 2.º clique
+   * cair no Reabrir e desfazer silenciosamente o encerramento. Medido em 04/11/2026 ao
+   * tentar exatamente este "polimento": com a barra destravada, `clickCount: 2` encerrava e
+   * reabria a conversa num gesto só. A versão travada não tem esse buraco.
+   *
+   * O que muda aqui: o guard de reentrância passa a ser um REF, síncrono, em cima do `busy`.
+   * O `if (busy) return` sozinho dependia do batching do React 18 para fechar a janela entre
+   * o clique e o re-render — fechava na prática, não por contrato. O ref fecha por contrato.
+   *
+   * O que faltava ao estado travado era LEGIBILIDADE: a barra ficava a 45% sem nada a dizer
+   * que estava a processar. Resolvido com `aria-busy` + `cursor: progress` na barra (ver
+   * `conversa.polish.css`), não removendo a trava.
+   */
+  const acoesOtimistasEmVooRef = useRef(null);
+  if (acoesOtimistasEmVooRef.current === null) acoesOtimistasEmVooRef.current = new Set();
+  async function runAcaoOtimista(id, fn, tituloErro) {
+    if (busy || acoesOtimistasEmVooRef.current.has(id)) return;
+    acoesOtimistasEmVooRef.current.add(id);
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      console.error(`${tituloErro}:`, e);
+      if (showToast) showToast({ title: tituloErro, message: getApiErrorMessage(e) });
+    } finally {
+      acoesOtimistasEmVooRef.current.delete(id);
+      setBusy(false);
+    }
+  }
+
   // "Puxar conversa novamente": voltar a atender junto (co-atendente) uma conversa
   // que você transferiu, ou — para supervisor/admin — uma assumida por outro.
   const podePuxarNovamente =
@@ -526,58 +562,34 @@ export default function AtendimentoActions({
   }
 
   async function handleAssumir() {
-    if (busy) return;
-    logActionScroll("assumir", "antes");
-    setBusy(true);
-    try {
-      if (typeof assumirConversa === "function") {
-        await assumirConversa(conversa.id);
-        logActionScroll("assumir", "depois");
-        // Sem toast de sucesso: o badge "Em atendimento" já confirma.
-        // No mobile o aviso cobre header e thread.
-      }
-    } catch (e) {
-      console.error("Erro ao assumir conversa:", e);
-      if (showToast) showToast({ title: "Erro ao assumir", message: getApiErrorMessage(e) });
-    } finally {
-      setBusy(false);
-    }
+    await runAcaoOtimista("assumir", async () => {
+      if (typeof assumirConversa !== "function") return;
+      logActionScroll("assumir", "antes");
+      await assumirConversa(conversa.id);
+      logActionScroll("assumir", "depois");
+      // Sem toast de sucesso: o badge "Em atendimento" já confirma.
+      // No mobile o aviso cobre header e thread.
+    }, "Erro ao assumir");
   }
 
   async function handleEncerrar() {
-    if (busy) return;
-    logActionScroll("encerrar", "antes");
-    setBusy(true);
-    try {
-      if (typeof encerrarConversa === "function") {
-        await encerrarConversa(conversa.id);
-        logActionScroll("encerrar", "depois");
-        // Sem toast de sucesso: o painel de encerrado já confirma. Toast cobria o header no mobile.
-      }
-    } catch (e) {
-      console.error("Erro ao encerrar conversa:", e);
-      if (showToast) showToast({ title: "Erro ao encerrar", message: getApiErrorMessage(e) });
-    } finally {
-      setBusy(false);
-    }
+    await runAcaoOtimista("encerrar", async () => {
+      if (typeof encerrarConversa !== "function") return;
+      logActionScroll("encerrar", "antes");
+      await encerrarConversa(conversa.id);
+      logActionScroll("encerrar", "depois");
+      // Sem toast de sucesso: o painel de encerrado já confirma. Toast cobria o header no mobile.
+    }, "Erro ao encerrar");
   }
 
   async function handleReabrir() {
-    if (busy) return;
-    logActionScroll("reabrir", "antes");
-    setBusy(true);
-    try {
-      if (typeof reabrirConversa === "function") {
-        await reabrirConversa(conversa.id);
-        logActionScroll("reabrir", "depois");
-        if (showToast) showToast({ title: "Conversa reaberta", message: "Atendimento disponível novamente." });
-      }
-    } catch (e) {
-      console.error("Erro ao reabrir conversa:", e);
-      if (showToast) showToast({ title: "Erro ao reabrir", message: getApiErrorMessage(e) });
-    } finally {
-      setBusy(false);
-    }
+    await runAcaoOtimista("reabrir", async () => {
+      if (typeof reabrirConversa !== "function") return;
+      logActionScroll("reabrir", "antes");
+      await reabrirConversa(conversa.id);
+      logActionScroll("reabrir", "depois");
+      if (showToast) showToast({ title: "Conversa reaberta", message: "Atendimento disponível novamente." });
+    }, "Erro ao reabrir");
   }
 
   async function handleConfirmarAguardarPagamento({ prazo, data }) {
@@ -980,7 +992,10 @@ export default function AtendimentoActions({
   if (!compactToolbar) {
     return (
       <>
-        <div className="wa-actions">
+        {/* `aria-busy`: a barra fica travada (e a 45%) enquanto a ação viaja à rede. Sem isto
+            o estado lia-se como "morto" em vez de "a processar" — o CSS pendura aqui o
+            `cursor: progress`, e o leitor de ecrã anuncia a região como ocupada. */}
+        <div className="wa-actions" aria-busy={busy ? "true" : undefined}>
           <AguardandoClienteCountdown conversa={conversa} />
           {actions.map((a) => renderToolbarButton(a))}
         </div>
@@ -1062,7 +1077,10 @@ export default function AtendimentoActions({
   ) : null;
 
   const primaryRow = (
+    // `aria-busy` só: é a mesma informação que a barra do desktop dá, e não muda um pixel
+    // no telemóvel (a pele de lá não lê este atributo).
     <div
+      aria-busy={busy ? "true" : undefined}
       className={`wa-atendToolbar-primaryRow${splitCompactHeader ? " wa-atendToolbar-primaryRow--headerRow2" : ""}`}
     >
       <AguardandoClienteCountdown conversa={conversa} />

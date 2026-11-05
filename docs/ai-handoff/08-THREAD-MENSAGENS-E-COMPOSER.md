@@ -751,3 +751,132 @@ Fica registado porque foi medido, não porque se resolveu:
   Transferir 68x31, Encerrar 81x34 e **Definir setor 34x18**.
 - `.wa-loadOlderBtn` desenha uma elipse de 103x80 (o rótulo quebra em quatro linhas
   dentro de um raio de 999px).
+
+## Foco automático ao abrir a conversa (CONFIRMADO 2026-11-04)
+
+`ConversaComposerShell.jsx`: um efeito em `[conversaId, podeEnviar]` chama `focusInput()`
+quando a conversa abre. O atendente clica na conversa e escreve, sem o clique extra na
+caixa.
+
+**O `focusInput()` tem de ser chamado SEM `force`.** A guarda dentro dele não rouba o foco
+em ponteiro grosso — só devolve o foco a quem já o tinha. É isso que impede o teclado do
+telemóvel de saltar por cima da conversa que o utilizador acabou de abrir. Passar
+`force: true` aqui abriria o teclado a cada toque numa conversa.
+
+Medido: em ponteiro fino o `document.activeElement` é a `textarea.wa-input` logo a seguir
+a abrir; em ponteiro grosso continua a ser o `body`.
+
+O efeito também volta a correr quando `podeEnviar` passa a `true` — por exemplo logo depois
+de assumir a conversa, que é exatamente quando se quer escrever.
+
+---
+
+## 2026-11-04 — Laço de `GET /chats/:id` durante o envio (CONFIRMADO, medido no browser)
+
+Auditoria de latência de "entrar na conversa / enviar / Encerrar" com Playwright contra mock
+local (thread de 400 mensagens, `limit=100` como o backend devolve), build de **produção**.
+
+**Causa raiz: `useStableTimeout` devolvia `{ set, clear }` cru** — objeto novo a cada render.
+`useConversationToast` tem esse objeto nas deps do `useCallback` do `showToast`, logo o
+`showToast` mudava de identidade em **todo** render do coordenador. `showToast` está nas deps
+de 19 hooks de `conversa/hooks/` e de ~15 `useCallback` do `ConversaView` — entre eles o
+`handleEnviar`. Consequência medida: o 2º efeito de `usePendingOutgoingLifecycle` reexecutava
+**54×** numa sessão de 25 s.
+
+O efeito faz `if (!isBrowserOffline() && outboxHasItems()) flushPendingOutbox()`, e
+`flushPendingOutbox` dava `refresh({ silent: true })` — **um GET completo da conversa** —
+mesmo quando o flush não enviou nada. E `outboxHasItems()` conta também o item "em voo"
+que o `handleEnviar` grava ANTES do POST (`OUTBOX_EM_VOO_MS` = 70 s). Resultado: enquanto
+havia envio em voo, cada render disparava um GET; o GET re-renderizava; o render reexecutava
+o efeito. **49 `GET /chats/:id` numa sessão com 6 mensagens enviadas.** Com item preso na
+fila (offline, falha definitiva não removida) o laço dura os 70 s da janela em voo.
+
+| Onde | Correção |
+|------|----------|
+| `hooks/useStableTimeout.js` | `useMemo(() => ({ set, clear }), [set, clear])` — `set`/`clear` já eram estáveis, o memo nunca recalcula |
+| `hooks/usePendingOutgoingLifecycle.js` | `refresh` só se `executarFlushGlobal` devolver `enviadas > 0`. O refresh existe para reconciliar o que a FILA enviou; flush vazio não tem o que reconciliar |
+
+**Medido (build de produção, mesmo cenário, antes → depois):**
+
+| Métrica | Antes | Depois |
+|---|---|---|
+| `GET /chats/:id` na sessão | **49** | **2** |
+| `refresh()` redundantes | 12+ | **0** |
+| Bolha otimista, 1º envio | 101 ms | **84 ms** |
+| Rajada de 5 envios | 76 / 142 / 184 / 157 / 194 ms (a crescer) | **69 / 65 / 52 / 67 / 70 ms (plano)** |
+| Abrir conversa (400 msgs em cache, `limit=100`) | 622 ms | 640 ms (inalterado) |
+| Encerrar → UI de encerrado | 116 ms | 114 ms (já era otimista) |
+
+Regressão: `tsc --noEmit` limpo, **58/58** scripts Node, e2e mock 12 passed / 1 failed /
+1 skipped — o vermelho é o flake já documentado (`composer mantém teclado…`), que falha
+igual no código original na suíte completa e passa isolado nos dois.
+
+**Invariante novo:** hook que devolve um objeto consumido como dependência tem de devolver
+identidade estável. `showToast` é o caso mais caro do módulo porque está nas deps de quase
+tudo — se voltar a ficar instável, a memoização inteira do doc 12 deixa de valer.
+
+### Barra de ações: o `busy` é PROTEÇÃO, não ruído (CONFIRMADO 2026-11-04)
+
+Primeira leitura desta auditoria foi: `encerrarConversa` já é otimista (a barra troca de
+botões em ~115 ms), logo manter a barra travada e a 45% durante toda a viagem à rede é
+desperdício, e o botão "Reabrir" que nasce desabilitado é defeito. **Essa leitura estava
+errada e a tentativa de "polir" foi revertida no mesmo dia.**
+
+O motivo é CLIQUE ATRAVESSADO: o botão que substitui o clicado nasce no MESMO sítio. Com a
+barra destravada, o 2.º clique de um duplo clique cai no Reabrir e **desfaz o encerramento
+num gesto só** — reproduzido com `clickCount: 2, delay: 5`: a conversa encerrava e reabria,
+sem erro, sem aviso. O `busy` fechava esse buraco por acidente feliz, e tem de ficar.
+
+O que faltava ao estado travado era **legibilidade**, não liberdade. Aplicado:
+
+| Onde | Mudança |
+|------|---------|
+| `AtendimentoActions.jsx` | `runAcaoOtimista(id, fn, tituloErro)` para assumir/encerrar/reabrir: mantém o `busy` e acrescenta um guard por **ref** (`acoesOtimistasEmVooRef`). O `if (busy) return` sozinho dependia do batching do React 18 para fechar a janela entre o clique e o re-render — fechava na prática, não por contrato |
+| idem | `aria-busy` na `.wa-actions` (desktop) e na `.wa-atendToolbar-primaryRow` (telemóvel). No telemóvel é **só** o atributo: nenhum pixel muda |
+| `conversa.polish.css` | `cursor: progress` na barra com `aria-busy="true"` — o travado passa a ler-se como "a processar" em vez de "partido" |
+
+**Regressão travada:** e2e `Encerrar: duplo clique não atravessa para o Reabrir e a barra diz
+que está a processar` em `e2e/audit-local-mock.spec.js`, nos dois projetos. Verificado que
+tem dentes: destravando a barra, o teste falha.
+
+### Véu de pressão e `:disabled` da barra (CONFIRMADO 2026-11-04, só desktop)
+
+- **`.zap-action-btn::after`** era `rgba(255,255,255,.2)`. Em tema escuro (`.12`) lê-se como
+  pressão; em tema CLARO, sobre botão de tinta pálida (Encerrar: fundo rosa, texto carmim), o
+  branco **desbota** o botão — o retorno ao clique estava ao contrário. Passou a
+  `currentColor` + `opacity: .16` no `:active`: o véu é a própria tinta do botão, o que
+  resolve os dois temas e os três níveis de ênfase sem tabela de cores nova. Verificado em
+  runtime: `getComputedStyle(btn, "::after").backgroundColor === getComputedStyle(btn).color`
+  (`rgb(190, 18, 60)` no Encerrar). Botão desabilitado deixou de desenhar véu nenhum.
+- **`:disabled { opacity: .45 }`** não nomeava `.wa-btn-secondary`,
+  `.wa-btn-aguardar-pagamento`, `.wa-btn-pagamento-concluido`, `.wa-header-btn` nem
+  `.wa-atendBtn--micro`: ficavam opacos e com ar de clicáveis enquanto `busy`. Lista completada.
+
+**Telemóvel ficou com o véu branco**, por instrução permanente do Miguel de não mexer lá
+(`conversa.polish.css` inteiro vive em `@media (min-width: 641px)`). O mesmo defeito existe
+no telemóvel em tema claro — fica aqui registado, à espera de autorização.
+
+### Medido e NÃO alterado (continua pendente)
+
+- Nada. Os quatro itens medidos a 04/11 foram tratados nas duas secções acima.
+
+## Passagem do cursor na thread (CONFIRMADO 2026-11-04)
+
+Mesma linguagem do cartão da lista, em `conversa.polish.css` (logo, só desktop).
+
+- **A bolha deixou de saltar.** Tinha `translateY(-0.5px)` mais uma sombra a crescer no
+  `:hover`. Numa thread cheia isso faz a superfície inteira oscilar enquanto o cursor
+  atravessa — e é pintura por frame, tanto que o `conversa.css` já a desligava durante o
+  scroll (`.is-scrolling`) por causar engasgo ao arrastar. Fica só a tinta.
+- Tempos iguais aos da lista: entra em **160ms** com `cubic-bezier(0.16, 1, 0.3, 1)`,
+  sai em **90ms**. O botão de menu da mensagem aparece com a mesma curva, para o conjunto
+  ler como um gesto só.
+- `@media (hover: none)` anula o realce: em ecrã tátil o `:hover` não se solta e a última
+  bolha tocada ficava realçada até se tocar noutra.
+- `.wa-selectChk--hover` (a caixa de seleção que flutua ao lado da bolha) tinha fundo
+  branco a 92% e contorno a 22% de preto: sobre o papel de parede claro o contorno some e
+  o que se vê é um quadrado branco vazio, ao lado de um botão de reação que tem ícone.
+  Contorno a 34% do texto e uma sombra curta — fica legível também por cima de uma imagem.
+  A forma quadrada mantém-se: é a escolha do `conversa.css`.
+
+O `overscroll-behavior-y: contain` do `.wa-messages` já existia; não foi preciso mexer.

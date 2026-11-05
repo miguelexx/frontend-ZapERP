@@ -1192,3 +1192,108 @@ test("mídia recebida pode ser salva pelo menu e pelo visualizador", async ({ pa
   expect(downloadsPedidos.length).toBeGreaterThan(0);
   expect(downloadsPedidos.every((nome) => /^IMG-\d{8}-\d{6}\.svg$/.test(nome))).toBe(true);
 });
+
+/*
+ * Barra de ações do atendimento: Encerrar é OTIMISTA (a barra troca de botões em ~115 ms,
+ * antes da resposta), e por isso o botão que substitui o Encerrar — Reabrir — nasce no MESMO
+ * sítio. Com a barra destravada, o 2.º clique de um duplo clique cai no Reabrir e desfaz o
+ * encerramento num gesto só; aconteceu ao tentar "polir" o estado travado em 04/11/2026.
+ *
+ * Este teste trava as três coisas que impedem isso de voltar: um POST de encerrar, zero de
+ * reabrir, e a conversa encerrada no fim. Mais o `aria-busy`, que é o que torna o estado
+ * travado legível em vez de parecer partido.
+ */
+test("Encerrar: duplo clique não atravessa para o Reabrir e a barra diz que está a processar", async ({ page }, testInfo) => {
+  const posts = { encerrar: 0, reabrir: 0 };
+  const ENCERRAR_DELAY_MS = 700;
+  await installAuditSession(page);
+
+  await page.route(`${API}/**`, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+
+    if (path.startsWith("/socket.io")) return route.abort();
+    if (path === "/usuarios/me") return route.fulfill({ json: { id: 1, perfil: "admin", role: "admin" } });
+    if (path === "/usuarios/me/permissoes") return route.fulfill({ json: { permissoes: [] } });
+    if (path === "/config/empresa") return route.fulfill({ json: { id: 1, nome: "ZapERP Auditoria" } });
+    if (path === "/chats/whatsapp-instances") return route.fulfill({ json: { instances: [], active_count: 0 } });
+    if (path === "/tags" || path === "/dashboard/departamentos") return route.fulfill({ json: [] });
+    if (path === "/chats/counts") return route.fulfill({ json: { todas: 2, minha_fila: 2, em_atendimento: 2 } });
+    if (path === "/chats" && method === "GET") return route.fulfill({ json: chats });
+
+    const detalhe = path.match(/^\/chats\/(\d+)$/);
+    if (detalhe && method === "GET") {
+      const payload = conversationPayload(detalhe[1]);
+      if (posts.encerrar > 0 && posts.reabrir === 0) {
+        payload.conversa.status_atendimento = "fechada";
+        payload.conversa.status_atendimento_real = "fechada";
+      }
+      return route.fulfill({ json: payload });
+    }
+
+    const reabrir = path.match(/^\/chats\/(\d+)\/reabrir$/);
+    if (reabrir && method === "POST") {
+      posts.reabrir += 1;
+      return route.fulfill({ json: { conversa: { ...chats[0] } } });
+    }
+
+    const encerrar = path.match(/^\/chats\/(\d+)\/encerrar$/);
+    if (encerrar && method === "POST") {
+      posts.encerrar += 1;
+      await new Promise((r) => setTimeout(r, ENCERRAR_DELAY_MS));
+      return route.fulfill({
+        json: {
+          conversa: { ...chats[0], status_atendimento: "fechada", status_atendimento_real: "fechada" },
+        },
+      });
+    }
+
+    return route.fulfill({ json: {} });
+  });
+
+  await page.goto("/atendimento");
+  const linha = page.locator(".chat-list-row").filter({ hasText: "Contato Auditoria" });
+  await expect(linha).toBeVisible({ timeout: 30_000 });
+  const noTelemovel = testInfo.project.name.includes("mobile");
+  if (noTelemovel) await linha.tap();
+  else await linha.click();
+  await expect(page.locator(".wa-input")).toBeVisible();
+
+  const encerrar = page.getByRole("button", { name: /Encerrar conversa/i }).first();
+  await expect(encerrar).toBeVisible();
+  await encerrar.click({ clickCount: 2, delay: 5 });
+
+  // Enquanto o POST viaja, a barra está travada E diz que está a processar.
+  // No telemóvel a barra é a `primaryRow` e o `conversa.polish.css` (só desktop) não corre,
+  // por isso ali verifica-se o `aria-busy` e não o cursor.
+  const barraOcupada = page.locator(
+    noTelemovel
+      ? '.wa-atendToolbar-primaryRow[aria-busy="true"]'
+      : '.wa-actions[aria-busy="true"]'
+  );
+  await expect(barraOcupada).toHaveCount(1);
+  if (!noTelemovel) await expect(barraOcupada).toHaveCSS("cursor", "progress");
+
+  // Patch otimista: Reabrir já está no lugar do Encerrar antes da resposta chegar.
+  await expect(page.getByRole("button", { name: "Reabrir conversa" }).first()).toBeVisible({
+    timeout: 600,
+  });
+
+  await page.waitForTimeout(ENCERRAR_DELAY_MS + 500);
+
+  // O essencial: continua ENCERRADA. O 2.º clique não virou um "reabrir" silencioso.
+  await expect(page.getByRole("button", { name: "Reabrir conversa" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Encerrar conversa/i })).toHaveCount(0);
+  expect(posts.encerrar).toBe(1);
+  expect(posts.reabrir).toBe(0);
+
+  // E o véu de pressão usa a tinta do próprio botão, não um branco que desbota no tema claro.
+  // Correção só de desktop, por instrução de não mexer no telemóvel — ver doc 08.
+  if (!noTelemovel) {
+    const reabrirBtn = page.getByRole("button", { name: "Reabrir conversa" }).first();
+    const corTexto = await reabrirBtn.evaluate((el) => getComputedStyle(el).color);
+    const corVeu = await reabrirBtn.evaluate((el) => getComputedStyle(el, "::after").backgroundColor);
+    expect(corVeu).toBe(corTexto);
+  }
+});
