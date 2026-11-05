@@ -7,6 +7,7 @@ import { useChatStore } from "../../chats/chatsStore";
 import { useConversaStore } from "../../conversa/conversaStore";
 import * as cfg from "../../api/configService";
 import * as chatService from "../../chats/chatService";
+import { useNotificationStore } from "../../notifications/notificationStore";
 import { useWhatsappInstancesStore } from "../../chats/whatsappInstancesStore";
 import { whatsappInstanceLabel } from "../../chats/whatsappInstancesService";
 import Switch from "../../components/ui/Switch";
@@ -105,6 +106,16 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
       }
     } catch (e) {
       console.error("Erro ao abrir conversa:", e);
+      // 4xx não passa pelo interceptor global; sem isto o botão "Conversar" não dizia nada
+      // quando o telefone do contato não é válido para WhatsApp.
+      const status = e?.response?.status;
+      if (status && status !== 403 && status < 500 && status !== 429) {
+        useNotificationStore.getState().showToast?.({
+          type: "error",
+          title: "Abrir conversa",
+          message: String(e?.response?.data?.error || "Não foi possível abrir a conversa deste contato."),
+        });
+      }
     } finally {
       setAbrindoId(null);
     }

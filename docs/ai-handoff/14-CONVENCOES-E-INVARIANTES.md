@@ -103,8 +103,6 @@
 
 ## Menus retráteis (2026-11-03)
 
-- Barra inferior (telemóvel, só modo simples) e rail lateral (desktop, **todos**) partilham
-  o gesto em `layouts/useNavReveal.js` — opção `eixo`, `"y"` ou `"x"`. Não duplicar o hook.
+- **O rail lateral do desktop é FIXO** (revertido em 05/11/2026). Só a barra inferior do
+  telemóvel é retrátil, e só no modo simples — gesto em `layouts/useNavReveal.js`.
 - Menu escondido leva `visibility: hidden`, senão o `Tab` entra em links fora do ecrã.
-- Esconder o rail exige `position: fixed`: ele é item em fluxo do `.app-layout` (flex) e só
-  com `transform` ficaria uma coluna vazia de 68px.

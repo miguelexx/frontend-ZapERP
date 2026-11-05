@@ -104,17 +104,7 @@ export default function MainLayout() {
   const { aberta: barraAberta, fechar: fecharBarra, pegaProps } = useNavReveal(barraRetratil, {
     eixo: "y",
   });
-  /*
-   * O mesmo no desktop, mas no eixo X: o rail de ícones fica fora de vista e só entra com
-   * um arrasto (ou um clique) na pega da borda esquerda. Ao contrário da barra do
-   * telemóvel, isto NÃO está preso ao modo simples — vale para todos.
-   */
-  const railRetratil = !isMobileBottomNav;
-  const {
-    aberta: railAberto,
-    fechar: fecharRail,
-    pegaProps: pegaRailProps,
-  } = useNavReveal(railRetratil, { eixo: "x" });
+
 
   const navItems = useMemo(
     () =>
@@ -287,7 +277,7 @@ export default function MainLayout() {
 
   return (
     <div
-      className={`app-layout app-layout--crm app-layout--studio${barraRetratil ? " app-layout--navRetratil" : ""}${barraAberta ? " is-navAberta" : ""}${railRetratil ? " app-layout--railRetratil" : ""}${railAberto ? " is-railAberto" : ""}`}
+      className={`app-layout app-layout--crm app-layout--studio${barraRetratil ? " app-layout--navRetratil" : ""}${barraAberta ? " is-navAberta" : ""}`}
     >
       <a href="#main-content" className="ds-skip-link">
         Pular para o conteúdo principal
@@ -304,9 +294,7 @@ export default function MainLayout() {
         /* Ir para outro lugar fecha a barra; alternar o tema não, para dar
            para voltar atrás sem reabrir. */
         onClick={(e) => {
-          if (!e.target.closest?.("a, .sidebar-logout")) return;
-          fecharBarra();
-          fecharRail();
+          if (e.target.closest?.("a, .sidebar-logout")) fecharBarra();
         }}
       >
         <NavLink
@@ -380,23 +368,6 @@ export default function MainLayout() {
           {...pegaProps}
         >
           <span className="zs-navHandle-pill" aria-hidden="true" />
-        </button>
-      ) : null}
-
-      {railRetratil && railAberto ? (
-        <div className="zs-railBackdrop" aria-hidden="true" onPointerDown={fecharRail} />
-      ) : null}
-
-      {railRetratil ? (
-        <button
-          type="button"
-          className="zs-railHandle"
-          aria-label={railAberto ? "Esconder o menu" : "Mostrar o menu"}
-          aria-expanded={railAberto}
-          aria-controls="app-bottom-nav"
-          {...pegaRailProps}
-        >
-          <span className="zs-railHandle-pill" aria-hidden="true" />
         </button>
       ) : null}
 

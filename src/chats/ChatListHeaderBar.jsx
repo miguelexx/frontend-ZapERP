@@ -2,7 +2,7 @@ import { memo } from "react";
 import { createPortal } from "react-dom";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { Icon } from "./chatListUiPrimitives";
-import { IconFileInvoice, IconPackage, IconRefresh, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
+import { IconFileInvoice, IconRefresh, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
 import useMotionPresence from "../components/ui/useMotionPresence";
 
 function HeaderButton({ title, onClick, children, innerRef, disabled }) {
@@ -35,8 +35,6 @@ function ChatListHeaderBar({
   onNovoContato,
   onNovoGrupo,
   onNovaComunidade,
-  canConsultarProdutos,
-  onOpenProdutos,
   /** Orçamento WM avulso (balcão): gate de módulo+permissão já resolvido pelo chamador (doc 36). */
   canCriarOrcamentoWm,
   onOpenOrcamentoAvulso,
@@ -84,12 +82,6 @@ function ChatListHeaderBar({
             </svg>
           </Icon>
         </HeaderButton>
-
-        {canConsultarProdutos ? (
-          <HeaderButton title="Consultar produtos" onClick={onOpenProdutos}>
-            <IconPackage size={17} stroke={1.7} aria-hidden="true" />
-          </HeaderButton>
-        ) : null}
 
         {canCriarOrcamentoWm ? (
           <HeaderButton title="Novo orçamento" onClick={onOpenOrcamentoAvulso}>
@@ -163,7 +155,6 @@ function ChatListHeaderBar({
 
 function headerPropsAreEqual(prev, next) {
   if (prev.showNovoMenu !== next.showNovoMenu) return false;
-  if (prev.canConsultarProdutos !== next.canConsultarProdutos) return false;
   if (prev.canCriarOrcamentoWm !== next.canCriarOrcamentoWm) return false;
   if (prev.onOpenOrcamentoAvulso !== next.onOpenOrcamentoAvulso) return false;
   if (prev.menuPosition?.top !== next.menuPosition?.top) return false;
@@ -176,7 +167,6 @@ function headerPropsAreEqual(prev, next) {
   if (prev.onNovoContato !== next.onNovoContato) return false;
   if (prev.onNovoGrupo !== next.onNovoGrupo) return false;
   if (prev.onNovaComunidade !== next.onNovaComunidade) return false;
-  if (prev.onOpenProdutos !== next.onOpenProdutos) return false;
   return true;
 }
 

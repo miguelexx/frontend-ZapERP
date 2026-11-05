@@ -359,24 +359,19 @@ nada disto se aplica: o `app.css` já esconde a barra e zera o `padding-bottom` 
 existem por causa disso — sem eles a pele vencia por especificidade e devolvia uma faixa
 branca acima do teclado.
 
-### Rail lateral retrátil, no desktop (CONFIRMADO 2026-11-03)
+### Rail lateral: fixo (revertido em 2026-11-05)
 
-O mesmo, no eixo X: o rail de ícones sai de vista e só entra quando se arrasta (ou se
-clica) a pega de 14px encostada à borda esquerda. Classes `app-layout--railRetratil` /
-`is-railAberto`. **Não está preso ao modo simples — vale para todos.**
+Em 03/11 o rail de ícones do desktop passou a retrátil — saía de vista e voltava com um
+arrasto na pega da borda esquerda. **Foi revertido a pedido do Miguel em 05/11:** os menus
+voltam a estar sempre à vista, como antes.
 
-O gesto dos dois é o mesmo hook, `layouts/useNavReveal.js`, com a opção `eixo`
-(`"y"` para a barra, `"x"` para o rail): duas cópias seriam duas oportunidades de o limiar
-de arrasto ou o toque divergirem.
+Saíram o `app-layout--railRetratil` / `is-railAberto`, a pega `.zs-railHandle`, o backdrop
+e o bloco de CSS que punha a `.sidebar` em `position: fixed`. A `.sidebar` volta a ser item
+em fluxo do `.app-layout`, com 68px (medido: `x: 0`, `position: relative`).
 
-Duas coisas que não são detalhe:
-
-- O rail é um item **em fluxo** do `.app-layout` (que é `display: flex`), por isso escondê-lo
-  só com `transform` deixaria uma coluna vazia de 68px. A regra põe-no `position: fixed` —
-  é isso que devolve a largura ao conteúdo, que é o ponto de o esconder.
-- Os dois menus levam `visibility: hidden` quando fechados. Sem isso o `Tab` entrava nos
-  links fora do ecrã. `visibility` transita em degrau: some no fim da animação de saída e
-  volta no início da de entrada, por isso não se vê nada a piscar.
+A barra inferior do telemóvel **continua retrátil** e não foi tocada; o
+`layouts/useNavReveal.js` continua a servi-la com `eixo: "y"`. A opção `eixo: "x"` ficou
+sem utilizador — fica lá se o rail retrátil voltar.
 
 ## Componentes
 
@@ -580,3 +575,19 @@ Dois pormenores que fazem a diferença entre certo e quase-certo:
 
 O `theme_color` (`#0d6efd`) já era azul; não foi preciso mexer. O `logo-base.png` (verde,
 856 KB) continua no repo e não é referenciado por nada.
+
+## "Consultar produtos" saiu do cabeçalho da lista (2026-11-05)
+
+O botão da caixa no cabeçalho da lista foi removido a pedido. Com ele saíram, por ficarem
+sem utilizador nenhum em `chatList.jsx`: o estado `showProdutosPanel`, o
+`handleOpenProdutos`, o render do `ProdutoConsultaPanel`, o seu import dinâmico e os gates
+`canConsultarProdutos` / `canVerSyncProdutos` / `canSincronizarProdutos`.
+
+**A função não se perdeu**: continua no cabeçalho da CONVERSA (`ConversaHeader` →
+`onOpenProdutosPanel`, com painel próprio no `ConversaView`) e no menu de anexos do
+composer (`onOpenCatalog`). O que deixou de existir é consultar produtos **sem uma
+conversa aberta** — era esse o caminho do botão removido.
+
+Nota para quem repetir isto: remover o import dinâmico do painel invalida o pré-bundle do
+Vite e o dev server passa a responder `504 (Outdated Optimize Dep)` — a aplicação não
+carrega até se apagar `node_modules/.vite` e reiniciar. Não é erro de código.

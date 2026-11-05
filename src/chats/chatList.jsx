@@ -48,7 +48,6 @@ import { OPEN_CONVERSA_BY_PHONE_EVENT } from "./openConversaByPhoneBridge";
 import { ZAPERP_FOCUS_CHAT_SEARCH_EVENT } from "../atendimento/atendimentoUiEvents";
 import { getDisplayName, pickPreferredAvatarUrl } from "./chatListDisplay";
 import { contactIdentitiesConflict } from "./chatContactIdentity";
-const ProdutoConsultaPanel = lazy(() => import("../conversa/ProdutoConsultaPanel"));
 /**
  * Orçamento WM avulso (balcão): o MESMO drawer da conversa, montado aqui sem conversa aberta.
  * `lazy` pelo mesmo motivo do painel de produtos — chunk só desce quando o módulo está ligado e
@@ -217,11 +216,8 @@ export default function ChatList() {
   const [listRefreshing, setListRefreshing] = useState(false);
   const sessionBootRef = useRef(null);
   const auxScopeKeyRef = useRef(null);
-  const canConsultarProdutos = ["admin", "supervisor", "atendente"].includes(userRole);
   // Orçamento avulso: mesmo gate de módulo+permissão do botão da conversa (doc 36, D2/D7).
   const canCriarOrcamentoWm = canCriarOrcamento(user);
-  const canVerSyncProdutos = ["admin", "supervisor"].includes(userRole);
-  const canSincronizarProdutos = userRole === "admin";
 
   const {
     selectedUserId: adminAtendenteFilterId,
@@ -354,7 +350,6 @@ export default function ChatList() {
   const [loteAusenciaConfirm, setLoteAusenciaConfirm] = useState("");
 
   const [novoContatoModalOpen, setNovoContatoModalOpen] = useState(false);
-  const [showProdutosPanel, setShowProdutosPanel] = useState(false);
   const [showOrcamentoAvulso, setShowOrcamentoAvulso] = useState(false);
   const [confirmClear, setConfirmClear] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -1710,9 +1705,6 @@ export default function ChatList() {
     setShowNovoMenu((v) => !v);
   }, []);
 
-  const handleOpenProdutos = useCallback(() => {
-    setShowProdutosPanel(true);
-  }, []);
 
   const handleOpenOrcamentoAvulso = useCallback(() => {
     setShowOrcamentoAvulso(true);
@@ -1777,8 +1769,19 @@ export default function ChatList() {
       }
     } catch (e) {
       console.error("Erro ao abrir conversa do cliente:", e);
+      // O interceptor global só avisa em 5xx/403/429. Sem isto, um 400 (ex.: telefone do
+      // contato inválido para WhatsApp) deixava o clique sem nenhuma resposta na tela.
+      const status = e?.response?.status;
+      const motivo = e?.response?.data?.error;
+      if (status && status !== 403 && status < 500 && status !== 429) {
+        showToast({
+          type: "error",
+          title: "Abrir conversa",
+          message: String(motivo || "Não foi possível abrir a conversa deste contato."),
+        });
+      }
     }
-  }, [addChat, carregarConversa]);
+  }, [addChat, carregarConversa, showToast]);
 
   /**
    * Clicou num telefone dentro de um balão → abre (ou cria) a conversa desse número.
@@ -2048,8 +2051,6 @@ export default function ChatList() {
         onNovoContato={handleNovoContatoMenu}
         onNovoGrupo={handleNovoGrupoMenu}
         onNovaComunidade={handleNovaComunidadeMenu}
-        canConsultarProdutos={canConsultarProdutos}
-        onOpenProdutos={handleOpenProdutos}
         canCriarOrcamentoWm={canCriarOrcamentoWm}
         onOpenOrcamentoAvulso={handleOpenOrcamentoAvulso}
       />
@@ -2157,18 +2158,6 @@ export default function ChatList() {
         </p>
       </ConfirmDialog>
 
-      {showProdutosPanel && canConsultarProdutos ? (
-        <Suspense fallback={null}>
-          <ProdutoConsultaPanel
-            open
-            onClose={() => setShowProdutosPanel(false)}
-            canViewSyncStatus={canVerSyncProdutos}
-            canTriggerManualSync={canSincronizarProdutos}
-            showToast={showToast}
-            onEnviarParaConversa={(template) => queueComposerAppend(template)}
-          />
-        </Suspense>
-      ) : null}
 
       {/*
         Orçamento AVULSO (balcão): o MESMO OrcamentoDrawer da conversa, montado aqui sem conversa.
