@@ -196,6 +196,8 @@ export async function obterStatusInstancia(instanceId) {
       phone: data?.phone ?? null,
       provider: data?.provider ?? null,
       channelStatus,
+      // Escala do /health da Whapi (1 INIT, 2 LAUNCH, 3 QR, 4 AUTH, 5 ERROR).
+      channelStatusCode: data?.statusCode == null ? null : Number(data.statusCode),
       error: null,
       retryAfterSeconds: null,
       raw: data || {},

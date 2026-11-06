@@ -31,7 +31,9 @@ const admin = {
 
 async function installMock(page, sessionUser = admin) {
   const calls = { whapiStatus: 0, instances: 0, instanceStatus: 0, qrcode: 0 };
-  const state = { channelUp: false };
+  // down: "QR" = aparelho desvinculado (code 3). "LAUNCH" = canal reconectando
+  // sozinho depois de uma oscilação de rede (code 2) — não pode virar QR na tela.
+  const state = { channelUp: false, down: { status: "QR", code: 3 } };
 
   await page.addInitScript((user) => {
     localStorage.setItem(
@@ -54,7 +56,9 @@ async function installMock(page, sessionUser = admin) {
         isWhapi: true,
         provider: "whapi",
         connected: state.channelUp,
-        status: state.channelUp ? "AUTH" : "UNAUTHORIZED",
+        status: state.channelUp ? "AUTH" : state.down.status,
+        statusCode: state.channelUp ? 4 : state.down.code,
+        unlinked: !state.channelUp && state.down.code === 3,
       });
     }
 
@@ -69,7 +73,7 @@ async function installMock(page, sessionUser = admin) {
             ativo: true,
             is_default: true,
             connected: state.channelUp,
-            live_status: state.channelUp ? "AUTH" : "UNAUTHORIZED",
+            live_status: state.channelUp ? "AUTH" : state.down.status,
             display_phone: "+55 34 99999-8888",
           },
         ],
@@ -82,7 +86,8 @@ async function installMock(page, sessionUser = admin) {
       return json({
         provider: "whapi",
         connected: state.channelUp,
-        status: state.channelUp ? "AUTH" : "UNAUTHORIZED",
+        status: state.channelUp ? "AUTH" : state.down.status,
+        statusCode: state.channelUp ? 4 : state.down.code,
         phone: state.channelUp ? "5534999998888" : null,
       });
     }
@@ -162,4 +167,34 @@ test("ao autenticar o canal, o overlay apaga sozinho", async ({ page }) => {
     timeout: 15_000,
   });
   await expect(page.getByRole("heading", { name: "WhatsApp DESCONECTADO" })).toHaveCount(0);
+});
+
+test("canal reconectando sozinho (LAUNCH) não mostra QR Code", async ({ page }) => {
+  const { calls, state } = await installMock(page);
+  state.down = { status: "LAUNCH", code: 2 }; // 1 INIT → 2 LAUNCH → 4 AUTH: reconexão normal
+  await page.clock.install();
+  await page.goto("/atendimento");
+  await derrubarCanal(page, calls);
+
+  await expect(page.getByRole("heading", { name: "Escaneie para reconectar" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "WhatsApp DESCONECTADO" })).toHaveCount(0);
+  expect(calls.qrcode).toBe(0);
+});
+
+test("internet do navegador caiu: a tela some e volta quando a rede volta", async ({ page, context }) => {
+  const { calls } = await installMock(page);
+  await page.clock.install();
+  await page.goto("/atendimento");
+  await derrubarCanal(page, calls);
+  await expect(page.getByRole("heading", { name: "Escaneie para reconectar" })).toBeVisible();
+
+  await context.setOffline(true);
+  await expect(page.getByRole("heading", { name: "Escaneie para reconectar" })).toHaveCount(0, {
+    timeout: 10_000,
+  });
+
+  await context.setOffline(false);
+  await expect(page.getByRole("heading", { name: "Escaneie para reconectar" })).toBeVisible({
+    timeout: 15_000,
+  });
 });

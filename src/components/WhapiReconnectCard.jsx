@@ -8,6 +8,7 @@ import {
 import { useWhapiReconnect } from "./useWhapiReconnect";
 import {
   formatPairCode,
+  isTransientChannelStatus,
   qrFrameState,
   reconnectInstanceLabel,
 } from "./whapiReconnectLogic";
@@ -37,6 +38,16 @@ function QrFrame({ estado, qrDataUri, qrError, retryIn, onRefresh, canal }) {
           alt={`QR Code para reconectar o WhatsApp${canal ? ` do canal ${canal}` : ""}`}
           className="wa-rc__qrImg"
         />
+      </div>
+    );
+  }
+
+  if (estado === "transient") {
+    return (
+      <div className="wa-rc__qr wa-rc__qr--muted" aria-busy="true">
+        <span className="wa-rc__skeleton" aria-hidden />
+        <p className="wa-rc__qrMsg">Reconectando o canal…</p>
+        <p className="wa-rc__qrCount">Se voltar sozinho, não precisa escanear.</p>
       </div>
     );
   }
@@ -144,6 +155,8 @@ export default function WhapiReconnectCard({ onConnected, onOpenSettings }) {
     listError,
     forbidden,
     connected,
+    channelStatus,
+    channelStatusCode,
     qrDataUri,
     qrError,
     qrLoading,
@@ -163,12 +176,16 @@ export default function WhapiReconnectCard({ onConnected, onOpenSettings }) {
   const erroCanal = forbidden
     ? "Seu usuário não pode reconectar este canal. Avise o supervisor."
     : listError;
+  // Canal subindo/reconectando (INIT/LAUNCH): a Whapi recusa o QR nessa janela e
+  // o canal costuma voltar sozinho — a tela espera em vez de acusar erro.
+  const reconectando = !connected && isTransientChannelStatus(channelStatus, channelStatusCode);
   const estado = qrFrameState({
     connected,
     qrDataUri,
     qrError: qrError || erroCanal,
     loading: qrLoading || loadingInstances,
     retryIn,
+    transient: reconectando && !erroCanal,
   });
   const mostrandoTelefone = modo === "telefone" && !connected && !erroCanal;
 

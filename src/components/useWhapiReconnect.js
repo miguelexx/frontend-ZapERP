@@ -37,6 +37,7 @@ export function useWhapiReconnect({ enabled = true, onConnected } = {}) {
 
   const [connected, setConnected] = useState(false);
   const [channelStatus, setChannelStatus] = useState(null);
+  const [channelStatusCode, setChannelStatusCode] = useState(null);
   const [phoneConectado, setPhoneConectado] = useState(null);
 
   const [pairCode, setPairCode] = useState("");
@@ -184,6 +185,7 @@ export function useWhapiReconnect({ enabled = true, onConnected } = {}) {
           return;
         }
         if (res?.channelStatus) setChannelStatus(res.channelStatus);
+        setChannelStatusCode(res?.channelStatusCode ?? null);
         scheduleStatusPoll(instId);
       }, STATUS_POLL_MS);
     },
@@ -262,6 +264,7 @@ export function useWhapiReconnect({ enabled = true, onConnected } = {}) {
       const st = await obterStatusInstancia(instanceId).catch(() => null);
       if (cancelado || !mountedRef.current || instanceIdRef.current !== instanceId) return;
       if (st?.channelStatus) setChannelStatus(st.channelStatus);
+      setChannelStatusCode(st?.channelStatusCode ?? null);
       if (st?.connected) {
         marcarConectado(st.phone || null);
         return;
@@ -357,6 +360,7 @@ export function useWhapiReconnect({ enabled = true, onConnected } = {}) {
     forbidden,
     connected,
     channelStatus,
+    channelStatusCode,
     phoneConectado,
     qrDataUri,
     qrError,

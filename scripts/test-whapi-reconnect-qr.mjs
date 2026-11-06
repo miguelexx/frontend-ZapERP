@@ -19,10 +19,14 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import {
+  isWhapiOverlayDisconnected,
+} from "../src/chats/hooks/whapiOverlayRule.js";
+import {
   QR_POLL_MS,
   clampRetrySeconds,
   formatPairCode,
   instanceLooksConnected,
+  isTransientChannelStatus,
   isValidQrDataUri,
   normalizePairPhone,
   pickReconnectInstance,
@@ -82,6 +86,14 @@ checar(
 checar(
   pickReconnectInstance([whapi({ id: 9, connected: true, live_status: "AUTH" })])?.id === 9,
   "sem nenhum caído (lista ainda não hidratada), cai no ativo — a tela nunca fica sem alvo"
+);
+
+checar(
+  pickReconnectInstance([
+    whapi({ id: 20, is_default: true, connected: false, live_status: "LAUNCH" }),
+    whapi({ id: 21, connected: false, live_status: "QR" }),
+  ])?.id === 21,
+  "entre um canal RECONECTANDO e um DESVINCULADO, o QR é do desvinculado (mesmo não sendo o default)"
 );
 
 checar(instanceLooksConnected({ live_status: "AUTH" }) === true, "AUTH é sessão viva");
@@ -157,7 +169,7 @@ checar(
 
 const hookStatus = ler("src/chats/hooks/useWhapiChannelStatus.js");
 checar(
-  /return \{ whapiDisconnected: disconnected, revalidate \}/.test(hookStatus),
+  /whapiDisconnected: disconnected && !offline, revalidate \}/.test(hookStatus),
   "useWhapiChannelStatus precisa expor revalidate"
 );
 checar(
@@ -177,6 +189,76 @@ checar(
 checar(
   /if \(!enabled\)/.test(hookQr),
   "com o overlay fechado o hook não pode continuar consultando o provedor"
+);
+
+// ------------------------------------------------- 5. internet x desvinculo
+// A tela oferece QR Code: mandar escanear porque a rede oscilou e pior do que
+// nao avisar nada. A Whapi reconecta sozinha por INIT -> LAUNCH -> AUTH (2-3s).
+// Escala do /health: 1 INIT, 2 LAUNCH, 3 QR, 4 AUTH, 5 ERROR (+ STOP, SYNC_ERROR).
+const resp = (over = {}) => ({ ok: true, isWhapi: true, connected: false, ...over });
+
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "QR", statusCode: 3, unlinked: true })) === true,
+  "QR (code 3) e o unico estado que acende a tela"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "UNAUTHORIZED" })) === true,
+  "UNAUTHORIZED sem code (backend antigo) continua acendendo"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "LAUNCH", statusCode: 2 })) === false,
+  "canal reconectando (LAUNCH) NAO pode virar QR na tela do atendente"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "INIT", statusCode: 1 })) === false,
+  "canal subindo (INIT) nao acende"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "STOP" })) === false,
+  "canal desativado (STOP) nao acende: QR nao resolve cobranca"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "SYNC_ERROR" })) === false,
+  "SYNC_ERROR nao acende (o envio continua funcionando)"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "ERROR", statusCode: 5 })) === false,
+  "erro de consulta nao acende"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "QR", statusCode: 3, unlinked: false })) === false,
+  "veredito negativo do backend vence o texto"
+);
+checar(
+  isWhapiOverlayDisconnected(resp({ status: "ESTADO_NOVO" })) === false,
+  "estado desconhecido nao acende (lista de permissao)"
+);
+checar(
+  isWhapiOverlayDisconnected({ ok: true, isWhapi: true, connected: true, status: "AUTH" }) === false,
+  "conectado nunca acende"
+);
+checar(
+  isWhapiOverlayDisconnected({ ok: true, isWhapi: false, connected: false }) === false,
+  "empresa que nao e Whapi nunca acende"
+);
+checar(isWhapiOverlayDisconnected(null) === false, "resposta vazia nao acende");
+
+checar(isTransientChannelStatus("LAUNCH", 2) === true, "LAUNCH e transitorio");
+checar(isTransientChannelStatus("INIT", 1) === true, "INIT e transitorio");
+checar(isTransientChannelStatus("QR", 3) === false, "QR nao e transitorio: precisa escanear");
+checar(isTransientChannelStatus("LAUNCH", 3) === false, "o codigo manda sobre o texto");
+checar(isTransientChannelStatus("INIT", null) === true, "sem codigo, usa o texto");
+checar(isTransientChannelStatus(null, null) === false, "sem nada, nao inventa espera");
+
+// A guarda de navegador offline mora no hook (precisa de window/navigator).
+const hook = ler("src/chats/hooks/useWhapiChannelStatus.js");
+checar(
+  /navegadorOffline\(\)/.test(hook) && /disconnected && !offline/.test(hook),
+  "navegador sem rede nao pode manter nem acender a tela de reconexao"
+);
+checar(
+  /addEventListener\("online"/.test(hook) && /addEventListener\("offline"/.test(hook),
+  "a volta da internet precisa revalidar sem esperar o poll de 60s"
 );
 
 if (falhas) {

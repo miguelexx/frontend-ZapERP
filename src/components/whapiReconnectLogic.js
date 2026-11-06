@@ -5,6 +5,9 @@
  * a moldura do QR mostra — coberto por scripts/test-whapi-reconnect-qr.mjs sem
  * precisar montar React.
  */
+// Lista única de estados de "aparelho desvinculado" — a mesma que decide se a
+// tela pode acender (chats/hooks/whapiOverlayRule.js). Não duplicar aqui.
+import { WHAPI_UNLINKED_STATUS } from "../chats/hooks/whapiOverlayRule.js";
 
 /** Intervalo de renovação do QR. O QR do WhatsApp expira em ~20s. */
 export const QR_POLL_MS = 20_000;
@@ -32,17 +35,32 @@ export function activeWhapiInstances(instances) {
   );
 }
 
+/** Canal com a sessão vazia de verdade (QR/desvinculado) — não só "não-AUTH". */
+export function instanceLooksUnlinked(inst) {
+  if (!inst || instanceLooksConnected(inst)) return false;
+  const s = String(inst.live_status || inst.status || "").trim().toUpperCase();
+  return WHAPI_UNLINKED_STATUS.has(s);
+}
+
+function preferirDefault(pool) {
+  return pool.find((inst) => inst.is_default === true) || pool[0];
+}
+
 /**
- * O canal que o overlay deve reconectar: o que está CAÍDO (é o motivo da tela),
- * preferindo o default. Sem nenhum caído, cai no default/primeiro ativo — assim a
- * tela nunca fica sem alvo quando a lista chega hidratada depois do overlay acender.
+ * O canal que a tela deve reconectar, em três degraus:
+ *   1. DESVINCULADO (QR) — é o motivo da tela e o único que o QR resolve;
+ *   2. qualquer um fora do AUTH — cobre o canal ainda reconectando;
+ *   3. qualquer ativo — a tela nunca fica sem alvo quando a lista ainda não
+ *      chegou hidratada.
+ * Dentro de cada degrau, o default vem primeiro.
  */
 export function pickReconnectInstance(instances) {
   const ativas = activeWhapiInstances(instances);
   if (!ativas.length) return null;
+  const desvinculadas = ativas.filter(instanceLooksUnlinked);
+  if (desvinculadas.length) return preferirDefault(desvinculadas);
   const caidas = ativas.filter((inst) => !instanceLooksConnected(inst));
-  const pool = caidas.length ? caidas : ativas;
-  return pool.find((inst) => inst.is_default === true) || pool[0];
+  return preferirDefault(caidas.length ? caidas : ativas);
 }
 
 /** Espera do 429 do guard de QR: sempre um número de segundos sensato. */
@@ -61,14 +79,33 @@ export function isValidQrDataUri(value) {
 }
 
 /**
+ * Estados do /health da Whapi em que o canal está SUBINDO ou RECONECTANDO
+ * (1 INIT, 2 LAUNCH). É o que acontece quando a rede oscila: o canal volta
+ * sozinho por INIT → LAUNCH → AUTH em poucos segundos e NÃO precisa de QR.
+ * Nessa janela a Whapi recusa o /users/login, então a tela não pode chamar
+ * isso de erro — ela espera.
+ */
+const WHAPI_TRANSIENT_STATUS = new Set(["INIT", "INITIALIZING", "LAUNCH", "LAUNCHED", "LAUNCHING", "STARTING", "LOADING", "CONNECTING", "SYNCING"]);
+const WHAPI_TRANSIENT_CODES = new Set([1, 2]);
+
+export function isTransientChannelStatus(status, code) {
+  // `Number(null)` é 0: código ausente precisa cair no texto, não virar "código 0".
+  const n = code == null || code === "" ? null : Number(code);
+  if (n != null && Number.isFinite(n)) return WHAPI_TRANSIENT_CODES.has(n);
+  return WHAPI_TRANSIENT_STATUS.has(String(status || "").trim().toUpperCase());
+}
+
+/**
  * Um único lugar decide o que a moldura mostra — a UI não repete condicionais.
  * Ordem importa: conectado vence tudo; QR válido vence "carregando" (renovação
- * silenciosa não pode apagar o código que o usuário está escaneando).
+ * silenciosa não pode apagar o código que o usuário está escaneando); canal
+ * reconectando vence "erro" (a recusa do QR nessa janela é esperada).
  */
-export function qrFrameState({ connected, qrDataUri, qrError, loading, retryIn } = {}) {
+export function qrFrameState({ connected, qrDataUri, qrError, loading, retryIn, transient } = {}) {
   if (connected === true) return "connected";
   if (isValidQrDataUri(qrDataUri)) return "qr";
   if (Number(retryIn) > 0) return "throttled";
+  if (transient === true) return "transient";
   if (loading === true) return "loading";
   if (qrError) return "error";
   return "loading";

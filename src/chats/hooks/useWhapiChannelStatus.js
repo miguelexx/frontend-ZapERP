@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWhapiChannelStatus } from "../chatService";
+import { isWhapiOverlayDisconnected, navegadorOffline } from "./whapiOverlayRule";
 
 /** Revalidação periódica do canal Whapi (o overlay vermelho precisa acender e sumir sozinho). */
 const WHAPI_STATUS_REFRESH_MS = 60_000;
@@ -13,29 +14,20 @@ const WHAPI_STATUS_FOCUS_MIN_INTERVAL_MS = 20_000;
  */
 const WHAPI_DISCONNECT_CONFIRMATIONS = 2;
 
-/** Respostas que NÃO provam queda da sessão (2+ canais sem default, timeout, health vazio). */
-const WHAPI_AMBIGUOUS_STATUS = new Set(["", "NOT_CONFIGURED", "ERROR", "UNKNOWN"]);
+export { isWhapiOverlayDisconnected } from "./whapiOverlayRule";
 
 /**
- * Overlay só com queda comprovada da sessão Whapi.
- * `connected:false` + `not_configured` é o falso positivo de 2 números sem is_default.
- */
-export function isWhapiOverlayDisconnected(s) {
-  if (s?.isWhapi !== true || s?.connected !== false) return false;
-  const status = String(s?.status || "").trim().toUpperCase();
-  if (WHAPI_AMBIGUOUS_STATUS.has(status)) return false;
-  return true;
-}
-
-/**
- * Monitora o canal Whapi e decide se o overlay de "canal desconectado" deve aparecer.
+ * Monitora o canal Whapi e decide se a tela de reconexão (QR Code) deve aparecer.
  *
- * Só acende quando o backend confirma sessão Whapi comprovadamente fora do AUTH
- * em leituras consecutivas; `not_configured` / erro não pintam a tela. Uma única
- * leitura conectada apaga na hora. Empresas que não usam Whapi nunca disparam.
+ * Só acende com APARELHO DESVINCULADO confirmado em leituras consecutivas.
+ * Queda de internet não acende em nenhuma das três pontas: o navegador offline
+ * suspende a checagem e apaga a tela, a falha do request não conta, e canal
+ * reconectando (INIT/LAUNCH) volta como conectado do backend.
+ * Uma única leitura conectada apaga na hora. Empresa sem Whapi nunca dispara.
  */
 export function useWhapiChannelStatus() {
   const [disconnected, setDisconnected] = useState(false);
+  const [offline, setOffline] = useState(navegadorOffline);
   const consecutiveDownRef = useRef(0);
   // Checagem sob demanda: quem reconecta pela própria tela não pode esperar até
   // 60s de poll para o overlay apagar. Uma leitura conectada apaga na hora.
@@ -46,6 +38,10 @@ export function useWhapiChannelStatus() {
     let ultimaChecagem = 0;
 
     const checar = () => {
+      // Sem rede no navegador, a resposta (ou a falta dela) não diz nada sobre o
+      // aparelho: nem consulta. A contagem é preservada — a prova anterior
+      // continua válida e a tela volta com UMA leitura quando a rede voltar.
+      if (navegadorOffline()) return;
       ultimaChecagem = Date.now();
       getWhapiChannelStatus()
         .then((s) => {
@@ -83,6 +79,17 @@ export function useWhapiChannelStatus() {
     document.addEventListener("visibilitychange", aoFocar);
     window.addEventListener("focus", aoFocar);
 
+    // Internet caiu: a tela de reconexão some na hora (o canal não tem culpa).
+    // Internet voltou: revalida sem esperar o poll de 60s.
+    const aoFicarOffline = () => setOffline(true);
+    const aoVoltarOnline = () => {
+      setOffline(false);
+      ultimaChecagem = 0;
+      checar();
+    };
+    window.addEventListener("offline", aoFicarOffline);
+    window.addEventListener("online", aoVoltarOnline);
+
     return () => {
       cancelled = true;
       checarRef.current = null;
@@ -90,6 +97,8 @@ export function useWhapiChannelStatus() {
       clearInterval(intervalo);
       document.removeEventListener("visibilitychange", aoFocar);
       window.removeEventListener("focus", aoFocar);
+      window.removeEventListener("offline", aoFicarOffline);
+      window.removeEventListener("online", aoVoltarOnline);
     };
   }, []);
 
@@ -97,5 +106,5 @@ export function useWhapiChannelStatus() {
     checarRef.current?.();
   }, []);
 
-  return { whapiDisconnected: disconnected, revalidate };
+  return { whapiDisconnected: disconnected && !offline, revalidate };
 }

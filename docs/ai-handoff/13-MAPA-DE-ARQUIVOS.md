@@ -14,6 +14,7 @@
 | `components/ErrorBoundary.jsx` | crash UI |
 | `components/WhapiDisconnectedOverlay.jsx` | canal Whapi caído: QR para supervisor/admin, aviso vermelho para atendente |
 | `components/WhapiReconnectCard.jsx` + `useWhapiReconnect.js` + `whapiReconnectLogic.js` | cartão de reconexão estilo WhatsApp Web (QR/código), polling e regras puras |
+| `chats/hooks/whapiOverlayRule.js` | quando a tela de reconexão pode acender: só aparelho desvinculado (QR/code 3), nunca queda de internet |
 | `runtime/vitePreloadRecovery.js` | chunk 404 pós-deploy |
 
 ## Auth e HTTP

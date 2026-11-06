@@ -385,7 +385,7 @@ sem utilizador — fica lá se o rail retrátil voltar.
 | Header/Toolbar/AdvancedFilters | UI de filtros |
 | `hooks/useChatListFilterState.js` | estado serializável (abas, busca, avançados); `useChatListFilters.js` continua o compute in-memory no Body |
 | `hooks/useWhatsappInstanceStatus.js` | banner WhatsApp desconectado (`GET /chats/zapi-status`, nome legado) |
-| `hooks/useWhapiChannelStatus.js` | overlay vermelho (`GET /chats/whapi-status`); só acende com sessão comprovadamente caída. `not_configured` não pinta a tela. Em `MainLayout` via `WhapiDisconnectedOverlay` (oculto em `/configuracoes`). Expõe `revalidate()` — reconexão pelo QR do overlay apaga a tela na hora, sem esperar o poll de 60s |
+| `hooks/useWhapiChannelStatus.js` | overlay vermelho (`GET /chats/whapi-status`); só acende com sessão comprovadamente caída. `not_configured` não pinta a tela. Em `MainLayout` via `WhapiDisconnectedOverlay` (oculto em `/configuracoes`). Expõe `revalidate()` — reconexão pelo QR apaga a tela na hora. A regra pura vive em `hooks/whapiOverlayRule.js`: só `QR`/code 3 (aparelho desvinculado) acende; `INIT`/`LAUNCH` (reconexão de rede), `STOP`, `SYNC_ERROR` e erro não. Navegador `offline` apaga a tela e pausa o poll |
 | `hooks/useChatListPagination.js` | carregar mais + auto-avanço de página vazia |
 | `hooks/useChatListResync.js` | nonce do store (debounce no **store**, não no hook), refresh 5 min, `zapi_sync_contatos` |
 | `hooks/useChatListCounts.js` | deriva números dos chips a partir de `chatFilterCounts` já carregados |
