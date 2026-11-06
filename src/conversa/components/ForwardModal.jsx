@@ -1,3 +1,4 @@
+import "./forwardModal.css";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FORWARD_DEST_MAX } from "../conversaConstants";

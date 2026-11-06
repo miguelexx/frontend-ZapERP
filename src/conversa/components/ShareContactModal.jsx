@@ -1,3 +1,4 @@
+import "./forwardModal.css";
 import { createPortal } from "react-dom";
 import { safeString } from "../utils/conversaViewHelpers";
 import { IconClose } from "../conversaViewIcons";

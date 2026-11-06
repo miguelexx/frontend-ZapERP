@@ -1,4 +1,4 @@
-import "./conversa.css";
+import "./sidebarCliente.css";
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { vincularClienteConversa, atualizarNomeContatoConversa, apagarConversaCompleta } from "./conversaService";

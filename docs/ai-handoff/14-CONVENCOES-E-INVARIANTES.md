@@ -106,3 +106,39 @@
 - **O rail lateral do desktop é FIXO** (revertido em 05/11/2026). Só a barra inferior do
   telemóvel é retrátil, e só no modo simples — gesto em `layouts/useNavReveal.js`.
 - Menu escondido leva `visibility: hidden`, senão o `Tab` entra em links fora do ecrã.
+
+## `!important`: porque existe, e o que é mentira (05/11/2026)
+
+O `chatList.flat.css` e o `conversa.polish.css` são peles que se sobrepõem a CSS mais
+antigo. Chegaram a ter 494 `!important`, e a explicação que andava escrita — «preciso disto
+para vencer o `studio.css`, o `conversations-studio.css` e o `premium-interactions.css`» —
+**está errada**. Medido declaração a declaração: o `studio.css` e o
+`conversations-studio.css` obrigam a **um** `!important` entre os dois; o
+`premium-interactions.css` obriga a ~32. O resto é disputa com `chatList.css`,
+`conversa.css`, `app.css` e, sobretudo, **com os próprios dois ficheiros**.
+
+Foram removidos 133 (494 → 361). Os que ficaram são precisos. Dois motivos, por ordem de
+frequência:
+
+**1. Estilo inline posto no JSX.** `style={{ minWidth: 14 }}` vence qualquer regra CSS sem
+`!important`, por mais específica que seja. É o caso do `.chat-list-icon` do cabeçalho: o
+`<span>` leva `style` inline com 14px, e a regra de 18px só ganha com `!important`. Ao
+mexer aqui, **procure `style={{ … }}` no componente antes de concluir que um `!important`
+é decorativo** — eu tirei esse e a lista quebrou (18px → 14px) até a sonda apanhar.
+
+**2. Outro `!important` do outro lado.** Quando os dois lados têm `!important`, quem ganha
+é a especificidade. Tirar de um só inverte o resultado; tirar dos dois ao mesmo tempo não
+muda nada. Foi assim que os 133 saíram: em bloco, e só onde todos os concorrentes caíam
+juntos ou já perdiam/ganhavam de qualquer forma.
+
+### Como validar uma limpeza destas
+
+Análise estática sozinha **não serve** — a minha deu 135 candidatos e dois estavam errados.
+A prova foi empírica: fotografar `getComputedStyle` de cada propriedade tocada, em cada
+elemento que casa, nas quatro combinações (desktop/estreito × claro/escuro) e nos dois
+perfis do Playwright, antes e depois, e exigir diferença zero. Deu 3718 amostras em
+`chromium-desktop` e 1524 em `chromium-mobile` (onde o toque emulado muda os blocos
+`@media (hover: hover)`), zero diferenças nas duas.
+
+Cuidado com a sonda no perfil `chromium-mobile`: chamar `setViewportSize` por cima da
+emulação de dispositivo **fecha a página**. Nesse perfil use o tamanho do próprio perfil.

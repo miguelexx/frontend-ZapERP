@@ -339,3 +339,64 @@ morto depois. Confira o **exit code**: `124` = travou.
 
 Solução usada em `test-boot-permissoes-paralelas.mjs`: `disconnectSocket()` no `finally`
 e `process.exit(0)` depois do try/finally (falha continua a derrubar com 1, verificado).
+
+## CSS: o `conversa.css` foi dividido (05/11/2026)
+
+### O que se mediu
+
+Na tela da lista descarregavam-se 673 KB de CSS para usar ~100 KB (15%). O pior era o
+`conversa.css`: 339 KB para 1% de uso. A auditoria anterior apontou «o ganho vem de
+dividi-lo» — e dividir **sem mover de chunk não ganha byte nenhum**, porque o Vite junta
+tudo o que é importado pelo mesmo módulo síncrono. O ganho só aparece quando um pedaço
+passa a ser importado **apenas** por um componente lazy, e vira chunk assíncrono.
+
+### O que saiu, para onde, e porquê
+
+| Ficheiro novo | Dono (lazy) | Chunk |
+|---|---|---|
+| `conversa/sidebarCliente.css` | `SidebarCliente.jsx` (+ `SidebarGrupo`, que ele importa) | 20,5 KB |
+| `conversa/components/forwardModal.css` | `ForwardModal`, `ShareContactModal`, `AddToGroupModal` | 7,0 KB (comum aos três) |
+| `conversa/components/sendPollModal.css` | `SendPollModal.jsx` | 6,1 KB |
+| `conversa/components/catalogPicker.css` | `CatalogPickerModal.jsx` | 5,6 KB |
+| `conversa/components/mediaViewer.css` | `MediaViewerOverlay.jsx` | 4,0 KB |
+
+Resultado medido no build: `conversa-*.css` **347 KB → 289 KB (−16,6%)**. Desses 58 KB,
+43 KB passaram para chunks assíncronos e ~15 KB desapareceram (CSS morto, ver abaixo).
+
+O `SidebarCliente.jsx` também deixou de fazer `import "./conversa.css"`: era redundante,
+porque o `ConversaView` já o carrega, e mantinha o ficheiro amarrado ao grafo do chunk lazy.
+
+### A regra para não desfazer o ganho
+
+Só pertence a um destes ficheiros o que **nenhuma regra do `conversa.css` cita**. Uma regra
+que misture a família movida com outra família — `.wa-shell > .wa-sideCliente`,
+`.wa-pollModal-optionRow .wa-input`, `.wa-forwardOverlay .wa-btn` — **fica no
+`conversa.css` de propósito**. São 20 regras assim, e não é descuido.
+
+Isto importa porque mover uma regra passa a carregá-la **depois** do `conversa.css`. Para
+as 20 regras mistas isso é inerte: elas têm mais classes no seletor, logo mais
+especificidade, e ganham independentemente da ordem. Verificado: **zero seletores
+idênticos** entre o ficheiro base e os cinco novos.
+
+### CSS morto removido no mesmo passo
+
+122 regras (≈15 KB após minificação) cujas classes não existem em nenhum JSX: o editor de
+imagem antigo (`.wa-imageEditor-*`, `.wa-imageViewer*`), restos do `ForwardModal` antes de
+ser reescrito (`.wa-forwardItem-main`, `.wa-forwardSectionHead`, …), `.wa-pending-*`,
+`.wa-toast*`, `.wa-sideCliente-hero*`.
+
+**Armadilha ao repetir esta limpeza:** um detetor que só procure a classe literal no JSX dá
+falsos positivos a rodos. `wa-bubble-fileIconWrap--pdf` é montada em runtime
+(`` `...--${ext.toLowerCase()}` ``), `wa-stockBadge--alto` idem, e `.ReactCrop__*` / `.ord-nw`
+vêm do `react-image-crop`, que o `ImageSendPreviewMobile` usa. Nenhuma dessas é morta.
+Também não vale procurar no repositório todo: `artifacts/` e `.tmp-zaperp-audit-profile/`
+têm builds e cache antigos que ainda citam classes já removidas do código.
+
+### Falhas pré-existentes no `test:e2e:mock` (não são regressão)
+
+A suite completa falha, **no `main` tal como está**, dois testes que passam quando corridos
+isolados: `composer mantém teclado…` (chromium-desktop, estoura o timeout de 90 s) e
+`historico com muitas midias…` (chromium-mobile, 4 amostras com gap > 6 px em vez de ≤ 2).
+Confirmado por comparação: HEAD dá 13 passou / 1 ignorado / **2 falhou**, exatamente o
+mesmo perfil. Ao medir uma mudança nesta área, compare contra a suite completa — o teste
+isolado passa em ambos os lados e engana.

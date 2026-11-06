@@ -123,3 +123,16 @@ CRM: `crm/CrmAvancadoRedirect.jsx` + `crm/pages/*`. Dashboard: `dashboard/Dashbo
 - `frontend/dist/`
 - Pastas `backend/docs/_ANTIGOS/` e `backend/docs/_OFICIAL/` (não existem neste tree)
 - Relatórios pontuais antigos (já removidos da raiz do monorepo)
+
+## Pastas versionadas que não são código (estado em 05/11/2026)
+
+Três pastas estão **dentro do Git** e não deviam:
+
+- `dist/` — saída do build. Qualquer `vite build` local suja o `git status`.
+- `artifacts/` — 18 MB de builds antigos de auditorias.
+- `.tmp-zaperp-audit-profile/` — 67 MB de perfil do Chrome (cache incluído), criado por
+  corridas de Playwright.
+
+São ~85 MB e 1184 ficheiros. Efeito prático: além do peso, uma busca por nome de classe no
+repositório todo acerta em builds antigos e dá a entender que código já removido ainda
+existe. Ao procurar uso de uma classe, limite a busca a `src/`.

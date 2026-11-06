@@ -49,9 +49,9 @@ html body .app-layout #main-content .chat-list-root {
 
 html body .app-layout #main-content .chat-list-root.chat-list-root .chat-list-header {
   background: var(--zs-chrome) !important;
-  min-height: 56px !important;
+  min-height: 56px;
   padding: 6px 6px 6px 16px !important;
-  border-bottom: 1px solid var(--zs-divider) !important;
+  border-bottom: 1px solid var(--zs-divider);
   box-shadow: none !important;
 }
 
@@ -61,7 +61,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-header::after {
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-header-actions {
-  gap: 2px !important;
+  gap: 2px;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-header-btn,
@@ -95,7 +95,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-header-btn .chat-
 html body .app-layout #main-content .chat-list-root .chat-list-header-btn svg {
   width: 18px !important;
   height: 18px !important;
-  stroke-width: 1.7 !important;
+  stroke-width: 1.7;
 }
 
 /* -----------------------------------------------------------------------
@@ -109,25 +109,25 @@ html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap--compa
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-toolbar {
-  border-bottom: 1px solid var(--zs-divider) !important;
+  border-bottom: 1px solid var(--zs-divider);
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap,
 html body .app-layout #main-content .chat-list-root .chat-list-chips-wrap--compact {
-  border-bottom: none !important;
+  border-bottom: none;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--search.chat-list-search-wrap {
   padding: 8px 12px 6px !important;
   background: transparent !important;
-  border-bottom: none !important;
+  border-bottom: none;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-search-box {
   background: var(--zs-panel) !important;
   border: 1px solid transparent !important;
   border-radius: 999px !important;
-  min-height: 40px !important;
+  min-height: 40px;
   padding: 6px 16px !important;
   box-shadow: none !important;
   color: var(--zs-text-2) !important;
@@ -140,8 +140,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-search-box:focus-
 
 html body .app-layout #main-content .chat-list-root .chat-list-search-input {
   color: var(--zs-text) !important;
-  -webkit-text-fill-color: var(--zs-text) !important;
-  caret-color: var(--zs-text) !important;
+  -webkit-text-fill-color: var(--zs-text);
+  caret-color: var(--zs-text);
   font-size: 14px !important;
 }
 
@@ -154,7 +154,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-search-input {
 
 html body .app-layout #main-content .chat-list-root .chat-list-search-input::placeholder {
   color: var(--zs-text-2) !important;
-  -webkit-text-fill-color: var(--zs-text-2) !important;
+  -webkit-text-fill-color: var(--zs-text-2);
 }
 
 /*
@@ -185,7 +185,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-toolbar-row--meta
  */
 html body .app-layout #main-content .chat-list-root .chat-list-scroll {
   padding: 0 !important;
-  gap: 0 !important;
+  gap: 0;
   /* Transparente: quem pinta o poço é o degradê da `.chat-list-root`, por baixo.
      Fundo opaco aqui tapava o degradê e devolvia o retângulo chapado. */
   background: transparent !important;
@@ -197,7 +197,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-scroll {
    de lá (6px) e deixava o polegar com zero de largura visível. */
 
 html body .app-layout #main-content .chat-list-root .chat-list-rows {
-  gap: 0 !important;
+  gap: 0;
 }
 
 /* -----------------------------------------------------------------------
@@ -221,8 +221,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversat
   border: none !important;
   border-radius: 10px !important;
   box-shadow: none !important;
-  min-height: 0 !important;
-  margin-inline: 8px !important;
+  min-height: 0;
+  margin-inline: 8px;
   /*
    * `width: auto` é OBRIGATÓRIO com `margin-inline`. O `chatList.css` dá
    * `width: 100%` à linha; com margem, os dois somam-se em vez de se descontarem:
@@ -240,8 +240,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversat
   width: auto !important;
   max-width: none !important;
   padding: var(--zs-m-pad-y) 8px !important;
-  gap: 11px !important;
-  align-items: center !important;
+  gap: 11px;
+  align-items: center;
   /* Saída mais rápida que a entrada e desaceleração natural: é o que faz o cursor
      parecer deslizar em vez de ligar e desligar um interruptor. */
   transition: background-color 90ms ease-out !important;
@@ -339,7 +339,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-avatar-text svg {
 html body .app-layout #main-content .chat-list-root .chat-list-avatar {
   width: var(--zs-m-avatar) !important;
   height: var(--zs-m-avatar) !important;
-  min-width: var(--zs-m-avatar) !important;
+  min-width: var(--zs-m-avatar);
   /* Rede de segurança da cor por contacto: `getAvatarColor` devolve OKLCH
      num `style` inline. Num browser que não o entenda a declaração inline
      cai inteira — sem isto ficariam iniciais brancas sobre nada. */
@@ -383,18 +383,18 @@ html body .app-layout #main-content .chat-list-root .chat-list-time {
   align-items: center;
   gap: 4px;
   height: var(--zs-m-time) !important;
-  line-height: var(--zs-m-time) !important;
+  line-height: var(--zs-m-time);
   font-size: 12px !important;
-  font-weight: 400 !important;
+  font-weight: 400;
   color: var(--zs-text-2) !important;
-  white-space: nowrap !important;
+  white-space: nowrap;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-row-mid {
   grid-column: 1;
   grid-row: 2;
   min-width: 0;
-  margin-top: var(--zs-m-gap) !important;
+  margin-top: var(--zs-m-gap);
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
@@ -402,7 +402,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-convers
   grid-column: 2;
   grid-row: 2;
   justify-self: end;
-  margin-top: var(--zs-m-gap) !important;
+  margin-top: var(--zs-m-gap);
 }
 
 /* -----------------------------------------------------------------------
@@ -410,25 +410,25 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-convers
 ----------------------------------------------------------------------- */
 
 html body .app-layout #main-content .chat-list-root .chat-list-title-line {
-  min-height: var(--zs-m-title) !important;
-  line-height: var(--zs-m-title) !important;
+  min-height: var(--zs-m-title);
+  line-height: var(--zs-m-title);
 }
 
 /* Uma linha, sempre: é o que torna a altura previsível. */
 html body .app-layout #main-content .chat-list-root .chat-list-title {
   display: block !important;
   font-size: 15px !important;
-  line-height: var(--zs-m-title) !important;
+  line-height: var(--zs-m-title);
   /* Negrito: o nome é o que se procura ao varrer a lista. O peso não mexe na
      altura da linha (`--zs-m-title` é fixo), por isso o contrato de altura
      continua de pé. */
-  font-weight: 600 !important;
+  font-weight: 600;
   color: var(--zs-text) !important;
-  letter-spacing: 0 !important;
-  white-space: nowrap !important;
+  letter-spacing: 0;
+  white-space: nowrap;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  -webkit-line-clamp: none !important;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: none;
 }
 
 /* Com mensagens por ler o nome pesa ainda mais — era 500 contra 400, agora
@@ -444,14 +444,14 @@ html body .app-layout #main-content .chat-list-root .chat-list-preview,
 html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview,
 html body .app-layout #main-content .chat-list-root .chat-list-previewText {
   font-size: 12.5px !important;
-  line-height: var(--zs-m-preview) !important;
-  font-weight: 400 !important;
+  line-height: var(--zs-m-preview);
+  font-weight: 400;
   color: var(--zs-text-2) !important;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-preview-line,
 html body .app-layout #main-content .chat-list-root .chat-list-preview {
-  min-height: var(--zs-m-preview) !important;
+  min-height: var(--zs-m-preview);
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-setor,
@@ -459,17 +459,17 @@ html body .app-layout #main-content .chat-list-root .chat-list-empresa,
 html body .app-layout #main-content .chat-list-root .chat-list-assignee,
 html body .app-layout #main-content .chat-list-root .chat-list-encontrado-por,
 html body .app-layout #main-content .chat-list-root .chat-list-whatsapp-instance {
-  margin: 0 !important;
+  margin: 0;
   padding: 0 !important;
-  min-height: var(--zs-m-subline) !important;
+  min-height: var(--zs-m-subline);
   height: var(--zs-m-subline) !important;
-  line-height: var(--zs-m-subline) !important;
+  line-height: var(--zs-m-subline);
   font-size: 11px !important;
-  font-weight: 400 !important;
+  font-weight: 400;
   color: var(--zs-text-2) !important;
-  white-space: nowrap !important;
+  white-space: nowrap;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  text-overflow: ellipsis;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -477,8 +477,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-whatsapp-instance
 
 /* A pílula do atendente responsável leva um avatar redondo: precisa de mais 5px. */
 html body .app-layout #main-content .chat-list-root .chat-list-atendente-admin {
-  margin: 2px 0 0 !important;
-  min-height: 18px !important;
+  margin: 2px 0 0;
+  min-height: 18px;
   height: 18px !important;
   box-shadow: none !important;
 }
@@ -489,9 +489,9 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-grupo {
   border: none !important;
   color: var(--zs-text-2) !important;
   font-size: 11px !important;
-  font-weight: 400 !important;
-  line-height: var(--zs-m-title) !important;
-  min-height: 0 !important;
+  font-weight: 400;
+  line-height: var(--zs-m-title);
+  min-height: 0;
   height: auto !important;
   padding: 0 0 0 2px !important;
   box-shadow: none !important;
@@ -503,43 +503,43 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-grupo {
 
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow {
   display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 4px !important;
-  min-width: 0 !important;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
   max-width: 176px !important;
   width: max-content !important;
-  min-height: 0 !important;
+  min-height: 0;
 }
 
 /* Variantes com segunda linha (cobrança, reaberta, pagamento concluído) empilham. */
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow--pagamento-sub,
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow:has(.chat-list-statusRow-sub) {
-  flex-direction: column !important;
-  align-items: flex-end !important;
-  gap: 4px !important;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-status,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech,
 html body .app-layout #main-content .chat-list-root .chat-list-badge-await,
 html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
-  min-height: 20px !important;
+  min-height: 20px;
   height: auto !important;
   max-height: 20px !important;
   padding: 2px 8px !important;
-  line-height: 16px !important;
+  line-height: 16px;
   font-size: 10.5px !important;
-  font-weight: 500 !important;
+  font-weight: 500;
   border-radius: 999px !important;
-  white-space: nowrap !important;
+  white-space: nowrap;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  text-overflow: ellipsis;
   box-shadow: none !important;
   animation: none !important;
-  text-shadow: none !important;
+  text-shadow: none;
   filter: none !important;
 }
 
@@ -549,10 +549,10 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-hud-text,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-reaberta-label,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-label {
-  min-width: 0 !important;
+  min-width: 0;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-statusRow,
@@ -560,7 +560,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staf
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-client {
   box-shadow: none !important;
   animation: none !important;
-  text-shadow: none !important;
+  text-shadow: none;
   filter: none !important;
 }
 
@@ -570,9 +570,9 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech--awai
  * wrapper que faz a cápsula, para o rótulo e os minutos ficarem dentro da mesma peça.
  */
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staff {
-  flex-wrap: nowrap !important;
+  flex-wrap: nowrap;
   max-width: 100% !important;
-  min-width: 0 !important;
+  min-width: 0;
 }
 
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-main {
@@ -580,23 +580,23 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff
      wrapper era um nível a mais, o rótulo não encolhia dentro dele e o
      texto era cortado a meio da palavra em vez de ganhar reticências. */
   display: contents !important;
-  font-family: inherit !important;
+  font-family: inherit;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
-  min-height: 0 !important;
+  min-height: 0;
   max-height: none !important;
-  min-width: 0 !important;
+  min-width: 0;
   /* `width: max-content` do chatList.css impedia o rótulo de encolher: em vez de
      reticências, a cápsula cortava a palavra a meio. */
   width: auto !important;
   max-width: 100% !important;
-  flex: 0 1 auto !important;
+  flex: 0 1 auto;
   color: inherit !important;
   font-size: 10px !important;
-  font-weight: 500 !important;
-  line-height: 16px !important;
+  font-weight: 500;
+  line-height: 16px;
   overflow: hidden !important;
   animation: none !important;
   filter: none !important;
@@ -605,8 +605,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-badge-icon {
   color: inherit !important;
-  font-family: inherit !important;
-  letter-spacing: 0 !important;
+  font-family: inherit;
+  letter-spacing: 0;
   text-shadow: none !important;
 }
 
@@ -615,11 +615,11 @@ html body .app-layout #main-content .chat-list-root .chat-list-time-espera-min {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  text-shadow: none !important;
-  font-family: inherit !important;
+  text-shadow: none;
+  font-family: inherit;
   font-size: 11px !important;
-  font-weight: 400 !important;
-  line-height: var(--zs-m-time) !important;
+  font-weight: 400;
+  line-height: var(--zs-m-time);
   padding: 0 !important;
 }
 
@@ -635,7 +635,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-time-espera-min--
   font-weight: 400 !important;
   line-height: 16px !important;
   padding: 0 !important;
-  flex: 0 0 auto !important;
+  flex: 0 0 auto;
   opacity: 0.85 !important;
 }
 
@@ -643,9 +643,9 @@ html body .app-layout #main-content .chat-list-root .chat-list-time-espera-min--
 html body .app-layout #main-content .chat-list-root .chat-list-row-wa-labels,
 html body .app-layout #main-content .chat-list-root .chat-list-row-tags {
   display: flex !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  gap: 4px !important;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
   height: 20px !important;
   overflow: hidden !important;
 }
@@ -676,24 +676,24 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech,
 html body .app-layout #main-content .chat-list-root .chat-list-badge-await,
 html body .app-layout #main-content .chat-list-root .chat-list-badge-sem-conversa {
   display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 5px !important;
-  min-height: 20px !important;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-height: 20px;
   height: 20px !important;
   max-height: 20px !important;
   padding: 0 8px !important;
   border: none !important;
   border-radius: 999px !important;
-  font-family: inherit !important;
+  font-family: inherit;
   font-size: 10.5px !important;
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
-  line-height: 1 !important;
-  white-space: nowrap !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
   overflow: hidden !important;
   box-shadow: none !important;
-  text-shadow: none !important;
+  text-shadow: none;
   animation: none !important;
   filter: none !important;
   backdrop-filter: none !important;
@@ -721,20 +721,20 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-reabe
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-client-badge-icon,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-badge-icon {
   display: inline-block !important;
-  flex: 0 0 auto !important;
+  flex: 0 0 auto;
   width: var(--zs-dot) !important;
   height: var(--zs-dot) !important;
-  min-width: var(--zs-dot) !important;
-  min-height: var(--zs-dot) !important;
+  min-width: var(--zs-dot);
+  min-height: var(--zs-dot);
   max-height: var(--zs-dot) !important;
-  margin: 0 !important;
+  margin: 0;
   padding: 0 !important;
   border: none !important;
   border-radius: 50% !important;
   background: currentColor !important;
   color: inherit !important;
   font-size: 0 !important;
-  line-height: 0 !important;
+  line-height: 0;
   overflow: hidden !important;
   opacity: 0.8 !important;
   box-shadow: none !important;
@@ -750,17 +750,17 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-reabe
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-client-label,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-pagamento-ok-label {
-  min-width: 0 !important;
-  flex: 0 1 auto !important;
+  min-width: 0;
+  flex: 0 1 auto;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  font-family: inherit !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
   font-size: inherit !important;
-  font-weight: inherit !important;
-  letter-spacing: 0 !important;
+  font-weight: inherit;
+  letter-spacing: 0;
   color: inherit !important;
-  text-shadow: none !important;
+  text-shadow: none;
 }
 
 /* --- As cinco tintas ------------------------------------------------- */
@@ -833,7 +833,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-prazo-sep {
   width: 1px !important;
   height: 9px !important;
-  margin: 0 1px !important;
+  margin: 0 1px;
   border: none !important;
   background: currentColor !important;
   opacity: 0.3 !important;
@@ -842,9 +842,9 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-prazo
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-await-time {
   color: inherit !important;
   opacity: 0.8 !important;
-  font-family: inherit !important;
+  font-family: inherit;
   font-size: 9.5px !important;
-  font-weight: 400 !important;
+  font-weight: 400;
 }
 
 /* O `-staff-main` ainda traz do chatList.css um balão com pseudo-elementos
@@ -861,7 +861,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staff::before {
   content: "" !important;
   display: inline-block !important;
-  flex: 0 0 auto !important;
+  flex: 0 0 auto;
   width: var(--zs-dot) !important;
   height: var(--zs-dot) !important;
   border-radius: 50% !important;
@@ -871,8 +871,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-status-tech--staf
 
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech-staff-label {
   font-size: 10px !important;
-  font-weight: 500 !important;
-  line-height: 1 !important;
+  font-weight: 500;
+  line-height: 1;
 }
 
 /* -----------------------------------------------------------------------
@@ -896,7 +896,7 @@ html body .app-layout #main-content .chat-list-root .chat-list-tag-mini:not(.cha
 
 html body .app-layout #main-content .chat-list-root .chat-list-tag-mini--colored {
   height: 18px !important;
-  min-height: 18px !important;
+  min-height: 18px;
   padding: 0 8px !important;
   border-radius: 999px !important;
   box-shadow: none !important;
@@ -917,8 +917,8 @@ html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .c
 ----------------------------------------------------------------------- */
 
 html body .app-layout #main-content .chat-list-root .chat-list-row:focus-visible {
-  outline: 2px solid var(--zs-accent) !important;
-  outline-offset: -2px !important;
+  outline: 2px solid var(--zs-accent);
+  outline-offset: -2px;
 }
 
 html body .app-layout #main-content .chat-list-root ::selection {
@@ -985,7 +985,7 @@ html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(
   html body .app-layout #main-content .chat-list-root .chat-list-row,
   html body .app-layout #main-content .chat-list-root .chat-list-row.zap-conversation-card {
     /* 6 + 8 = os mesmos 14px de recuo de antes. */
-    margin-inline: 6px !important;
+    margin-inline: 6px;
     padding: var(--zs-m-pad-y) 8px !important;
     padding-right: 32px !important;
   }

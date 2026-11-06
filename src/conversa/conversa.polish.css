@@ -251,8 +251,8 @@
 
   html body .app-layout #main-content .wa-header .wa-setorBtn-label {
     font-size: inherit !important;
-    font-weight: inherit !important;
-    letter-spacing: 0 !important;
+    font-weight: inherit;
+    letter-spacing: 0;
   }
 
   /* ---------------------------------------------------------------------
@@ -360,7 +360,7 @@
   --------------------------------------------------------------------- */
 
   html body .app-layout #main-content .wa-header .wa-actions[aria-busy="true"] {
-    cursor: progress !important;
+    cursor: progress;
   }
 
   html body .app-layout #main-content .wa-header .wa-actions[aria-busy="true"] :is(button, a) {
@@ -374,22 +374,22 @@
   --------------------------------------------------------------------- */
 
   html body .app-layout #main-content .wa-loadOlderHistory {
-    flex-direction: column !important;
-    gap: 6px !important;
+    flex-direction: column;
+    gap: 6px;
   }
 
   html body .app-layout #main-content .wa-loadOlderBtn {
-    flex: 0 0 auto !important;
+    flex: 0 0 auto;
     width: auto !important;
     max-width: 100% !important;
-    white-space: nowrap !important;
+    white-space: nowrap;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    text-overflow: ellipsis;
   }
 
   html body .app-layout #main-content .wa-loadOlderEnd {
     max-width: 52ch !important;
-    margin-inline: auto !important;
+    margin-inline: auto;
   }
 
   /* ---------------------------------------------------------------------
@@ -398,8 +398,8 @@
   --------------------------------------------------------------------- */
 
   html body .app-layout #main-content .wa-inlineMeta {
-    font-weight: 500 !important;
-    letter-spacing: 0 !important;
+    font-weight: 500;
+    letter-spacing: 0;
   }
 
   /* ---------------------------------------------------------------------
@@ -547,17 +547,17 @@
   --------------------------------------------------------------------- */
 
   html body .app-layout #main-content .wa-loadOlderHistory {
-    flex-direction: column !important;
-    gap: 6px !important;
+    flex-direction: column;
+    gap: 6px;
   }
 
   html body .app-layout #main-content .wa-loadOlderBtn {
-    flex: 0 0 auto !important;
+    flex: 0 0 auto;
     width: auto !important;
     max-width: 100% !important;
-    white-space: nowrap !important;
+    white-space: nowrap;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    text-overflow: ellipsis;
   }
 
   /* ---------------------------------------------------------------------
@@ -618,7 +618,7 @@
    * quem desenha é o botão.
    */
   html body .app-layout #main-content .wa-header .wa-header-mobileRow2-sector {
-    min-height: 38px !important;
+    min-height: 38px;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;

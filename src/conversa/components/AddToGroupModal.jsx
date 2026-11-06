@@ -1,3 +1,4 @@
+import "./forwardModal.css";
 import { createPortal } from "react-dom";
 import { getDisplayName } from "../../chats/chatList";
 import { IconClose } from "../conversaViewIcons";

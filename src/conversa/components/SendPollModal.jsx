@@ -1,3 +1,4 @@
+import "./sendPollModal.css";
 import { createPortal } from "react-dom";
 import { IconChartBar } from "@tabler/icons-react";
 import { IconClose } from "../conversaViewIcons";
