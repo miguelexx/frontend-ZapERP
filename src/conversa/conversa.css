@@ -13290,21 +13290,21 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 .wa-crmSend-heroIcon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   background: linear-gradient(135deg, rgba(5, 150, 105, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%);
   border: 1px solid rgba(16, 185, 129, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 28px auto 0;
+  margin: 20px auto 0;
   color: #2E86FF;
 }
 
 .wa-crmSend-headerText {
   text-align: center;
-  padding: 16px 32px 0;
+  padding: 11px 32px 0;
 }
 .wa-crmSend-title {
   font-size: 18px;
@@ -13314,16 +13314,16 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   letter-spacing: -0.01em;
 }
 .wa-crmSend-subtitle {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  line-height: 1.45;
   color: var(--ds-text-tertiary);
-  margin: 6px 0 0;
+  margin: 5px 0 0;
 }
 
 .wa-crmSend-form {
-  padding: 20px 24px 24px;
+  padding: 16px 22px 18px;
   display: grid;
-  gap: 16px;
+  gap: 13px;
   /* Área rolável quando as etapas não cabem — cabeçalho permanece visível. */
   flex: 1 1 auto;
   min-height: 0;
@@ -13369,33 +13369,31 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 
 /* "Registrar movimentação": painel premium, independente do envio de lead.
-   Observação gravada na oportunidade do cliente SEM mudar a etapa do funil. */
-.wa-crmSend-movSection {
-  margin-top: 20px;
-}
+   Observação gravada na oportunidade do cliente SEM mudar a etapa do funil.
+   Layout compacto: cabeçalho + dica + (textarea | botão) lado a lado. */
 .wa-crmSend-movCard {
   display: grid;
-  gap: 11px;
-  padding: 16px;
-  border-radius: 16px;
+  gap: 8px;
+  padding: 13px 14px;
+  border-radius: 14px;
   border: 1px solid var(--ds-border-strong, rgba(0, 0, 0, 0.08));
   background:
-    linear-gradient(180deg, var(--ds-accent-muted, rgba(46, 134, 255, 0.08)) 0%, transparent 56%),
+    linear-gradient(180deg, var(--ds-accent-muted, rgba(46, 134, 255, 0.08)) 0%, transparent 60%),
     var(--ds-surface-1, rgba(127, 127, 127, 0.04));
 }
 .wa-crmSend-movHead {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 .wa-crmSend-movIcon {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--ds-accent, #2E86FF);
   background: var(--ds-accent-soft, rgba(46, 134, 255, 0.14));
 }
@@ -13412,11 +13410,11 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   color: var(--ds-text-primary);
 }
 .wa-crmSend-movBadge {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
   color: var(--ds-accent, #2E86FF);
   background: var(--ds-accent-soft, rgba(46, 134, 255, 0.14));
@@ -13424,28 +13422,32 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 .wa-crmSend-movHint {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--ds-text-tertiary);
 }
+/* Textarea + botão na mesma linha para economizar altura. */
+.wa-crmSend-movInputRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
 .wa-crmSend-movTextarea {
-  min-height: 58px;
+  min-height: 42px;
+  flex: 1 1 auto;
 }
-.wa-crmSend-actions--mov {
-  justify-content: flex-end;
-  padding-top: 0;
-}
-/* Botão da movimentação: acento sólido azul, um pouco menor que o submit. */
+/* Botão da movimentação: acento sólido azul, alinhado à altura do textarea. */
 .wa-crmSend-movBtn {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 40px;
-  padding: 0 18px;
+  min-width: 76px;
+  padding: 0 16px;
   border: none;
   border-radius: 11px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 650;
   font-family: inherit;
   color: #fff;
@@ -13485,6 +13487,10 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 }
 .wa-crmSend-textarea::placeholder {
   color: var(--ds-text-muted);
+}
+/* Nota do lead: compacta (2 linhas) para caber tudo sem rolar. */
+.wa-crmSend-notaTextarea {
+  min-height: 52px;
 }
 .wa-crmSend-textarea:focus {
   outline: none;
@@ -13621,16 +13627,16 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   gap: 10px;
   padding-top: 4px;
 }
-/* No layout de etapas (Cancelar sozinho), fixa a ação no rodapé da área
-   rolável para ficar sempre alcançável, com um leve degradê acima. */
-.wa-crmSend-fieldGroup > .wa-crmSend-actions {
+/* Rodapé (Cancelar / Confirmar): fixo no fundo da área rolável para ficar
+   sempre alcançável quando o conteúdo precisar rolar, com degradê acima. */
+.wa-crmSend-footer {
   position: sticky;
-  bottom: -24px;
-  margin: 4px -24px -24px;
-  padding: 12px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  bottom: -18px;
+  margin: 2px -22px -18px;
+  padding: 12px 22px calc(18px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(
     to top,
-    var(--ds-bg-raised, #1f2733) 60%,
+    var(--ds-bg-raised, #1f2733) 62%,
     color-mix(in srgb, var(--ds-bg-raised, #1f2733) 0%, transparent)
   );
 }

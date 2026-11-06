@@ -120,6 +120,9 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
   // cai na lista plana `etapas` — comportamento de funil único.
   const funilAtual = funis.find((f) => f.id === selectedFunilId) || funis[0] || null;
   const etapasDoFunil = funilAtual ? funilAtual.etapas : etapas;
+  // Modo simples (sem etapas carregadas): o rodapé mostra "Confirmar envio".
+  // Com etapas, o envio é feito pelos chips e o rodapé só tem "Cancelar".
+  const mostrarConfirmar = !etapasLoading && etapasDoFunil.length === 0;
 
   useImperativeHandle(
     ref,
@@ -339,8 +342,8 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               </label>
               <textarea
                 id="wa-crmSend-obs"
-                className="wa-crmSend-textarea"
-                rows={3}
+                className="wa-crmSend-textarea wa-crmSend-notaTextarea"
+                rows={2}
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 placeholder="Contexto, próximos passos, objeções…"
@@ -400,29 +403,13 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
                     );
                   })}
                 </div>
-                <div className="wa-crmSend-actions">
-                  <button type="button" className="wa-crmSend-cancelBtn" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
-                    Cancelar
-                  </button>
-                </div>
               </div>
-            ) : (
-              <div className="wa-crmSend-actions wa-crmSend-actions--duo">
-                <button type="button" className="wa-crmSend-cancelBtn" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
-                  Cancelar
-                </button>
-                <button type="submit" className="wa-crmSend-submitBtn" disabled={loading} aria-busy={loading}>
-                  {loading ? <><IconSpinnerMini /> A enviar…</> : "Confirmar envio"}
-                </button>
-              </div>
-            )}
-          </form>
+            ) : null}
 
-          <div className="wa-crmSend-movSection">
             <div className="wa-crmSend-movCard">
               <div className="wa-crmSend-movHead">
                 <span className="wa-crmSend-movIcon" aria-hidden>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9" />
                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
                   </svg>
@@ -437,16 +424,16 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
               <p className="wa-crmSend-movHint">
                 Grava uma observação na oportunidade do cliente, mantendo a etapa atual do funil.
               </p>
-              <textarea
-                id="wa-crmSend-mov"
-                className="wa-crmSend-textarea wa-crmSend-movTextarea"
-                rows={2}
-                value={movTexto}
-                onChange={(e) => setMovTexto(e.target.value)}
-                placeholder="Ex.: Cliente pediu para retornar na segunda-feira."
-                disabled={movSaving}
-              />
-              <div className="wa-crmSend-actions wa-crmSend-actions--mov">
+              <div className="wa-crmSend-movInputRow">
+                <textarea
+                  id="wa-crmSend-mov"
+                  className="wa-crmSend-textarea wa-crmSend-movTextarea"
+                  rows={2}
+                  value={movTexto}
+                  onChange={(e) => setMovTexto(e.target.value)}
+                  placeholder="Ex.: Cliente pediu para retornar na segunda-feira."
+                  disabled={movSaving}
+                />
                 <button
                   type="button"
                   className="wa-crmSend-movBtn"
@@ -454,11 +441,22 @@ const SendToCrmChatButton = forwardRef(function SendToCrmChatButton(
                   disabled={movSaving || !movTexto.trim()}
                   aria-busy={movSaving}
                 >
-                  {movSaving ? <><IconSpinnerMini /> A salvar…</> : "Salvar movimentação"}
+                  {movSaving ? <IconSpinnerMini /> : "Salvar"}
                 </button>
               </div>
             </div>
-          </div>
+
+            <div className={`wa-crmSend-actions wa-crmSend-footer ${mostrarConfirmar ? "wa-crmSend-actions--duo" : ""}`}>
+              <button type="button" className="wa-crmSend-cancelBtn" onClick={() => !loading && setModalOpen(false)} disabled={loading}>
+                Cancelar
+              </button>
+              {mostrarConfirmar ? (
+                <button type="submit" className="wa-crmSend-submitBtn" disabled={loading} aria-busy={loading}>
+                  {loading ? <><IconSpinnerMini /> A enviar…</> : "Confirmar envio"}
+                </button>
+              ) : null}
+            </div>
+          </form>
         </div>
       </div>,
       document.body
