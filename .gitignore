@@ -3,3 +3,10 @@ test-results/
 playwright-report/
 coverage/
 *.log
+
+# Saidas de auditoria/Playwright criadas por assistentes. Nao sao codigo:
+# eram 1184 ficheiros e ~85 MB versionados, e pior, uma busca por nome de
+# classe no repositorio todo acertava nestes builds antigos e dava a entender
+# que codigo ja removido do src ainda existia.
+artifacts/
+.tmp-zaperp-audit-profile/
