@@ -245,6 +245,10 @@ export function chatRowIsStaleForTab(row, tab) {
   }
 
   if (t === "abertas") {
+    // Grupo NUNCA traz `exibir_badge_aberta` (o backend força false: grupo não tem estado de
+    // atendimento). Sem esta saída, todo grupo era considerado fora da aba e o realtime o
+    // removia da lista que o próprio GET tinha acabado de trazer.
+    if (isGroupConversation(row)) return false;
     const s = getStatusAtendimentoEffective(row);
     if (s && s !== "aberta") return true;
     if (row?.exibir_badge_aberta === false) return true;
@@ -330,7 +334,11 @@ export function rowStillBelongsToActiveTab(row, tab, opts = {}) {
   if (t === "todas" || t === "hoje") return true;
   if (t === "minha_fila") return conversaPertenceAMinhaFila(row, user?.id);
   if (t === "em_atendimento") return rowStillBelongsToEmAtendimentoLiveScope(row, opts);
-  if (t === "abertas") return getStatusAtendimentoEffective(row) === "aberta" && row?.exibir_badge_aberta !== false;
+  // Grupo pertence a "Abertas" pelo fato de existir — não tem badge nem estado de atendimento.
+  if (t === "abertas") {
+    if (isGroupConversation(row)) return true;
+    return getStatusAtendimentoEffective(row) === "aberta" && row?.exibir_badge_aberta !== false;
+  }
   if (t === "aguardando_cliente") {
     if (isModoSimplesAguardandoCliente(row, user)) return true;
     return isConversaAguardandoCliente(row, user);

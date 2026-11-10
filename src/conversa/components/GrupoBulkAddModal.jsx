@@ -70,7 +70,13 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
             <div style={{ fontSize: 13, background: "var(--ds-success-soft, rgba(22,163,74,0.12))", color: "var(--ds-text-secondary,#334155)", padding: "10px 12px", borderRadius: 10 }}>
               <b style={{ color: "var(--ds-success, #16a34a)" }}>{resultado.total || 0} na fila.</b>
               {resultado.ignorados ? ` ${resultado.ignorados} já estavam no grupo.` : ""}
-              {resultado.eta?.diasEstimados ? ` ~${resultado.eta.diasEstimados} dia(s).` : ""}
+              {/* `diasEstimados` é ceil(total/porDia): para 1 contato dava "~1 dia(s)" e assustava.
+                  Só vale dizer "dias" quando passa do que cabe num dia. */}
+              {resultado.total > 0 && resultado.eta?.porDia > 0
+                ? (resultado.total <= resultado.eta.porDia
+                  ? " Começa em instantes."
+                  : ` ~${resultado.eta.diasEstimados} dia(s).`)
+                : ""}
             </div>
           ) : null}
 
@@ -93,6 +99,18 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
                       <div style={{ height: "100%", width: `${pct}%`, background: op.falhados > 0 ? "var(--ds-warning,#d97706)" : "var(--ds-accent,#1e6fe8)", transition: "width .4s" }} />
                     </div>
                     {op.pausa_motivo ? <div style={{ fontSize: 11.5, color: "var(--ds-text-tertiary,#64748b)" }}>Pausada automaticamente: {op.pausa_motivo}.</div> : null}
+                    {/* Sem isto a tela dizia só "1 falha" e o porquê ficava no banco. */}
+                    {Array.isArray(op.erros) && op.erros.length > 0 ? (
+                      <div style={{ fontSize: 11.5, color: "var(--ds-warning,#b45309)", display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
+                        {op.erros.map((e, i) => (
+                          <div key={`${op.id}-erro-${i}`}>
+                            <b>{e.total > 1 ? `${e.total} contatos: ` : ""}</b>
+                            {e.mensagem}
+                            {Array.isArray(e.numeros) && e.numeros.length ? ` (${e.numeros.join(", ")})` : ""}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {ativa ? <button type="button" className="wa-btn" style={{ marginTop: 4, fontSize: 12 }} onClick={() => group.cancelFila(op.id).then(refreshOps)}>Cancelar</button> : null}
                   </div>
                 );
