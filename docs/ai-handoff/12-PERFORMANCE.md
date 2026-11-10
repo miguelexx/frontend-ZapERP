@@ -400,3 +400,81 @@ isolados: `composer mantém teclado…` (chromium-desktop, estoura o timeout de 
 Confirmado por comparação: HEAD dá 13 passou / 1 ignorado / **2 falhou**, exatamente o
 mesmo perfil. Ao medir uma mudança nesta área, compare contra a suite completa — o teste
 isolado passa em ambos os lados e engana.
+
+---
+
+## Tirar foto no celular (10/11/2026)
+
+Queixa: "no mobile está horrível para tirar fotos". O fluxo estava correto em
+funcionalidade e errado em custo — **cinco passagens pelo raster da foto** entre o
+disparo e o upload. Diagnóstico e o que mudou:
+
+| Onde | Custo antigo | Agora |
+| --- | --- | --- |
+| `openMediaSendPreview` (ConversaView) | foto da galeria (12–48 MP) virava o `<img>` do editor em resolução nativa | **cópia de trabalho única** (`prepareImageForSend`, teto 1920 px) é o que o editor, os filtros e o export usam; o original fica só para o botão "Original" |
+| `exportEditedImageFile` | **dois canvas em resolução nativa** (filtro no 1º, recorte no 2º) | **um canvas no tamanho final**: filtro + recorte + redução no mesmo `drawImage` |
+| envio sem edição | exportava sempre: `croppedAreaPixels` vem preenchido com o quadro inteiro desde o `onLoad`, então a condição nunca era falsa | `unedited` do editor curto-circuita o export — **zero decode/encode** |
+| desenho | `setState` por `pointermove` re-renderizava `ReactCrop` + os 7 chips de filtro | traço pintado **direto no canvas**; React só no `pointerup` |
+| chips de filtro | 7 × `background-image` apontando para a foto inteira | um thumbnail de 128 px (`createFilterThumbUrl`) reaproveitado pelos 7, gerado **só** quando a aba "Filtro" é aberta |
+| decode | `new Image()` na main thread | `createImageBitmap` (fora da main thread), `<img>` só como fallback (HEIC do iPhone) |
+| saída | 2048 px @ 0.92 ≈ 1,2 MB | 1920 px @ 0.86 ≈ 300 KB — o upload no 4G é o passo mais longo do envio |
+
+**Canvas no iOS:** acima de ~16,7 MP o Safari devolve canvas em branco. O caminho
+antigo criava dois canvas em resolução nativa; foto de 48 MP caía exatamente nessa
+armadilha. A cópia de trabalho elimina a classe inteira de problema.
+
+**A cópia de trabalho vive em `pendingWorkFileRef`, NÃO em `pendingFile`.** Primeira
+tentativa foi trocar o `pendingFile` quando a cópia ficava pronta — errado: o
+`PendingMediaPreview` tem três efeitos com `[pendingFile]` nas deps (auto-grow da
+legenda, autofoco no desktop e a armadilha de foco). Trocar o arquivo reexecutava os
+três no meio da abertura do preview e, na janela entre o autofoco e a cópia ficar
+pronta, o foco podia parar no botão "X" — um Enter ali cancelaria o envio. Só o
+`pendingPreview` troca (e o `useEffect` de `pendingPreview` já revoga a URL anterior,
+não revogue à mão). `pendingFile` continua sendo o arquivo original do atendente.
+
+### Câmera (`useAttachmentPicker`)
+
+- `prefetchPhotoPipeline()` ao abrir a câmera **e** ao abrir o menu de anexos: o chunk
+  do `ImageSendPreviewMobile` (+ `react-image-crop`) carrega enquanto o atendente
+  enquadra, em vez de um round-trip de rede **depois** da foto pronta.
+- `waitFirstFrame`: o disparador só libera com `videoWidth > 0`. Antes dava para tocar
+  antes do frame e a resposta era "A câmera ainda não está pronta".
+- `width/height: { ideal: 1920×1080 }`: o modo máximo do sensor demora mais a
+  negociar — **e** o `getUserMedia` sem restrição de tamanho entrega o padrão do
+  navegador, que no Chrome é **640×480**. A foto tirada pela câmera direta saía nesse
+  tamanho. Esta linha é a razão pela qual a foto agora sai em 1080p.
+- **Abre sempre na traseira** (`CAMERA_DEFAULT_FACING`). O botão de virar vale só
+  enquanto a câmera está aberta; não guarda preferência. Guardar em `localStorage` foi
+  tentado e desfeito: quem virasse uma vez abriria sempre na frontal.
+- `startStream` solta a lente anterior **antes** de pedir a nova (ordem do código
+  original): há Android que recusa a frontal com a traseira ainda aberta.
+- `facingMode: { exact }` continua primeiro (garante a traseira no celular); o fallback
+  `ideal` só roda em aparelho sem a lente pedida. **Não inverter essa ordem.**
+- `enumerateDevices` (botão de virar) roda **depois** do `getUserMedia` — na frente
+  atrasava justamente a abertura.
+- Feedback no mesmo toque: `navigator.vibrate(14)` + `.wa-cameraCapture-flash` (só
+  opacidade, sem reflow), antes de qualquer encode.
+- Novos controles aditivos: virar câmera e lanterna (`track.getCapabilities().torch`,
+  só traseira e só onde existe).
+- A captura **não** espelha a frontal: o `<video>` do preview também não é espelhado,
+  espelhar só na foto faria a imagem sair diferente do que se viu.
+
+### Deixado intacto de propósito
+
+- `handleEnviarArquivo` e toda a cadeia otimista (bolha → HTTP → reconcile por
+  `tempId` → outbox → watchdog): **nada** mudou ali. A única diferença é qual objeto
+  `File` chega nela.
+- `exportCroppedImageFile` ficou byte a byte como estava. Não tem chamador em `src/`,
+  `e2e/` nem `scripts/` — reescrevê-la era risco sem ganho. Se voltar a ser usada,
+  mande para `exportEditedImageFile`: a versão antiga cria dois canvas nativos.
+- Nada de `setPointerCapture` no canvas de desenho nem `{ passive: false }` no
+  `pointermove`: os listeners de `window` já cobriam o dedo saindo da imagem.
+- `FULL_CROP_EPSILON` é 0,05 % (≈1 px em 1920). Margem larga aqui faria um corte
+  pequeno de verdade ser tratado como "não editou" e silenciosamente ignorado.
+
+### Ainda pesado (decisão do Miguel)
+
+O **lote** da fototeca (`handleFototecaInputChange`, 2+ fotos) não passa pela cópia de
+trabalho: envia os originais. 10 fotos de 5 MB = 50 MB de upload. Correto, só caro.
+
+Travado por `scripts/test-foto-mobile-pipeline.mjs` (no `test:node`).

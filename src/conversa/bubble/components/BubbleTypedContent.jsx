@@ -8,6 +8,7 @@ import ContactMessage from "./ContactMessage";
 import PollMessage from "./PollMessage";
 import ProductMessage from "./ProductMessage";
 import OrderMessage from "./OrderMessage";
+import LinkPreviewMessage from "./LinkPreviewMessage";
 import PixMessage from "./PixMessage";
 import WhapiTriageMessage from "./WhapiTriageMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
@@ -56,6 +57,8 @@ export default function BubbleTypedContent({
     catalogMeta,
     isOrder,
     orderMeta,
+    hasLinkPreview,
+    linkPreviewMeta,
     isCall,
     hasText,
     texto,
@@ -175,6 +178,17 @@ export default function BubbleTypedContent({
   }
   if (includeAudioAndCall && isCall) {
     return <CallMessage texto={texto} />;
+  }
+  // Link com pré-visualização: cartão (foto + título + descrição + domínio) ACIMA do texto.
+  if (hasLinkPreview) {
+    return (
+      <>
+        <LinkPreviewMessage meta={linkPreviewMeta} />
+        {hasText ? (
+          <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />
+        ) : null}
+      </>
+    );
   }
   if (hasText) {
     return <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />;

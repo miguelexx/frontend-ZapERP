@@ -109,6 +109,7 @@ export function useConversationOutboundMedia({
   pendingCaption,
   pendingSendOptions,
   pendingConversaIdRef,
+  pendingWorkFileRef,
   confirmSendLockRef,
   beginSearchResultSendTransition,
 }) {
@@ -905,7 +906,16 @@ export function useConversationOutboundMedia({
   }, [pendingFile, pendingCaption, pendingSendOptions, conversaId, clearPending, handleEnviarArquivo]);
   
   const handleConfirmSendImageMobile = useCallback(
-    async ({ sendAsOriginal, croppedAreaPixels, fileName, mimeType, imageSrc, filterId, strokes }) => {
+    async ({
+      sendAsOriginal,
+      unedited,
+      croppedAreaPixels,
+      fileName,
+      mimeType,
+      imageSrc,
+      filterId,
+      strokes,
+    }) => {
       if (!pendingFile || !pendingPreview || confirmSendLockRef.current) return;
       if (pendingConversaIdRef.current && String(pendingConversaIdRef.current) !== String(conversaId)) {
         clearPending();
@@ -914,28 +924,52 @@ export function useConversationOutboundMedia({
       confirmSendLockRef.current = true;
       try {
         const captionToSend = pendingCaption;
-        let fileToSend = pendingFile;
         const sourceUrl = imageSrc || pendingPreview;
-        const { exportEditedImageFile, getImageSendFilterCss } = await import("../utils/imageCropExport.js");
-        const filterCss = getImageSendFilterCss(filterId);
-        const hasDraw = Array.isArray(strokes) && strokes.length > 0;
-        const hasFilter = filterCss && filterCss !== "none";
-        if (!sendAsOriginal && (croppedAreaPixels || hasDraw || hasFilter || sourceUrl !== pendingPreview)) {
-          fileToSend = await exportEditedImageFile({
-            imageSrc: sourceUrl,
-            pixelCrop: croppedAreaPixels,
-            filterCss,
-            strokes: hasDraw ? strokes : [],
-            fileName: fileName || pendingFile.name,
-            mimeType: mimeType || pendingFile.type,
-          });
+        // "Original" envia o arquivo como veio da câmera/galeria (`pendingFile`,
+        // que nunca é trocado); os demais caminhos partem da cópia de trabalho
+        // quando ela existe (foto grande da galeria).
+        const workFile = pendingWorkFileRef?.current || pendingFile;
+        let fileToSend = sendAsOriginal ? pendingFile : workFile;
+
+        if (!sendAsOriginal) {
+          const { exportEditedImageFile, getImageSendFilterCss } = await import(
+            "../utils/imageCropExport.js"
+          );
+          const filterCss = getImageSendFilterCss(filterId);
+          const hasDraw = Array.isArray(strokes) && strokes.length > 0;
+          const hasFilter = filterCss && filterCss !== "none";
+          const rotated = sourceUrl !== pendingPreview;
+          // Sem corte, filtro, traço ou rotação o arquivo preparado JÁ é o
+          // final: reencodar aqui só gastava 0,5–2 s e perdia qualidade. Antes
+          // o export rodava sempre, porque `croppedAreaPixels` vem preenchido
+          // com o quadro inteiro desde o onLoad da foto.
+          const needsExport = unedited === true ? false : hasDraw || hasFilter || rotated || !!croppedAreaPixels;
+          if (needsExport) {
+            fileToSend = await exportEditedImageFile({
+              imageSrc: sourceUrl,
+              pixelCrop: croppedAreaPixels,
+              filterCss,
+              strokes: hasDraw ? strokes : [],
+              fileName: fileName || workFile.name,
+              mimeType: mimeType || workFile.type,
+            });
+          }
         }
         await handleEnviarArquivo(fileToSend, { ...pendingSendOptions, caption: captionToSend });
       } finally {
         confirmSendLockRef.current = false;
       }
     },
-    [pendingFile, pendingPreview, pendingCaption, pendingSendOptions, conversaId, clearPending, handleEnviarArquivo]
+    [
+      pendingFile,
+      pendingPreview,
+      pendingCaption,
+      pendingSendOptions,
+      pendingWorkFileRef,
+      conversaId,
+      clearPending,
+      handleEnviarArquivo,
+    ]
   );
   
   const persistRecentSticker = useCallback(

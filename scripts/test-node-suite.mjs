@@ -43,6 +43,7 @@ const tests = [
   "test-company-timezone.mjs",
   "test-importar-clientes-helpers.mjs",
   "test-image-send-edit.mjs",
+  "test-foto-mobile-pipeline.mjs",
   "test-contact-conversation-routing.mjs",
   "test-conversation-boundary.mjs",
   "test-conversa-refresh-races.mjs",

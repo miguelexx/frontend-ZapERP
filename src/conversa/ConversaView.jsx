@@ -69,6 +69,7 @@ import {
   isOutgoingMessage,
   isImageFile,
   isVideoFile,
+  isEditableImageForSend,
   isArquivoBloqueadoWhatsApp,
   mensagemArquivoBloqueadoWhatsApp,
   getMediaUrl,
@@ -436,6 +437,16 @@ function ConversaViewBody() {
   const pendingBlobUrlRef = useRef(null);
   const pendingConversaIdRef = useRef(null);
   const confirmSendLockRef = useRef(false);
+  /**
+   * Cópia de trabalho da foto (teto de envio). Fica em ref, e NÃO em
+   * `pendingFile`, de propósito: trocar `pendingFile` reexecuta os efeitos de
+   * foco do `PendingMediaPreview` e, na janela entre a abertura e a cópia
+   * ficar pronta, o foco podia pular para o "X" no desktop. `pendingFile`
+   * segue sendo o arquivo original — é o que o botão "Original" envia.
+   */
+  const pendingWorkFileRef = useRef(null);
+  /** Geração do preview: descarta cópia de trabalho de uma foto já trocada. */
+  const mediaPrepareGenerationRef = useRef(0);
   /** Evita POST duplicado do mesmo arquivo (double-click / Enter + botão). */
   const arquivoEnvioInFlightRef = useRef(new Set());
   /** Fila FIFO de envio de áudios: cada gravação envia em sequência (ordem preservada). */
@@ -1353,6 +1364,8 @@ function ConversaViewBody() {
         URL.revokeObjectURL(pendingPreview);
       } catch {}
     }
+    mediaPrepareGenerationRef.current += 1;
+    pendingWorkFileRef.current = null;
     pendingConversaIdRef.current = null;
     setPendingFile(null);
     setPendingPreview(null);
@@ -1371,21 +1384,67 @@ function ConversaViewBody() {
       return;
     }
     pendingConversaIdRef.current = conversaId;
+    pendingWorkFileRef.current = null;
+    const generation = mediaPrepareGenerationRef.current + 1;
+    mediaPrepareGenerationRef.current = generation;
     setPendingFile(file);
     setPendingSendOptions(opts && typeof opts === "object" ? opts : {});
     setPendingCaption("");
-    if (isImageFile(file) || isVideoFile(file)) {
-      requestAnimationFrame(() => {
-        try {
-          const url = fileToPreviewURL(file);
-          setPendingPreview(url);
-        } catch {
-          setPendingPreview(null);
-        }
-      });
-    } else {
+    if (!(isImageFile(file) || isVideoFile(file))) {
       setPendingPreview(null);
+      return;
     }
+
+    // Preview instantâneo com o arquivo cru: o atendente vê a foto no frame
+    // seguinte, sem esperar nenhum processamento.
+    let rawUrl = null;
+    let swapped = false;
+    requestAnimationFrame(() => {
+      if (swapped || generation !== mediaPrepareGenerationRef.current) return;
+      try {
+        rawUrl = fileToPreviewURL(file);
+        setPendingPreview(rawUrl);
+      } catch {
+        setPendingPreview(null);
+      }
+    });
+
+    if (!isEditableImageForSend(file)) return;
+
+    /**
+     * Cópia de trabalho no teto de envio. A foto da galeria do celular tem
+     * 12–48 MP: manter esse raster vivo fazia o editor abrir arrastando, os
+     * filtros travarem e o export estourar memória (no iOS um canvas acima de
+     * ~16 MP volta em branco). Daqui para frente tudo opera em ~2 MP — e o
+     * upload cai de ~5 MB para algumas centenas de KB.
+     * Foto vinda da câmera já nasce pequena: `prepareImageForSend` devolve o
+     * próprio arquivo (`downscaled: false`), o ref fica nulo e o envio usa o
+     * `pendingFile` — exatamente como antes.
+     */
+    import("./utils/imageCropExport.js")
+      .then(({ prepareImageForSend }) => prepareImageForSend(file))
+      .then((prepared) => {
+        const stale = generation !== mediaPrepareGenerationRef.current;
+        if (stale || !prepared?.downscaled) {
+          if (prepared?.url) {
+            try {
+              URL.revokeObjectURL(prepared.url);
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+        swapped = true;
+        pendingWorkFileRef.current = prepared.file;
+        // Só o preview troca: o `useEffect` de `pendingPreview` já revoga a URL
+        // anterior (a crua), então não há o que limpar aqui.
+        setPendingPreview(prepared.url);
+        rawUrl = null;
+      })
+      .catch(() => {
+        /* fica com o arquivo original: o envio segue pelo caminho antigo */
+      });
   }, [conversaId, showToast]);
 
   const handleBackToList = useCallback(() => {
@@ -1835,6 +1894,7 @@ function ConversaViewBody() {
     pendingCaption,
     pendingSendOptions,
     pendingConversaIdRef,
+    pendingWorkFileRef,
     confirmSendLockRef,
     beginSearchResultSendTransition,
   });

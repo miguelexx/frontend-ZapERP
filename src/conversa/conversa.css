@@ -5782,6 +5782,62 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 .wa-orderMsg-total strong { font-size: 14px; font-weight: 700; color: #079a74; }
 [data-theme="dark"] .wa-orderMsg-total strong { color: #29c79a; }
 
+/* ───────── Pré-visualização de link — LinkPreviewMessage ───────── */
+.wa-linkPrev {
+  width: 258px;
+  max-width: 76vw;
+  margin-bottom: 4px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(11, 20, 26, 0.06);
+  cursor: pointer;
+}
+[data-theme="dark"] .wa-linkPrev {
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.wa-linkPrev-img {
+  width: 100%;
+  aspect-ratio: 1.91 / 1;
+  object-fit: cover;
+  display: block;
+  background: rgba(11, 20, 26, 0.06);
+}
+.wa-linkPrev-img--empty { display: grid; place-items: center; color: rgba(11, 20, 26, 0.3); }
+[data-theme="dark"] .wa-linkPrev-img { background: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .wa-linkPrev-img--empty { color: rgba(255, 255, 255, 0.28); }
+.wa-linkPrev-info { display: flex; flex-direction: column; gap: 2px; padding: 8px 11px 10px; }
+.wa-linkPrev-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ds-text-primary, #10232e);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+[data-theme="dark"] .wa-linkPrev-title { color: #e9edef; }
+.wa-linkPrev-desc {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ds-text-secondary, #667781);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wa-linkPrev-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: #079a74;
+}
+[data-theme="dark"] .wa-linkPrev-domain { color: #29c79a; }
+
 
 [data-theme="dark"] .wa-poll-option {
   background: rgba(255, 255, 255, 0.04);
@@ -14940,6 +14996,68 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 .wa-cameraCapture-shot:disabled {
   cursor: wait;
   opacity: 0.58;
+}
+
+.wa-cameraCapture-flip {
+  grid-column: 3;
+  justify-self: end;
+  width: 46px;
+  height: 46px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.wa-cameraCapture-flip:disabled {
+  opacity: 0.45;
+}
+
+.wa-cameraCapture-torch {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.wa-cameraCapture-torch.is-on {
+  color: #0f172a;
+  background: #fbbf24;
+}
+
+/* Piscada do disparo: só opacidade, sem reflow — não disputa com o encode. */
+.wa-cameraCapture-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: #ffffff;
+  animation: wa-cameraShotFlash 120ms ease-out forwards;
+  will-change: opacity;
+}
+
+@keyframes wa-cameraShotFlash {
+  from {
+    opacity: 0.82;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-cameraCapture-flash {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /* ==========================================================================

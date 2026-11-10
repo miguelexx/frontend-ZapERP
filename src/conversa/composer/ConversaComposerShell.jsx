@@ -202,9 +202,15 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     cameraOpen: cameraCaptureOpen,
     cameraStarting: cameraCaptureStarting,
     cameraError: cameraCaptureError,
+    cameraCanFlip,
+    cameraTorchAvailable,
+    cameraTorchOn,
+    cameraFlash,
     closeCamera: closeCameraCapture,
     openGallery: openFototecaPicker,
     openCamera: handleOpenCameraCapture,
+    flipCamera: handleFlipCamera,
+    toggleCameraTorch: handleToggleCameraTorch,
     captureCameraPhoto: handleCaptureCameraPhoto,
   } = attachments;
 
@@ -756,6 +762,12 @@ const ConversaComposer = forwardRef(function ConversaComposer(
             canvasRef={cameraCanvasRef}
             starting={cameraCaptureStarting}
             error={cameraCaptureError}
+            flash={cameraFlash}
+            canFlip={cameraCanFlip}
+            torchAvailable={cameraTorchAvailable}
+            torchOn={cameraTorchOn}
+            onFlip={handleFlipCamera}
+            onToggleTorch={handleToggleCameraTorch}
             onClose={closeCameraCapture}
             onCapture={handleCaptureCameraPhoto}
           />

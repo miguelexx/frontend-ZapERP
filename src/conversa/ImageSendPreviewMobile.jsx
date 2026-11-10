@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactCrop from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import { Crop, Maximize2, Pencil, RotateCw, Sparkles, Undo2, X } from "lucide-react";
 import {
+  createFilterThumbUrl,
   cropToNaturalPixels,
   FULL_IMAGE_CROP_PERCENT,
   getImageSendFilterCss,
   IMAGE_SEND_DRAW_COLORS,
   IMAGE_SEND_FILTERS,
+  isUneditedImageSend,
   rotateImageBlobUrl,
 } from "./utils/imageCropExport.js";
 
@@ -22,46 +24,46 @@ function clientToNorm(clientX, clientY, img) {
   };
 }
 
-function paintStrokes(canvas, width, height, strokes, current) {
-  if (!canvas || width <= 0 || height <= 0) return;
-  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  canvas.width = Math.max(1, Math.round(width * dpr));
-  canvas.height = Math.max(1, Math.round(height * dpr));
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  const all = current ? [...strokes, current] : strokes;
-  for (const stroke of all) {
-    const points = stroke?.points || [];
-    if (!points.length) continue;
-    const color = stroke.color || "#ef4444";
-    const lineWidth = Math.max(1.5, (stroke.widthNorm || DRAW_WIDTH_NORM) * Math.min(width, height));
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    if (points.length === 1) {
-      ctx.beginPath();
-      ctx.arc(points[0].x * width, points[0].y * height, lineWidth / 2, 0, Math.PI * 2);
-      ctx.fill();
-      continue;
-    }
+function strokeStyleOnCtx(ctx, stroke, width, height) {
+  const color = stroke?.color || "#ef4444";
+  const lineWidth = Math.max(1.5, (stroke?.widthNorm || DRAW_WIDTH_NORM) * Math.min(width, height));
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  return lineWidth;
+}
+
+function paintStroke(ctx, stroke, width, height) {
+  const points = stroke?.points || [];
+  if (!points.length) return;
+  const lineWidth = strokeStyleOnCtx(ctx, stroke, width, height);
+  if (points.length === 1) {
     ctx.beginPath();
-    ctx.moveTo(points[0].x * width, points[0].y * height);
-    for (let i = 1; i < points.length; i += 1) {
-      ctx.lineTo(points[i].x * width, points[i].y * height);
-    }
-    ctx.stroke();
+    ctx.arc(points[0].x * width, points[0].y * height, lineWidth / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
   }
+  ctx.beginPath();
+  ctx.moveTo(points[0].x * width, points[0].y * height);
+  for (let i = 1; i < points.length; i += 1) {
+    ctx.lineTo(points[i].x * width, points[i].y * height);
+  }
+  ctx.stroke();
 }
 
 /**
  * Preview unificado (mobile e desktop): cortar, desenhar, filtro e girar
  * antes de enviar a foto (print colado incluso).
+ *
+ * Desempenho no celular (auditoria 10/11/2026):
+ *  - o traço é pintado DIRETO no canvas durante o `pointermove`; antes cada
+ *    movimento do dedo fazia `setState` e re-renderizava ReactCrop + os 7 chips
+ *    de filtro — era o travamento ao desenhar;
+ *  - os chips de filtro usam um thumbnail de 128 px, não a foto inteira;
+ *  - `imageUrl` já chega como cópia de trabalho no teto de envio (ConversaView),
+ *    então nada aqui encosta no raster nativo de 12–48 MP.
  */
 export default function ImageSendPreviewMobile({
   rootRef,
@@ -79,25 +81,33 @@ export default function ImageSendPreviewMobile({
   const imgRef = useRef(null);
   const stageRef = useRef(null);
   const drawCanvasRef = useRef(null);
+  const drawCtxRef = useRef(null);
+  const drawSizeRef = useRef({ width: 0, height: 0 });
   const displayUrlRef = useRef(imageUrl);
   const drawingRef = useRef(false);
   const currentStrokeRef = useRef(null);
+  const strokesRef = useRef([]);
   const [displayUrl, setDisplayUrl] = useState(imageUrl);
+  const [thumbUrl, setThumbUrl] = useState(null);
+  /** Trava em true no primeiro toque em "Filtro": sem isso o thumbnail seria
+   *  gerado em toda foto, inclusive nos envios que nunca abrem os filtros. */
+  const [wantThumb, setWantThumb] = useState(false);
   const [crop, setCrop] = useState(FULL_IMAGE_CROP_PERCENT);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [sendAsOriginal, setSendAsOriginal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [rotating, setRotating] = useState(false);
+  const [rotated, setRotated] = useState(false);
   const [tool, setTool] = useState("crop");
   const [filterId, setFilterId] = useState("none");
   const [drawColor, setDrawColor] = useState(IMAGE_SEND_DRAW_COLORS[0]);
   const [strokes, setStrokes] = useState([]);
-  const [currentStroke, setCurrentStroke] = useState(null);
 
   const busy = sending || exporting || rotating;
   const filterCss = getImageSendFilterCss(filterId);
   const cropEnabled = !sendAsOriginal && tool !== "draw";
   const drawEnabled = !sendAsOriginal && tool === "draw";
+  const filterThumbUrl = thumbUrl || displayUrl;
 
   const syncPixelCrop = useCallback((nextCrop) => {
     const img = imgRef.current;
@@ -106,6 +116,7 @@ export default function ImageSendPreviewMobile({
     if (pixels) setCroppedAreaPixels(pixels);
   }, []);
 
+  /** Reposiciona/redimensiona o canvas e repinta tudo (resize, desfazer, girar). */
   const syncDrawOverlay = useCallback(() => {
     const img = imgRef.current;
     const stage = stageRef.current;
@@ -115,8 +126,23 @@ export default function ImageSendPreviewMobile({
     const sr = stage.getBoundingClientRect();
     canvas.style.left = `${ir.left - sr.left}px`;
     canvas.style.top = `${ir.top - sr.top}px`;
-    paintStrokes(canvas, ir.width, ir.height, strokes, currentStroke);
-  }, [currentStroke, strokes]);
+    const width = ir.width;
+    const height = ir.height;
+    if (width <= 0 || height <= 0) return;
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawCtxRef.current = ctx;
+    drawSizeRef.current = { width, height };
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    for (const stroke of strokesRef.current) paintStroke(ctx, stroke, width, height);
+    if (currentStrokeRef.current) paintStroke(ctx, currentStrokeRef.current, width, height);
+  }, []);
 
   const onImageLoad = useCallback(
     (e) => {
@@ -141,14 +167,19 @@ export default function ImageSendPreviewMobile({
     [syncPixelCrop]
   );
 
+  const resetStrokes = useCallback(() => {
+    currentStrokeRef.current = null;
+    strokesRef.current = [];
+    setStrokes([]);
+  }, []);
+
   const handleResetCrop = useCallback(() => {
     setCrop(FULL_IMAGE_CROP_PERCENT);
     syncPixelCrop(FULL_IMAGE_CROP_PERCENT);
     setFilterId("none");
-    setStrokes([]);
-    setCurrentStroke(null);
+    resetStrokes();
     setTool("crop");
-  }, [syncPixelCrop]);
+  }, [resetStrokes, syncPixelCrop]);
 
   const handleRotate = useCallback(async () => {
     if (rotating || sendAsOriginal) return;
@@ -165,25 +196,76 @@ export default function ImageSendPreviewMobile({
       }
       displayUrlRef.current = next;
       setDisplayUrl(next);
+      setRotated(true);
       setCrop(FULL_IMAGE_CROP_PERCENT);
-      setStrokes([]);
-      setCurrentStroke(null);
+      resetStrokes();
     } catch (err) {
       console.error("[ImageSendPreview] rotate:", err);
     } finally {
       setRotating(false);
     }
-  }, [imageUrl, rotating, sendAsOriginal]);
+  }, [imageUrl, resetStrokes, rotating, sendAsOriginal]);
+
+  const handleUndo = useCallback(() => {
+    currentStrokeRef.current = null;
+    setStrokes((list) => {
+      const next = list.slice(0, -1);
+      strokesRef.current = next;
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     displayUrlRef.current = imageUrl;
     setDisplayUrl(imageUrl);
     setCrop(FULL_IMAGE_CROP_PERCENT);
     setFilterId("none");
-    setStrokes([]);
-    setCurrentStroke(null);
+    setRotated(false);
+    setWantThumb(false);
+    resetStrokes();
     setTool("crop");
-  }, [imageUrl]);
+  }, [imageUrl, resetStrokes]);
+
+  useEffect(() => {
+    if (tool === "filter") setWantThumb(true);
+  }, [tool]);
+
+  /**
+   * Thumbnail dos chips de filtro: uma reescala, reaproveitada pelos 7 chips.
+   * Enquanto não estiver pronto, cai na própria foto (que já é a cópia leve).
+   */
+  useEffect(() => {
+    if (!displayUrl || !wantThumb) return undefined;
+    let alive = true;
+    let created = null;
+    setThumbUrl(null);
+    createFilterThumbUrl(displayUrl)
+      .then((url) => {
+        if (!alive) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        created = url;
+        setThumbUrl(url);
+      })
+      .catch(() => {
+        /* fallback: usa displayUrl */
+      });
+    return () => {
+      alive = false;
+      if (created) {
+        try {
+          URL.revokeObjectURL(created);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+  }, [displayUrl, wantThumb]);
 
   useEffect(
     () => () => {
@@ -200,6 +282,9 @@ export default function ImageSendPreviewMobile({
   );
 
   useLayoutEffect(() => {
+    // Espelho dos traços confirmados para o repaint imperativo. Fica aqui (e
+    // não no corpo do render) para não escrever em ref durante a renderização.
+    strokesRef.current = strokes;
     syncDrawOverlay();
     const img = imgRef.current;
     if (!img || typeof ResizeObserver === "undefined") return undefined;
@@ -210,36 +295,44 @@ export default function ImageSendPreviewMobile({
       ro.disconnect();
       window.removeEventListener("resize", syncDrawOverlay);
     };
-  }, [syncDrawOverlay, displayUrl, cropEnabled, sendAsOriginal]);
+  }, [syncDrawOverlay, displayUrl, cropEnabled, sendAsOriginal, strokes]);
 
   const beginStroke = useCallback(
     (e) => {
       if (!drawEnabled || busy) return;
       const img = imgRef.current;
-      if (!img) return;
+      const ctx = drawCtxRef.current;
+      if (!img || !ctx) return;
       const pt = clientToNorm(e.clientX, e.clientY, img);
       if (!pt) return;
       e.preventDefault();
       drawingRef.current = true;
       const stroke = { color: drawColor, widthNorm: DRAW_WIDTH_NORM, points: [pt] };
       currentStrokeRef.current = stroke;
-      setCurrentStroke(stroke);
+      const { width, height } = drawSizeRef.current;
+      paintStroke(ctx, stroke, width, height);
     },
     [busy, drawColor, drawEnabled]
   );
 
+  /** Pinta só o segmento novo: zero re-render de React por movimento do dedo. */
   const moveStroke = useCallback((e) => {
     if (!drawingRef.current) return;
     const img = imgRef.current;
-    if (!img) return;
+    const ctx = drawCtxRef.current;
+    const stroke = currentStrokeRef.current;
+    if (!img || !ctx || !stroke) return;
     const pt = clientToNorm(e.clientX, e.clientY, img);
     if (!pt) return;
     e.preventDefault();
-    const prev = currentStrokeRef.current;
-    if (!prev) return;
-    const next = { ...prev, points: [...prev.points, pt] };
-    currentStrokeRef.current = next;
-    setCurrentStroke(next);
+    const prev = stroke.points[stroke.points.length - 1];
+    stroke.points.push(pt);
+    const { width, height } = drawSizeRef.current;
+    strokeStyleOnCtx(ctx, stroke, width, height);
+    ctx.beginPath();
+    ctx.moveTo(prev.x * width, prev.y * height);
+    ctx.lineTo(pt.x * width, pt.y * height);
+    ctx.stroke();
   }, []);
 
   const endStroke = useCallback(() => {
@@ -247,9 +340,12 @@ export default function ImageSendPreviewMobile({
     drawingRef.current = false;
     const done = currentStrokeRef.current;
     currentStrokeRef.current = null;
-    setCurrentStroke(null);
     if (done?.points?.length) {
-      setStrokes((list) => [...list, done]);
+      setStrokes((list) => {
+        const next = [...list, done];
+        strokesRef.current = next;
+        return next;
+      });
     }
   }, []);
 
@@ -275,8 +371,12 @@ export default function ImageSendPreviewMobile({
       if (!sendAsOriginal && imgRef.current && crop) {
         pixels = cropToNaturalPixels(crop, imgRef.current) || pixels;
       }
+      // Sem corte, sem filtro, sem traço e sem girar: o arquivo exibido já é o
+      // final. Sinalizar isso deixa o envio sair sem decode + canvas + encode.
+      const unedited = isUneditedImageSend({ crop, filterId, strokes, rotated });
       await onSend({
         sendAsOriginal,
+        unedited,
         croppedAreaPixels: pixels,
         rotation: 0,
         imageSrc: displayUrlRef.current,
@@ -290,7 +390,30 @@ export default function ImageSendPreviewMobile({
     } finally {
       setExporting(false);
     }
-  }, [busy, crop, croppedAreaPixels, fileName, filterId, mimeType, onSend, sendAsOriginal, strokes]);
+  }, [
+    busy,
+    crop,
+    croppedAreaPixels,
+    fileName,
+    filterId,
+    mimeType,
+    onSend,
+    rotated,
+    sendAsOriginal,
+    strokes,
+  ]);
+
+  const filterChips = useMemo(
+    () =>
+      IMAGE_SEND_FILTERS.map((f) => ({
+        ...f,
+        style: {
+          backgroundImage: filterThumbUrl ? `url(${filterThumbUrl})` : undefined,
+          filter: f.css === "none" ? undefined : f.css,
+        },
+      })),
+    [filterThumbUrl]
+  );
 
   const photo = (
     <img
@@ -402,7 +525,7 @@ export default function ImageSendPreviewMobile({
 
       {tool === "filter" && !sendAsOriginal ? (
         <div className="wa-imageSendFilters" role="listbox" aria-label="Filtros">
-          {IMAGE_SEND_FILTERS.map((f) => (
+          {filterChips.map((f) => (
             <button
               key={f.id}
               type="button"
@@ -411,10 +534,7 @@ export default function ImageSendPreviewMobile({
               disabled={busy}
               aria-pressed={filterId === f.id}
             >
-              <span
-                className="wa-imageSendFilter-thumb"
-                style={{ backgroundImage: `url(${displayUrl})`, filter: f.css === "none" ? undefined : f.css }}
-              />
+              <span className="wa-imageSendFilter-thumb" style={f.style} />
               <span className="wa-imageSendFilter-label">{f.label}</span>
             </button>
           ))}
@@ -442,7 +562,7 @@ export default function ImageSendPreviewMobile({
         <button
           type="button"
           className="wa-imageSendEditBar-btn"
-          onClick={() => setStrokes((list) => list.slice(0, -1))}
+          onClick={handleUndo}
           disabled={busy || sendAsOriginal || strokes.length === 0}
           aria-label="Desfazer traço"
           title="Desfazer"
