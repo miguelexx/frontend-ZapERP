@@ -275,10 +275,25 @@
     grid-column: 1 / -1;
     order: 1;
   }
+
+  /*
+    A lista de VENDEDORES segue a mesma regra, com `order: 2` — depois da de clientes.
+
+    Com os quatro filhos na grade (campo cliente, região cliente, campo vendedor, região
+    vendedor), a ordem natural do DOM poria a região de clientes entre os dois campos e
+    quebraria a linha das duas colunas. `order` resolve sem ninguém contar linhas: os dois
+    campos (order 0) dividem a primeira linha; a região de clientes vem abaixo; a de vendedores
+    por último. No celular, sem grade, cada região continua logo embaixo do campo que a produziu.
+  */
+  .wa-orc-section--dupla > .wa-orc-vendedorResultados {
+    grid-column: 1 / -1;
+    order: 2;
+  }
 }
 
 /* Mesma pilha vertical da busca de produto: faixa de estado, cards, paginação. */
-.wa-orc-clienteResultados {
+.wa-orc-clienteResultados,
+.wa-orc-vendedorResultados {
   display: flex;
   flex-direction: column;
   gap: var(--orc-gap-1);
@@ -1000,6 +1015,24 @@
   Calada por padrão: no caso bom — saldo de minutos — ela precisa ser verificável, não notada.
   Sem caixa, sem borda, sem peso; 11px é o piso desta folha para texto que se lê.
 */
+/*
+  Negociação que o ERP não aplicou (Anexo A, item 1b). Ocupa a linha inteira do item da prévia
+  porque é uma frase, não uma etiqueta: ela explica um número que o atendente está procurando e
+  não acha. Âmbar, como os outros avisos desta tela — nada quebrou, o preço é que é outro.
+*/
+.wa-orc-item-negociacaoIgnorada {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 2px;
+  padding: 4px 8px;
+  border-radius: var(--orc-raio-controle);
+  background: var(--wa-action-amber-soft, rgba(217, 119, 6, 0.12));
+  color: var(--orc-aviso);
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
 .wa-orc-saldoIdade {
   font-size: 11px;
   line-height: 1.35;

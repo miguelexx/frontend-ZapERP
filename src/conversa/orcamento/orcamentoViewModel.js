@@ -844,6 +844,221 @@ export function patchClienteEscolhido(candidato) {
 }
 
 /* ------------------------------------------------------------------ *
+ * A busca de VENDEDOR — parecida com a de cliente, e diferente nas três coisas que importam
+ * ------------------------------------------------------------------ *
+ * `POST /api/orcamentos/vendedores/consultar` existe desde 09/11/2026 (Anexo A, item D, pedido
+ * 2 — atendido). Antes dela o vendedor era o único dos três campos sem lista própria: só se
+ * resolvia dentro de `preparar`, que exige cliente E ao menos um item. O atendente novo tinha
+ * de adivinhar como o nome dele está cadastrado no ERP e descobria errado no Calcular.
+ *
+ * TRÊS DIFERENÇAS EM RELAÇÃO A CLIENTES, medidas ao vivo, e é por elas que este bloco existe
+ * separado em vez de reusar o de cima:
+ *
+ *   1. a lista vem em `vendedores[]` e **não há `status`** — não há ramo "resolvido" a tratar;
+ *   2. **nada encontrado é `200` com lista vazia**, não 404. Então "não achei" não passa pelo
+ *      caminho de erro em lugar nenhum: chega como sucesso com `lista: []`;
+ *   3. **`busca` é OPCIONAL**: sem termo, a WM devolve TODOS (8 na empresa de teste). É isto
+ *      que permite o campo abrir já mostrando os vendedores, em vez de exigir digitação.
+ *
+ * E uma consequência da 3 que vale ouro: quando a resposta de "todos" cabe numa página só
+ * (`tem_mais` e `tem_anterior` falsos), a tela TEM a lista inteira na mão — e aí filtrar é
+ * trabalho local, sem nenhuma consulta nova na loja a cada tecla. `listaCompletaDeVendedores`
+ * responde exatamente essa pergunta, e só ela autoriza o filtro local.
+ * ------------------------------------------------------------------ */
+
+/** Forma vazia da busca de vendedor. Congelada: nunca mutada, só substituída. */
+export const SEM_VENDEDOR = Object.freeze({
+  lista: [],
+  paginacao: null,
+  completa: false,
+});
+
+/**
+ * Traduz a resposta da consulta de vendedores na forma que a tela consome.
+ *
+ * Um ramo só, porque o contrato tem um só. Candidato sem código não entra: não há como
+ * escolhê-lo. (O backend já recusa a resposta inteira nesse caso; isto é a rede de segurança
+ * da tela.)
+ *
+ * `completa` é a afirmação "esta lista é o cadastro inteiro de vendedores" — verdadeira apenas
+ * quando a paginação veio no formato do contrato E diz que não há página antes nem depois.
+ * Paginação ausente ou fora de formato ⇒ `false`, e aí a tela pergunta à WM em vez de filtrar
+ * do que tem. Afirmar completude sem prova esconderia vendedores de uma loja grande.
+ *
+ * @param {object|null|undefined} data corpo de `POST /api/orcamentos/vendedores/consultar`
+ * @returns {{ lista: object[], paginacao: object|null, completa: boolean }}
+ */
+export function agruparCandidatosVendedor(data) {
+  if (!data || typeof data !== "object") return SEM_VENDEDOR;
+  if (!Array.isArray(data.vendedores)) return SEM_VENDEDOR;
+
+  const lista = data.vendedores.filter(
+    (v) =>
+      Boolean(v && typeof v === "object") &&
+      typeof v.codigo_vendedor_erp === "string" &&
+      v.codigo_vendedor_erp.length > 0
+  );
+  const p = data.paginacao && typeof data.paginacao === "object" ? data.paginacao : null;
+  const completa = Boolean(p && p.tem_mais === false && p.tem_anterior === false);
+
+  return { lista, paginacao: p, completa };
+}
+
+/**
+ * Filtra a lista que já está na mão — só quando ela é o cadastro inteiro.
+ *
+ * Mesma régua da WM, que casa **trecho em qualquer posição** (medido: `arkony` acha `MARKONY`),
+ * sem acento e sem caixa — `termoCasaNoTexto`. O código ERP também é procurado, porque quem
+ * sabe que é "o 003" digita 003.
+ *
+ * Termo vazio devolve a lista inteira: no campo de vendedor, nada digitado significa "me mostre
+ * todos", não "não mostre nada".
+ */
+export function filtrarVendedoresLocalmente(lista, termo) {
+  const itens = Array.isArray(lista) ? lista : [];
+  const limpo = String(termo ?? "").trim();
+  if (!limpo) return itens;
+  return itens.filter(
+    (v) =>
+      termoCasaNoTexto(v?.nome, limpo) || termoCasaNoTexto(v?.codigo_vendedor_erp, limpo)
+  );
+}
+
+/**
+ * A lista que a tela tem na mão é o cadastro inteiro?
+ *
+ * É a única autorização para filtrar localmente. Quando é `false` — loja com mais vendedores do
+ * que cabe numa página, ou paginação fora do contrato — cada termo digitado volta a ser uma
+ * pergunta à WM, porque o vendedor procurado pode estar numa página que ninguém buscou.
+ */
+export function listaCompletaDeVendedores(grupo) {
+  return Boolean(grupo && grupo.completa === true);
+}
+
+/**
+ * A frase que acompanha a lista — e o trabalho que ela nomeia.
+ *
+ * Sem termo o trabalho é ESCOLHER entre os vendedores da loja; com termo é confirmar que aquele
+ * é o certo. Com um só, a tela ainda não escolhe sozinha: vendedor mexe com comissão (§6.2), e
+ * selecionar por conta própria poria no orçamento alguém que ninguém olhou.
+ *
+ * @param {{lista: object[]}} grupo saída de `agruparCandidatosVendedor` (ou já filtrada)
+ * @param {string} [termo] o que está digitado no campo
+ */
+export function tituloVendedoresEncontrados(grupo, termo = "") {
+  const lista = Array.isArray(grupo?.lista) ? grupo.lista : [];
+  if (!lista.length) return "";
+  const comTermo = String(termo ?? "").trim().length > 0;
+  if (lista.length === 1) return "Um vendedor encontrado. Toque para usar.";
+  if (comTermo) return `${lista.length} vendedores com esse nome. Toque no seu.`;
+  return `${lista.length} vendedores cadastrados. Toque no seu.`;
+}
+
+/**
+ * Nada encontrado — e isto é uma RESPOSTA, não uma falha.
+ *
+ * A busca de vendedor casa trecho em qualquer posição, ao contrário da de cliente: aqui não há
+ * armadilha de prefixo a explicar. O que resta dizer é o que de fato aconteceu — a loja não tem
+ * vendedor com esse nome — e o caminho de volta, que é ver a lista inteira.
+ */
+export function mensagemBuscaVendedorSemResultado(termo) {
+  const digitado = String(termo ?? "").trim().replace(/\s+/g, " ");
+  if (!digitado) return "Nenhum vendedor cadastrado no sistema da empresa.";
+  return `Nenhum vendedor com "${digitado}". Apague o texto para ver todos os vendedores da loja.`;
+}
+
+/** Códigos do envelope que, na busca de vendedor, significam indisponibilidade da loja. */
+const CODIGOS_VENDEDOR_INDISPONIVEL = Object.freeze(["WM_SINCRONIZADOR_OFFLINE"]);
+
+/**
+ * Indisponibilidade NÃO é "não há vendedores", e a diferença é a conclusão do atendente.
+ *
+ * Esta porta é realtime, como a de cliente: fala com o sincronizador na máquina da loja e
+ * devolve `503 SINCRONIZADOR_OFFLINE` quando ele está fora do ar, enquanto a busca de produto
+ * continua respondendo 200. Pintar esse 503 como lista vazia diria "sua loja não tem vendedor
+ * nenhum" — uma afirmação absurda, que o atendente não tem como contestar.
+ *
+ * Note que aqui NÃO existe o ramo "vazio": lista vazia chega como `200` com `vendedores: []` e
+ * nem passa por esta função. Tudo o que chega aqui é falha de verdade.
+ *
+ * @returns {{ tipo: "indisponivel"|"erro", mensagem: string }}
+ */
+export function traduzirErroBuscaVendedor(erro) {
+  const codigo = String(erro?.codigo || "");
+  if (CODIGOS_VENDEDOR_INDISPONIVEL.includes(codigo)) {
+    return {
+      tipo: "indisponivel",
+      mensagem:
+        "Não foi possível procurar vendedores agora: o sistema da sua loja não respondeu. " +
+        "Isso não quer dizer que o vendedor não está cadastrado.",
+    };
+  }
+  return { tipo: "erro", mensagem: String(erro?.mensagem || "") };
+}
+
+/** O que fazer quando a loja não responde — e o que ainda funciona enquanto isso. */
+export const RECUPERACAO_VENDEDOR_INDISPONIVEL =
+  "Confira se o computador do ERP está ligado e com internet. Você ainda pode digitar o nome do " +
+  "vendedor e calcular: o sistema resolve o nome na hora do cálculo.";
+
+/**
+ * O que a escolha na lista vale — dito ANTES do Calcular.
+ *
+ * Diferente do aviso de cliente em dois pontos, e os dois são verdade: escolher aqui dá o
+ * `vendedor_codigo_erp`, que elimina a ambiguidade no Calcular (o nome digitado não elimina);
+ * mas `preparar` ainda revalida o código, e um vendedor inativado é recusado lá. Prometer
+ * "confirmado" seria mentira, e vendedor mexe com comissão (§6.2).
+ */
+export const AVISO_VENDEDOR_NAO_DEFINITIVO =
+  "O vendedor é confirmado no Calcular: se estiver inativo no ERP, o cálculo recusa.";
+
+/* ------------------------------------------------------------------ *
+ * Código × busca do vendedor: a troca que não pode deixar código órfão
+ * ------------------------------------------------------------------ *
+ * `preparar` recebe `vendedor_codigo_erp` XOR `vendedor_busca`, e o código GANHA quando os dois
+ * existem no rascunho (`montarBodyPreparar`). É o MESMO defeito clássico do campo de cliente,
+ * com uma consequência pior: o orçamento sairia comissionado para o vendedor de antes, com o
+ * nome de outro na tela. Em silêncio, e sobre o dinheiro de uma pessoa real.
+ *
+ * As duas funções abaixo são o único caminho pelo qual a tela escreve a identidade do vendedor
+ * no rascunho, e são opostas por construção: escolher grava código e nome; mexer no texto apaga
+ * os dois. Nenhuma lê o estado anterior, então não há ordem de chamada que as burle.
+ *
+ * As duas zeram `vendedorDeMemoria` também: depois que a pessoa escolheu ou digitou, "usado da
+ * última vez" deixa de ser verdade sobre o que está na tela.
+ */
+
+/** Mexer no texto invalida a escolha anterior: volta-se a `vendedor_busca`, sem código órfão. */
+export function patchVendedorDigitado(valor) {
+  return {
+    vendedorBusca: String(valor ?? ""),
+    vendedorCodigoErp: "",
+    vendedorNome: "",
+    vendedorDeMemoria: false,
+  };
+}
+
+/**
+ * Escolher na lista grava o código canônico — é ele que elimina a ambiguidade no `preparar` e
+ * dispensa o laço do `AmbiguidadePicker`.
+ *
+ * O texto digitado fica INTACTO: é por ele que a pessoa volta à mesma lista se tocar em
+ * "Trocar", sem gastar outra consulta na loja.
+ *
+ * @returns {object|null} `null` para candidato sem código (nada a gravar)
+ */
+export function patchVendedorEscolhido(candidato) {
+  const codigo =
+    typeof candidato?.codigo_vendedor_erp === "string" ? candidato.codigo_vendedor_erp.trim() : "";
+  if (!codigo) return null;
+  return {
+    vendedorCodigoErp: codigo,
+    vendedorNome: String(candidato?.nome || "").trim(),
+    vendedorDeMemoria: false,
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Cliente/vendedor canônicos
  * ------------------------------------------------------------------ */
 
@@ -904,6 +1119,43 @@ export function descontoDoItemPrevia(item) {
 }
 
 /* ------------------------------------------------------------------ *
+ * A NEGOCIAÇÃO QUE O ERP NÃO APLICOU
+ * ------------------------------------------------------------------ *
+ * O atendente digita R$ 10,00 num item cujo preço oficial é R$ 18,42, manda calcular, e o total
+ * volta cheio. O backend está CERTO em fazer isso: quando a prévia não ecoa `preco_negociado`, o
+ * Worker do ERP não aplicou a negociação (Anexo A, item 1b), e gravar o valor negociado mesmo
+ * assim criaria um orçamento diferente do que a WM calculou. O que faltava era a TELA dizer.
+ *
+ * Sem esta frase, a pessoa vê o número que digitou sumir sem explicação e tira a única conclusão
+ * disponível: que o sistema está errado. Daí ou refaz tudo, ou — pior — envia o orçamento cheio
+ * ao cliente achando que o desconto está lá dentro.
+ *
+ * Três estados, e eles não se confundem:
+ *   · `null`  — não houve negociação nesta linha. Nada a dizer;
+ *   · `false` — negociou e a WM aplicou. Nada a dizer (o preço já aparece negociado);
+ *   · `true`  — negociou e a WM NÃO aplicou. É o único que vira texto.
+ * ------------------------------------------------------------------ */
+
+/**
+ * O aviso de negociação não aplicada para UMA linha da prévia, ou `""`.
+ *
+ * Discreto e específico: diz o que aconteceu, o que vale agora, e o que dá para fazer. Não
+ * acusa o ERP de defeito (pode ser política de preço mínimo, perfil sem permissão de desconto)
+ * e não promete que tentar de novo resolve.
+ *
+ * @param {object|null|undefined} item item de `previa_sanitizada.itens[]`
+ * @returns {string} vazio quando não se aplica
+ */
+export function avisoNegociacaoIgnorada(item) {
+  if (!item || typeof item !== "object") return "";
+  if (item.negociacao_ignorada !== true) return "";
+  return (
+    "O preço que você ajustou não foi aplicado pelo sistema da empresa — esta linha está com o " +
+    "preço de tabela. Se o desconto é necessário, peça a liberação no ERP."
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Prévia
  * ------------------------------------------------------------------ */
 
@@ -953,6 +1205,11 @@ export function montarPreviaView(previa) {
         a MARGRE manda `"0.00"`). Quando existir, é o que explica um preço abaixo do cadastro.
       */
       desconto: descontoDoItemPrevia(item),
+      /*
+        Negociação pedida e NÃO aplicada pelo ERP. É o único dos três estados que vira texto —
+        ver `avisoNegociacaoIgnorada`. Sem ele, o preço digitado sumia do total sem uma palavra.
+      */
+      negociacaoIgnorada: avisoNegociacaoIgnorada(item),
     };
   });
 

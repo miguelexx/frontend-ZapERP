@@ -63,7 +63,11 @@ export function resolveOrcamentoTimeoutMs(url) {
   if (/\/(confirmar|verificar)(\?|$)/.test(u)) return HTTP_TIMEOUT_ORCAMENTO_CONFIRMAR_MS;
   if (u.includes("/erp/status")) return HTTP_TIMEOUT_ORCAMENTO_STATUS_MS;
   if (u.includes("/preparar")) return HTTP_TIMEOUT_ORCAMENTO_PREPARAR_MS;
-  if (u.includes("/produtos/consultar") || u.includes("/clientes/consultar")) {
+  if (
+    u.includes("/produtos/consultar") ||
+    u.includes("/clientes/consultar") ||
+    u.includes("/vendedores/consultar")
+  ) {
     return HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS;
   }
   // `GET /api/orcamentos/:id` é leitura do nosso banco: o default serve.

@@ -5,21 +5,26 @@
  * e UX; D11 — cliente e vendedor resolvem dentro de `preparar`).
  *
  * ────────────────────────────────────────────────────────────────────────────
- * CLIENTE TEM BUSCA; VENDEDOR CONTINUA SENDO CAMPO DE TEXTO
+ * OS TRÊS CAMPOS AGORA MOSTRAM O QUE EXISTE NO ERP — CADA UM À SUA MANEIRA
  * ────────────────────────────────────────────────────────────────────────────
- * D11 continua valendo nos dois casos: quem RESOLVE cliente e vendedor é `preparar`, e quem
- * digita e aperta Calcular cai no laço de ambiguidade como sempre.
+ * D11 continua valendo nos três casos: quem RESOLVE cliente, vendedor e produto é `preparar`, e
+ * quem digita e aperta Calcular cai no laço de ambiguidade como sempre. As buscas são atalho,
+ * não pedágio.
  *
  * O cliente ganhou busca (`ClientePicker`) porque o campo de texto puro era adivinhação: a
  * busca do ERP é por PREFIXO, então "DINIZ" não acha "MARIA DINIZ" (medido), e o atendente
- * descobria isso só no Calcular — com o cliente esperando. A busca mostra os clientes reais
- * antes do cálculo. Ela é AUXÍLIO, não autoridade: `/clientes/consultar` não filtra
- * Inativo/Bloqueado e `preparar` filtra, então a tela não promete que a escolha passa (ver o
- * cabeçalho do `ClientePicker`).
+ * descobria isso só no Calcular — com o cliente esperando. Ela é AUXÍLIO, não autoridade:
+ * `/clientes/consultar` não filtra Inativo/Bloqueado e `preparar` filtra, então a tela não
+ * promete que a escolha passa (ver o cabeçalho do `ClientePicker`).
  *
- * O vendedor NÃO ganhou: a semântica de busca dele não está declarada no contrato (prefixo?
- * trecho?), e inventar a regra na tela seria ensinar ao atendente algo que pode ser falso.
- * Pendência aberta com a WM.
+ * O vendedor ganhou a dele em 09/11/2026 (`VendedorPicker`), quando a WM publicou
+ * `/vendedores/consultar` — o pedido 2 do item D do Anexo A, atendido. Até então o campo era
+ * texto livre e o atendente tinha de adivinhar como o próprio nome está cadastrado no ERP.
+ *
+ * E ele é MELHOR que o de cliente, por uma diferença do contrato: `busca` é opcional, então
+ * sem digitar nada a WM devolve TODOS os vendedores (8 na empresa de teste). Tocar o campo já
+ * mostra a lista — ninguém precisa adivinhar nome nenhum. Quando a lista cabe numa página só,
+ * digitar filtra localmente e não custa consulta.
  *
  * O nome da conversa entra como SUGESTÃO EDITÁVEL no campo de cliente (vem do rascunho), e
  * nunca como seleção canônica: só a WM transforma nome em `codigo_cliente_erp`. Título que é só
@@ -42,10 +47,12 @@
 import { useCallback, useRef, useState } from "react";
 import ClientePicker from "./ClientePicker";
 import ProdutoPicker from "./ProdutoPicker";
+import VendedorPicker from "./VendedorPicker";
 import {
   classeEstoque,
   estoqueNegativo,
   formatMoedaOrcamento,
+  idadeDoPreco,
   idadeDoSaldo,
   normalizarQuantidadeParaEnvio,
   passoQuantidade,
@@ -153,6 +160,20 @@ function ItemCarrinho({
   // E a mesma régua de idade: este é o MESMO saldo que o card mostrou, e ele continua
   // envelhecendo enquanto o orçamento é montado. Sem carimbo, nada é escrito.
   const idade = estoqueTexto ? idadeDoSaldo(preco?.carimbos?.estoque_sincronizado_em, agora) : null;
+  /*
+    E a idade do PREÇO, que é outro carimbo e outro ritmo. Medido na base real: o saldo tinha
+    9,2 h e o cadastro — que carrega o preço — tinha 920 h (≈ 38 dias). A tela dizia o primeiro
+    e calava o segundo, então o orçamento saía com um preço de mais de um mês como se fosse de
+    agora. `sincronizado_em`, nunca `estoque_sincronizado_em`: trocar os dois afirmaria a idade
+    errada sobre o número certo.
+
+    Com preço negociado a linha não ganha esta idade: o valor que vale ali é o que o atendente
+    acabou de definir, e carimbar "atualizado há 38 dias" em cima dele seria falso.
+  */
+  const idadePreco =
+    temPreco && !semPreco && !negociado
+      ? idadeDoPreco(preco?.carimbos?.sincronizado_em, agora)
+      : null;
   const secundaria = [item.marca, item.codigo_produto_erp ? `Cód. ${item.codigo_produto_erp}` : ""]
     .filter(Boolean)
     .join(" · ");
@@ -196,6 +217,22 @@ function ItemCarrinho({
                   >
                     {formatMoedaOrcamento(valores.preco_unitario)}
                   </strong>
+                ) : null}
+                {/*
+                  De quando é esse PREÇO. Fica colada no valor, e não no fim da linha, porque é
+                  dele que ela fala — a idade do saldo, mais adiante, fala do outro número.
+                */}
+                {idadePreco ? (
+                  <span
+                    className={
+                      idadePreco.aviso
+                        ? "wa-orc-saldoIdade wa-orc-saldoIdade--aviso"
+                        : "wa-orc-saldoIdade"
+                    }
+                    title={idadePreco.titulo || undefined}
+                  >
+                    {idadePreco.texto}
+                  </span>
                 ) : null}
                 {estoqueTexto ? (
                   <span
@@ -404,7 +441,11 @@ export default function OrcamentoForm({
     de referência precisa andar — ver `useRelogioDeIdade`.
   */
   const temCarimbo = Object.values(precos || {}).some(
-    (p) => p?.estado === ESTADO_PRECO.OK && p.carimbos?.estoque_sincronizado_em
+    (p) =>
+      p?.estado === ESTADO_PRECO.OK &&
+      // Qualquer um dos DOIS carimbos liga o relógio: uma linha pode ter só o do cadastro
+      // (preço) e nenhum saldo, e aí a idade do preço precisaria andar sozinha.
+      (p.carimbos?.estoque_sincronizado_em || p.carimbos?.sincronizado_em)
   );
   const agora = useRelogioDeIdade(temCarimbo);
 
@@ -582,55 +623,23 @@ export default function OrcamentoForm({
             disabled={disabled}
           />
 
-          <div className="wa-orc-campo">
-            <label className="wa-orc-label" htmlFor="wa-orc-vendedor">
-              Vendedor
-            </label>
-            {rascunho?.vendedorCodigoErp ? (
-              <div className="wa-orc-escolhido">
-                <div>
-                  <strong>{textoOuSemValor(rascunho.vendedorNome)}</strong>
-                  {/*
-                    Vendedor vindo da MEMÓRIA não ganha a mesma cara de um confirmado pela WM:
-                    ele ainda vai ser revalidado em `preparar` e pode ser recusado (inativo,
-                    trocado de carteira). Dizer "usado da última vez" é o que há de verdadeiro
-                    aqui — e vendedor mexe com comissão, então a diferença importa (§6.2).
-                  */}
-                  <span className="wa-orc-item-codigo">
-                    {rascunho?.vendedorDeMemoria
-                      ? `Usado da última vez · cód. ERP ${rascunho.vendedorCodigoErp}`
-                      : `Cód. ERP ${rascunho.vendedorCodigoErp}`}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="wa-btn wa-btn-ghost wa-orc-btnSm"
-                  disabled={disabled}
-                  onClick={() =>
-                    onPatch({
-                      vendedorCodigoErp: "",
-                      vendedorNome: "",
-                      vendedorDeMemoria: false,
-                    })
-                  }
-                >
-                  Trocar
-                </button>
-              </div>
-            ) : (
-              <input
-                id="wa-orc-vendedor"
-                className="wa-input wa-orc-input"
-                type="text"
-                autoComplete="off"
-                placeholder="Nome do vendedor no ERP"
-                value={rascunho?.vendedorBusca || ""}
-                maxLength={100}
-                disabled={disabled}
-                onChange={(e) => onPatch({ vendedorBusca: e.target.value })}
-              />
-            )}
-          </div>
+          {/*
+            O campo de vendedor também devolve DOIS filhos para esta grade: a célula do campo e
+            a região da lista, que ocupa a linha inteira abaixo da de clientes (ver
+            `VendedorPicker.jsx` e `.wa-orc-vendedorResultados`).
+
+            A memória (`vendedorDeMemoria`) continua pré-preenchendo o último vendedor que a WM
+            confirmou, e o picker a respeita: com código preenchido ele mostra o escolhido e não
+            consulta nada. Tocar o campo só acontece depois de "Trocar".
+          */}
+          <VendedorPicker
+            busca={rascunho?.vendedorBusca || ""}
+            codigoErp={rascunho?.vendedorCodigoErp || ""}
+            nome={rascunho?.vendedorNome || ""}
+            deMemoria={rascunho?.vendedorDeMemoria === true}
+            onPatch={onPatch}
+            disabled={disabled}
+          />
         </section>
 
         {/*

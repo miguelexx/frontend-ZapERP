@@ -116,6 +116,16 @@ function ItemPrevia({ item }) {
           Desconto do sistema: {item.desconto.descontoUnit} por {item.unidade || "unidade"}
         </span>
       ) : null}
+      {/*
+        NEGOCIAÇÃO PEDIDA E NÃO APLICADA. O atendente digitou um preço, o total voltou cheio, e
+        até aqui nada na tela explicava por quê — ele concluía que o sistema tinha engolido o
+        desconto. Fica no item, e não num aviso geral, porque é de UMA linha que se trata: o
+        resto do orçamento está correto. Âmbar de aviso, não vermelho de erro — nada quebrou e
+        nada se perdeu; o que há é um preço diferente do que ele quis.
+      */}
+      {item.negociacaoIgnorada ? (
+        <span className="wa-orc-item-negociacaoIgnorada">{item.negociacaoIgnorada}</span>
+      ) : null}
       <div className="wa-orc-previaItem-detalhes">
         <span className="wa-orc-item-codigo">Cód. ERP {item.codigo}</span>
         {item.precoExato ? (

@@ -249,6 +249,50 @@ export async function consultarClientesOrcamento({ busca, codigo_cliente_erp, pa
 }
 
 /**
+ * `POST /api/orcamentos/vendedores/consultar` — os vendedores do ERP.
+ *
+ * TRÊS DIFERENÇAS EM RELAÇÃO AO IRMÃO DE CLIENTES, e elas mudam como se chama e como se lê:
+ *
+ *   1. **Sem nenhum argumento, devolve TODOS os vendedores.** `busca` é opcional no contrato —
+ *      é a única consulta do módulo em que o corpo vazio é requisição válida. É o que permite o
+ *      campo abrir já mostrando a lista, em vez de exigir que o atendente adivinhe o nome.
+ *   2. **Nada encontrado é `200` com `vendedores: []`**, nunca 404. Resultado vazio não chega
+ *      por `catch`: quem chama trata lista vazia, não exceção.
+ *   3. **A busca casa trecho em QUALQUER posição** (`arkony` acha `MARKONY`), ao contrário da
+ *      de cliente, que é por prefixo.
+ *
+ * ⚠️ Nunca mande `busca: ""`. A WM responde `400 payload_invalido` (mínimo 1 caractere) e o
+ * backend recusa antes disso. Sem termo, simplesmente **não passe** `busca` — é o que esta
+ * função faz: a chave só entra no corpo quando tem conteúdo.
+ *
+ * É REALTIME: fala com o sincronizador na máquina da loja e devolve `WM_SINCRONIZADOR_OFFLINE`
+ * quando ele está fora do ar. Indisponibilidade não é lista vazia (ver
+ * `traduzirErroBuscaVendedor`).
+ *
+ * Resposta: `{ status: "vendedores", vendedores[], paginacao, resolucao_definitiva: false }`.
+ * O `status` é rótulo NOSSO (a WM não manda nenhum), e `resolucao_definitiva: false` diz o de
+ * sempre: escolher aqui dá o `vendedor_codigo_erp` e elimina a ambiguidade no Calcular, mas
+ * `preparar` ainda revalida e pode recusar um vendedor inativado (D11).
+ *
+ * @param {{busca?: string, codigo_vendedor_erp?: string, pagina?: number,
+ *          signal?: AbortSignal}} [params]
+ */
+export async function consultarVendedoresOrcamento({ busca, codigo_vendedor_erp, pagina, signal } = {}) {
+  const url = `${BASE}/vendedores/consultar`;
+  const body = {};
+  if (codigo_vendedor_erp != null && String(codigo_vendedor_erp).length > 0) {
+    body.codigo_vendedor_erp = String(codigo_vendedor_erp);
+  } else if (busca != null && String(busca).trim().length > 0) {
+    body.busca = String(busca);
+  }
+  // Nenhum dos dois: corpo sem chave de termo = "me dê todos". String vazia seria 400.
+  if (Number.isInteger(pagina) && pagina >= 1) body.pagina = pagina;
+
+  const { data } = await api.post(url, body, configFor(url, signal ? { signal } : {}));
+  return data;
+}
+
+/**
  * `POST /api/orcamentos/preparar` — resolve cliente, vendedor e itens e devolve OU a próxima
  * ambiguidade OU a preparação pronta.
  *
@@ -325,6 +369,7 @@ export default {
   consultarStatusErp,
   consultarProdutosOrcamento,
   consultarClientesOrcamento,
+  consultarVendedoresOrcamento,
   prepararOrcamento,
   confirmarOrcamento,
   verificarOrcamento,

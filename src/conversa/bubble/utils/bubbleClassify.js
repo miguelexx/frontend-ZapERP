@@ -233,6 +233,10 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     : null;
   const isProduct = tipoMsg === "product" || !!productMeta;
   const isCatalog = !isProduct && (tipoMsg === "catalog" || !!catalogMeta);
+  const orderMeta = (msg?.reply_meta?.order && typeof msg.reply_meta.order === "object")
+    ? msg.reply_meta.order
+    : null;
+  const isOrder = tipoMsg === "order" || !!orderMeta;
   const isCall = tipoMsg === "call";
   const textoRaw = safeString(msg?.texto);
   const textoRawNorm = String(textoRaw || "").trim().toLowerCase();
@@ -298,6 +302,8 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     productMeta,
     isCatalog,
     catalogMeta,
+    isOrder,
+    orderMeta,
     isCall,
     contactBubbleMeta,
     texto,

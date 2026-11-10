@@ -426,6 +426,74 @@ export function idadeDoSaldo(iso, agora = Date.now()) {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * A IDADE DO PREÇO — e por que ela NÃO é a idade do saldo
+ * ------------------------------------------------------------------ *
+ * São dois carimbos, e confundi-los afirma a idade errada sobre o número certo. Medido na base
+ * real em 09/11/2026, no mesmo produto:
+ *
+ *   `estoque_sincronizado_em` (SALDO)    →    9,2 h    — e a tela já dizia
+ *   `sincronizado_em`         (CADASTRO) →  920 h      — ≈ 38 dias, e a tela não dizia nada
+ *
+ * O cadastro é quem carrega o PREÇO. Ou seja: o orçamento saía com um preço de mais de um mês
+ * atrás, impresso como valor conferido, sem uma palavra sobre a data. Orçamento é documento
+ * comercial — o cliente recebe, guarda, volta com ele na mão e cobra o valor. Um preço velho ali
+ * não é uma imprecisão de tela: é um compromisso que a loja não tinha como honrar sem saber.
+ *
+ * A idade anda, como a do saldo: `agora` é parâmetro, e quem exibe passa um instante que avança.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Daqui em diante a idade do preço é AVISO, e não só informação.
+ *
+ * Sete dias, e não as 24 h do saldo, porque as duas grandezas se movem em ritmos diferentes e
+ * alarme em tudo é alarme em nada:
+ *
+ *   · o SALDO muda a cada venda — um dia inteiro de movimento já o torna uma promessa que
+ *     ninguém conferiu, e 24 h é o dia de loja;
+ *   · o PREÇO muda por decisão (repasse de fornecedor, tabela promocional, reajuste), e uma
+ *     semana é o ciclo comercial mais curto em que isso costuma acontecer. Um preço sincronizado
+ *     há mais de sete dias é um preço que nenhum ciclo inteiro confirmou.
+ *
+ * O número é discutível; o que não é discutível é que ele tem de ser MAIOR que o do saldo. Com o
+ * limite de 24 h, os 920 h medidos fariam toda linha de todo orçamento nascer em âmbar — e um
+ * aviso que aparece sempre deixa de ser lido na semana seguinte.
+ */
+export const IDADE_PRECO_AVISO_HORAS = 7 * 24;
+
+/**
+ * A idade do PREÇO, pronta para a tela — ou `null` quando não há carimbo.
+ *
+ * `null` é o caso em que não se escreve nada: a WM não mandou `sincronizado_em` (ou mandou algo
+ * que não é data). Ausência de idade ≠ preço de agora — inventar "atualizado agora" seria
+ * exatamente o defeito que esta linha existe para corrigir.
+ *
+ * ⚠️ O ISO que entra aqui é `sincronizado_em` (CADASTRO), **nunca** `estoque_sincronizado_em`.
+ * Ver `carimbosDoProduto` em `precoItemCache.js`, que guarda os dois separados de propósito.
+ *
+ * @param {string|null|undefined} iso `sincronizado_em`
+ * @param {number} [agora] instante de referência em ms
+ * @returns {{ texto: string, idade: string, aviso: boolean, titulo: string }|null}
+ */
+export function idadeDoPreco(iso, agora = Date.now()) {
+  const idade = idadeLegivel(iso, agora);
+  if (!idade) return null;
+  const t = Date.parse(String(iso).trim());
+  const base = typeof agora === "number" && Number.isFinite(agora) ? agora : Date.now();
+  const aviso = base - t >= IDADE_PRECO_AVISO_HORAS * MS_HORA;
+  return {
+    texto: `Preço atualizado ${idade}`,
+    idade,
+    aviso,
+    // A consequência fica no título, e só no caso que pede ação. O orçamento é documento
+    // comercial: quem o envia precisa saber que está prometendo um valor que ninguém reviu.
+    titulo: aviso
+      ? `O sistema da empresa sincronizou este preço ${idade}. Confira no ERP antes de enviar ` +
+        "o orçamento ao cliente — ele vai cobrar este valor."
+      : "",
+  };
+}
+
 /**
  * Grupo e subgrupo do produto numa etiqueta só: `"PECAS · FILTROS"`.
  *
@@ -543,6 +611,7 @@ export default {
   TITULO_SALDO_NEGATIVO,
   idadeLegivel,
   idadeDoSaldo,
+  idadeDoPreco,
   IDADE_SALDO_AVISO_HORAS,
   precoNaoCadastrado,
   PRECO_NAO_CADASTRADO_ATE,

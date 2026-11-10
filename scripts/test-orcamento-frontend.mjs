@@ -48,6 +48,8 @@ import {
   NIVEL_ESTOQUE,
   ESTOQUE_POUCO_ATE,
   SEM_VALOR,
+  idadeDoPreco,
+  IDADE_PRECO_AVISO_HORAS,
 } from "../src/conversa/orcamento/orcamentoFormat.js";
 
 import {
@@ -71,6 +73,18 @@ import {
   patchClienteEscolhido,
   AVISO_CLIENTE_NAO_DEFINITIVO,
   RECUPERACAO_CLIENTE_INDISPONIVEL,
+  SEM_VENDEDOR,
+  agruparCandidatosVendedor,
+  filtrarVendedoresLocalmente,
+  listaCompletaDeVendedores,
+  tituloVendedoresEncontrados,
+  mensagemBuscaVendedorSemResultado,
+  traduzirErroBuscaVendedor,
+  patchVendedorDigitado,
+  patchVendedorEscolhido,
+  AVISO_VENDEDOR_NAO_DEFINITIVO,
+  RECUPERACAO_VENDEDOR_INDISPONIVEL,
+  avisoNegociacaoIgnorada,
   rotuloFonte,
   textoBloqueio,
   textoBloqueado,
@@ -3806,6 +3820,593 @@ globalThis.localStorage = new StorageFake();
     assert(
       !/clienteBusca:/.test(codigo),
       "cliente picker: o texto do cliente não é gravado à mão — senão um caminho esqueceria de apagar o código"
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 11-B. A BUSCA DE VENDEDOR — e as três diferenças que a separam da de cliente
+ * ------------------------------------------------------------------ *
+ * `POST /api/orcamentos/vendedores/consultar` existe desde 09/11/2026 (Anexo A, item D, pedido
+ * 2, atendido). Até então o vendedor era o único dos três campos sem lista própria, e o
+ * atendente tinha de adivinhar como o próprio nome está cadastrado no ERP.
+ *
+ * O contrato NÃO é o de clientes, e quem copiar aquele padrão erra em três pontos. Os três são
+ * provados aqui, porque errar em qualquer um deles produz um defeito silencioso:
+ *
+ *   1. a lista vem em `vendedores[]` e **não há `status`**;
+ *   2. **nada encontrado é `200` com lista vazia**, não 404 — vazio nunca pode virar erro;
+ *   3. **`busca` é opcional** — sem termo, a WM devolve TODOS, e é disso que a tela vive.
+ *
+ * E o defeito clássico deste desenho, já cometido uma vez no campo de cliente: mexer no texto
+ * depois de escolher não pode deixar o CÓDIGO órfão. Em vendedor a consequência é pior que em
+ * cliente — `preparar` prefere `vendedor_codigo_erp`, então o orçamento sairia comissionado
+ * para o vendedor de antes com outro nome na tela, sobre o dinheiro de uma pessoa real.
+ * ------------------------------------------------------------------ */
+{
+  const pagina = (extra = {}) => ({
+    pagina: 1,
+    tamanho_pagina: 30,
+    total: 2,
+    tem_mais: false,
+    tem_anterior: false,
+    ...extra,
+  });
+  // A forma MEDIDA ao vivo em 09/11/2026 na instalação da WM Sistemas.
+  const resposta = (extra = {}) => ({
+    ok: true,
+    status: "vendedores",
+    vendedores: [
+      { codigo_vendedor_erp: "003", nome: "MARKONY" },
+      { codigo_vendedor_erp: "002", nome: "SAMUEL" },
+    ],
+    paginacao: pagina(),
+    resolucao_definitiva: false,
+    ...extra,
+  });
+
+  /* ---- Diferença 1: não existe `status` da WM, e a lista vale sem ele ---- */
+  {
+    const g = agruparCandidatosVendedor(resposta());
+    assert(g.lista.length === 2, "vendedor: a lista vem em `vendedores[]`, sem precisar de `status`");
+    assert(g.lista[0].nome === "MARKONY", "vendedor: a ordem da WM é preservada");
+    // A prova de que não estamos lendo `status`: sem ele, continua funcionando.
+    const semStatus = resposta();
+    delete semStatus.status;
+    assert(
+      agruparCandidatosVendedor(semStatus).lista.length === 2,
+      "vendedor: ausência de `status` é o contrato — a lista não depende dele"
+    );
+  }
+
+  /* ---- Diferença 2: lista vazia é RESPOSTA, não erro ---- */
+  {
+    const vazia = agruparCandidatosVendedor({
+      ok: true,
+      vendedores: [],
+      paginacao: pagina({ total: 0 }),
+    });
+    assert(vazia.lista.length === 0, "vendedor: `vendedores: []` é sucesso com lista vazia");
+    assert(
+      listaCompletaDeVendedores(vazia) === true,
+      "vendedor: lista vazia e completa é 'a loja respondeu e não há ninguém com esse nome'"
+    );
+    assert(
+      mensagemBuscaVendedorSemResultado("zzz").includes("Nenhum vendedor"),
+      "vendedor: o vazio tem frase própria, e ela não fala em falha"
+    );
+    assert(
+      mensagemBuscaVendedorSemResultado("zzz").includes("ver todos"),
+      "vendedor: o vazio oferece o caminho de volta — apagar o texto mostra a loja inteira"
+    );
+    // A diferença que o vazio NÃO pode apagar: a loja fora do ar é outra conversa.
+    const off = traduzirErroBuscaVendedor({ codigo: "WM_SINCRONIZADOR_OFFLINE", mensagem: "x" });
+    assert(off.tipo === "indisponivel", "vendedor: 503 é indisponibilidade, nunca lista vazia");
+    assert(
+      /não quer dizer que o vendedor não está cadastrado/.test(off.mensagem),
+      "vendedor: a frase do 503 nega explicitamente a conclusão errada"
+    );
+    assert(
+      !/sincronizador|503|SINCRONIZADOR/i.test(off.mensagem),
+      "vendedor: nenhum código ou status técnico chega à tela"
+    );
+    assert(
+      traduzirErroBuscaVendedor({ codigo: "QUALQUER", mensagem: "falhou" }).tipo === "erro",
+      "vendedor: o resto é erro de verdade, com a mensagem do envelope"
+    );
+    assert(
+      RECUPERACAO_VENDEDOR_INDISPONIVEL.includes("digitar o nome"),
+      "vendedor: com a loja fora do ar, o caminho antigo (digitar e calcular) continua oferecido"
+    );
+  }
+
+  /* ---- Diferença 3: `busca` é opcional, e a lista completa dispensa consulta nova ---- */
+  {
+    const g = agruparCandidatosVendedor(resposta());
+    assert(
+      listaCompletaDeVendedores(g) === true,
+      "vendedor: página única sem anterior nem próxima é o cadastro inteiro"
+    );
+    assert(
+      filtrarVendedoresLocalmente(g.lista, "arkony").length === 1,
+      "vendedor: o filtro local casa TRECHO em qualquer posição, como a WM (medido: arkony → MARKONY)"
+    );
+    assert(
+      filtrarVendedoresLocalmente(g.lista, "MÁRKONY").length === 1,
+      "vendedor: filtro local ignora acento e caixa"
+    );
+    assert(
+      filtrarVendedoresLocalmente(g.lista, "002")[0].nome === "SAMUEL",
+      "vendedor: quem sabe o código digita o código"
+    );
+    assert(
+      filtrarVendedoresLocalmente(g.lista, "").length === 2,
+      "vendedor: campo vazio significa 'mostre todos', não 'não mostre nada'"
+    );
+    assert(
+      filtrarVendedoresLocalmente(g.lista, "zzz").length === 0,
+      "vendedor: filtro local sem casamento devolve vazio — e o vazio tem frase própria"
+    );
+
+    // A autorização para filtrar localmente é PROVA, não otimismo.
+    const incompleta = agruparCandidatosVendedor({
+      ok: true,
+      vendedores: resposta().vendedores,
+      paginacao: pagina({ tem_mais: true, total: 90 }),
+    });
+    assert(
+      listaCompletaDeVendedores(incompleta) === false,
+      "vendedor: com `tem_mais`, a lista local é parcial — filtrar ali esconderia vendedores"
+    );
+    const semPaginacao = agruparCandidatosVendedor({ ok: true, vendedores: resposta().vendedores });
+    assert(
+      listaCompletaDeVendedores(semPaginacao) === false,
+      "vendedor: paginação ausente ou fora do contrato não autoriza filtro local"
+    );
+    assert(
+      listaCompletaDeVendedores(SEM_VENDEDOR) === false,
+      "vendedor: a forma vazia nunca se declara completa"
+    );
+  }
+
+  /* ---- Forma inesperada não vira lista fantasma ---- */
+  {
+    assert(agruparCandidatosVendedor(null).lista.length === 0, "vendedor: corpo nulo vira lista vazia");
+    assert(
+      agruparCandidatosVendedor({ vendedores: "nenhum" }).lista.length === 0,
+      "vendedor: `vendedores` que não é array não vira lista"
+    );
+    assert(
+      agruparCandidatosVendedor({ vendedores: [{ nome: "SEM CODIGO" }] }).lista.length === 0,
+      "vendedor: candidato sem código não entra — não haveria como escolhê-lo"
+    );
+  }
+
+  /* ---- Títulos: dizem o TRABALHO, e o trabalho muda com o termo ---- */
+  {
+    const dois = { lista: [1, 2] };
+    assert(
+      tituloVendedoresEncontrados(dois, "") === "2 vendedores cadastrados. Toque no seu.",
+      "vendedor: sem termo, o trabalho é escolher entre os vendedores da loja"
+    );
+    assert(
+      tituloVendedoresEncontrados(dois, "sa") === "2 vendedores com esse nome. Toque no seu.",
+      "vendedor: com termo, o trabalho é confirmar qual deles é"
+    );
+    assert(
+      tituloVendedoresEncontrados({ lista: [1] }, "") === "Um vendedor encontrado. Toque para usar.",
+      "vendedor: um só ainda é escolha humana — nada é selecionado sozinho (§6.2, comissão)"
+    );
+    assert(tituloVendedoresEncontrados({ lista: [] }) === "", "vendedor: lista vazia não ganha título");
+  }
+
+  /* ------------------------------------------------------------------ *
+   * O CÓDIGO ÓRFÃO — o defeito clássico, já cometido uma vez no campo de cliente
+   * ------------------------------------------------------------------ *
+   * `montarBodyPreparar` prefere `vendedor_codigo_erp` quando os dois existem. Se digitar não
+   * apagasse o código, o orçamento sairia comissionado para o vendedor ESCOLHIDO ANTES, com o
+   * nome de outro na tela. Em silêncio, e sobre o dinheiro de uma pessoa real.
+   */
+  {
+    const corpo = (ident) => ({
+      conversa_id: 7,
+      cliente_codigo_erp: "0000108",
+      ...ident,
+      itens: [{ codigo_produto_erp: "0000209", quantidade: "1" }],
+    });
+    const base = {
+      conversa_id: 7,
+      clienteCodigoErp: "0000108",
+      clienteBusca: "",
+      vendedorBusca: "MARK",
+      vendedorCodigoErp: "",
+      vendedorNome: "",
+      vendedorDeMemoria: false,
+      itens: [{ codigo_produto_erp: "0000209", quantidade: "1" }],
+    };
+
+    // 1. Escolheu na lista: o que viaja é o CÓDIGO, e é ele que dispensa o laço de ambiguidade.
+    const escolhido = { ...base, ...patchVendedorEscolhido({ codigo_vendedor_erp: "003", nome: "MARKONY" }) };
+    assert(escolhido.vendedorCodigoErp === "003", "vendedor: escolher grava o código canônico");
+    assert(escolhido.vendedorNome === "MARKONY", "vendedor: escolher grava o nome canônico");
+    assert(
+      escolhido.vendedorBusca === "MARK",
+      "vendedor: o texto digitado fica intacto — é por ele que o 'Trocar' volta à lista"
+    );
+    assert(
+      assinaturaDoRascunho(escolhido) === assinaturaDoBody(corpo({ vendedor_codigo_erp: "003" })),
+      "vendedor: com a escolha feita, o que vai para o preparar é `vendedor_codigo_erp`"
+    );
+
+    // 2. Mexeu no texto depois de escolher: a escolha anterior deixa de valer. ESTE É O BUG.
+    const depois = { ...escolhido, ...patchVendedorDigitado("SAM") };
+    assert(
+      depois.vendedorCodigoErp === "" && depois.vendedorNome === "",
+      "vendedor: digitar apaga a escolha anterior"
+    );
+    assert(
+      assinaturaDoRascunho(depois) === assinaturaDoBody(corpo({ vendedor_busca: "SAM" })),
+      "vendedor: depois de digitar, o preparar recebe `vendedor_busca` — nunca o código de antes"
+    );
+    assert(
+      assinaturaDoRascunho(depois) !== assinaturaDoBody(corpo({ vendedor_codigo_erp: "003" })),
+      "vendedor: NENHUM caminho deixa o código órfão sobreviver à digitação — seria comissão para outro"
+    );
+
+    // 3. As duas funções são opostas por construção: nenhuma lê o estado anterior.
+    assert(patchVendedorEscolhido({ nome: "SEM CODIGO" }) === null, "vendedor: candidato sem código não grava nada");
+    assert(
+      patchVendedorEscolhido({ codigo_vendedor_erp: "  003  ", nome: "  MARKONY  " }).vendedorCodigoErp === "003",
+      "vendedor: código é aparado — o ERP casa por igualdade"
+    );
+    assert(
+      Object.keys(patchVendedorDigitado("x")).sort().join(",") ===
+        "vendedorBusca,vendedorCodigoErp,vendedorDeMemoria,vendedorNome",
+      "vendedor: digitar escreve exatamente os quatro campos da identidade do vendedor, sempre"
+    );
+
+    // 4. A MEMÓRIA convive: ela pré-preenche, e qualquer gesto humano tira o rótulo de lembrança.
+    const daMemoria = { ...base, vendedorCodigoErp: "003", vendedorNome: "MARKONY", vendedorDeMemoria: true };
+    assert(
+      assinaturaDoRascunho(daMemoria) === assinaturaDoBody(corpo({ vendedor_codigo_erp: "003" })),
+      "vendedor: o lembrado continua viajando como código — `vendedorLembrado` segue valendo"
+    );
+    assert(
+      patchVendedorDigitado("x").vendedorDeMemoria === false,
+      "vendedor: digitar deixa de ser 'usado da última vez'"
+    );
+    assert(
+      patchVendedorEscolhido({ codigo_vendedor_erp: "002", nome: "SAMUEL" }).vendedorDeMemoria === false,
+      "vendedor: escolher na lista também deixa de ser lembrança — é escolha desta vez"
+    );
+
+    // 5. O CAMINHO ANTIGO CONTINUA INTEIRO: digitar e calcular sem olhar a lista.
+    assert(
+      assinaturaDoRascunho(base) === assinaturaDoBody(corpo({ vendedor_busca: "MARK" })),
+      "vendedor: quem nunca usou a lista continua mandando `vendedor_busca` — o laço de ambiguidade é o mesmo"
+    );
+  }
+
+  /* ---- O aviso de que escolher não é confirmar (D11) ---- */
+  assert(
+    /Calcular/.test(AVISO_VENDEDOR_NAO_DEFINITIVO) && /recusa/.test(AVISO_VENDEDOR_NAO_DEFINITIVO),
+    "vendedor: a tela diz, antes do cálculo, que a palavra final é do Calcular"
+  );
+  assert(
+    AVISO_VENDEDOR_NAO_DEFINITIVO !== AVISO_CLIENTE_NAO_DEFINITIVO,
+    "vendedor: o aviso é o do vendedor (inativo), não uma cópia do de cliente (inativo/bloqueado)"
+  );
+
+  /* ---- O timeout da rota nova é o de busca, não o default de 55 s ---- */
+  assert(
+    resolveOrcamentoTimeoutMs("/api/orcamentos/vendedores/consultar") === HTTP_TIMEOUT_ORCAMENTO_BUSCA_MS,
+    "vendedor: a consulta de vendedor usa o perfil de busca (leitura), não o default"
+  );
+
+  /* ------------------------------------------------------------------ *
+   * O cliente HTTP: `busca` vazia NUNCA sai daqui (a WM responde 400)
+   * ------------------------------------------------------------------ */
+  {
+    const { readFileSync } = await import("node:fs");
+    const fonte = readFileSync(new URL("../src/api/wmOrcamentosService.js", import.meta.url), "utf8");
+    const corpoFn = fonte.slice(fonte.indexOf("export async function consultarVendedoresOrcamento"));
+    const assinaturaFim = corpoFn.indexOf("\n}\n");
+    const codigo = corpoFn.slice(0, assinaturaFim);
+    assert(
+      /String\(busca\)\.trim\(\)\.length > 0/.test(codigo),
+      "vendedor (http): `busca` só entra no corpo quando tem conteúdo — string vazia é 400 na WM"
+    );
+    assert(
+      !/body\.busca = ""/.test(codigo),
+      "vendedor (http): nenhum caminho escreve busca vazia"
+    );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * O que o VENDEDOR PICKER não pode fazer — caminho de execução, olhado no fonte
+   * ------------------------------------------------------------------ *
+   * Cada consulta aqui é realtime no SQL Server da loja. Chamada sem gesto humano é dinheiro do
+   * cliente queimado (§11 do doc 36), e escolha automática põe comissão no bolso de quem
+   * ninguém olhou (§6.2).
+   */
+  {
+    const { readFileSync } = await import("node:fs");
+    const fonte = readFileSync(new URL("../src/conversa/orcamento/VendedorPicker.jsx", import.meta.url), "utf8");
+    const codigo = fonte
+      .split("\n")
+      .filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l))
+      .join("\n");
+
+    const chamadas = codigo.split("\n").filter((l) => /consultarVendedoresOrcamento\(/.test(l));
+    assert(chamadas.length === 1, `vendedor picker: a WM é consultada de UM lugar só — achei ${chamadas.length}`);
+    assert(/const DEBOUNCE_MS = 800;/.test(fonte), "vendedor picker: debounce de 800 ms quando o termo viaja");
+
+    // O gatilho: tocar o campo. NÃO abrir o drawer, não renderizar, não vir da memória.
+    assert(
+      /if \(codigoErp \|\| !pedida\) return undefined;/.test(codigo),
+      "vendedor picker: sem gesto humano (`pedida`) nenhuma consulta sai"
+    );
+    assert(
+      /onFocus=\{\(\) => setPedida\(true\)\}/.test(codigo),
+      "vendedor picker: tocar o campo é o gesto que pede a lista"
+    );
+    // E não há piso de caracteres: `busca` é opcional, então não há nada a digitar antes.
+    assert(
+      !/MIN_CARACTERES/.test(fonte),
+      "vendedor picker: sem piso de caracteres — tocar o campo já mostra todos (a diferença 3)"
+    );
+
+    // Nada é escolhido sozinho.
+    assert(
+      !/useEffect\([\s\S]{0,400}escolher\(/.test(codigo),
+      "vendedor picker: nunca escolhe dentro de um efeito — nem quando volta um vendedor só"
+    );
+    assert(
+      !/lista\[0\]|lista\.length === 1[\s\S]{0,80}escolher/.test(codigo),
+      "vendedor picker: não auto-seleciona o único candidato"
+    );
+
+    // Com vendedor escolhido a lista sai da tela.
+    assert(
+      /!codigoErp && \(buscando \|\| buscou/.test(codigo),
+      "vendedor picker: a região de resultados só existe enquanto não há vendedor escolhido"
+    );
+
+    // A identidade do vendedor é escrita só pelas duas funções opostas do view model.
+    assert(
+      /patchVendedorDigitado\(valor\)/.test(codigo) && /patchVendedorEscolhido\(candidato\)/.test(codigo),
+      "vendedor picker: digitar e escolher passam pelas funções opostas do view model"
+    );
+    assert(
+      !/vendedorBusca:/.test(codigo),
+      "vendedor picker: o texto do vendedor não é gravado à mão — senão um caminho esqueceria de apagar o código"
+    );
+    const escritas = codigo
+      .split("\n")
+      .filter((l) => /vendedorCodigoErp:/.test(l) && /onPatch|vendedorNome/.test(l));
+    assert(
+      escritas.length === 1,
+      `vendedor picker: um lugar só escreve código à mão (o "Trocar", que limpa) — achei ${escritas.length}`
+    );
+
+    // O filtro local só roda com a prova de completude.
+    assert(
+      /listaCompletaDeVendedores\(grupo\)/.test(codigo),
+      "vendedor picker: a completude da lista é perguntada, não presumida"
+    );
+    assert(
+      /completa \? filtrarVendedoresLocalmente/.test(codigo),
+      "vendedor picker: filtro local só quando a lista é o cadastro inteiro"
+    );
+    assert(
+      /const termoParaWm = completa \? "" : limpo;/.test(codigo),
+      "vendedor picker: com a lista completa, digitar não manda termo nenhum à loja"
+    );
+  }
+
+  /* ---- O formulário usa o picker, e a memória continua pré-preenchendo ---- */
+  {
+    const { readFileSync } = await import("node:fs");
+    const form = readFileSync(new URL("../src/conversa/orcamento/OrcamentoForm.jsx", import.meta.url), "utf8");
+    assert(/<VendedorPicker/.test(form), "form: o campo de vendedor é o picker");
+    assert(
+      /deMemoria=\{rascunho\?\.vendedorDeMemoria === true\}/.test(form),
+      "form: a lembrança desce para o picker e continua marcada como lembrança"
+    );
+    assert(
+      !/onPatch\(\{ vendedorBusca: e\.target\.value \}\)/.test(form),
+      "form: o input solto de vendedor sumiu — ele gravava texto sem apagar o código"
+    );
+    const vendedorOk = /const vendedorOk = Boolean\(rascunho\?\.vendedorCodigoErp \|\| rascunho\?\.vendedorBusca\?\.trim\(\)\)/;
+    assert(vendedorOk.test(form), "form: o Calcular continua aceitando nome digitado OU código escolhido");
+
+    const css = readFileSync(new URL("../src/conversa/orcamento/orcamento.css", import.meta.url), "utf8");
+    assert(
+      /\.wa-orc-section--dupla > \.wa-orc-vendedorResultados \{[\s\S]{0,80}order: 2;/.test(css),
+      "css: a lista de vendedores ocupa a linha inteira, depois da de clientes"
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 11-C. DE QUANDO É O PREÇO — o carimbo que a tela não dizia
+ * ------------------------------------------------------------------ *
+ * Medido na base real em 09/11/2026, no mesmo produto:
+ *
+ *   `estoque_sincronizado_em` (SALDO)    →    9,2 h   — a tela já dizia
+ *   `sincronizado_em`         (CADASTRO) →  920 h     — ≈ 38 dias, e a tela calava
+ *
+ * O cadastro é quem carrega o PREÇO. O orçamento é documento comercial: o cliente recebe,
+ * guarda, volta com ele e cobra o valor. Um preço de mais de um mês impresso como valor
+ * conferido, sem uma palavra sobre a data, é um compromisso que a loja não tinha como honrar.
+ *
+ * O risco destes testes é trocar os dois carimbos — e é exatamente isso que eles vigiam.
+ * ------------------------------------------------------------------ */
+{
+  const AGORA = Date.parse("2026-11-09T12:00:00.000Z");
+  const horasAtras = (h) => new Date(AGORA - h * 3600 * 1000).toISOString();
+
+  // O limite tem de ser MAIOR que o do saldo. Com 24 h, os 920 h medidos fariam toda linha de
+  // todo orçamento nascer em âmbar — e um aviso que aparece sempre deixa de ser lido.
+  assert(
+    IDADE_PRECO_AVISO_HORAS > IDADE_SALDO_AVISO_HORAS,
+    "idade do preço: o limite do preço é mais largo que o do saldo — eles se movem em ritmos diferentes"
+  );
+  assert(IDADE_PRECO_AVISO_HORAS === 7 * 24, "idade do preço: sete dias, o ciclo comercial mais curto");
+
+  // O valor MEDIDO na base real. Se só um caso sobreviver, é este.
+  const velho = idadeDoPreco(horasAtras(920), AGORA);
+  assert(velho.texto === "Preço atualizado há 38 dias", "idade do preço: os 920 h medidos viram 'há 38 dias'");
+  assert(velho.aviso === true, "idade do preço: 38 dias é aviso — o orçamento sai com um preço que ninguém reviu");
+  assert(/vai cobrar este valor/.test(velho.titulo), "idade do preço: o título diz a consequência comercial");
+
+  // A mesma idade que já era dita sobre o SALDO NÃO é aviso sobre o preço.
+  const fresco = idadeDoPreco(horasAtras(9.2), AGORA);
+  assert(fresco.texto === "Preço atualizado há 9 h", "idade do preço: 9,2 h é dito");
+  assert(fresco.aviso === false, "idade do preço: 9 h não pede ação — alarme em tudo é alarme em nada");
+  assert(fresco.titulo === "", "idade do preço: sem consequência a dizer, o título fica vazio");
+
+  // A fronteira do limite, nos dois lados.
+  assert(idadeDoPreco(horasAtras(167), AGORA).aviso === false, "idade do preço: 167 h ainda não é aviso");
+  assert(idadeDoPreco(horasAtras(168), AGORA).aviso === true, "idade do preço: 168 h já é aviso");
+
+  // Ausência de carimbo ≠ preço de agora.
+  for (const ruim of [null, undefined, "", "ontem", 123]) {
+    assert(
+      idadeDoPreco(ruim, AGORA) === null,
+      `idade do preço: ${JSON.stringify(ruim)} não vira idade — inventar "atualizado agora" é o defeito original`
+    );
+  }
+
+  // A IDADE ANDA: o drawer fica aberto enquanto a atendente conversa.
+  assert(
+    idadeDoPreco(horasAtras(9.2), AGORA + 3600 * 1000).texto === "Preço atualizado há 10 h",
+    "idade do preço: o instante de referência é parâmetro — a idade avança sozinha"
+  );
+
+  /* ---- OS DOIS CARIMBOS NÃO SE TROCAM — a vigilância no fonte ---- */
+  {
+    const { readFileSync } = await import("node:fs");
+    const form = readFileSync(new URL("../src/conversa/orcamento/OrcamentoForm.jsx", import.meta.url), "utf8");
+    const codigo = form
+      .split("\n")
+      .filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l))
+      .join("\n");
+
+    assert(
+      /idadeDoPreco\(preco\?\.carimbos\?\.sincronizado_em, agora\)/.test(codigo),
+      "carimbos: a idade do PREÇO lê `sincronizado_em` (cadastro)"
+    );
+    assert(
+      /idadeDoSaldo\(preco\?\.carimbos\?\.estoque_sincronizado_em, agora\)/.test(codigo),
+      "carimbos: a idade do SALDO lê `estoque_sincronizado_em`"
+    );
+    assert(
+      !/idadeDoPreco\([^)]*estoque_sincronizado_em/.test(codigo),
+      "carimbos: a idade do preço NUNCA lê o carimbo do saldo — afirmaria a idade errada sobre o número certo"
+    );
+    assert(
+      !/idadeDoSaldo\(preco\?\.carimbos\?\.sincronizado_em/.test(codigo),
+      "carimbos: a idade do saldo NUNCA lê o carimbo do cadastro"
+    );
+    // Preço negociado pelo atendente não ganha idade de cadastro: o valor é dele, de agora.
+    assert(
+      /temPreco && !semPreco && !negociado/.test(codigo),
+      "carimbos: linha com preço negociado não recebe a idade do cadastro — seria falso"
+    );
+    // O relógio precisa ligar quando só o carimbo do cadastro existe.
+    assert(
+      /estoque_sincronizado_em \|\| p\.carimbos\?\.sincronizado_em/.test(codigo),
+      "carimbos: qualquer um dos dois liga o relógio da idade"
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 11-D. A NEGOCIAÇÃO QUE O ERP NÃO APLICOU — e a tela não dizia
+ * ------------------------------------------------------------------ *
+ * O atendente digita R$ 10,00 num item de R$ 18,42, manda calcular, e o total volta cheio. O
+ * backend está CERTO: sem o eco de `preco_negociado` na prévia, o Worker não aplicou a
+ * negociação (Anexo A, item 1b) e gravar o valor negociado criaria um orçamento diferente do
+ * que a WM calculou. O que faltava era a tela dizer — sem isso, a pessoa conclui que o sistema
+ * engoliu o desconto, ou envia o orçamento cheio achando que ele está lá dentro.
+ *
+ * Três estados, e confundi-los é o defeito: `null` (não negociou), `false` (negociou e aplicou),
+ * `true` (negociou e NÃO aplicou). Só o terceiro vira texto.
+ * ------------------------------------------------------------------ */
+{
+  const ignorado = avisoNegociacaoIgnorada({ negociacao_ignorada: true });
+  assert(ignorado.length > 0, "negociação: a linha não aplicada ganha explicação");
+  assert(
+    /não foi aplicado/.test(ignorado) && /preço de tabela/.test(ignorado),
+    "negociação: o aviso diz o que aconteceu E qual preço vale agora"
+  );
+  assert(
+    /peça a liberação no ERP/.test(ignorado),
+    "negociação: o aviso oferece o caminho — não acusa o sistema de defeito nem manda tentar de novo"
+  );
+  assert(
+    !/Worker|preco_negociado|502|null/i.test(ignorado),
+    "negociação: nenhum termo técnico chega à tela"
+  );
+
+  assert(avisoNegociacaoIgnorada({ negociacao_ignorada: false }) === "", "negociação: aplicada não vira aviso");
+  assert(avisoNegociacaoIgnorada({ negociacao_ignorada: null }) === "", "negociação: linha sem negociação não vira aviso");
+  assert(avisoNegociacaoIgnorada({}) === "", "negociação: campo ausente (backend antigo) não vira aviso");
+  assert(avisoNegociacaoIgnorada(null) === "", "negociação: item nulo não quebra");
+  // Só o booleano `true` conta: "truthy" não basta, senão uma string qualquer viraria aviso.
+  assert(
+    avisoNegociacaoIgnorada({ negociacao_ignorada: "sim" }) === "",
+    "negociação: só o booleano true conta — nada de truthy acidental"
+  );
+
+  /* ---- A prévia leva o aviso para a tela, item a item ---- */
+  {
+    const item = (extra) => ({
+      codigo_produto_erp: "0000209",
+      descricao: "FILTRO",
+      quantidade: "1.000",
+      preco_unitario: "18.42",
+      valor_total: "18.42",
+      ...extra,
+    });
+    const view = montarPreviaView({
+      cliente: { codigo_cliente_erp: "0000108", nome: "MARIA" },
+      vendedor: { codigo_vendedor_erp: "003", nome: "MARKONY" },
+      itens: [
+        item({ negociacao_ignorada: true, preco_negociado: null }),
+        item({ negociacao_ignorada: false, preco_negociado: "10.00" }),
+        item({}),
+      ],
+      valor_produtos: "55.26",
+      valor_total: "55.26",
+    });
+    assert(view.itens[0].negociacaoIgnorada.length > 0, "prévia: a linha não aplicada carrega o aviso");
+    assert(view.itens[1].negociacaoIgnorada === "", "prévia: a linha aplicada não carrega aviso");
+    assert(view.itens[2].negociacaoIgnorada === "", "prévia: a linha sem negociação não carrega aviso");
+    // O aviso é POR LINHA: o resto do orçamento continua correto e não pode ser condenado junto.
+    assert(
+      view.itens.filter((i) => i.negociacaoIgnorada).length === 1,
+      "prévia: o aviso fica na linha que o merece, não no orçamento inteiro"
+    );
+  }
+
+  /* ---- A tela desenha, e desenha no item ---- */
+  {
+    const { readFileSync } = await import("node:fs");
+    const previa = readFileSync(new URL("../src/conversa/orcamento/OrcamentoPreview.jsx", import.meta.url), "utf8");
+    assert(
+      /item\.negociacaoIgnorada \? \(/.test(previa),
+      "prévia (tela): o aviso é desenhado quando existe"
+    );
+    assert(
+      /wa-orc-item-negociacaoIgnorada/.test(previa),
+      "prévia (tela): o aviso tem classe própria, para ser âmbar e ocupar a linha"
+    );
+    const css = readFileSync(new URL("../src/conversa/orcamento/orcamento.css", import.meta.url), "utf8");
+    assert(
+      /\.wa-orc-item-negociacaoIgnorada \{[\s\S]{0,400}--orc-aviso/.test(css),
+      "prévia (css): âmbar de aviso, não vermelho de erro — nada quebrou"
     );
   }
 }

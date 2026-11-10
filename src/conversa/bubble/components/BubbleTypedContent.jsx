@@ -7,6 +7,7 @@ import LocationMessage from "./LocationMessage";
 import ContactMessage from "./ContactMessage";
 import PollMessage from "./PollMessage";
 import ProductMessage from "./ProductMessage";
+import OrderMessage from "./OrderMessage";
 import PixMessage from "./PixMessage";
 import WhapiTriageMessage from "./WhapiTriageMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
@@ -53,6 +54,8 @@ export default function BubbleTypedContent({
     productMeta,
     isCatalog,
     catalogMeta,
+    isOrder,
+    orderMeta,
     isCall,
     hasText,
     texto,
@@ -147,6 +150,9 @@ export default function BubbleTypedContent({
   }
   if (isPoll) {
     return <PollMessage msg={msg} pollMeta={pollMeta} texto={texto} />;
+  }
+  if (isOrder) {
+    return <OrderMessage order={orderMeta} />;
   }
   if (isProduct || isCatalog) {
     return <ProductMessage product={productMeta} catalog={catalogMeta} texto={texto} />;
