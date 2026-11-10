@@ -7,6 +7,7 @@ import { useChatStore } from "../../chats/chatsStore";
 import { useConversaStore } from "../../conversa/conversaStore";
 import * as cfg from "../../api/configService";
 import * as chatService from "../../chats/chatService";
+import { syncGroups } from "../../api/whatsappIntegration";
 import { useNotificationStore } from "../../notifications/notificationStore";
 import { useWhatsappInstancesStore } from "../../chats/whatsappInstancesStore";
 import { whatsappInstanceLabel } from "../../chats/whatsappInstancesService";
@@ -31,6 +32,8 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
   const { syncing, cancelling, syncResult, iniciar: handleSincronizarContatos, cancelar: handlePararSincronizacao } = useContactSync(onSyncContacts);
   const [syncingFotos, setSyncingFotos] = useState(false);
   const [syncFotosResult, setSyncFotosResult] = useState(null);
+  const [syncingGrupos, setSyncingGrupos] = useState(false);
+  const [syncGruposResult, setSyncGruposResult] = useState(null);
   const [busca, setBusca] = useState("");
   const [searching, setSearching] = useState(false);
   const [abrindoId, setAbrindoId] = useState(null);
@@ -91,6 +94,31 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
       setSyncFotosResult({ error: e.response?.data?.error || e.message || "Erro ao sincronizar fotos." });
     } finally {
       setSyncingFotos(false);
+    }
+  };
+
+  /**
+   * Traz TODOS os grupos de TODOS os números ativos da empresa (POST /integrations/whatsapp/groups/sync).
+   * Os grupos entram como conversas `tipo='grupo'` e aparecem na aba "Todas" da lista de conversas.
+   */
+  const handleSincronizarGrupos = async () => {
+    setSyncingGrupos(true);
+    setSyncGruposResult(null);
+    try {
+      const res = await syncGroups();
+      setSyncGruposResult(res);
+      // A lista de conversas precisa reler: os grupos novos nasceram agora.
+      useChatStore.getState().requestChatListResync?.({ force: true });
+    } catch (e) {
+      const status = e.response?.status;
+      setSyncGruposResult({
+        error:
+          status === 429
+            ? e.response?.data?.error || "Muitas sincronizações seguidas. Aguarde 1 minuto."
+            : e.response?.data?.error || e.message || "Erro ao sincronizar grupos.",
+      });
+    } finally {
+      setSyncingGrupos(false);
     }
   };
 
@@ -260,6 +288,37 @@ export function SecaoClientes({ clientes, clientesTotal, onRefresh, onSyncContac
                 ? (syncFotosResult.mensagem || "Sincronização de fotos enfileirada.")
                 : `OK: ${syncFotosResult.total ?? 0} clientes; ${syncFotosResult.atualizados ?? 0} fotos atualizadas.`}
           </p>
+        )}
+      </div>
+      <div className="ia-field" style={{ marginBottom: 16 }}>
+        <p className="ia-muted">
+          Traga todos os grupos de WhatsApp de todos os números conectados. Eles entram na lista de
+          conversas, na aba <strong>Todas</strong>.
+        </p>
+        <button
+          type="button"
+          className="ia-btn ia-btn--primary"
+          disabled={syncingGrupos}
+          onClick={handleSincronizarGrupos}
+        >
+          {syncingGrupos ? "Sincronizando grupos…" : "Sincronizar todos os grupos"}
+        </button>
+        {syncGruposResult && (
+          <>
+            <p className="ia-muted" role="status" aria-live="polite" style={{ marginTop: 8 }}>
+              {syncGruposResult.error
+                ? syncGruposResult.error
+                : `${syncGruposResult.totalFetched ?? 0} grupo(s) encontrado(s) em ${syncGruposResult.numeros ?? 1} número(s): ` +
+                  `${syncGruposResult.inserted ?? 0} novo(s), ${syncGruposResult.updated ?? 0} atualizado(s), ` +
+                  `${syncGruposResult.skipped ?? 0} sem alteração.`}
+            </p>
+            {/* Multi-número: um canal pode falhar e o outro não — não esconder isso atrás do "OK". */}
+            {Array.isArray(syncGruposResult.errors) && syncGruposResult.errors.length > 0 && (
+              <p style={{ marginTop: 4, color: "#b45309", fontSize: 13 }}>
+                ⚠ {syncGruposResult.errors.length} aviso(s): {syncGruposResult.errors.join(" · ")}
+              </p>
+            )}
+          </>
         )}
       </div>
       <div className="ia-field" style={{ marginBottom: 12 }}>
