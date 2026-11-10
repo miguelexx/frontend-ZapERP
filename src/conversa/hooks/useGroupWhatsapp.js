@@ -19,6 +19,7 @@ import {
   enfileirarParticipantesGrupo,
   listarFilaGrupo,
   cancelarFilaGrupo,
+  convidarParticipantesGrupo,
 } from "../groupWhatsappService";
 
 export function useGroupWhatsapp({ open, conversaId, showToast }) {
@@ -139,6 +140,29 @@ export function useGroupWhatsapp({ open, conversaId, showToast }) {
     loadFila: async () => {
       try { const d = await listarFilaGrupo(conversaId); return Array.isArray(d?.operacoes) ? d.operacoes : []; }
       catch { return []; }
+    },
+    /**
+     * Convida quem o WhatsApp recusou adicionar direto. Medido no canal: mesmo com o endereço
+     * certo e sendo admin do grupo, a resposta vem com o contato em `failed` — é a privacidade
+     * dele ("quem pode me adicionar a grupos"). O link de convite é o caminho que funciona.
+     */
+    invite: async (phones = []) => {
+      try {
+        const d = await convidarParticipantesGrupo(conversaId, phones);
+        const enviados = Number(d?.enviados) || 0;
+        const total = Number(d?.total) || phones.length;
+        showToast?.({
+          type: enviados > 0 ? "success" : "error",
+          title: "Convite do grupo",
+          message: enviados > 0
+            ? `Convite enviado para ${enviados} de ${total}. Quem entra é a pessoa, pelo link.`
+            : (d?.resultados?.[0]?.erro || "Não foi possível enviar o convite."),
+        });
+        return d;
+      } catch (e) {
+        showToast?.({ type: "error", title: "Convite do grupo", message: e?.response?.data?.error || e?.message || "Falha ao enviar convite." });
+        return null;
+      }
     },
     cancelFila: async (opId) => {
       try { await cancelarFilaGrupo(conversaId, opId); showToast?.({ type: "success", title: "Grupo", message: "Adição cancelada." }); return true; }

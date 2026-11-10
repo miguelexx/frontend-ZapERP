@@ -14,7 +14,22 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
   const [busy, setBusy] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [ops, setOps] = useState([]);
+  const [convidando, setConvidando] = useState(null);
   const timerRef = useRef(null);
+
+  /** Números que o WhatsApp recusou adicionar — são os que valem convite. */
+  const numerosRecusados = useCallback((op) => {
+    const out = new Set();
+    for (const e of op?.erros || []) {
+      // Número que não tem WhatsApp não adianta convidar.
+      if (String(e?.codigo || "") === "SEM_WHATSAPP") continue;
+      for (const n of e?.numeros || []) {
+        const d = soDigitos(n);
+        if (d) out.add(d);
+      }
+    }
+    return [...out];
+  }, []);
 
   const alreadyIn = useMemo(() => {
     const set = new Set();
@@ -41,6 +56,17 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
   }, [open, refreshOps, busy, onClose]);
 
   if (!open) return null;
+
+  async function enviarConvites(op) {
+    const numeros = numerosRecusados(op);
+    if (!numeros.length || !group?.invite) return;
+    setConvidando(op.id);
+    try {
+      await group.invite(numeros);
+    } finally {
+      setConvidando(null);
+    }
+  }
 
   async function enfileirar() {
     if (!phones.length) return;
@@ -109,6 +135,20 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
                             {Array.isArray(e.numeros) && e.numeros.length ? ` (${e.numeros.join(", ")})` : ""}
                           </div>
                         ))}
+                        {/* Recusa do WhatsApp não tem como ser forçada: o convite é a saída. */}
+                        {numerosRecusados(op).length > 0 ? (
+                          <button
+                            type="button"
+                            className="wa-btn"
+                            style={{ marginTop: 6, fontSize: 12, alignSelf: "flex-start" }}
+                            disabled={convidando === op.id}
+                            onClick={() => enviarConvites(op)}
+                          >
+                            {convidando === op.id
+                              ? "Enviando convite…"
+                              : `Enviar convite do grupo (${numerosRecusados(op).length})`}
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                     {ativa ? <button type="button" className="wa-btn" style={{ marginTop: 4, fontSize: 12 }} onClick={() => group.cancelFila(op.id).then(refreshOps)}>Cancelar</button> : null}

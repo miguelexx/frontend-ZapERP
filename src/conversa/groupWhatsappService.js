@@ -103,3 +103,12 @@ export async function cancelarFilaGrupo(conversaId, operacaoId) {
   const { data } = await api.post(`/chats/${conversaId}/participantes/fila/${operacaoId}/cancelar`, {}, opts());
   return data;
 }
+
+/**
+ * Convida quem o WhatsApp recusou adicionar direto (privacidade do contato).
+ * Manda o link do grupo para cada número; quem entra é a pessoa.
+ */
+export async function convidarParticipantesGrupo(conversaId, participantes = []) {
+  const { data } = await api.post(`/chats/${conversaId}/participantes/convidar`, { participantes }, opts());
+  return data;
+}
