@@ -15,11 +15,8 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
   const [resultado, setResultado] = useState(null);
   const [ops, setOps] = useState([]);
   const [convidando, setConvidando] = useState(null);
-  const [liberando, setLiberando] = useState(false);
   const timerRef = useRef(null);
 
-  /** Grupo exige aprovação para entrar? Então adição direta não existe — só convite. */
-  const precisaAprovacao = group?.grupo?.settings?.approve_participants === "admins";
 
   /** Números que o WhatsApp recusou adicionar — são os que valem convite. */
   const numerosRecusados = useCallback((op) => {
@@ -61,16 +58,6 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
 
   if (!open) return null;
 
-  async function liberarAdicaoDireta() {
-    if (!group?.updateSetting) return;
-    setLiberando(true);
-    try {
-      await group.updateSetting("approve_participants", "anyone");
-    } finally {
-      setLiberando(false);
-    }
-  }
-
   async function enviarConvites(op) {
     const numeros = numerosRecusados(op);
     if (!numeros.length || !group?.invite) return;
@@ -103,26 +90,6 @@ export default function GrupoBulkAddModal({ open, onClose, group }) {
             Puxe contatos da base ou cole números. A adição é feita <b>aos poucos</b> (ritmo ultra-conservador, com
             backoff e pausa automática) para proteger o número. Quem já está no grupo é ignorado.
           </div>
-
-          {/* Com "aprovar quem pede para entrar" ligado o WhatsApp NÃO deixa adicionar direto:
-              a adição vira convite. Era invisível aqui, e o atendente só via "1 falha". */}
-          {precisaAprovacao ? (
-            <div style={{ fontSize: 12.5, color: "var(--ds-warning,#b45309)", background: "var(--ds-warning-soft, rgba(217,119,6,0.12))", padding: "10px 12px", borderRadius: 10 }}>
-              Este grupo está com <b>“Aprovar quem pede para entrar”</b> ligado. Com essa opção, o
-              WhatsApp não deixa colocar ninguém direto — só por convite.
-              <div>
-                <button
-                  type="button"
-                  className="wa-btn"
-                  style={{ marginTop: 8, fontSize: 12 }}
-                  disabled={liberando}
-                  onClick={liberarAdicaoDireta}
-                >
-                  {liberando ? "Desligando…" : "Desligar e permitir adição direta"}
-                </button>
-              </div>
-            </div>
-          ) : null}
 
           <ContatosPicker onPhonesChange={setPhones} alreadyIn={alreadyIn} maxHeight={220} />
 
