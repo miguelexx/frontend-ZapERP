@@ -1,16 +1,9 @@
-import { useCallback, useRef, useState } from "react";
-import { useLazyHookImpl } from "./lazyHookImpl";
-
-const loadImpl = () => import("./useShareLocation.impl");
+import { useCallback, useState } from "react";
+import { enviarLocalizacao } from "../conversaService";
 
 /**
  * Compartilhamento de localização na conversa (modal + geolocalização).
  * UI em ShareLocationModal; lógica concentrada neste hook.
- *
- * Casca: abrir o modal e pedir `getCurrentPosition` ficam aqui, SÍNCRONOS no clique —
- * o pedido de geolocalização precisa nascer do gesto do usuário (iOS/Safari só mostra
- * o prompt de permissão assim). O envio (`useShareLocation.impl.js`) desce em paralelo
- * com o chunk do ShareLocationModal.
  */
 export function useShareLocation({ conversaId, showToast, composerRef }) {
   const [shareLocationOpen, setShareLocationOpen] = useState(false);
@@ -21,21 +14,6 @@ export function useShareLocation({ conversaId, showToast, composerRef }) {
   const [shareLocationNome, setShareLocationNome] = useState("");
   const [shareLocationEndereco, setShareLocationEndereco] = useState("");
   const [shareLocationSending, setShareLocationSending] = useState(false);
-  const { ensureImpl, withImpl } = useLazyHookImpl(loadImpl, { showToast, label: "Localização" });
-
-  const ctxRef = useRef(null);
-  ctxRef.current = {
-    conversaId,
-    showToast,
-    shareLocationSending,
-    shareLocationLat,
-    shareLocationLng,
-    shareLocationNome,
-    shareLocationEndereco,
-    setShareLocationOpen,
-    setShareLocationGeoError,
-    setShareLocationSending,
-  };
 
   const openShareLocation = useCallback(() => {
     composerRef.current?.closePanels?.();
@@ -46,7 +24,6 @@ export function useShareLocation({ conversaId, showToast, composerRef }) {
     setShareLocationLng("");
     setShareLocationOpen(true);
     setShareLocationGeoLoading(true);
-    ensureImpl();
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setShareLocationGeoLoading(false);
       setShareLocationGeoError("Geolocalização indisponível neste navegador. Informe latitude e longitude abaixo.");
@@ -66,17 +43,68 @@ export function useShareLocation({ conversaId, showToast, composerRef }) {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
-  }, [composerRef, ensureImpl]);
+  }, [composerRef]);
 
   const handleShareLocationClose = useCallback(() => {
     if (shareLocationSending) return;
     setShareLocationOpen(false);
   }, [shareLocationSending]);
 
-  const handleEnviarLocalizacao = useCallback(() => {
-    const ctx = ctxRef.current;
-    return withImpl((impl) => impl.handleEnviarLocalizacao(ctx));
-  }, [withImpl]);
+  const handleEnviarLocalizacao = useCallback(async () => {
+    if (!conversaId || shareLocationSending) return;
+    const la = Number(String(shareLocationLat).replace(",", "."));
+    const ln = Number(String(shareLocationLng).replace(",", "."));
+    if (!Number.isFinite(la) || !Number.isFinite(ln)) {
+      showToast({
+        type: "error",
+        title: "Coordenadas inválidas",
+        message: "Informe latitude e longitude válidas.",
+      });
+      return;
+    }
+    setShareLocationSending(true);
+    try {
+      const data = await enviarLocalizacao(conversaId, {
+        lat: la,
+        lng: ln,
+        nome: shareLocationNome.trim() || undefined,
+        endereco: shareLocationEndereco.trim() || undefined,
+      });
+      if (data?.ok === false) {
+        throw Object.assign(new Error(data?.error || data?.motivo || "Falha ao enviar localização"), {
+          response: { status: 502, data },
+        });
+      }
+      setShareLocationOpen(false);
+      setShareLocationGeoError(null);
+      showToast({
+        type: "success",
+        title: "Localização enviada",
+        message: "A mensagem aparecerá na conversa quando o servidor confirmar.",
+      });
+    } catch (err) {
+      console.error("Erro ao enviar localização:", err);
+      const is403 = err?.response?.status === 403;
+      const apiMsg = err?.response?.data?.error || err?.response?.data?.motivo || err?.message;
+      showToast({
+        type: "error",
+        title: is403 ? "Acesso restrito" : "Falha ao enviar localização",
+        message:
+          apiMsg ||
+          (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar a localização."),
+      });
+    } finally {
+      setShareLocationSending(false);
+    }
+  }, [
+    conversaId,
+    shareLocationSending,
+    shareLocationLat,
+    shareLocationLng,
+    shareLocationNome,
+    shareLocationEndereco,
+    showToast,
+  ]);
 
   return {
     shareLocationOpen,

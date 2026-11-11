@@ -1,18 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useLazyHookImpl } from "./lazyHookImpl";
-
-const loadImpl = () => import("./useAddToGroup.impl");
-const prefetchModal = () => import("../components/AddToGroupModal");
+import { useCallback, useEffect, useState } from "react";
+import api from "../../api/http";
+import { useChatStore } from "../../chats/chatsStore";
+import { fetchChats } from "../../chats/chatService";
+import { isGroupConversation } from "../../utils/conversaUtils";
 
 /**
  * Fluxo "Adicionar contato a um grupo" (cartão de contato → escolher grupo).
  *
- * Mesmos estados, mesmo endpoint (POST /chats/:grupoId/participantes), mesma origem dos
- * grupos (cache do chatsStore ou fetchChats) e mesmo tratamento de erro/toasts — o corpo
- * está em `useAddToGroup.impl.js`.
- *
- * Casca: a validação do telefone (toast) é síncrona no clique; o modal abre DEPOIS do
- * corpo chegar, para o efeito de carga dos grupos rodar no mesmo commit da abertura.
+ * Extraído de ConversaView.jsx sem alterar comportamento: mesmos estados,
+ * mesmo endpoint (POST /chats/:grupoId/participantes), mesma origem dos grupos
+ * (cache do chatsStore ou fetchChats) e mesmo tratamento de erro/toasts.
  *
  * @param {(t: object) => void} showToast
  */
@@ -21,11 +18,14 @@ export function useAddToGroup(showToast) {
   const [addToGroupGrupos, setAddToGroupGrupos] = useState([]);
   const [addToGroupLoading, setAddToGroupLoading] = useState(false);
   const [addToGroupSending, setAddToGroupSending] = useState(false);
-  const { impl, withImpl } = useLazyHookImpl(loadImpl, {
-    showToast,
-    label: "Adicionar ao grupo",
-    prefetch: prefetchModal,
-  });
+
+  const handleAdicionarGrupoContact = useCallback((meta) => {
+    if (!meta?.telefone) {
+      showToast({ type: "warning", title: "Telefone indisponível", message: "Este contato não possui número." });
+      return;
+    }
+    setAddToGroupModal({ open: true, telefone: meta.telefone, nome: meta.nome || "Contato" });
+  }, [showToast]);
 
   const closeAddToGroupModal = useCallback(() => {
     setAddToGroupModal({ open: false, telefone: null, nome: null });
@@ -33,30 +33,31 @@ export function useAddToGroup(showToast) {
     setAddToGroupSending(false);
   }, []);
 
-  const ctxRef = useRef(null);
-  ctxRef.current = {
-    showToast,
-    addToGroupModal,
-    addToGroupSending,
-    setAddToGroupSending,
-    closeAddToGroupModal,
-  };
-
-  const handleAdicionarGrupoContact = useCallback((meta) => {
-    if (!meta?.telefone) {
-      showToast({ type: "warning", title: "Telefone indisponível", message: "Este contato não possui número." });
-      return;
-    }
-    const next = { open: true, telefone: meta.telefone, nome: meta.nome || "Contato" };
-    withImpl(() => setAddToGroupModal(next));
-  }, [showToast, withImpl]);
-
   const confirmAddToGroup = useCallback(
-    (grupo) => {
-      const ctx = ctxRef.current;
-      return withImpl((impl) => impl.confirmAddToGroup(ctx, grupo));
+    async (grupo) => {
+      if (!grupo?.id || !addToGroupModal?.telefone || addToGroupSending) return;
+      setAddToGroupSending(true);
+      try {
+        await api.post(`/chats/${grupo.id}/participantes`, { telefone: addToGroupModal.telefone });
+        showToast({ type: "success", title: "Adicionado", message: `${addToGroupModal.nome} foi adicionado ao grupo.` });
+        closeAddToGroupModal();
+      } catch (e) {
+        const status = e?.response?.status;
+        const msg = e?.response?.data?.error || e.message;
+        if (status === 404 || status === 501 || msg?.toLowerCase?.().includes("not found") || msg?.toLowerCase?.().includes("não suportado")) {
+          showToast({
+            type: "info",
+            title: "Funcionalidade indisponível",
+            message: "Adicionar contato a grupo pode não estar disponível nesta instância.",
+          });
+        } else {
+          showToast({ type: "error", title: "Falha ao adicionar", message: msg || "Não foi possível adicionar ao grupo." });
+        }
+      } finally {
+        setAddToGroupSending(false);
+      }
     },
-    [withImpl]
+    [addToGroupModal, addToGroupSending, showToast, closeAddToGroupModal]
   );
 
   useEffect(() => {
@@ -65,10 +66,22 @@ export function useAddToGroup(showToast) {
       setAddToGroupLoading(false);
       return;
     }
-    // Só abre com o impl carregado (handleAdicionarGrupoContact); o guard é defensivo.
-    if (!impl) return;
-    impl.loadGruposOnOpen({ setAddToGroupGrupos, setAddToGroupLoading });
-  }, [impl, addToGroupModal?.open]);
+    const cachedChats = useChatStore.getState().chats;
+    const gruposEmMemoria = (Array.isArray(cachedChats) ? cachedChats : []).filter((c) => isGroupConversation(c));
+    if (gruposEmMemoria.length > 0) {
+      setAddToGroupGrupos(gruposEmMemoria);
+      setAddToGroupLoading(false);
+      return;
+    }
+    setAddToGroupLoading(true);
+    fetchChats()
+      .then((list) => {
+        const grupos = (Array.isArray(list) ? list : []).filter((c) => isGroupConversation(c));
+        setAddToGroupGrupos(grupos);
+      })
+      .catch(() => setAddToGroupGrupos([]))
+      .finally(() => setAddToGroupLoading(false));
+  }, [addToGroupModal?.open]);
 
   return {
     addToGroupModal,

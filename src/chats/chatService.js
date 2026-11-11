@@ -518,20 +518,8 @@ export function splitChatsEncaminharPayload(data) {
   return { conversas, colaboradores_encaminhar };
 }
 
-/**
- * Detalhe da conversa para a LISTA (socket: `atualizar_conversa` / `addChatIfAuthorized`).
- *
- * `lista: true` → `GET /chats/:id?lista=1`: o backend devolve a linha da conversa + só a última
- * mensagem (preview) e NÃO marca como lida, não injeta movimentações, não enriquece citações nem
- * dispara sync do contato em background. É o que o card precisa; o resto era custo puro (e a
- * marcação de leitura zerava o badge de quem nem tinha olhado). Backend antigo ignora o
- * parâmetro e responde como sempre. A abertura da THREAD continua em `conversaService.getChatById`.
- * @param {string|number} id
- * @param {{lista?: boolean}} [opts]
- */
-export async function fetchChatById(id, opts = {}) {
-  const config = opts?.lista === true ? { params: { lista: 1 } } : undefined;
-  const { data } = await api.get(`/chats/${id}`, config);
+export async function fetchChatById(id) {
+  const { data } = await api.get(`/chats/${id}`);
   return data;
 }
 
