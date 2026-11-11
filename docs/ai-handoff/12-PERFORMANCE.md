@@ -2,6 +2,43 @@
 
 > 2026-08-23 · caminho quente = atendimento. Skill: `.cursor/skills/zaperp-performance/SKILL.md`. Estabilidade e `company_id` > micro-otimização.
 
+## Fluxo de mensagens 2026-11-10 — fim do refetch de detalhe por mensagem recebida
+
+Backend: `backend/docs/ai-handoff/41-REFETCH-POR-MENSAGEM-MODO-LEVE-2026-11-10.md` (cadeia completa, testes manuais).
+
+**O que era:** a cada mensagem recebida o backend emite `atualizar_conversa { id }` para todo usuário
+que pode ver a conversa, e o handler respondia SEMPRE com `GET /chats/:id` — o detalhe completo
+(histórico, movimentações, citações, sync do contato) que também **marcava a conversa como lida** para
+quem nem estava olhando (o badge sumia no servidor antes do snapshot de não lidas chegar). O
+`conversa_atualizada` emitido logo a seguir já trazia o card inteiro.
+
+**O que mudou (só caminho de socket; nada em thread, scroll, composer ou envio):**
+
+- `src/socket/atualizarConversaPolicy.js` (novo, puro): lote só de sinais com `motivo: 'nova_mensagem'`
+  (backend novo) + card já na lista → **ignorar**; card fora da lista → `addChatIfAuthorized`; qualquer
+  sinal sem o motivo (assumir, transferir, backend antigo…) → refetch como sempre. Lote misto na mesma
+  janela nunca engole o sinal explícito.
+- `socket.js`: o handler acumula os sinais por conversa na janela de 180 ms e decide pela política;
+  refetch partilha requisição em voo; **403/404 só pede `GET /chats` se o card estava na lista**
+  (antes, cada assumir/transferir de conversa alheia fazia TODO usuário recarregar lista + contadores).
+- `chatService.fetchChatById(id, { lista: true })` → `GET /chats/:id?lista=1`: modo leve do backend
+  (1 mensagem de preview, sem marcar lida, sem movimentações/citações/sync). É o que `addChatIfAuthorized`
+  e o refetch de card usam. A abertura da thread (`conversaService.getChatById`) **não** mudou.
+- `useChatListResync`: aba **oculta** não faz `GET /chats` + `/chats/counts`; a reconciliação fica
+  pendente e sai de uma vez no `visibilitychange` (o poll de 5 min também). Os patches do socket
+  continuam a aplicar na store, então ao voltar a lista já está certa.
+
+**Compatível nos dois sentidos de deploy** — sem o flag do backend a política devolve `refetch` em
+tudo; o backend antigo ignora `?lista=1`. O ganho só aparece com os dois no ar.
+
+**Visível ao usuário:** badges de não lida passam a PERSISTIR para quem não abriu a conversa (é o
+correto, mas equipes habituadas a "o badge some sozinho" vão notar).
+
+**Armadilha ao mexer aqui:** o modo leve devolve `mensagens: [última]` de propósito — a lista deriva
+preview/direção de `chat.mensagens[0]` em `chatListRowAtendimento.js`. Não devolver `[]`.
+
+Teste: `scripts/test-atualizar-conversa-policy.mjs` (no `test:node`), validado com 3 mutações.
+
 ## Boot mobile 2026-10-23 — auditoria medida + 4 primeiros itens aplicados
 
 Relatório completo: [`docs/audits/boot-mobile-2026-10-23.md`](../audits/boot-mobile-2026-10-23.md).

@@ -56,6 +56,7 @@ const tests = [
   "test-puxar-conversa-novamente.mjs",
   "test-file-drop.mjs",
   "test-dedupe-in-flight.mjs",
+  "test-atualizar-conversa-policy.mjs",
   "test-deploy-recovery-and-finalization.mjs",
   "test-inbound-media-sequence.mjs",
   "test-lock-card-avatar.mjs",
