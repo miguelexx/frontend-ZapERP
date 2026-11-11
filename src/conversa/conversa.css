@@ -5297,6 +5297,9 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 .wa-triage__option { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid rgba(0,0,0,.35); border-radius: 8px; color: #000; opacity: 1; }
 .wa-triage__index { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.08); font-size: 11px; color: #000; }
 .wa-triage__button { margin-top: 9px; padding: 7px 8px; text-align: center; border-radius: 7px; background: rgba(0,0,0,.08); font-weight: 600; color: #000; }
+/* Botão de lista estilo WhatsApp: separador no topo, rótulo verde centralizado com ícone. */
+.wa-triage__listBtn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(0,0,0,.12); color: #00a884; font-weight: 600; cursor: default; }
+.wa-triage__listBtnIcon { flex: 0 0 auto; }
 
 /* Enquete (poll) — bolha clean / premium */
 .wa-poll {
