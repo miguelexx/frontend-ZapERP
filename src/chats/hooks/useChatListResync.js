@@ -18,9 +18,19 @@ import { removeChatIdFromFilterRowCaches } from "../chatListSidebarCache";
  *
  * Exceção: ações do próprio usuário (assumir/encerrar) chegam com `force` e reconciliam
  * imediatamente — são raras e precisam ser instantâneas.
+ *
+ * Aba em segundo plano: a reconciliação fica PENDENTE e sai de uma vez quando a aba volta a
+ * ficar visível (`visibilitychange`). Ninguém está olhando a lista; os patches do socket
+ * continuam a aplicar na store, então ao voltar ela já está certa e o GET só confirma. Antes,
+ * N abas esquecidas em segundo plano eram N × (GET /chats + /chats/counts) a cada 5 s em
+ * inbox movimentado — carga pura no servidor, sem ninguém para ver o resultado.
  */
 const CHAT_LIST_RESYNC_COALESCE_COUNT = 6;
 const CHAT_LIST_RESYNC_COALESCE_MAX_WAIT_MS = 5000;
+
+function abaOculta() {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
 
 export function useChatListResync({
   loadRef,
@@ -42,6 +52,9 @@ export function useChatListResync({
   const lastHandledNonceRef = useRef(useChatStore.getState().chatListResyncNonce || 0);
   const refreshCountsRef = useRef(refreshChatFilterCounts);
   refreshCountsRef.current = refreshChatFilterCounts;
+  // Reconciliação adiada por a aba estar oculta; `flushRef` é a última função de flush montada.
+  const deferredWhileHiddenRef = useRef(false);
+  const flushRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -54,8 +67,28 @@ export function useChatListResync({
 
   // Atualização automática da lista (nomes, novas conversas) a cada 5 min — evita "refresh" constante
   useEffect(() => {
-    const interval = setInterval(() => loadRef.current?.(), 300_000);
+    const interval = setInterval(() => {
+      if (abaOculta()) {
+        deferredWhileHiddenRef.current = true;
+        return;
+      }
+      loadRef.current?.();
+    }, 300_000);
     return () => clearInterval(interval);
+  }, [loadRef]);
+
+  // Volta para a aba: o que ficou pendente em segundo plano reconcilia agora, de uma vez.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!deferredWhileHiddenRef.current) return;
+      deferredWhileHiddenRef.current = false;
+      if (flushRef.current) flushRef.current();
+      else loadRef.current?.({ background: true });
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [loadRef]);
 
   const chatListResyncNonce = useChatStore((s) => s.chatListResyncNonce);
@@ -87,6 +120,17 @@ export function useChatListResync({
       loadRef.current?.({ background: true });
     };
 
+    // Flush do lote: GET /chats + /chats/counts — ou fica pendente se a aba estiver oculta.
+    const flush = () => {
+      if (abaOculta()) {
+        deferredWhileHiddenRef.current = true;
+        return;
+      }
+      runListLoad();
+      void refreshCountsRef.current({ silent: true });
+    };
+    flushRef.current = flush;
+
     // Ações do próprio usuário (assumir/encerrar/transferir) → reconciliar já.
     if (forceResync) {
       runListLoad();
@@ -108,8 +152,7 @@ export function useChatListResync({
     const waitedLong = waitedMs >= CHAT_LIST_RESYNC_COALESCE_MAX_WAIT_MS;
 
     if (reachedCount || waitedLong) {
-      runListLoad();
-      void refreshCountsRef.current({ silent: true });
+      flush();
       return;
     }
 
@@ -119,8 +162,7 @@ export function useChatListResync({
       const delay = Math.max(0, CHAT_LIST_RESYNC_COALESCE_MAX_WAIT_MS - waitedMs);
       coalesceTimerRef.current = setTimeout(() => {
         coalesceTimerRef.current = null;
-        runListLoad();
-        void refreshCountsRef.current({ silent: true });
+        flush();
       }, delay);
     }
   }, [

@@ -14,6 +14,13 @@ import { shouldDeferLocalNotificationToWebPush } from "../push/pushPlatform"
 import { getApiBaseUrl } from "../api/baseUrl"
 import { fetchChatById, fetchUnreadSnapshot } from "../chats/chatService"
 import { createInFlightDeduper } from "../runtime/dedupeInFlight"
+import {
+  novoLoteAtualizarConversa,
+  acumularAtualizarConversa,
+  decidirAtualizarConversa,
+  deveResyncListaAposAcessoNegado,
+  criarBuscadorDeCardComRefazer,
+} from "./atualizarConversaPolicy.js"
 import { createUnreadSnapshotSync } from "../chats/unreadSnapshotSync"
 import { removeChatIdFromFilterRowCaches, clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
 import { buildChatListFiltersScopeKey } from "../chats/chatListFiltersData"
@@ -694,7 +701,8 @@ async function addChatIfAuthorized(chatStore, conversaId) {
 
   return dedupeAddChat(conversaId, async () => {
     try {
-      const data = await fetchChatById(conversaId)
+      // Modo leve: é um card da lista, não a abertura da thread (ver chatService.fetchChatById).
+      const data = await fetchChatById(conversaId, { lista: true })
       const chat = data?.conversa ?? data
       if (!chat?.id) return false
       const latestStore = useChatStore.getState()
@@ -1964,11 +1972,16 @@ export function initSocket(token) {
     }
   })
 
-  /* Sinal do webhook Z-API: conversa teve atividade (status, transferência, etc.)
-     Backend NÃO emite para mensagem nova (usa nova_mensagem).
+  /* Sinal do backend: conversa teve atividade (status, transferência, etc.).
+     Para mensagem recebida o backend emite com `motivo: 'nova_mensagem'` — e aí NÃO refazemos o
+     GET quando a conversa já está na lista (política em ./atualizarConversaPolicy.js).
      NUNCA refetchar mensagens do chat aberto — isso causa "aparecer e sumir".
      Apenas atualizar item na lista quando for outra conversa. */
   const atualizarDebounce = {}
+  const atualizarLotes = {}
+  // Sinal com GET da mesma conversa ainda em voo (assumir e transferir em sequência): espera e
+  // refaz UM GET, partilhado — a resposta em voo pode ser anterior ao sinal (ver a política).
+  const buscarCardAtualizado = criarBuscadorDeCardComRefazer((cid) => fetchChatById(cid, { lista: true }))
   socket.on("atualizar_conversa", (rawPayload = {}) => {
     if (shouldIgnoreByCompany(rawPayload)) return
     const { id, removida } = rawPayload
@@ -1979,13 +1992,29 @@ export function initSocket(token) {
     }
     logSocketConversaDebug("atualizar_conversa", { id })
     const key = String(id)
+    atualizarLotes[key] = acumularAtualizarConversa(atualizarLotes[key] || novoLoteAtualizarConversa(), rawPayload)
     if (atualizarDebounce[key]) clearTimeout(atualizarDebounce[key])
     atualizarDebounce[key] = setTimeout(async () => {
       delete atualizarDebounce[key]
+      const lote = atualizarLotes[key] || novoLoteAtualizarConversa()
+      delete atualizarLotes[key]
       const chatStore = useChatStore.getState()
+      const decisao = decidirAtualizarConversa({
+        lote,
+        rowNaLista: !!getChatByIdFromStore(id, chatStore.chats),
+      })
+      if (decisao === "ignorar") return
+      if (decisao === "adicionar_se_autorizado") {
+        // Conversa fora da lista carregada: precisa do GET (autorizado) para aparecer. O
+        // `nova_mensagem` da mesma rajada já pediu o mesmo GET — o deduper partilha a resposta.
+        void addChatIfAuthorized(chatStore, id).then((added) => {
+          if (added) chatStore.requestChatListResync()
+        })
+        return
+      }
       let needsListResync = false
       try {
-        const data = await fetchChatById(id)
+        const data = await buscarCardAtualizado(id)
         if (!data) {
           needsListResync = true
           return
@@ -2026,6 +2055,7 @@ export function initSocket(token) {
         const belongsNow = !shouldRemoveChatFromViewerList(chat, view)
         /* Não disparar GET /chats só porque a conversa é de outro filtro — isso recarregava a aba e fazia cards piscarem. */
         needsListResync =
+          lote.forcaResync ||
           payloadForcaResyncLista(rawPayload) ||
           (!wasInList && canInsert) ||
           (wasInList && !belongsNow)
@@ -2044,8 +2074,12 @@ export function initSocket(token) {
           if (String(useConversaStore.getState().selectedId) === String(id)) {
             closeSelectedConversation()
           }
+          /* Sem a conversa na lista não há o que reconciliar: antes, cada assumir/transferir de
+             uma conversa alheia fazia TODO usuário da empresa recarregar a lista + contadores. */
+          needsListResync = deveResyncListaAposAcessoNegado({ rowExistia: !!existing })
+        } else {
+          needsListResync = true
         }
-        needsListResync = true
       }
       if (needsListResync) {
         chatStore.requestChatListResync()
