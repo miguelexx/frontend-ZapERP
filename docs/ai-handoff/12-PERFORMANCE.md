@@ -39,6 +39,77 @@ preview/direção de `chat.mensagens[0]` em `chatListRowAtendimento.js`. Não de
 
 Teste: `scripts/test-atualizar-conversa-policy.mjs` (no `test:node`), validado com 3 mutações.
 
+**Revisão independente de 11/11/2026 — ajustes:** (a) o refetch EXPLÍCITO não partilha mais um GET em voo:
+`criarBuscadorDeCardComRefazer` espera o GET atual e dispara UM a mais (N sinais no voo = 2 GETs), porque a
+resposta em voo pode ser anterior ao sinal — assumir em t0, GET sai em t0+180 ms, transferir em t0+300 ms gravava
+atendente/setor antigos no card de todo mundo e não havia 2º GET; (b) `lazyHookImpl.handleLoadError` não chama
+`triggerStaleChunkReload()` com `navigator.onLine === false` — offline, clicar em Encaminhar/Pix/enquete
+recarregava a aba e jogava fora a thread lida offline; (c) `usePixConfig.handlePixMenuClick`: quando `withImpl`
+devolve `undefined` (gate ocupado por outra ação do hook) o `pixActionBusy` é devolvido — antes o botão Pix
+ficava "Enviando…" até remontar a conversa. Aceite consciente: 403/404 sem a conversa na lista não refresca os chips.
+
+## Hooks lazy do ConversaView 2026-11-10 — fase 1 do corte do chunk (doc 40 §3.8)
+
+Os modais secundários da conversa já eram lazy (`ConversaViewOverlays`), mas os oito hooks que os
+alimentam — `useForwardFlow`, `useSendCatalog`, `useSendPoll`, `useShareContact`, `useShareLocation`,
+`useAddToGroup`, `useConversationCall`, `usePixConfig` — eram importados estaticamente pelo
+`ConversaView`, então o envio/busca/toasts de cada fluxo entrava no chunk crítico da thread mesmo
+sem o modal abrir. Agora cada hook é uma **casca** (mesmo nome, mesma assinatura, mesmo retorno:
+`useState`/`useRef`, abrir/fechar e os disparadores) e o **corpo** vive em `hooks/useX.impl.js`,
+módulo puro sem React, carregado por `hooks/lazyHookImpl.js` (`useLazyHookImpl`) na primeira
+invocação. Nada mudou em render, scroll, teclado, virtualização, `chatsStore`, `AudioWavePlayer`
+nem no envio otimista — `ConversaView.jsx` e `ConversaViewOverlays.jsx` não foram tocados.
+
+Medido com `npx vite build --outDir <pasta fora do repo>` (o `dist/` do repo é rastreado; **não**
+buildar nele), `stat` + `gzip -c`:
+
+| | bruto | gzip |
+|---|---|---|
+| `assets/ConversaView-*.js` antes | 451 161 B | 131 490 B |
+| `assets/ConversaView-*.js` depois | 432 421 B | 126 270 B |
+| **diferença** | **−18 740 B (−4,2 %)** | **−5 220 B (−4,0 %)** |
+| chunks novos, só sob demanda (8 × `useX.impl-*.js`) | 32 202 B | ≈13 KB |
+| só `useForwardFlow.impl-*.js` | 17 480 B | 5 649 B |
+
+O JS total do build subiu ≈13 KB: é a casca de cada hook (estados, snapshot `ctx`, wrappers) mais o
+helper, que continuam no chunk principal. Para quem nunca encaminha/enquete/Pix, o chunk crítico é
+4 % menor; para quem usa, o corpo desce em paralelo com o chunk do modal (uma viagem, não duas em
+série — `prefetch` em `useLazyHookImpl`). Os 44 KB de `useForwardFlow.js` da tabela do doc 40 eram
+**fonte**; minificado o fluxo inteiro é ≈23 KB, dos quais 17,5 KB saíram. O ganho grande continua
+sendo a fase 3 (`conversaOutboundMediaMerge.js`, 104 KB de fonte, zona de perigo do envio otimista).
+
+**Como funciona (e o que NÃO pode ir para trás do `import()`)** — o impl recebe um *snapshot* do
+contexto do clique (`ctxRef.current`: estado + setters + refs + props), equivalente ao closure que o
+`useCallback` original capturava; com o chunk em cache a chamada é 100 % síncrona; enquanto o chunk
+desce, só a **primeira** ação fica na fila e as demais são descartadas (anti-duplo-envio, mesmo
+efeito da guarda `sending`); falha definitiva (404 após deploy) recarrega a aba uma vez como o
+`lazyWithRetry`, outra falha vira toast + `onError` (devolve `busy`). Armadilha de cada hook:
+
+- `useForwardFlow` — a validação da seleção (`openForwardFromSelection`) é síncrona no clique, lendo
+  as mensagens por argumento; o modal só abre **depois** do corpo chegar, porque os memos
+  (`forwardCandidates`, `forwardGrupos`…) e os efeitos de busca de destinos precisam dele no mesmo
+  commit da abertura. `closeForward`, `toggle*`, `flashForwardMaxMsg` e o snapshot do `chatsStore`
+  ficam na casca; `forwardJobLockRef` e os mapas id→cliente/grupo são refs da casca passados ao impl.
+- `useSendCatalog` — `composerRef.closePanels()` síncrono; `setCatalogOpen(true)` + `load` só com o
+  impl (o modal nasce já com `loading=true`, como antes). Chunk do `CatalogPickerModal` aquecido junto.
+- `useShareContact` / `useAddToGroup` — mesma regra: abrem depois do impl, porque o efeito de busca
+  (debounce 260 ms) / carga de grupos precisa setar `loading` no commit da abertura. O ramo
+  "fechado" dos efeitos (zerar lista/query) continua na casca.
+- `useSendPoll` / `useShareLocation` — abrem **imediatamente** (formulário puro); o corpo é só
+  aquecido (`ensureImpl`). Em `useShareLocation`, `navigator.geolocation.getCurrentPosition` fica na
+  casca, dentro do gesto — Safari/iOS só mostra o prompt de permissão assim.
+- `useConversationCall` — não tem disparador próprio (`setCallModalOpen` é setter cru do header);
+  um efeito aquece o impl quando o modal abre. O botão do `SidebarCliente` chama `handleCallConfirm`
+  direto: na primeira vez o chunk desce no toque e o segundo toque é descartado pela fila.
+- `usePixConfig` — o botão Pix do composer é uma **ação** (envia a chave), não um "abrir modal":
+  `pixActionBusy` sobe na casca, síncrono, para o spinner aparecer e barrar o duplo clique enquanto
+  o corpo carrega; o impl repete o guard com o snapshot (`busy=false`) e devolve o flag no `finally`.
+
+Teste: `scripts/test-lazy-hook-impl.mjs` (no `test:node`) — fronteira (nenhuma casca nem
+`ConversaView` importa `.impl` estaticamente), dedupe em voo + cache + retentativa pós-falha,
+`prefetchChunk`, e a fila de uma ação do `withImpl` via `renderToString`. Playwright de
+conversa/encaminhar não foi rodado nesta sessão.
+
 ## Boot mobile 2026-10-23 — auditoria medida + 4 primeiros itens aplicados
 
 Relatório completo: [`docs/audits/boot-mobile-2026-10-23.md`](../audits/boot-mobile-2026-10-23.md).

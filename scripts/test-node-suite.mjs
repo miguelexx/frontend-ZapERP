@@ -57,6 +57,7 @@ const tests = [
   "test-file-drop.mjs",
   "test-dedupe-in-flight.mjs",
   "test-atualizar-conversa-policy.mjs",
+  "test-lazy-hook-impl.mjs",
   "test-deploy-recovery-and-finalization.mjs",
   "test-inbound-media-sequence.mjs",
   "test-lock-card-avatar.mjs",

@@ -1,10 +1,15 @@
-import { useCallback, useState } from "react";
-import { getPixConfig, putPixConfig, enviarMensagemPix } from "../conversaService";
-import { safeString } from "../utils/conversaViewHelpers";
+import { useCallback, useRef, useState } from "react";
+import { useLazyHookImpl } from "./lazyHookImpl";
+
+const loadImpl = () => import("./usePixConfig.impl");
 
 /**
  * Configuração e envio de mensagem Pix (modal + composer).
- * UI em PixConfigModal; lógica concentrada neste hook.
+ * UI em PixConfigModal; lógica concentrada em `usePixConfig.impl.js`.
+ *
+ * Casca: o botão Pix do composer é uma AÇÃO (envia a chave), não um "abrir modal".
+ * Na primeira vez o chunk desce no clique; `pixActionBusy` sobe aqui, síncrono, para o
+ * composer mostrar o spinner e barrar o duplo clique enquanto o corpo carrega.
  */
 export function usePixConfig({
   conversaId,
@@ -23,153 +28,67 @@ export function usePixConfig({
   const [pixChave, setPixChave] = useState("");
   const [pixNomeRecebedor, setPixNomeRecebedor] = useState("");
   const [pixMensagemPadrao, setPixMensagemPadrao] = useState("");
+  const { withImpl } = useLazyHookImpl(loadImpl, { showToast, label: "Pix" });
 
-  const isPixConfigured = useCallback((cfgData) => {
-    if (!cfgData || typeof cfgData !== "object") return false;
-    const tipo = safeString(cfgData.tipo_chave).toLowerCase();
-    const chave = safeString(cfgData.chave_pix);
-    const nome = safeString(cfgData.nome_recebedor);
-    return !!tipo && !!chave && !!nome;
-  }, []);
-
-  const applyPixConfigToForm = useCallback((cfgData) => {
-    const next = cfgData && typeof cfgData === "object" ? cfgData : {};
-    setPixTipoChave(safeString(next.tipo_chave).toLowerCase() || "cpf");
-    setPixChave(safeString(next.chave_pix));
-    setPixNomeRecebedor(safeString(next.nome_recebedor));
-    setPixMensagemPadrao(safeString(next.mensagem_padrao));
-  }, []);
-
-  const fetchPixConfigIfNeeded = useCallback(async () => {
-    if (pixConfigLoading) return null;
-    setPixConfigLoading(true);
-    try {
-      const payload = await getPixConfig();
-      const config = payload?.config && typeof payload.config === "object" ? payload.config : null;
-      if (config) applyPixConfigToForm(config);
-      setPixConfigLoaded(true);
-      return config;
-    } catch (err) {
-      console.error("Erro ao carregar Pix:", err);
-      showToast({
-        type: "error",
-        title: "Pix",
-        message: "Não foi possível carregar a configuração Pix da empresa.",
-      });
-      return null;
-    } finally {
-      setPixConfigLoading(false);
-    }
-  }, [pixConfigLoading, applyPixConfigToForm, showToast]);
-
-  const handleSalvarPixConfig = useCallback(
-    async (opts = {}) => {
-      if (pixConfigSaving) return false;
-      const payload = {
-        tipo_chave: safeString(pixTipoChave).toLowerCase(),
-        chave_pix: safeString(pixChave),
-        nome_recebedor: safeString(pixNomeRecebedor),
-        mensagem_padrao: safeString(pixMensagemPadrao) || null,
-      };
-      if (!payload.chave_pix || !payload.nome_recebedor) {
-        showToast({
-          type: "warning",
-          title: "Pix",
-          message: "Preencha tipo, chave e nome do recebedor.",
-        });
-        return false;
-      }
-      setPixConfigSaving(true);
-      try {
-        const data = await putPixConfig(payload);
-        const saved = data?.config || payload;
-        applyPixConfigToForm(saved);
-        setPixConfigLoaded(true);
-        showToast({
-          type: "success",
-          title: "Pix configurado",
-          message: "Os dados Pix foram salvos com sucesso.",
-        });
-        if (opts?.closeModal !== false) setPixModalOpen(false);
-        return true;
-      } catch (err) {
-        console.error("Erro ao salvar Pix:", err);
-        showToast({
-          type: "error",
-          title: "Pix",
-          message: err?.response?.data?.error || "Não foi possível salvar os dados Pix.",
-        });
-        return false;
-      } finally {
-        setPixConfigSaving(false);
-      }
-    },
-    [
-      pixConfigSaving,
-      pixTipoChave,
-      pixChave,
-      pixNomeRecebedor,
-      pixMensagemPadrao,
-      applyPixConfigToForm,
-      showToast,
-    ]
-  );
-
-  const handlePixMenuClick = useCallback(async () => {
-    if (!conversaId || sending || pixActionBusy || !podeEnviar) return;
-    composerRef.current?.closePanels?.();
-    setPixActionBusy(true);
-    try {
-      const localCfg = {
-        tipo_chave: pixTipoChave,
-        chave_pix: pixChave,
-        nome_recebedor: pixNomeRecebedor,
-        mensagem_padrao: pixMensagemPadrao,
-      };
-      let cfgToUse = isPixConfigured(localCfg) ? localCfg : null;
-      if (!cfgToUse || !pixConfigLoaded) {
-        const fetched = await fetchPixConfigIfNeeded();
-        if (fetched && isPixConfigured(fetched)) cfgToUse = fetched;
-      }
-      if (!cfgToUse || !isPixConfigured(cfgToUse)) {
-        setPixModalOpen(true);
-        return;
-      }
-      // Backend monta e envia: cartão nativo com "Copiar chave Pix" (Whapi) ou texto (UltraMSG).
-      // A bolha chega pela conversa via socket, como enquete/produto.
-      const data = await enviarMensagemPix(conversaId);
-      if (data?.ok === false) {
-        throw Object.assign(new Error(data?.error || "Falha ao enviar Pix"), {
-          response: { status: 422, data },
-        });
-      }
-    } catch (err) {
-      showToast({
-        type: "error",
-        title: "Pix",
-        message:
-          err?.response?.data?.error ||
-          err?.message ||
-          "Não foi possível enviar a chave Pix.",
-      });
-    } finally {
-      setPixActionBusy(false);
-    }
-  }, [
+  const ctxRef = useRef(null);
+  ctxRef.current = {
     conversaId,
     sending,
-    pixActionBusy,
     podeEnviar,
+    showToast,
+    handleEnviar,
     composerRef,
+    pixConfigLoading,
+    pixConfigLoaded,
+    pixConfigSaving,
+    pixActionBusy,
     pixTipoChave,
     pixChave,
     pixNomeRecebedor,
     pixMensagemPadrao,
-    isPixConfigured,
-    pixConfigLoaded,
-    fetchPixConfigIfNeeded,
-    showToast,
-  ]);
+    setPixModalOpen,
+    setPixConfigLoading,
+    setPixConfigLoaded,
+    setPixConfigSaving,
+    setPixActionBusy,
+    setPixTipoChave,
+    setPixChave,
+    setPixNomeRecebedor,
+    setPixMensagemPadrao,
+  };
+
+  const fetchPixConfigIfNeeded = useCallback(() => {
+    const ctx = ctxRef.current;
+    return withImpl((impl) => impl.fetchPixConfigIfNeeded(ctx));
+  }, [withImpl]);
+
+  const handleSalvarPixConfig = useCallback(
+    (opts = {}) => {
+      const ctx = ctxRef.current;
+      return withImpl((impl) => impl.handleSalvarPixConfig(ctx, opts));
+    },
+    [withImpl]
+  );
+
+  const handlePixMenuClick = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!ctx.conversaId || ctx.sending || ctx.pixActionBusy || !ctx.podeEnviar) return undefined;
+    // Fechar os painéis do composer é visual e precisa acontecer DENTRO do clique — não
+    // depois do chunk chegar.
+    composerRef.current?.closePanels?.();
+    // Spinner + anti-duplo-clique já no clique; o corpo repete o guard com o snapshot
+    // (busy=false) e devolve o flag no finally.
+    setPixActionBusy(true);
+    const resultado = withImpl(
+      (impl) => impl.handlePixMenuClick(ctx),
+      () => setPixActionBusy(false)
+    );
+    // `withImpl` devolve `undefined` SÍNCRONO quando outra ação do mesmo hook já está esperando o
+    // chunk (gate) — e nesse caso não chama `onError`. Sem isto o botão Pix ficava "Enviando…"
+    // desabilitado até remontar a conversa (ex.: abrir "Configurar Pix" e tocar "Pix" no 3G).
+    if (resultado === undefined) setPixActionBusy(false);
+    return resultado;
+  }, [composerRef, withImpl]);
 
   return {
     pixModalOpen,
