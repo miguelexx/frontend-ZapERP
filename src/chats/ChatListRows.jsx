@@ -140,7 +140,7 @@ const ChatListRows = memo(function ChatListRows({
         isMobileLayout,
         pendentesFuncionarioSet,
         showAssigneeNames && showResponsavelAtendimento,
-        isAdminViewer && showResponsavelAtendimento,
+        showResponsavelAtendimento,
         modoSimples
       ),
     [chatsFiltrados, isMobileLayout, pendentesFuncionarioSet, showAssigneeNames, isAdminViewer, showResponsavelAtendimento, waLabelsByConversa, modoSimples]

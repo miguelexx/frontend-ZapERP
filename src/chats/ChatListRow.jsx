@@ -1473,18 +1473,18 @@ function ChatRow({
     : "";
   const atendimentoAssigneeNames = useMemo(
     () =>
-      exibirAtendentesNoCard || isAdminViewer
+      showResponsavelAtendimento || exibirAtendentesNoCard || isAdminViewer
         ? getAtendimentoAssigneeNames(chat, currentUserId, currentUserName)
         : [],
-    [chat, currentUserId, currentUserName, exibirAtendentesNoCard, isAdminViewer]
+    [chat, currentUserId, currentUserName, exibirAtendentesNoCard, isAdminViewer, showResponsavelAtendimento]
   );
   const atendimentoAssigneeLabel = atendimentoAssigneeNames.join(", ");
-  // Nome do responsável nos filtros Em atendimento e Aguardando atendente. Basta a conversa ter
-  // um atendente resolvido — não exige status em_atendimento/aguardando_cliente, porque no modo
-  // simples o estado vive em `modo_simples_aguardando` e o gate antigo escondia o chip nesta aba.
+  // Nome do responsável no card dos filtros Em atendimento e Aguardando atendente. Basta a conversa
+  // ter um atendente resolvido (`atendente_id`/`atendente_nome`, o mesmo "Responsável" do painel de
+  // detalhe) — não exige perfil admin nem status específico, para que o nome apareça para qualquer
+  // usuário nessas abas, como pedido.
   const mostrarAtendenteAdmin =
     showResponsavelAtendimento &&
-    isAdminViewer &&
     !isGroup &&
     Boolean(atendimentoAssigneeLabel);
   // Quando a pill admin aparece, ela substitui a linha simples de assignee (evita linha dupla).
