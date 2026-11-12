@@ -1,1 +1,0 @@
-import{n as t}from"./index-56U6MuGe.js";const n="/api/integrations/whatsapp";async function c(){const{data:a}=await t.post(`${n}/contacts/sync`);return a}async function o(){const{data:a}=await t.post(`${n}/groups/sync`);return a}async function r(){const{data:a}=await t.post(`${n}/sync-all`);return a}export{o as a,r as b,c as s};

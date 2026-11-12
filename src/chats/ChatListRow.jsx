@@ -1480,7 +1480,7 @@ function ChatRow({
     [chat, currentUserId, currentUserName, exibirAtendentesNoCard, isAdminViewer]
   );
   const atendimentoAssigneeLabel = atendimentoAssigneeNames.join(", ");
-  // Nome do responsável só no filtro Em atendimento. Fora dessa aba o card não mostra quem assumiu.
+  // Nome do responsável nos filtros Em atendimento e Aguardando atendente. Fora dessas abas o card não mostra quem assumiu.
   const mostrarAtendenteAdmin =
     showResponsavelAtendimento &&
     isAdminViewer &&
