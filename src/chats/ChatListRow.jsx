@@ -41,7 +41,6 @@ import {
   getLastDirection,
   atendimentoRowVisualClass,
   isEmAtendimentoUltimaDoCliente,
-  isConversaEmAtendimentoBadge,
   getAtendimentoAssigneeNames,
 } from "./chatListRowAtendimento";
 import { chatRowPropsAreEqual } from "./chatListRowCompare";
@@ -1480,13 +1479,14 @@ function ChatRow({
     [chat, currentUserId, currentUserName, exibirAtendentesNoCard, isAdminViewer]
   );
   const atendimentoAssigneeLabel = atendimentoAssigneeNames.join(", ");
-  // Nome do responsável nos filtros Em atendimento e Aguardando atendente. Fora dessas abas o card não mostra quem assumiu.
+  // Nome do responsável nos filtros Em atendimento e Aguardando atendente. Basta a conversa ter
+  // um atendente resolvido — não exige status em_atendimento/aguardando_cliente, porque no modo
+  // simples o estado vive em `modo_simples_aguardando` e o gate antigo escondia o chip nesta aba.
   const mostrarAtendenteAdmin =
     showResponsavelAtendimento &&
     isAdminViewer &&
     !isGroup &&
-    Boolean(atendimentoAssigneeLabel) &&
-    isConversaEmAtendimentoBadge(chat);
+    Boolean(atendimentoAssigneeLabel);
   // Quando a pill admin aparece, ela substitui a linha simples de assignee (evita linha dupla).
   const mostrarAssigneeSimples =
     showResponsavelAtendimento &&

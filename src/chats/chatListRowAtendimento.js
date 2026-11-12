@@ -577,7 +577,7 @@ export function estimateChatListRowSize(
     const nomesAtendimento =
       showAssigneeNames || showAdminAtendente ? getAtendimentoAssigneeNames(chat) : [];
     const temAdminAtendente =
-      showAdminAtendente && nomesAtendimento.length > 0 && isConversaEmAtendimentoBadge(chat);
+      showAdminAtendente && nomesAtendimento.length > 0;
     if (temAdminAtendente) blocoNome += m.sublineAdmin;
     else if (showAssigneeNames && nomesAtendimento.length > 0) blocoNome += m.subline;
 
