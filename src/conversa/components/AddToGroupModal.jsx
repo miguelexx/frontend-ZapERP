@@ -27,7 +27,7 @@ export default function AddToGroupModal({
       <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="wa-modal-head">
           <div className="wa-modal-title">Adicionar {contactNome || "contato"} a um grupo</div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} disabled={sending} title="Fechar">
+          <button type="button" className="wa-iconBtn" onClick={onClose} disabled={sending} title="Fechar" aria-label="Fechar">
             <IconClose />
           </button>
         </div>

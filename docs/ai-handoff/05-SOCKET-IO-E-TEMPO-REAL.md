@@ -80,3 +80,31 @@ Antes de adicionar listener: busque o nome no backend. Não registre listener de
 - Não emitir `join_conversa` para id que não é da empresa.
 - Não tratar `nova_mensagem` outbound como unread.
 - Nome `zapi_*` no fio = legado; o provider é UltraMSG.
+
+## Estado da ligação visível ao atendente (13/11/2026)
+
+Até aqui o `connect`/`disconnect` só fazia `console.debug` **dentro de
+`import.meta.env.DEV`**: em produção, socket caído não aparecia em lado nenhum. A lista e a
+thread congelavam e o atendente lia a tela como "o cliente não respondeu".
+
+- `socket/connectionStore.js` — store Zustand pequena (`conectado`, `jaConectou`, `online`,
+  `desde`) + `statusConexao(state)` → `boot` · `ligado` · `religando` · `offline`.
+  **Não importa `socket.js`**: quem a lê é o `MainLayout` (chunk de entrada), e importar o
+  socket daqui arrastava o motor de conversas para esse chunk — a mesma razão pela qual
+  `api/http.js` fala com o socket via `runtime/sessionRuntime.js`.
+- A escrita vem só dos handlers que **já existiam**: `connect` → `marcarConectado`,
+  `disconnect` → `marcarDesconectado`, `disconnectSocket()` → `reiniciar()` (logout/troca de
+  token volta ao estado de boot para não piscar aviso no login). Nenhum listener de domínio
+  novo.
+- `components/ConnectionStatusBanner.jsx` + `connection-status.css` — pílula `position: fixed`
+  com `pointer-events: none` (não empurra layout nem rouba clique), `z-index: 1000`, abaixo
+  dos toasts (9999) de propósito.
+- **Nada aparece em condições normais.** Em `boot` não mostra nada (é o load normal); ao cair,
+  espera **1200 ms** antes de aparecer, porque o Socket.IO religa em ~500 ms e
+  `pagehide`/`visibilitychange` desligam de propósito ao trocar de aba — sem o atraso isto
+  piscava a cada troca de aba. Ao voltar, confirma "Conexão restabelecida" por 2,6 s e sai.
+- `navigator.onLine` separa "a tua rede caiu" (offline) de "o servidor não responde"
+  (religando). Os listeners `online`/`offline` ficam ao nível do módulo da store.
+
+PENDENTE DE VALIDAÇÃO: só visto em build/tsc/testes. Não foi exercido num browser autenticado
+com queda de rede real (o login pede credencial).

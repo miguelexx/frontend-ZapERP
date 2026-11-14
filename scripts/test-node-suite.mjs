@@ -38,6 +38,7 @@ const tests = [
   "test-minha-fila-strict.mjs",
   "test-search-status-media.mjs",
   "test-cache-reconnect.mjs",
+  "test-connection-status.mjs",
   "test-chat-media-display.mjs",
   "test-chat-search-prefix.mjs",
   "test-company-timezone.mjs",

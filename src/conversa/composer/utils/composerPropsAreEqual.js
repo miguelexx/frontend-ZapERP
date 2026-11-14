@@ -18,6 +18,7 @@ export function composerPropsAreEqual(prev, next) {
   if (prev.podeAnotar !== next.podeAnotar) return false;
   if (prev.onSendInternalNote !== next.onSendInternalNote) return false;
   if (prev.showScrollToRecent !== next.showScrollToRecent) return false;
+  if (prev.scrollRecentNovas !== next.scrollRecentNovas) return false;
   if (prev.editMode !== next.editMode) return false;
   if (prev.editAllowEmpty !== next.editAllowEmpty) return false;
   if (prev.editMaxLength !== next.editMaxLength) return false;

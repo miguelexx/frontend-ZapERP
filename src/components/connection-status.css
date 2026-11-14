@@ -1,0 +1,109 @@
+/* Aviso de tempo real em baixo — ver ConnectionStatusBanner.jsx.
+   Fora do fluxo (fixed) e sem eventos de ponteiro: não empurra layout nem rouba clique.
+   Fica abaixo dos toasts (9999) de propósito: o toast é a resposta a uma ação do
+   atendente e tem prioridade sobre um estado de fundo. */
+
+.zs-connWrap {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
+}
+
+.zs-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px 14px;
+  border-radius: var(--ds-radius-full, 9999px);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface-2);
+  box-shadow: var(--ds-shadow-lg);
+  color: var(--ds-text-primary);
+  font-size: 13px;
+  line-height: 1.25;
+  animation: zsConnIn 160ms var(--ds-motion-ease, ease-out);
+}
+
+.zs-conn__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.zs-conn__text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zs-conn__title {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zs-conn__detail {
+  color: var(--ds-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zs-conn--religando .zs-conn__icon {
+  color: var(--ds-warning);
+}
+
+.zs-conn--offline .zs-conn__icon {
+  color: var(--ds-error);
+}
+
+.zs-conn--ok .zs-conn__icon {
+  color: var(--ds-success);
+}
+
+.zs-conn__spin {
+  animation: zsConnSpin 900ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes zsConnIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes zsConnSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Telemóvel: o detalhe não cabe ao lado do título sem empurrar o cartão fora do ecrã. */
+@media (max-width: 480px) {
+  .zs-conn__detail {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zs-conn {
+    animation: none;
+  }
+
+  .zs-conn__spin {
+    animation: none;
+  }
+}

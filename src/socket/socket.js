@@ -25,6 +25,7 @@ import { createUnreadSnapshotSync } from "../chats/unreadSnapshotSync"
 import { removeChatIdFromFilterRowCaches, clearChatListRowsFilterSessionCache } from "../chats/chatListSidebarCache"
 import { buildChatListFiltersScopeKey } from "../chats/chatListFiltersData"
 import { createReconnectRecovery } from "./reconnectRecovery"
+import { useConnectionStore } from "./connectionStore"
 import { useComunidadesStore } from "../comunidades/comunidadesStore"
 import { useInternalChatNotifyStore } from "../internal-chat/internalChatNotifyStore"
 import { useHelpDeskNotifyStore } from "../helpdesk/helpDeskNotifyStore"
@@ -1100,8 +1101,13 @@ export function initSocket(token) {
     }
     hadFirstConnect = true
     updateDocumentTitleFromChats()
+    // Só estado para a UI (ConnectionStatusBanner). Não dispara GET nem toca em stores de domínio.
+    try { useConnectionStore.getState().marcarConectado() } catch (_) {}
   })
-  socket.on("disconnect", () => reconnectRecovery?.suspend())
+  socket.on("disconnect", () => {
+    reconnectRecovery?.suspend()
+    try { useConnectionStore.getState().marcarDesconectado() } catch (_) {}
+  })
 
   /* ===========================
      INDICADOR DE DIGITAÇÃO
@@ -2158,6 +2164,8 @@ export function disconnectSocket() {
   } catch (_) {}
 
   currentConversationId = null
+  // Logout/troca de token: volta ao estado de boot para o banner não piscar "sem ligação" no login.
+  try { useConnectionStore.getState().reiniciar() } catch (_) {}
   unbindSocketAwakeListeners()
   socketAwakeListenersBound = false
   try {

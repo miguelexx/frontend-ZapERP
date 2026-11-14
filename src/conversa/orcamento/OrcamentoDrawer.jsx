@@ -783,7 +783,7 @@ export default function OrcamentoDrawer({
               Pesquise cliente, vendedor e produtos por nome. Os valores são do sistema da empresa.
             </p>
           </div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar">
+          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
             ✕
           </button>
         </div>

@@ -89,6 +89,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     clearTyping,
     showToast,
     showScrollToRecent = false,
+    scrollRecentNovas = 0,
     onScrollToRecent,
     onRecordingStateChange,
     podeAnotar = false,
@@ -661,8 +662,12 @@ const ConversaComposer = forwardRef(function ConversaComposer(
           // preventDefault no mousedown: não rouba o foco do input (não fecha/reabre o teclado só por tocar no botão).
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onScrollToRecent?.()}
-          aria-label="Ir para as mensagens mais recentes"
-          title="Mensagens mais recentes"
+          aria-label={
+            scrollRecentNovas > 0
+              ? `Ir para as mensagens mais recentes — ${scrollRecentNovas} nova${scrollRecentNovas > 1 ? "s" : ""}`
+              : "Ir para as mensagens mais recentes"
+          }
+          title={scrollRecentNovas > 0 ? "Mensagens novas" : "Mensagens mais recentes"}
         >
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
             <path
@@ -674,6 +679,11 @@ const ConversaComposer = forwardRef(function ConversaComposer(
               strokeLinejoin="round"
             />
           </svg>
+          {scrollRecentNovas > 0 ? (
+            <span className="wa-scrollRecentBtn-badge" aria-hidden="true">
+              {scrollRecentNovas > 99 ? "99+" : scrollRecentNovas}
+            </span>
+          ) : null}
         </button>
       ) : null}
       {savedRepliesOpen && !isRecording ? (

@@ -26,10 +26,18 @@
  */
 
 export const MOTIVO_NOVA_MENSAGEM = "nova_mensagem";
+/**
+ * Sinal de sincronização após assumir/transferir/encerrar/finalização automática
+ * (`emitirSincronizacaoListaConversas`, para a EMPRESA inteira). Quem TEM o card precisa refazer o
+ * GET (pode ter perdido a visibilidade → 403 → tira o card); quem NÃO tem não tem o que tirar nem
+ * atualizar — quem ganhou visibilidade entra pelo `conversa_atualizada`/`conversa_transferida`.
+ * Antes, cada assumir fazia todo usuário da empresa pedir o detalhe e levar 403.
+ */
+export const MOTIVO_ATENDIMENTO = "atendimento";
 
 /** Lote vazio para a janela de debounce de uma conversa. */
 export function novoLoteAtualizarConversa() {
-  return { refetchExplicito: false, forcaResync: false, eventos: 0 };
+  return { refetchExplicito: false, forcaResync: false, novaMensagem: false, atendimento: false, eventos: 0 };
 }
 
 /**
@@ -41,7 +49,10 @@ export function novoLoteAtualizarConversa() {
 export function acumularAtualizarConversa(lote, payload) {
   const l = lote || novoLoteAtualizarConversa();
   l.eventos += 1;
-  if (String(payload?.motivo ?? "") !== MOTIVO_NOVA_MENSAGEM) l.refetchExplicito = true;
+  const motivo = String(payload?.motivo ?? "");
+  if (motivo === MOTIVO_NOVA_MENSAGEM) l.novaMensagem = true;
+  else if (motivo === MOTIVO_ATENDIMENTO) l.atendimento = true;
+  else l.refetchExplicito = true;
   const lr = payload?.lista_realtime;
   if (lr && (lr.minha_fila === true || lr.campanhas === true)) l.forcaResync = true;
   return l;
@@ -53,7 +64,9 @@ export function acumularAtualizarConversa(lote, payload) {
  */
 export function decidirAtualizarConversa({ lote, rowNaLista }) {
   if (!lote || lote.refetchExplicito || lote.forcaResync) return "refetch";
-  return rowNaLista ? "ignorar" : "adicionar_se_autorizado";
+  if (rowNaLista) return lote.atendimento ? "refetch" : "ignorar";
+  // Card fora da lista: só uma mensagem nova justifica o GET autorizado para ele aparecer.
+  return lote.novaMensagem ? "adicionar_se_autorizado" : "ignorar";
 }
 
 /**

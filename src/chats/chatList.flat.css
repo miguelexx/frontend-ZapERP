@@ -802,15 +802,16 @@ html body .app-layout #main-content .chat-list-root .chat-list-status.dispatched
 html body .app-layout #main-content .chat-list-root .chat-list-status.awaiting-client,
 html body .app-layout #main-content .chat-list-root .chat-list-badge-await,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-client,
-html body .app-layout #main-content .chat-list-root .chat-list-status-tech--pagamento-pendente,
-html body .app-layout #main-content .chat-list-root .chat-list-status-tech--reaberta-falta {
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--pagamento-pendente {
   color: var(--zs-st-wait-fg) !important;
   background: var(--zs-st-wait-bg) !important;
 }
 
-/* Escalada do prazo do cliente: só os dois últimos degraus ficam vermelhos. */
+/* Escalada do prazo do cliente: só os dois últimos degraus ficam vermelhos.
+   "Reaberta por falta de interação" também é vermelho (pedido do Miguel). */
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--em-atraso,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-alarm-overdue,
+html body .app-layout #main-content .chat-list-root .chat-list-status-tech--reaberta-falta,
 html body .app-layout #main-content .chat-list-root .chat-list-status-tech--await-alarm-critical {
   color: var(--zs-st-due-fg) !important;
   background: var(--zs-st-due-bg) !important;

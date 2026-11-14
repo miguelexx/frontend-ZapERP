@@ -181,7 +181,7 @@ export default function ForwardModal({
                 : `Escolha até ${FORWARD_DEST_MAX} destinos`}
             </div>
           </div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar">
+          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
             <IconClose />
           </button>
         </div>

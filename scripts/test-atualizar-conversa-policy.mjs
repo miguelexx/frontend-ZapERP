@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   MOTIVO_NOVA_MENSAGEM,
+  MOTIVO_ATENDIMENTO,
   novoLoteAtualizarConversa,
   acumularAtualizarConversa,
   decidirAtualizarConversa,
@@ -68,6 +69,18 @@ assert.equal(
   }),
   "refetch"
 );
+
+// 4b. motivo "atendimento" (assumir/transferir/encerrar, para a empresa inteira):
+//     com o card → refetch (pode ter perdido visibilidade → 403 → tira o card);
+//     sem o card → ignorar (nada a tirar; quem ganhou entra por conversa_atualizada/transferida).
+assert.equal(decidirAtualizarConversa({ lote: lote({ id: 10, motivo: MOTIVO_ATENDIMENTO }), rowNaLista: true }), "refetch");
+assert.equal(decidirAtualizarConversa({ lote: lote({ id: 10, motivo: MOTIVO_ATENDIMENTO }), rowNaLista: false }), "ignorar",
+  "sinal de atendimento para quem não tem o card não pode gerar GET (era o 403 em massa)");
+// atendimento + nova_mensagem na mesma janela, sem card → o GET da mensagem nova ainda vale
+assert.equal(decidirAtualizarConversa({ lote: lote({ id: 10, motivo: MOTIVO_ATENDIMENTO }, { id: 10, motivo: MOTIVO_NOVA_MENSAGEM }), rowNaLista: false }), "adicionar_se_autorizado");
+assert.equal(decidirAtualizarConversa({ lote: lote({ id: 10, motivo: MOTIVO_NOVA_MENSAGEM }, { id: 10, motivo: MOTIVO_ATENDIMENTO }), rowNaLista: true }), "refetch");
+// sinal sem motivo junto com atendimento continua refetch mesmo sem card (backend antigo / outros emissores)
+assert.equal(decidirAtualizarConversa({ lote: lote({ id: 10, motivo: MOTIVO_ATENDIMENTO }, { id: 10 }), rowNaLista: false }), "refetch");
 
 // 5. lista_realtime força resync mesmo com motivo
 const forcado = lote({ id: 10, motivo: MOTIVO_NOVA_MENSAGEM, lista_realtime: { minha_fila: true } });

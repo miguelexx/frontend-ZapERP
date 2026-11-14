@@ -202,7 +202,7 @@ export default function ProdutoConsultaPanel({
             <h3 className="wa-productsDrawer-title">Consulta de produtos</h3>
             <p className="wa-productsDrawer-subtitle">Pesquise preço e estoque sem sair do atendimento.</p>
           </div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar">
+          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
             ✕
           </button>
         </div>

@@ -142,3 +142,40 @@ perfis do Playwright, antes e depois, e exigir diferença zero. Deu 3718 amostra
 
 Cuidado com a sonda no perfil `chromium-mobile`: chamar `setViewportSize` por cima da
 emulação de dispositivo **fecha a página**. Nesse perfil use o tamanho do próprio perfil.
+
+## Atalhos de teclado (13/11/2026)
+
+- Atalho de **uma** tecla passa por `alvoEditavel(e.target)` em `useGlobalHotkeys`, senão
+  escrever esse caractere numa mensagem acciona a ação. Com Ctrl/Cmd pode (e deve) disparar
+  com o cursor no composer.
+- Atalho novo entra **também** na lista do `ShortcutsOverlay` (tecla `?`). O que não está lá
+  não existe para o atendente.
+- Painel de ajuda trata o Escape em **captura** no `window`; não entra em
+  `conversationEscapeOrder.js` (ordem com teste dedicado).
+
+## Nome acessível e anel de foco (13/11/2026)
+
+- Botão **só de ícone** leva `aria-label`. Espelhar o `title` quando já existe (mesma string:
+  o nome efetivo não muda, mas deixa de depender do `title`, que no toque não aparece e em
+  leitor de ecrã é configurável).
+- Botão que **já tem texto visível** (inclusive vindo de expressão, `{progressLabel}`) **não**
+  leva `aria-label`: sobrescreveria o rótulo visível e dessincroniza o nome do que se lê na
+  tela. Foi por isso que o `wa-catalogPicker-sendBtn` e os dois CTA de sincronização antiga do
+  `ConversaThread` ficaram de fora.
+- Anel de foco: só `:focus-visible` com `outline: 2px solid var(--ds-focus-ring)` e
+  `outline-offset: 2px`, no bloco ACESSIBILIDADE do `conversa.css`. `outline` não entra no
+  fluxo, por isso não desloca nada; e `:focus-visible` não pinta no clique de rato.
+
+### Testes e2e com falha ANTERIOR a estas mudanças (não são regressão)
+
+`e2e/search-keyboard-media.spec.js` tem 2 testes a falhar em `main`, confirmado a correr a
+suíte com os ficheiros revertidos:
+
+1. `busca da Minha fila…` — `requests.at(-1).searchParams.get('minha_fila')` vem `null`.
+2. `falha de mídia mostra aviso de F5…` — o selector `input[accept^=".pdf,.doc,.docx,image"]`
+   **não pode casar**: o `accept` real em `AttachmentInputs.jsx` é
+   `.pdf,.doc,.docx,.cdr,.ai,.eps,.psd,image/*,…` — alguém acrescentou `.cdr,.ai,.eps,.psd` e
+   não atualizou o teste.
+
+E `audit-local-mock.spec.js › composer mantém teclado…` (chromium-desktop) é **flake**: com o
+mesmo código, uma execução passa a suíte inteira e a seguinte falha no toggle do menu de ações.

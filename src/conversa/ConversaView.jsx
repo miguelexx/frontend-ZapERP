@@ -128,6 +128,8 @@ import { Suspense } from "react";
 import { lazyWithRetry } from "../runtime/lazyWithRetry";
 // Lazy como os demais modais (ConversaViewOverlays): fora do chunk crítico da thread.
 const CatalogPickerModal = lazyWithRetry(() => import("./components/CatalogPickerModal"));
+// Ajuda de atalhos: raramente aberta, não entra no chunk da thread.
+const ShortcutsOverlay = lazyWithRetry(() => import("./components/ShortcutsOverlay"));
 import useContactPresence from "./hooks/useContactPresence";
 import { formatContactPresenceLabel } from "./utils/contactPresenceFormat";
 import ConversaSelectionBar from "./components/ConversaSelectionBar";
@@ -476,6 +478,19 @@ function ConversaViewBody() {
   /** Botão "ir para recentes": visível quando o utilizador está lendo histórico (longe do fim). */
   const [showScrollToRecent, setShowScrollToRecent] = useState(false);
   const scrollToRecentVisibleRef = useRef(false);
+  /*
+   * Quantas mensagens chegaram enquanto o atendente lê histórico. O botão de recentes já
+   * existia, mas aparecia igual com ou sem mensagem nova — quem subiu para conferir um dado
+   * não sabia que o cliente tinha respondido. O número vive aqui (e não num estado da
+   * thread) porque só o botão o pinta; `ConversaView` já re-renderiza ao chegar mensagem,
+   * por isso não acrescenta render nenhum ao caminho quente.
+   */
+  const [scrollRecentNovas, setScrollRecentNovas] = useState(0);
+  const scrollRecentNovasRef = useRef(0);
+  const prevLastMsgKeyRecentRef = useRef(null);
+  /* Espelho da última mensagem: o efeito precisa dela no rAF sem assinar `mensagens`
+     (assinar re-corria o efeito a cada patch de status, não só quando chega mensagem). */
+  const lastMsgForRecentRef = useRef(null);
   /** Gravação ativa: mantém a âncora ao fim quando o teclado fecha ao iniciar a gravação. */
   const recordingActiveRef = useRef(false);
   const recordingSnapCleanupRef = useRef(null);
@@ -816,6 +831,7 @@ function ConversaViewBody() {
     () => (mensagens?.length ? mensagens[mensagens.length - 1] : null),
     [mensagens]
   );
+  lastMsgForRecentRef.current = lastMsg;
   const lastMsgKey = useMemo(() => {
     if (!lastMsg) return null;
     return String(
@@ -1518,6 +1534,24 @@ function ConversaViewBody() {
     }, delayMs);
   }, []);
 
+  /*
+   * NÃO mexer em `prevLastMsgKeyRecentRef` aqui: quem o mantém é só o efeito, que o põe
+   * sempre na chave corrente. Zerá-lo tornaria "não há anterior" indistinguível de "chegou
+   * mensagem nova" e o efeito contaria +1 ao correr outra vez sem mensagem nenhuma.
+   */
+  const resetScrollRecentNovas = useCallback(() => {
+    if (scrollRecentNovasRef.current === 0) return;
+    scrollRecentNovasRef.current = 0;
+    setScrollRecentNovas(0);
+  }, []);
+
+  const bumpScrollRecentNovas = useCallback(() => {
+    const next = Math.min(scrollRecentNovasRef.current + 1, 99);
+    if (next === scrollRecentNovasRef.current) return;
+    scrollRecentNovasRef.current = next;
+    setScrollRecentNovas(next);
+  }, []);
+
   /** Mostra/esconde o botão "ir para recentes" só quando o valor muda (evita re-render por scroll). */
   const syncScrollToRecentVisibility = useCallback(() => {
     const el = messagesContainerRef.current;
@@ -1526,8 +1560,10 @@ function ConversaViewBody() {
     if (scrollToRecentVisibleRef.current !== next) {
       scrollToRecentVisibleRef.current = next;
       setShowScrollToRecent(next);
+      // Voltar ao fim (por snap ou por scroll) zera o contador: já viu o que chegou.
+      if (!next) resetScrollRecentNovas();
     }
-  }, []);
+  }, [resetScrollRecentNovas]);
 
   /**
    * Impede o snap ao fim durante o posicionamento numa mensagem antiga.
@@ -1566,7 +1602,8 @@ function ConversaViewBody() {
     snapThreadToBottom(el, virtualThreadRef, { min: true });
     scrollToRecentVisibleRef.current = false;
     setShowScrollToRecent(false);
-  }, [cancelThreadJump]);
+    resetScrollRecentNovas();
+  }, [cancelThreadJump, resetScrollRecentNovas]);
 
   /**
    * Ao iniciar/parar a gravação, a barra do composer troca de altura (linha de digitação <->
@@ -1654,11 +1691,12 @@ function ConversaViewBody() {
     // Ao trocar de conversa, esconde o botão de recentes (abre sempre ancorado ao fim).
     scrollToRecentVisibleRef.current = false;
     setShowScrollToRecent(false);
+    resetScrollRecentNovas();
     return () => {
       jumpHoldRef.current = false;
       window.clearTimeout(jumpHoldTimerRef.current);
     };
-  }, [scrollThreadId]);
+  }, [scrollThreadId, resetScrollRecentNovas]);
 
   useEffect(() => {
     const el = messagesContainerRef.current;
@@ -1673,9 +1711,37 @@ function ConversaViewBody() {
   // Reavalia o botão "ir para recentes" quando chega mensagem nova: mostra se o utilizador está
   // lendo histórico; esconde se o snap automático o manteve no fim. rAF lê a posição pós-layout.
   useEffect(() => {
-    const id = requestAnimationFrame(() => syncScrollToRecentVisibility());
+    const id = requestAnimationFrame(() => {
+      syncScrollToRecentVisibility();
+      /*
+       * Conta a mensagem só depois do sync: é ele que decide se o utilizador ficou longe do
+       * fim. Guarda a chave para não contar outra vez quando o efeito voltar a correr por
+       * `loading`.
+       */
+      const mudou = Boolean(lastMsgKey) && lastMsgKey !== prevLastMsgKeyRecentRef.current;
+      prevLastMsgKeyRecentRef.current = lastMsgKey;
+      if (!mudou || !scrollToRecentVisibleRef.current) return;
+      /*
+       * Durante a abertura o snap ainda está a acomodar, e o sync pode ver "longe do fim"
+       * por um frame — contar aí punha "1 nova" ao abrir a conversa.
+       */
+      if (threadOpeningRef.current) return;
+      /*
+       * Mensagem minha não é "nova": o atendente acabou de a escrever. `useAutoScroll` não
+       * a leva ao fim quando ele está a ler histórico (o lock de scroll vence), por isso o
+       * botão continua visível e sem este corte o balão dizia "1 nova" para a própria
+       * mensagem. Mesma expressão do `fromMe` do `useAutoScroll`, para os dois concordarem.
+       */
+      const m = lastMsgForRecentRef.current;
+      const minha =
+        isOutgoingMessage(m) ||
+        m?.fromMe === true ||
+        (myUserId != null && m?.autor_usuario_id != null && String(m.autor_usuario_id) === String(myUserId));
+      if (minha) return;
+      bumpScrollRecentNovas();
+    });
     return () => cancelAnimationFrame(id);
-  }, [lastMsgKey, loading, syncScrollToRecentVisibility]);
+  }, [lastMsgKey, loading, myUserId, syncScrollToRecentVisibility, bumpScrollRecentNovas]);
 
   useEffect(() => {
     const el = messagesContainerRef.current;
@@ -2790,11 +2856,22 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     headerCompact,
   ]);
 
+  /*
+   * Lista de atalhos (tecla "?"). Fica fora da cadeia de `conversationEscapeOrder.js` de
+   * propósito: o próprio overlay trata o Escape num listener de captura, por isso não é
+   * preciso mexer numa ordem que tem teste dedicado.
+   */
+  const [atalhosOpen, setAtalhosOpen] = useState(false);
+  const abrirAtalhos = useCallback(() => setAtalhosOpen(true), []);
+  const fecharAtalhos = useCallback(() => setAtalhosOpen(false), []);
+
   useGlobalHotkeys({
     // Callback estável: a arrow inline re-registrava o listener global de keydown a cada render.
     onToggleTimeline: toggleTimeline,
     onFocusInput: focusMessageInput,
     onEscape,
+    onOpenSearch: openMessageSearch,
+    onShowShortcuts: abrirAtalhos,
     disabled: loading,
   });
 
@@ -3549,6 +3626,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           onAppendTextApplied={handleComposerAppendApplied}
           onTextMetrics={handleComposerTextMetrics}
           showScrollToRecent={showScrollToRecent}
+          scrollRecentNovas={scrollRecentNovas}
           onScrollToRecent={handleScrollToRecent}
           onRecordingStateChange={handleRecordingStateChange}
           clearTyping={clearTyping}
@@ -3574,6 +3652,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             />
           </Suspense>
         )}
+
+        {atalhosOpen ? (
+          <Suspense fallback={null}>
+            <ShortcutsOverlay open onClose={fecharAtalhos} />
+          </Suspense>
+        ) : null}
 
     </div>
   );

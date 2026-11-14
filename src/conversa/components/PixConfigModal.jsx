@@ -28,7 +28,7 @@ export default function PixConfigModal({
       <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="wa-modal-head">
           <div className="wa-modal-title">Configurar Pix</div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" disabled={saving}>
+          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar" disabled={saving}>
             <IconClose />
           </button>
         </div>

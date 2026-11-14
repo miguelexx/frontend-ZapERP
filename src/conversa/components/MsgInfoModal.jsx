@@ -51,7 +51,7 @@ export default function MsgInfoModal({ open, msgInfo, onClose }) {
       <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="wa-modal-head">
           <div className="wa-modal-title">Dados da mensagem</div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar">
+          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
             <IconClose />
           </button>
         </div>

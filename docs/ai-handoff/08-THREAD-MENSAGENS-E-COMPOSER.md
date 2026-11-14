@@ -1005,3 +1005,82 @@ não deixar o teclado fechar no telemóvel.
 Verificado no browser: três botões, cada clique põe o `playbackRate` do elemento em
 1 / 1.5 / 2 e marca o `isActive` certo; tocar continua a andar.
 
+
+## Contador no botão "ir para recentes" (13/11/2026)
+
+O botão flutuante (`.wa-scrollRecentBtn`, dentro do `ConversaComposerShell`, ancorado ao
+`.wa-composerStack`) já existia e aparecia sempre que o atendente estava longe do fim — mas
+aparecia **igual** com e sem mensagem nova. Quem subiu no histórico para conferir um dado
+não ficava a saber que o cliente tinha respondido.
+
+Agora leva um balão com o número (`.wa-scrollRecentBtn-badge`, `position: absolute` dentro do
+próprio botão, logo não mexe na caixa dele nem no layout do composer).
+
+Onde vive a contagem: `scrollRecentNovas` no `ConversaView` (estado + ref espelho). Regras:
+
+- **Incrementa** no efeito que já corria por `lastMsgKey` — depois do
+  `syncScrollToRecentVisibility()`, e só se `scrollToRecentVisibleRef.current` ficou `true`.
+  É esse sync que decide se o snap automático nos manteve no fim (mensagem minha, ou já
+  colado ao fim); nesses casos o botão não aparece e não há nada a contar.
+- **Zera** em três sítios: ao voltar ao fim (o próprio sync, quando passa a invisível), no
+  clique (`handleScrollToRecent`) e ao trocar de conversa.
+- `prevLastMsgKeyRecentRef` evita contar duas vezes quando o efeito volta a correr por
+  `loading`.
+- O prop novo entrou em `composerPropsAreEqual` — sem isso o botão não repintava.
+
+Não acrescenta render ao caminho quente: o `ConversaView` já re-renderiza quando chega
+mensagem. `useAutoScroll` e `snapThreadToBottom` **não** foram tocados.
+
+## Atalhos de teclado e a lista "?" (13/11/2026)
+
+`hooks/useGlobalHotkeys.js` tinha 3 atalhos (Esc, Ctrl+K, Ctrl+H) e nenhum sítio na
+interface os listava. Acrescentados:
+
+- `Ctrl/⌘+Shift+F` → `openMessageSearch` (busca na conversa). Com Shift para não roubar o
+  Ctrl+F do browser.
+- `?` → abre `components/ShortcutsOverlay.jsx` (lazy, chunk próprio).
+
+**Regra para atalho novo:** com Ctrl/Cmd pode disparar com o cursor no composer (é o ponto
+deles); atalho de **uma** tecla tem de passar por `alvoEditavel(e.target)` primeiro, senão
+escrever esse caractere numa mensagem acciona a ação. E tem de entrar na lista do
+`ShortcutsOverlay` — atalho que não aparece lá não existe para o atendente.
+
+**O overlay não está na cadeia de `conversationEscapeOrder.js`** de propósito: trata o Escape
+num listener de **captura** no `window`, que corre antes do listener de bolha do
+`useGlobalHotkeys` (e marca `preventDefault`, que o hook também respeita). Assim fecha só o
+painel de ajuda sem mexer numa ordem que tem teste dedicado
+(`scripts/test-conversa-escape-order.mjs`, 24 cenários).
+
+### Três cortes na contagem (revisão de 13/11/2026)
+
+A primeira versão contava a mais. Os cortes, pela ordem em que estão no efeito:
+
+1. **`prevLastMsgKeyRecentRef` é mantido SÓ pelo efeito.** `resetScrollRecentNovas` não o põe a
+   `null`: isso tornava "não há anterior" indistinguível de "chegou mensagem" e um re-run por
+   `loading` contava +1 sem mensagem nenhuma.
+2. **`threadOpeningRef.current` → não conta.** Na abertura o snap ainda acomoda e o
+   `syncScrollToRecentVisibility` pode ver "longe do fim" por um frame; sem isto a conversa
+   abria com "1 nova".
+3. **Mensagem minha → não conta.** Quando o atendente escreve a ler histórico, o
+   `useAutoScroll` NÃO a leva ao fim (o lock de scroll vence), o botão fica visível e o balão
+   dizia "1 nova" para a própria mensagem. A expressão do `fromMe` é a mesma do
+   `useAutoScroll`, de propósito — se mudar lá, mudar aqui.
+
+A última mensagem chega ao efeito por `lastMsgForRecentRef` (espelho atribuído no render), e
+não por dependência: assinar `mensagens` fazia o efeito correr a cada patch de status.
+
+## `--wa-accent` NÃO EXISTE (achado de 13/11/2026)
+
+`--wa-accent` é usado no `conversa.css` mas **nunca é definido em `src/`**. `var(--wa-accent)`
+sem fallback resolve a vazio, a declaração é descartada, e isso já está a partir duas coisas
+que não têm nada a ver com esta sessão:
+
+- `conversa.css:655` — `.wa-header-whatsappInstance { color: var(--wa-accent) }`: o número do
+  WhatsApp no cabeçalho não fica com a cor de destaque, herda a do meta à volta.
+- `conversa.css:1957` — `.wa-savedReplyItem:hover/.isActive { background: color-mix(…
+  var(--wa-accent) 14% …) }`: **a resposta salva não acende no hover nem quando está ativa.**
+
+(`conversa.css:13768` tem fallback `#2E86FF`, esse está bem.)
+
+O token certo é `--ds-accent` (theme.css, nos dois temas) — foi o que o balão do contador
+passou a usar depois de a sonda visual o apanhar transparente.

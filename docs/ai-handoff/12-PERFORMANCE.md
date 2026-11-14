@@ -39,6 +39,8 @@ preview/direção de `chat.mensagens[0]` em `chatListRowAtendimento.js`. Não de
 
 Teste: `scripts/test-atualizar-conversa-policy.mjs` (no `test:node`), validado com 3 mutações.
 
+**12/11 — `motivo: 'atendimento'`:** o sinal de sincronização após assumir/transferir/encerrar (`emitirSincronizacaoListaConversas`, empresa inteira) vem marcado; a política só refaz o GET se o card ESTÁ na lista (pode ter perdido visibilidade → 403 → tira o card) e ignora se não está (quem ganhou visibilidade entra por `conversa_atualizada`/`conversa_transferida`). Antes era 1 GET → 403 por usuário da empresa a cada ação. Lote misto com sinal sem motivo continua `refetch`.
+
 **Revisão independente de 11/11/2026 — ajustes:** (a) o refetch EXPLÍCITO não partilha mais um GET em voo:
 `criarBuscadorDeCardComRefazer` espera o GET atual e dispara UM a mais (N sinais no voo = 2 GETs), porque a
 resposta em voo pode ser anterior ao sinal — assumir em t0, GET sai em t0+180 ms, transferir em t0+300 ms gravava

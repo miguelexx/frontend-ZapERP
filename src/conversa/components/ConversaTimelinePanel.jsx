@@ -27,7 +27,7 @@ export default function ConversaTimelinePanel({
           <span className="wa-timeline-sub">Eventos, transferências e notas desta conversa (Esc para fechar)</span>
         </div>
 
-        <button onClick={onClose} className="wa-iconBtn" title="Fechar (Esc)" type="button">
+        <button onClick={onClose} className="wa-iconBtn" title="Fechar (Esc)" aria-label="Fechar (Esc)" type="button">
           <IconClose />
         </button>
       </div>

@@ -176,6 +176,32 @@
   transform: translateY(0);
 }
 
+/* Contador de mensagens que chegaram enquanto se lê histórico. Sem ele o botão aparecia
+   igual com e sem mensagem nova, e quem subiu para conferir um dado não sabia que o cliente
+   tinha respondido. `position: absolute` dentro do próprio botão: não altera a caixa dele,
+   logo não toca no layout do composerStack. */
+.wa-scrollRecentBtn-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  /* `--ds-accent` (theme.css), NÃO `--wa-accent`: este último é usado em alguns sítios do
+     conversa.css mas nunca é definido — resolve a vazio e o balão ficava transparente. */
+  background: var(--ds-accent);
+  border: 1.5px solid var(--wa-panel);
+  pointer-events: none;
+}
+
 @keyframes waScrollRecentIn {
   from {
     opacity: 0;
@@ -626,7 +652,9 @@ html:not([data-theme="dark"]) .wa-header::after {
 }
 
 .wa-header-whatsappInstance {
-  color: var(--wa-accent);
+  /* `--ds-accent`: o `--wa-accent` que estava aqui nunca foi definido em `src/`, a
+     declaração era descartada e o número do WhatsApp herdava a cor do meta à volta. */
+  color: var(--ds-accent);
   font-weight: 700;
 }
 
@@ -1928,7 +1956,9 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
 
 .wa-savedReplyItem:hover,
 .wa-savedReplyItem.isActive {
-  background: color-mix(in srgb, var(--wa-accent) 14%, transparent);
+  /* Idem: com `--wa-accent` (inexistente) o `color-mix` era inválido e a resposta salva
+     não acendia nem no hover nem quando estava ativa. */
+  background: color-mix(in srgb, var(--ds-accent) 14%, transparent);
 }
 
 .wa-savedReplyItem strong {
@@ -7443,6 +7473,22 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 .wa-audioPlayBtn:focus-visible,
 .wa-sendBtn:focus-visible,
 .wa-recording-send:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 13/11/2026 — mesmo anel para o resto dos controles do atendimento, que não tinham
+   nenhum (`.wa-iconBtn` sozinho são 24 usos no JSX). `:focus-visible` só pinta em
+   navegação por teclado: o clique de rato continua sem anel, por isso nada muda no uso
+   normal. Só `outline`, que não entra no fluxo nem desloca nada. */
+.wa-iconBtn:focus-visible,
+.wa-btn:focus-visible,
+.wa-atendBtn:focus-visible,
+.wa-micBtn:focus-visible,
+.wa-attachItem:focus-visible,
+.wa-modePicker-item:focus-visible,
+.wa-scrollRecentBtn:focus-visible,
+.wa-sideCliente-quickBtn:focus-visible {
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
 }
