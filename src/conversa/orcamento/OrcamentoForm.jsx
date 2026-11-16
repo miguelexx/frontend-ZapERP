@@ -44,10 +44,11 @@
  * lido como "orçamento de graça" (é a mesma razão do formatador próprio devolver "—").
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ClientePicker from "./ClientePicker";
 import ProdutoPicker from "./ProdutoPicker";
 import VendedorPicker from "./VendedorPicker";
+import useOrcamentoMobile from "./useOrcamentoMobile";
 import {
   classeEstoque,
   estoqueNegativo,
@@ -103,6 +104,9 @@ function ItemCarrinho({
   disabled,
   preco,
   agora,
+  // Vem do formulário, e não de um `useOrcamentoMobile` aqui dentro: com dez itens no carrinho
+  // seriam dez assinaturas de `matchMedia` dizendo todas a mesma coisa.
+  mobile = false,
 }) {
   const q = normalizarQuantidadeParaEnvio(item.quantidade);
   const descricao = textoOuSemValor(item.descricao || item.busca);
@@ -177,6 +181,31 @@ function ItemCarrinho({
   const secundaria = [item.marca, item.codigo_produto_erp ? `Cód. ${item.codigo_produto_erp}` : ""]
     .filter(Boolean)
     .join(" · ");
+
+  /*
+    O gatilho de "alterar preço" muda de LUGAR no celular, não de função.
+    Medido num 375 × 812: com o alvo de toque mínimo, a linha própria dele custava 40px por item
+    — cinco itens no carrinho e são 200px de rolagem para um botão que fala do número impresso
+    logo acima dele. No celular ele entra na própria linha dos valores, encostado no preço que
+    altera (a linha já é um flex que quebra, então na maioria dos casos ele não acrescenta
+    altura nenhuma); no desktop, onde a altura não é o recurso escasso, fica exatamente onde
+    sempre esteve.
+
+    Só migra quando existe a linha de valores (`preco`): sem ela — item que voltou do rascunho
+    antes da consulta de preço — o botão ficaria sem casa, então continua embaixo.
+  */
+  const gatilhoPreco =
+    !editandoPreco && !negociado && podeNegociar ? (
+      <button
+        type="button"
+        className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-precoNegoc-abrir"
+        onClick={abrirEdicaoPreco}
+      >
+        Alterar preço
+      </button>
+    ) : null;
+  const gatilhoNaLinha = mobile && preco ? gatilhoPreco : null;
+  const gatilhoAbaixo = gatilhoNaLinha ? null : gatilhoPreco;
 
   return (
     <li className="wa-orc-item">
@@ -272,6 +301,8 @@ function ItemCarrinho({
                 ) : null}
               </>
             ) : null}
+            {/* Celular: o "alterar preço" fecha a linha, ao lado do valor de que ele trata. */}
+            {gatilhoNaLinha}
           </span>
         ) : null}
 
@@ -355,15 +386,9 @@ function ItemCarrinho({
               </button>
             </span>
           </div>
-        ) : podeNegociar ? (
-          <button
-            type="button"
-            className="wa-btn wa-btn-ghost wa-orc-btnSm wa-orc-precoNegoc-abrir"
-            onClick={abrirEdicaoPreco}
-          >
-            Alterar preço
-          </button>
-        ) : null}
+        ) : (
+          gatilhoAbaixo
+        )}
       </div>
       <div className="wa-orc-qtd">
         <button
@@ -430,6 +455,40 @@ export default function OrcamentoForm({
 }) {
   const disabled = calculando;
   const itens = Array.isArray(rascunho?.itens) ? rascunho.itens : [];
+
+  /*
+    ────────────────────────────────────────────────────────────────────────
+    CELULAR: UM TRABALHO DE CADA VEZ
+    ────────────────────────────────────────────────────────────────────────
+    Medido no aparelho (375 × 812, com a faixa do ERP na tela): sobravam 437px de janela rolável
+    para 1152px de formulário — nem três itens do carrinho cabiam de uma vez. E o que ocupava o
+    topo era justamente a parte JÁ RESOLVIDA: cliente e vendedor escolhidos, cada um com o card
+    do escolhido e um parágrafo explicando que o Calcular ainda confirma. ~310px para dizer duas
+    coisas que não mudam mais durante a montagem.
+
+    Então no celular — e só nele — "para quem" vira UMA linha assim que os dois têm código do
+    ERP, e a busca de produto sobe para onde o polegar está. Tocar a linha devolve os campos.
+
+    Duas regras que não são negociáveis aqui:
+
+    · Só encolhe com CÓDIGO nos dois (`clienteCodigoErp` e `vendedorCodigoErp`), nunca com texto
+      digitado. Cliente digitado à mão é legítimo (é o que sobra com a loja fora do ar), mas
+      encolher enquanto alguém digita o nome tiraria o campo de baixo do dedo.
+    · Encolher é LAYOUT, não decisão de negócio: nada aqui resolve cliente ou vendedor. Quem
+      resolve continua sendo `preparar` (D11), e o aviso de que o Calcular confirma continua
+      dentro de cada picker, visível no instante em que ele importa — ao escolher.
+  */
+  const mobile = useOrcamentoMobile();
+  const destinoResolvido = Boolean(rascunho?.clienteCodigoErp && rascunho?.vendedorCodigoErp);
+  const [destinoAberto, setDestinoAberto] = useState(!destinoResolvido);
+  const destinoResolvidoRef = useRef(destinoResolvido);
+  useEffect(() => {
+    // Só reage à VIRADA: enquanto o estado não muda, "abrir" e "fechar" são do atendente.
+    if (destinoResolvido === destinoResolvidoRef.current) return;
+    destinoResolvidoRef.current = destinoResolvido;
+    setDestinoAberto(!destinoResolvido);
+  }, [destinoResolvido]);
+  const destinoCompacto = mobile && destinoResolvido && !destinoAberto;
   // Uma frase só de procedência para o carrinho inteiro, e ela vale pela linha mais fraca:
   // basta um valor de cópia para o conjunto não poder ser chamado de "consultado agora".
   const procedencia = rotuloFonte(procedenciaDosValores(precos));
@@ -463,6 +522,18 @@ export default function OrcamentoForm({
   const temNegociacao = itens.some(
     (i) => typeof i.preco_negociado === "string" && i.preco_negociado.trim()
   );
+
+  /*
+    No celular o desconto começa FECHADO, atrás de um botão só. Aberto, ele é um seletor R$/%,
+    um campo, um "Aplicar" e dois parágrafos de regra — mais de 120px permanentes para uma ação
+    que não acontece na maioria dos orçamentos, logo acima do rodapé, disputando a altura com o
+    carrinho, que é o que precisa ser relido antes de calcular.
+
+    Com desconto APLICADO ele nunca fica escondido: o jeito de voltar atrás tem de estar à vista
+    no mesmo lugar onde o valor foi dado.
+  */
+  const [descontoAberto, setDescontoAberto] = useState(false);
+  const descontoCompacto = mobile && !descontoAberto && !temNegociacao;
 
   const aplicarDescontoFinal = useCallback(() => {
     const r = distribuirDescontoFinal({
@@ -608,8 +679,47 @@ export default function OrcamentoForm({
           lista de produtos sobe junto. Empilhados, só este bloco comia quase um terço da
           altura útil antes do primeiro resultado aparecer.
         */}
+        {destinoCompacto ? (
+          /*
+            A linha de "para quem" no celular. É UM botão inteiro, não um texto com um link ao
+            lado: o alvo é a faixa toda, do jeito que o dedo mira. O rótulo "Alterar" fica, e
+            fica visível — afordância escondida numa tela de venda custa uma pergunta ao cliente.
+          */
+          <section className="wa-orc-section wa-orc-destino" aria-label="Cliente e vendedor">
+            <button
+              type="button"
+              className="wa-orc-destinoResumo"
+              onClick={() => setDestinoAberto(true)}
+              disabled={disabled}
+              aria-expanded="false"
+            >
+              <span className="wa-orc-destinoResumo-texto">
+                <strong className="wa-orc-destinoResumo-cliente">
+                  {rascunho?.clienteNome || rascunho?.clienteBusca}
+                </strong>
+                <span className="wa-orc-destinoResumo-vendedor">
+                  Vendedor: {rascunho?.vendedorNome || rascunho?.vendedorBusca}
+                </span>
+              </span>
+              <span className="wa-orc-destinoResumo-acao">Alterar</span>
+            </button>
+          </section>
+        ) : (
         <section className="wa-orc-section wa-orc-section--dupla" aria-label="Cliente e vendedor">
-          <h4 className="wa-orc-sectionTitle">Cliente e vendedor</h4>
+          <h4 className="wa-orc-sectionTitle wa-orc-sectionTitle--comAcao">
+            <span>Cliente e vendedor</span>
+            {/* Saída do bloco no celular: quem abriu só para conferir volta sem ter de escolher nada. */}
+            {mobile && destinoResolvido ? (
+              <button
+                type="button"
+                className="wa-btn wa-btn-ghost wa-orc-btnSm"
+                onClick={() => setDestinoAberto(false)}
+                aria-expanded="true"
+              >
+                Pronto
+              </button>
+            ) : null}
+          </h4>
           {/*
             O campo de cliente traz a busca do ERP dentro dele — e devolve DOIS filhos para
             esta grade: a célula do campo e a região de resultados, que ocupa a linha inteira
@@ -641,6 +751,7 @@ export default function OrcamentoForm({
             disabled={disabled}
           />
         </section>
+        )}
 
         {/*
           `companyId` + `userId` descem só para o atalho dos mais usados, que vive no navegador
@@ -677,6 +788,7 @@ export default function OrcamentoForm({
                   disabled={disabled}
                   preco={item.codigo_produto_erp ? precos?.[item.codigo_produto_erp] : null}
                   agora={agora}
+                  mobile={mobile}
                 />
               ))}
             </ul>
@@ -692,8 +804,35 @@ export default function OrcamentoForm({
           linhas (vira `preco_negociado` de cada uma). O total conferido é o da prévia ao calcular.
         */}
         {itens.length > 0 ? (
+          descontoCompacto ? (
+            <section className="wa-orc-section wa-orc-descontoFinal" aria-label="Desconto no total">
+              <button
+                type="button"
+                className="wa-orc-descontoAbrir"
+                onClick={() => setDescontoAberto(true)}
+                disabled={disabled}
+                aria-expanded="false"
+              >
+                Desconto no total
+              </button>
+            </section>
+          ) : (
           <section className="wa-orc-section wa-orc-descontoFinal" aria-label="Desconto no total">
-            <h4 className="wa-orc-sectionTitle">Desconto no total</h4>
+            <h4 className="wa-orc-sectionTitle wa-orc-sectionTitle--comAcao">
+              <span>Desconto no total</span>
+              {/* Sem desconto dado ainda, fechar é gratuito. Com desconto aplicado não há "fechar":
+                  esconder o valor dado esconderia junto o caminho de voltar atrás. */}
+              {mobile && !temNegociacao ? (
+                <button
+                  type="button"
+                  className="wa-btn wa-btn-ghost wa-orc-btnSm"
+                  onClick={() => setDescontoAberto(false)}
+                  aria-expanded="true"
+                >
+                  Fechar
+                </button>
+              ) : null}
+            </h4>
 
             {descontoDisponivel ? (
               <div className="wa-orc-descontoFinal-linha">
@@ -797,6 +936,7 @@ export default function OrcamentoForm({
               </p>
             ) : null}
           </section>
+          )
         ) : null}
       </div>
 

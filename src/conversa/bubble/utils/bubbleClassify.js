@@ -212,6 +212,10 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   const isAudio = tipoMsg === "audio";
   const isVoice = tipoMsg === "voice" || tipoMsg === "ptt";
   const isAudioOrVoice = isAudio || isVoice;
+  // Bolha de áudio que nasce no toque em "enviar", antes do navegador entregar o arquivo:
+  // já tem o layout do player (estado "preparando"), sem URL ainda.
+  const isAudioPreparando = isAudioOrVoice && !mediaUrl && msg?._audioPreparando === true;
+  const audioTemPlayer = isAudioOrVoice && (!!mediaUrl || isAudioPreparando);
   const isVideo = tipoMsg === "video" || tipoMsg === "vídeo";
   const contactBubbleMeta = contactMeta !== undefined ? contactMeta : resolveContactMetaFromMessage(msg);
   const isContact = !!contactBubbleMeta;
@@ -262,10 +266,10 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
   // Sem URL não há player: a bolha cai no rótulo "🎤 Áudio" e precisa do meta inline, senão fica
   // sem horário nenhum.
   const hasInlineMetaClass =
-    inlineMeta && !isImg && !isVideo && !isSticker && (!isAudioOrVoice || !mediaUrl);
+    inlineMeta && !isImg && !isVideo && !isSticker && (!isAudioOrVoice || !audioTemPlayer);
   const showFloatingMetaTime =
     (!inlineMeta || ((isImg || isSticker || isVideo) && !showCaption)) ||
-    (isAudioOrVoice && !!mediaUrl);
+    audioTemPlayer;
   const replyMeta = msg?.reply_meta || null;
   const pollMeta = (replyMeta?.poll && typeof replyMeta.poll === "object")
     ? replyMeta.poll
@@ -293,6 +297,8 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     isAudio,
     isVoice,
     isAudioOrVoice,
+    isAudioPreparando,
+    audioTemPlayer,
     isVideo,
     isContact,
     isLocation,

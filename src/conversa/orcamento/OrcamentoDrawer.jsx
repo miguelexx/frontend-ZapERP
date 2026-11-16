@@ -84,7 +84,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import {
   consultarProdutosOrcamento,
   consultarStatusErp,
@@ -102,6 +102,8 @@ import {
   valoresDaRespostaPorCodigo,
 } from "./precoItemCache";
 import useOrcamentoDraft from "./useOrcamentoDraft";
+import useOrcamentoMobile from "./useOrcamentoMobile";
+import useDrawerViewport from "./useDrawerViewport";
 import { normalizarQuantidadeParaEnvio } from "./orcamentoFormat";
 import {
   assinaturaDoBody,
@@ -247,6 +249,13 @@ export default function OrcamentoDrawer({
   clienteNomeSugerido = "",
   onEnviarAoCliente,
 }) {
+  /*
+    Celular: muda a ÁRVORE, não só o tamanho (ver `useOrcamentoMobile`). E, com o teclado aberto,
+    o painel passa a medir a viewport visível em vez da de layout — é o que mantém os resultados
+    da busca e o "Calcular" acima do teclado no iOS (ver `useDrawerViewport`).
+  */
+  const mobile = useOrcamentoMobile();
+  const overlayRef = useDrawerViewport(mobile);
   const [etapa, setEtapa] = useState(ETAPA.FORM);
   const [ambiguidade, setAmbiguidade] = useState(null);
   const [preparacao, setPreparacao] = useState(null);
@@ -769,6 +778,7 @@ export default function OrcamentoDrawer({
 
   return createPortal(
     <div
+      ref={overlayRef}
       className="wa-modalOverlay wa-orcOverlay"
       role="dialog"
       aria-modal="true"
@@ -783,8 +793,19 @@ export default function OrcamentoDrawer({
               Pesquise cliente, vendedor e produtos por nome. Os valores são do sistema da empresa.
             </p>
           </div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
-            ✕
+          {/*
+            Ícone desenhado, não o caractere "✕": o resto do app fecha painel com `lucide`, e um
+            glifo de texto herda a métrica da fonte — no celular ele ficava descentralizado
+            dentro do alvo de toque, que é justamente onde o dedo erra.
+          */}
+          <button
+            type="button"
+            className="wa-iconBtn wa-orcDrawer-fechar"
+            onClick={onClose}
+            title="Fechar"
+            aria-label="Fechar"
+          >
+            <X size={18} strokeWidth={2.25} aria-hidden="true" />
           </button>
         </div>
 

@@ -65,6 +65,8 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     editMaxLength,
     onSaveEdit,
     onSendAudioFile,
+    onAudioPlaceholder,
+    onAudioPlaceholderDiscard,
     onPasteImageFile,
     onFileInputChange,
     onFototecaInputChange,
@@ -117,6 +119,8 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     conversaId,
     podeEnviar,
     onSendAudioFile,
+    onAudioPlaceholder,
+    onAudioPlaceholderDiscard,
     onRecordingStateChange,
     showToast,
   });

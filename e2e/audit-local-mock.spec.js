@@ -79,8 +79,8 @@ async function installAuditSession(page) {
   });
 }
 
-async function installFakeAudioRecorder(page) {
-  await page.addInitScript(() => {
+async function installFakeAudioRecorder(page, { stopDelayMs = 0 } = {}) {
+  await page.addInitScript(({ stopDelayMs: atrasoStop }) => {
     const track = {
       readyState: "live",
       stop() {
@@ -128,7 +128,9 @@ async function installFakeAudioRecorder(page) {
       stop() {
         this.requestData();
         this.state = "inactive";
-        queueMicrotask(() => this.onstop?.());
+        // atrasoStop simula o celular lento finalizando o arquivo (onstop chega depois).
+        if (atrasoStop > 0) setTimeout(() => this.onstop?.(), atrasoStop);
+        else queueMicrotask(() => this.onstop?.());
       }
     }
 
@@ -148,7 +150,7 @@ async function installFakeAudioRecorder(page) {
       configurable: true,
       value: FakeAudio,
     });
-  });
+  }, { stopDelayMs });
 }
 
 test("composer mantém teclado, carregamento lazy, pickers e cancelamento de anexos", async ({ page }, testInfo) => {
@@ -595,6 +597,82 @@ test("áudios consecutivos aparecem imediatamente e mantêm upload FIFO", async 
   console.log(
     `[metricas:audio:${testInfo.project.name}] bolhas=2 uploads=2 tempIdsUnicos=${new Set(uploadedTempIds).size} uploadsConcorrentes=${maxActiveUploads} pendingDuranteFila=${pendingAudioCount}`
   );
+});
+
+/**
+ * No celular o navegador leva até ~2 s para finalizar o arquivo depois do toque em "enviar".
+ * Antes a bolha só nascia depois disso (tela parada). Agora ela aparece NO TOQUE, em estado
+ * "preparando", e a MESMA bolha (mesmo tempId) é completada e enviada — sem duplicar.
+ */
+test("bolha do áudio aparece no toque mesmo com o celular demorando a entregar o arquivo", async ({ page }, testInfo) => {
+  const uploadedTempIds = [];
+  let nextMessageId = 5000;
+
+  await installAuditSession(page);
+  await installFakeAudioRecorder(page, { stopDelayMs: 2000 });
+
+  await page.route(`${API}/**`, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith("/socket.io")) return route.abort();
+    if (path === "/usuarios/me") return route.fulfill({ json: { id: 1, perfil: "admin", role: "admin" } });
+    if (path === "/usuarios/me/permissoes") return route.fulfill({ json: { permissoes: [] } });
+    if (path === "/config/empresa") return route.fulfill({ json: { id: 1, nome: "ZapERP Auditoria" } });
+    if (path === "/chats/whatsapp-instances") return route.fulfill({ json: { instances: [], active_count: 0 } });
+    if (path === "/tags" || path === "/dashboard/departamentos") return route.fulfill({ json: [] });
+    if (path === "/chats/counts") return route.fulfill({ json: { todas: 2, minha_fila: 2, em_atendimento: 2 } });
+    if (path === "/chats" && request.method() === "GET") return route.fulfill({ json: chats });
+    if (path === "/chats/1" && request.method() === "GET") return route.fulfill({ json: conversationPayload(1) });
+    if (path === "/chats/1/arquivo" && request.method() === "POST") {
+      const multipart = request.postData() || "";
+      const tempId = multipart.match(/name="client_temp_id"\r?\n\r?\n([^\r\n]+)/)?.[1]?.trim() || "sem-temp";
+      uploadedTempIds.push(tempId);
+      nextMessageId += 1;
+      return route.fulfill({
+        json: {
+          id: nextMessageId,
+          conversa_id: 1,
+          client_temp_id: tempId,
+          direcao: "out",
+          tipo: "voice",
+          status: "enviado",
+          criado_em: new Date().toISOString(),
+          url: `/uploads/audio-${nextMessageId}.ogg`,
+        },
+      });
+    }
+    return route.fulfill({ json: {} });
+  });
+
+  await page.goto("/atendimento");
+  const firstRow = page.locator(".chat-list-row").filter({ hasText: "Contato Auditoria" });
+  await expect(firstRow).toBeVisible({ timeout: 30_000 });
+  if (testInfo.project.name.includes("mobile")) await firstRow.tap();
+  else await firstRow.click();
+
+  const record = page.getByRole("button", { name: "Gravar áudio" });
+  const sendAudio = page.getByRole("button", { name: "Enviar áudio" });
+  await record.click();
+  await expect(sendAudio).toBeVisible();
+  await page.waitForTimeout(1300);
+
+  const t0 = Date.now();
+  await sendAudio.click();
+  // A bolha tem de estar na tela muito antes dos 2 s que o "celular" leva para entregar o arquivo.
+  await expect(page.locator(".audio-message")).toHaveCount(1, { timeout: 700 });
+  const msAteBolha = Date.now() - t0;
+  await expect(page.locator(".audio-message .wa-audioPlayer--preparing")).toHaveCount(1);
+  // Já é o layout do player (não o rótulo de fallback) e mostra a duração do cronômetro.
+  await expect(page.locator(".audio-message .wa-audioTime--dur")).toHaveText(/0:0[1-2]/);
+  expect(uploadedTempIds).toHaveLength(0);
+
+  // Arquivo chega: a MESMA bolha vira o player real e sobe com o tempId dela.
+  await expect.poll(() => uploadedTempIds.length, { timeout: 10_000 }).toBe(1);
+  await expect(page.locator(".audio-message .wa-audioPlayer--preparing")).toHaveCount(0);
+  await expect(page.locator(".audio-message")).toHaveCount(1);
+  expect(uploadedTempIds[0]).toMatch(/\S/);
+  expect(uploadedTempIds[0]).not.toBe("sem-temp");
+  console.log(`[metricas:audio-instantaneo:${testInfo.project.name}] msAteBolha=${msAteBolha} uploads=${uploadedTempIds.length}`);
 });
 
 test("troca rápida ignora resposta antiga e mantém thread longo virtualizado", async ({ page }, testInfo) => {

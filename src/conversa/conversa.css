@@ -15957,3 +15957,97 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
   pointer-events: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
+
+/* Bolha de áudio nascida no toque em "enviar" (arquivo ainda sendo finalizado pelo navegador). */
+.wa-audioPlayer--preparing .wa-audioPlayBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wa-audioPlayer--preparing .wa-audioBar {
+  animation: wa-audio-preparing 1.1s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+
+@keyframes wa-audio-preparing {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-audioPlayer--preparing .wa-audioBar {
+    animation: none;
+  }
+}
+
+.wa-audioPlayer--preparing .wa-audioSpeedBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Microfone abrindo (getUserMedia / pedido de permissão): o toque teve efeito. */
+.wa-micBtn.isStarting {
+  animation: wa-mic-starting 0.9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes wa-mic-starting {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-micBtn.isStarting {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* =========================================================
+   Áudio ENVIADO no tema escuro: a bolha enviada é azul-clara
+   (--zaperp-bubble-out), mas o player escuro pintava duração, tempos,
+   velocidades e o nome do atendente de branco — quase invisíveis.
+   Alinha com o conteúdo das outras bolhas enviadas (#0B2A4A / #1B54D6).
+========================================================= */
+[data-theme="dark"] .wa-bubble-out .wa-bubble-atendente {
+  background: rgba(27, 84, 214, 0.12);
+  color: #1B54D6;
+}
+
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioTime--dur,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioTime--dur {
+  color: #0B2A4A;
+}
+
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioSub,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioSub,
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioTime--cur,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioTime--cur,
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioSentAt,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioSentAt,
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioRemain--slot,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioRemain--slot {
+  color: rgba(11, 42, 74, 0.62);
+}
+
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioSpeedBtn,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioSpeedBtn {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(11, 42, 74, 0.16);
+  color: #0B2A4A;
+}
+
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioSpeedBtn:hover:not(:disabled),
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioSpeedBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(30, 111, 232, 0.4);
+  color: #0B2A4A;
+}
+
+[data-theme="dark"] .wa-bubble-out.wa-bubble-audio .wa-audioSpeedBtn.isActive,
+[data-theme="dark"] .wa-bubble-out.audio-message .wa-audioSpeedBtn.isActive {
+  background: #1E6FE8;
+  border-color: #1E6FE8;
+  color: #fff;
+}

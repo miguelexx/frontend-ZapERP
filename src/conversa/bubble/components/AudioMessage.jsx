@@ -1,4 +1,5 @@
-import { formatHora, formatMmSs } from "../../utils/conversaViewHelpers";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { clamp, formatHora, formatMmSs, makeWaveBars, seedFromAny } from "../../utils/conversaViewHelpers";
 import { IconPlay, IconPause } from "../../conversaViewIcons";
 import { WA_AUDIO_SPEEDS } from "../utils/audioConstants";
 import { useAudioPlayback } from "../hooks/useAudioPlayback";
@@ -206,6 +207,92 @@ function AudioWavePlayer({ src, candidates, msgKey, avatarUrl, avatarLabel, init
   );
 }
 
+/**
+ * Player da bolha que nasce no toque em "enviar", enquanto o navegador ainda finaliza o
+ * arquivo (no celular leva até ~2 s). Mesmo layout/barras do player real (mesma semente por
+ * tempId) para a troca ser imperceptível; o play fica desativado até o áudio existir.
+ */
+function AudioPreparingPlayer({ msgKey, initialDuration, sentAtLabel }) {
+  // Mesma regra de quantidade de barras do player real (largura/4, entre 18 e 56): sem isso
+  // o desenho da onda mudava no instante em que a bolha virava o player de verdade.
+  const waveRef = useRef(null);
+  const [barCount, setBarCount] = useState(34);
+  useLayoutEffect(() => {
+    const el = waveRef.current;
+    if (!el) return undefined;
+    const update = () => {
+      const w = el.getBoundingClientRect?.().width || el.offsetWidth || 200;
+      const n = clamp(Math.floor(w / 4), 18, 56);
+      setBarCount((prev) => (prev === n ? prev : n));
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const bars = useMemo(() => makeWaveBars(barCount, seedFromAny(msgKey)), [barCount, msgKey]);
+  const dur = Math.max(0, Number(initialDuration) || 0);
+  return (
+    <div className="wa-audioPlayer wa-audioPlayer--preparing" aria-busy="true">
+      <button
+        type="button"
+        className="wa-audioPlayBtn"
+        disabled
+        aria-label="Preparando áudio para envio"
+        title="Preparando áudio…"
+      >
+        <span className="wa-audioPlayIcon wa-audioPlayIcon--play" aria-hidden="true">
+          <IconPlay width="22" height="22" />
+        </span>
+        <span className="wa-audioPlayIcon wa-audioPlayIcon--pause" aria-hidden="true">
+          <IconPause width="22" height="22" />
+        </span>
+      </button>
+      <div className="wa-audioMid">
+        <div className="wa-audioWaveRow">
+          <div ref={waveRef} className="wa-audioWave" aria-hidden="true" style={{ "--p": "0%" }}>
+            {bars.map((v, i) => (
+              <div
+                key={i}
+                className="wa-audioBar"
+                style={{ height: `${Math.round(8 + v * 18)}px`, "--i": i }}
+              />
+            ))}
+            <div className="wa-audioDot" style={{ left: "0%" }} aria-hidden="true" />
+          </div>
+          <div className="wa-audioDurSlot">
+            <span className="wa-audioTime wa-audioTime--dur">{formatMmSs(dur)}</span>
+          </div>
+          {/* Mesmos botões de velocidade do player real (desativados): mesma largura de bolha,
+              nada "estica" quando o áudio fica pronto. */}
+          <div className="wa-audioSpeedGroup" aria-hidden="true">
+            {WA_AUDIO_SPEEDS.map((rate) => (
+              <button
+                key={rate}
+                type="button"
+                tabIndex={-1}
+                disabled
+                className={`wa-audioSpeedBtn ${rate === 1 ? "isActive" : ""}`}
+              >
+                {rate === 1 ? "1×" : `${rate}×`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="wa-audioSub">
+          <span className="wa-audioTime wa-audioTime--cur">{formatMmSs(0)}</span>
+          {sentAtLabel ? (
+            <span className="wa-audioSentAt" title={`Enviado às ${sentAtLabel}`}>
+              {sentAtLabel}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AudioMessage({
   msg,
   mediaUrl,
@@ -230,6 +317,13 @@ export default function AudioMessage({
   return (
     <div className="wa-bubble-audioStack">
       <div className="wa-bubble-audioWrap">
+        {!mediaUrl && msg?._audioPreparando === true ? (
+          <AudioPreparingPlayer
+            msgKey={msg?.tempId || msg?.client_temp_id || "audio-preparando"}
+            initialDuration={msg?.audio_duracao_sec ?? 0}
+            sentAtLabel={formatHora(msg?.criado_em)}
+          />
+        ) : (
         <AudioWavePlayer
           candidates={audioPlaybackCandidates}
           msgKey={msg?.whatsapp_id || msg?.id || msg?.tempId || audioPlaybackCandidates[0] || mediaUrl}
@@ -243,6 +337,7 @@ export default function AudioMessage({
             msg?.audio_duracao_sec ?? msg?.duration ?? msg?.media_duration ?? 0
           }
         />
+        )}
       </div>
       <AudioCaption texto={texto} show={showAudioText} />
       {canShowRetry ? (

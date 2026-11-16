@@ -147,6 +147,7 @@ import {
   valoresDaRespostaPorCodigo,
 } from "./precoItemCache";
 import useRelogioDeIdade from "./useRelogioDeIdade";
+import useOrcamentoMobile from "./useOrcamentoMobile";
 import {
   agruparCandidatosProduto,
   fatiarDestaque,
@@ -555,6 +556,7 @@ export default function ProdutoPicker({
     [adicionar, buscando, disabled, grupos, termo]
   );
 
+  const mobile = useOrcamentoMobile();
   const curto = termo.trim().length > 0 && termo.trim().length < MIN_CARACTERES;
   const vazio = !buscando && buscou && !erro && grupos.lista.length === 0;
   // Esqueleto só quando não há nada na tela: trocar resultados visíveis por caixas cinzentas
@@ -847,18 +849,28 @@ export default function ProdutoPicker({
         type="text"
         inputMode="search"
         autoComplete="off"
-        placeholder="Nome do produto (ex.: notebook)"
+        placeholder={mobile ? "Nome, marca ou código de barras" : "Nome do produto (ex.: notebook)"}
         value={termo}
         maxLength={100}
         disabled={disabled}
         onChange={(e) => trocarTermo(e.target.value)}
         onKeyDown={aoTeclarNaBusca}
       />
-      <p className="wa-orc-hint">
-        {curto
-          ? `Digite ao menos ${MIN_CARACTERES} letras para pesquisar.`
-          : "Pesquise pelo nome ou pela marca, ou bipe/cole o código de barras."}
-      </p>
+      {/*
+        No celular esta dica vira o PLACEHOLDER do campo acima, em vez de um parágrafo fixo.
+        Ela dizia duas coisas ("dá para buscar por marca" e "dá para bipar o código de barras")
+        e custava duas linhas permanentes — 36px medidos — logo acima da lista de resultados,
+        que é o conteúdo que o aparelho não tem altura para mostrar. O aviso de "digite ao menos
+        3 letras" continua aparecendo nos dois tamanhos: ele é resposta ao que foi digitado, e
+        sem ele a busca cala sem explicar por quê.
+      */}
+      {curto || !mobile ? (
+        <p className="wa-orc-hint">
+          {curto
+            ? `Digite ao menos ${MIN_CARACTERES} letras para pesquisar.`
+            : "Pesquise pelo nome ou pela marca, ou bipe/cole o código de barras."}
+        </p>
+      ) : null}
 
       {erro ? (
         <div className="wa-orc-alert wa-orc-alert--erro" role="alert">

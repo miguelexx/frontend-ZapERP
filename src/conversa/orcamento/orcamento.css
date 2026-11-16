@@ -238,6 +238,18 @@
   cursor: pointer;
 }
 
+/*
+  Título que carrega a ação de recolher o próprio bloco. Hoje só o celular monta uma (nenhum
+  bloco se recolhe no desktop), e por isso o título continua sendo um `h4` comum em todo o
+  resto: a ação entra ao lado dele, não no lugar dele.
+*/
+.wa-orc-sectionTitle--comAcao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--orc-gap-2);
+}
+
 /* Campo: rótulo, controle e dica andam juntos, mais apertados que a distância entre campos. */
 .wa-orc-campo {
   display: flex;
@@ -1214,6 +1226,87 @@
   overflow-wrap: anywhere;
 }
 
+/* ---- "Para quem", em uma linha (só no celular) ---- */
+
+/*
+  Cliente e vendedor já escolhidos, recolhidos numa faixa só (ver o bloco de comentário em
+  `OrcamentoForm`). A faixa INTEIRA é o botão, e não um texto com um link ao lado: num celular
+  o alvo tem de ser a área que o dedo naturalmente mira, e aqui ela mede a largura do painel.
+
+  Parece um irmão do `.wa-orc-escolhido` de propósito — mesma borda, mesmo raio, mesmo recuo —
+  porque é a mesma coisa dita em menos espaço: quem abre o bloco encontra exatamente os dois
+  cards que esta linha resume.
+*/
+.wa-orc-destinoResumo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--orc-gap-2);
+  width: 100%;
+  min-height: 56px;
+  padding: 8px var(--orc-gap-2) 8px 12px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: var(--orc-raio);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ds-transition, 140ms ease);
+}
+
+.wa-orc-destinoResumo:active:not(:disabled) {
+  background: var(--ds-hover, rgba(17, 27, 33, 0.04));
+}
+
+.wa-orc-destinoResumo:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.wa-orc-destinoResumo:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wa-orc-destinoResumo-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/*
+  Nome do ERP numa linha só, cortado com reticências. Cortar é melhor que quebrar: a faixa
+  existe para ser lida de relance, e um nome em três linhas devolveria a altura que ela veio
+  economizar. O nome completo continua inteiro dentro do bloco aberto e na prévia.
+*/
+.wa-orc-destinoResumo-cliente {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-orc-destinoResumo-vendedor {
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--wa-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rótulo da ação, não um botão dentro do botão: cor de ação, sem caixa própria. */
+.wa-orc-destinoResumo-acao {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wa-green);
+}
+
 /* ---- Itens ---- */
 
 .wa-orc-itens {
@@ -1725,6 +1818,17 @@
   padding: 2px 6px;
   min-height: 0;
   font-size: 12px;
+  /*
+    Azul da marca ESCURECIDO, e o motivo é medição: o card do carrinho é tingido de
+    `--wa-green` a 18%, e sobre esse fundo o próprio `--wa-green` rende 4,47:1 — logo abaixo do
+    piso de 4,5:1 para texto pequeno. Escurecer o próprio token (e não trazer uma cor nova)
+    mantém a marca como fonte da cor e põe o controle em ~5,4:1.
+  */
+  color: color-mix(in srgb, var(--wa-green) 80%, #000);
+}
+
+/* No escuro o fundo é escuro: ali escurecer o texto é que apagaria o controle. */
+[data-theme="dark"] .wa-orc-precoNegoc-abrir {
   color: var(--wa-green);
 }
 
@@ -1845,6 +1949,41 @@
   font-weight: 600;
 }
 
+/*
+  O desconto FECHADO no celular: um controle só, no lugar de um bloco de 120px que quase nunca
+  é usado (ver `OrcamentoForm`). Não leva ícone nem borda tracejada — ele não é um "adicionar"
+  genérico, é uma seção do formulário que se abre, e o rótulo é o mesmo título que ela teria
+  aberta. Assim nada muda de nome entre os dois estados.
+*/
+.wa-orc-descontoAbrir {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--wa-panel-border);
+  border-radius: var(--orc-raio);
+  background: transparent;
+  color: var(--wa-green);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--ds-transition, 140ms ease);
+}
+
+.wa-orc-descontoAbrir:active:not(:disabled) {
+  background: var(--ds-hover, rgba(17, 27, 33, 0.04));
+}
+
+.wa-orc-descontoAbrir:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wa-green) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.wa-orc-descontoAbrir:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .wa-orc-descontoFinal-ativo {
   display: flex;
   flex-wrap: wrap;
@@ -1934,15 +2073,154 @@
   min-width: 208px;
 }
 
-/* ---- Telas estreitas: o drawer ocupa a tela toda ---- */
+/* ==========================================================================
+   TOQUE — o alvo antes do tamanho
+
+   Separado da largura de propósito: um tablet de 800px tem espaço para o desenho largo e mesmo
+   assim é operado com o dedo. O que muda aqui é só a ÁREA dos controles que a atendente toca
+   dezenas de vezes por orçamento; nada de cor, nada de hierarquia.
+
+   44px é o piso. Os controles de quantidade são os que mais sofrem: eles ficam lado a lado com
+   um campo no meio, e errar o "+" por 5px soma uma unidade errada num orçamento que vai para o
+   ERP. Os secundários (remover, alterar preço, paginar) ficam em 40px — continuam confortáveis
+   e não incham o card.
+   ========================================================================== */
+@media (pointer: coarse) {
+  .wa-orc-qtdBtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .wa-input.wa-orc-qtdInput {
+    width: 64px;
+    max-width: 64px;
+    min-height: 44px;
+  }
+
+  .wa-orc-btnSm {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+
+  .wa-orc-candidato-acao {
+    width: 40px;
+    height: 40px;
+  }
+
+  .wa-orc-descontoTipo-btn {
+    min-height: 40px;
+    min-width: 48px;
+  }
+
+  .wa-input.wa-orc-descontoInput {
+    min-height: 40px;
+  }
+
+  /* "Ver preço" é um chip dentro do card, e o card inteiro já é alvo — sobe só o suficiente
+     para não ser um fio de 24px entre dois textos. */
+  .wa-orc-verPreco {
+    min-height: 32px;
+    padding: 4px 10px;
+  }
+
+  .wa-orcDrawer-fechar.wa-iconBtn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ==========================================================================
+   CELULAR — o orçamento cabendo num aparelho na mão
+
+   Medido antes desta passagem, num 375 × 812 com a faixa do ERP aberta: cabeçalho 88px, faixa
+   144px, rodapé 63px — sobravam 437px de janela rolável para 1152px de formulário. Dois itens
+   do carrinho por tela, e o que ocupava o topo era a parte já resolvida (cliente e vendedor
+   escolhidos, com um parágrafo de regra cada um).
+
+   A correção tem três frentes, e nenhuma delas tira informação do produto:
+
+   1. ÁRVORE — cliente/vendedor resolvidos e o desconto no total saem do DOM até serem pedidos.
+      Isso é decisão de componente, não de folha de estilo (ver `useOrcamentoMobile`).
+   2. MOLDURA — cabeçalho e faixa do ERP encolhem para o tamanho do que dizem.
+   3. JANELA — com o teclado aberto o painel passa a medir a viewport VISÍVEL, e não a de
+      layout (ver `useDrawerViewport`): é o que mantém os resultados da busca e o "Calcular"
+      acima do teclado no iOS, onde montar orçamento é digitar o tempo todo.
+   ========================================================================== */
 @media (max-width: 600px) {
+  /*
+    A janela do painel. `--orc-vvh` só existe enquanto o drawer está montado num navegador com
+    `visualViewport`; sem ela vale o `100dvh` de sempre, que acompanha a barra do navegador.
+    `bottom: auto` desfaz o `inset: 0` do overlay — com top, bottom e height ao mesmo tempo o
+    navegador descarta um dos três, e qual deles depende do motor.
+  */
+  .wa-modalOverlay.wa-orcOverlay {
+    top: var(--orc-vvtop, 0px);
+    bottom: auto;
+    height: var(--orc-vvh, 100dvh);
+  }
+
   .wa-orcDrawer {
     --orc-inset: 12px;
     width: 100vw;
     border-left: none;
-    padding: 12px var(--orc-inset) 0;
-    /* `dvh` acompanha a barra do navegador: com `100%` o rodapé some atrás dela no Safari. */
-    height: 100dvh;
+    padding: 0 var(--orc-inset);
+    height: 100%;
+  }
+
+  /*
+    Cabeçalho de barra, não de capa: título, botão de fechar e o fio. 88px → 56px.
+  */
+  .wa-orcDrawer-head {
+    align-items: center;
+    padding: 6px 0;
+    margin-bottom: var(--orc-gap-2);
+  }
+
+  .wa-orcDrawer-title {
+    font-size: 17px;
+  }
+
+  /*
+    A frase explicava os três campos que começam 20px abaixo dela. No desktop ela custa uma
+    linha e orienta; aqui custava duas linhas da única tela que existe, para dizer o que cada
+    campo já diz no próprio rótulo e no próprio placeholder.
+  */
+  .wa-orcDrawer-subtitle {
+    display: none;
+  }
+
+  /*
+    A faixa do ERP continua inteira — as três frases dizem coisas diferentes (o que houve, o que
+    ainda dá para fazer, o que fazer a respeito) e nenhuma delas é decoração. O que encolhe é o
+    espaço em volta: o botão passa a ocupar a largura toda logo abaixo do texto, em vez de
+    disputar a linha com ele e empurrar a explicação para mais duas quebras.
+  */
+  .wa-orc-erpAviso {
+    gap: 2px var(--orc-gap-1);
+    padding: var(--orc-gap-1) var(--orc-inset) var(--orc-gap-2);
+  }
+
+  .wa-orc-erpAviso-texto {
+    font-size: 11.5px;
+  }
+
+  /*
+    O botão cai para a linha de baixo (o texto tem base de 220px e não cabe ao lado dele num
+    aparelho estreito), mas continua do tamanho do rótulo: esticá-lo de borda a borda daria a
+    uma verificação opcional o peso de ação principal da tela — que é o "Calcular", no rodapé.
+  */
+  .wa-orc-erpAviso-btn {
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  /* Blocos um pouco mais perto uns dos outros: o fio e o título já separam o que é separado. */
+  .wa-orc-body {
+    gap: var(--orc-gap-2);
+  }
+
+  .wa-orc-section--divisa {
+    padding-top: var(--orc-gap-2);
   }
 
   /* A quantidade e o "Remover" lado a lado: um por linha empilhava quatro alturas por item. */
@@ -1963,6 +2241,55 @@
   }
 
   /*
+    Densidade do card do carrinho. A linha de valores (preço, idade do preço, estoque, idade do
+    saldo) é a que mais quebra em 375px — ela continua com TODOS os carimbos, só num corpo que
+    não os transforma em quatro linhas.
+  */
+  .wa-orc-item-titulo {
+    font-size: 14.5px;
+  }
+
+  .wa-orc-item-meta,
+  .wa-orc-item-valores {
+    font-size: 11.5px;
+  }
+
+  /*
+    O "alterar preço" fechando a linha dos valores (ver `ItemCarrinho`): texto de ação, sem
+    caixa. O fundo cinza do `.wa-btn-ghost` aqui seria um terceiro tom dentro de uma linha que
+    já tem preço, idade e estoque disputando a leitura. Fica abaixo do piso de 44px de propósito
+    — é secundário, e inflá-lo devolveria a altura que ele veio economizar.
+  */
+  .wa-orc-item-valores .wa-orc-precoNegoc-abrir {
+    align-self: center;
+    min-height: 30px;
+    padding: 2px 8px;
+    margin-left: 2px;
+    background: transparent;
+    /* Mesmo corpo e mesmo peso dos vizinhos da linha: é uma ação disponível, não um aviso. A
+       cor já diz que se toca; negrito aqui deixava o controle mais forte que o próprio preço. */
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+
+  /*
+    O rodapé é a única parte que NÃO rola, então cada pixel dele sai da lista. O rótulo e a
+    frase continuam empilhados (lado a lado, "calculado pelo ERP" quebrava em duas linhas de
+    qualquer jeito e ainda roubava largura do "Calcular"), só que num corpo menor.
+  */
+  .wa-orc-totalLabel {
+    font-size: 10px;
+  }
+
+  .wa-orc-totalValor--texto {
+    font-size: 11.5px;
+  }
+
+  .wa-orc-btnLimpar.wa-btn-ghost {
+    font-size: 12px;
+  }
+
+  /*
     Total e ação lado a lado, com o botão dominando a largura: empilhados, o rodapé comia duas
     linhas da área onde a lista precisa caber, e a 390px é a lista que está apertada.
   */
@@ -1973,6 +2300,8 @@
   .wa-orc-btnPrincipal {
     flex: 1 1 auto;
     min-width: 0;
+    /* Ação principal da tela, e a que se aperta com o polegar na pior hora: o alvo é o maior. */
+    min-height: 48px;
   }
 
   /* Em tela estreita o botão ocupa a largura toda: o `min-width` do rótulo longo passaria do

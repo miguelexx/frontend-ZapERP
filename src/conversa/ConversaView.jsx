@@ -107,7 +107,7 @@ import { useConversationSelection } from "./hooks/useConversationSelection";
 import { useConversationThreadActions } from "./hooks/useConversationThreadActions";
 import { useConversationOutboundMedia } from "./hooks/useConversationOutboundMedia";
 import { useConversationFileDrop } from "./hooks/useConversationFileDrop";
-import { useAutoScroll, snapThreadToBottom } from "./hooks/useAutoScroll";
+import { useAutoScroll, snapThreadToBottom, smoothScrollThreadToBottom } from "./hooks/useAutoScroll";
 import { useMobileKeyboardViewport } from "./hooks/useMobileKeyboardViewport";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import { useForwardFlow } from "./hooks/useForwardFlow";
@@ -505,6 +505,8 @@ function ConversaViewBody() {
    * até a mensagem e volta ao final.
    */
   const jumpHoldRef = useRef(false);
+  /** Cancelador da animação "ir para recentes" (null = parada). */
+  const smoothScrollCancelRef = useRef(null);
   const jumpHoldTimerRef = useRef(0);
   const userInterruptedOpenSnapRef = useRef(false);
   const cancelOpenSnapPendingRef = useRef(null);
@@ -869,6 +871,9 @@ function ConversaViewBody() {
   const snapIfStickBottom = useCallback(() => {
     const c = messagesContainerRef.current;
     if (!c || loadingMore || userScrollLockRef.current || jumpHoldRef.current) return;
+    /* A animação "ir para recentes" já segue o fundo frame a frame; um snap seco aqui a
+       cortaria no meio (era o "tranco" no fim do deslize). */
+    if (smoothScrollCancelRef.current) return;
     /*
      * Abertura: o snap é do useAutoScroll — o ResizeObserver a competir com ele dava pulo ao
      * revelar a thread. EXCEÇÃO (16/11/2026): se já há uma folga real no fundo, o snap de
@@ -1609,7 +1614,22 @@ function ConversaViewBody() {
     userScrollLockRef.current = false;
     window.clearTimeout(userScrollUnlockTimerRef.current);
     shouldStickToBottomRef.current = true;
-    snapThreadToBottom(el, virtualThreadRef, { min: true });
+    virtualThreadRef.current?.cancelProgrammaticScroll?.();
+    smoothScrollCancelRef.current?.();
+    /* Deslize suave até ao fim; ao terminar, um snap seco confirma o pixel final
+       (linhas medidas no último frame). Wheel/touch para cima aborta (lock). */
+    smoothScrollCancelRef.current = smoothScrollThreadToBottom(el, {
+      canContinue: () => !userScrollLockRef.current,
+      onDone: (completed) => {
+        smoothScrollCancelRef.current = null;
+        if (!completed || userScrollLockRef.current) return;
+        shouldStickToBottomRef.current = true;
+        snapThreadToBottom(messagesContainerRef.current, virtualThreadRef, {
+          min: true,
+          canSnap: () => !userScrollLockRef.current,
+        });
+      },
+    });
     scrollToRecentVisibleRef.current = false;
     setShowScrollToRecent(false);
     resetScrollRecentNovas();
@@ -1656,6 +1676,8 @@ function ConversaViewBody() {
   // sobre o novo thread. A mesma limpeza cobre o desmonte da tela.
   useEffect(() => {
     return () => {
+      smoothScrollCancelRef.current?.();
+      smoothScrollCancelRef.current = null;
       recordingSnapCleanupRef.current?.();
       recordingSnapCleanupRef.current = null;
       recordingActiveRef.current = false;
@@ -1759,8 +1781,18 @@ function ConversaViewBody() {
     let touchStartY = 0;
     let touchActive = false;
 
+    /* Gesto humano: encerra qualquer scroll programático (scrollToIndex do virtualizer,
+       deslize "ir para recentes") para nada puxar a tela contra o dedo/roda. */
+    const stopProgrammatic = () => {
+      virtualThreadRef.current?.cancelProgrammaticScroll?.();
+      if (smoothScrollCancelRef.current) {
+        smoothScrollCancelRef.current();
+        smoothScrollCancelRef.current = null;
+      }
+    };
     const onTouchStart = (e) => {
       touchActive = true;
+      stopProgrammatic();
       userInterruptedOpenSnapRef.current = true;
       touchStartY = e.touches?.[0]?.clientY ?? 0;
       cancelThreadJump();
@@ -1783,6 +1815,7 @@ function ConversaViewBody() {
       scheduleUserScrollUnlock(headerCompact ? 200 : 160);
     };
     const onWheel = (e) => {
+      if (e.deltaY < 0) stopProgrammatic();
       if (e.deltaY < 0) {
         userInterruptedOpenSnapRef.current = true;
         cancelThreadJump();
@@ -1796,6 +1829,7 @@ function ConversaViewBody() {
       const isTouchPointer = !e.pointerType || e.pointerType === "touch";
       const isScrollbarPointer = e.pointerType === "mouse" && e.target === el;
       if (!isTouchPointer && !isScrollbarPointer) return;
+      stopProgrammatic();
       userInterruptedOpenSnapRef.current = true;
       cancelThreadJump();
       lockUserScroll();
@@ -3012,8 +3046,61 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     [handleDropFile]
   );
 
+  /**
+   * Bolha do áudio no INSTANTE do toque em "enviar", como no WhatsApp. Antes ela só aparecia
+   * depois que o navegador finalizava o arquivo e lia a duração — no celular ~2 s de tela
+   * parada. Nasce em estado "preparando" (duração do cronômetro) e o envio a completa no lugar.
+   * tempId → revert do modo simples, entregue ao envio para desfazer em caso de falha.
+   */
+  const audioPlaceholderRevertsRef = useRef(new Map());
+  const handleComposerAudioPlaceholder = useCallback(
+    ({ elapsedMs } = {}) => {
+      if (!conversaId || !podeEnviar) return null;
+      const base = buildOptimisticOutgoingMessage({ conversaId, texto: "(áudio)" });
+      const segundos = Number(elapsedMs);
+      const placeholder = {
+        ...base,
+        tipo: "voice",
+        texto: "(áudio)",
+        conteudo: "(áudio)",
+        ...(Number.isFinite(segundos) && segundos > 0
+          ? { audio_duracao_sec: Math.max(1, Math.round(segundos / 1000)) }
+          : {}),
+        _audioPreparando: true,
+      };
+      const revert = appendOutgoingOptimisticMessage(placeholder);
+      audioPlaceholderRevertsRef.current.set(placeholder.tempId, revert);
+      return placeholder.tempId;
+    },
+    [appendOutgoingOptimisticMessage, conversaId, podeEnviar]
+  );
+  const handleComposerAudioPlaceholderDiscard = useCallback(
+    (tempId) => {
+      if (!tempId) return;
+      const revert = audioPlaceholderRevertsRef.current.get(tempId);
+      audioPlaceholderRevertsRef.current.delete(tempId);
+      removerMensagemTemp(tempId);
+      try {
+        revert?.();
+      } catch {
+        /* ignore */
+      }
+    },
+    [removerMensagemTemp]
+  );
+
   const handleComposerSendAudio = useCallback(
-    (file) => handleEnviarArquivo(file, { tipo: "voice", enqueueAudio: true }),
+    (file, { placeholderTempId = null } = {}) => {
+      const placeholderRevert = placeholderTempId
+        ? audioPlaceholderRevertsRef.current.get(placeholderTempId) ?? null
+        : null;
+      if (placeholderTempId) audioPlaceholderRevertsRef.current.delete(placeholderTempId);
+      return handleEnviarArquivo(file, {
+        tipo: "voice",
+        enqueueAudio: true,
+        ...(placeholderTempId ? { placeholderTempId, placeholderRevert } : {}),
+      });
+    },
     [handleEnviarArquivo]
   );
 
@@ -3626,6 +3713,8 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           }
           onSaveEdit={handleSaveEdit}
           onSendAudioFile={handleComposerSendAudio}
+          onAudioPlaceholder={handleComposerAudioPlaceholder}
+          onAudioPlaceholderDiscard={handleComposerAudioPlaceholderDiscard}
           onPasteImageFile={handleComposerPasteImage}
           onFileInputChange={handleFileInputChange}
           onFototecaInputChange={handleFototecaInputChange}

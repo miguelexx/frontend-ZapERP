@@ -62,6 +62,17 @@ function releaseOwnStream(stream, streamRef) {
   if (getActiveMicStream() === stream) releaseMicStream();
 }
 
+/** Vibração curta de confirmação (Android). iOS/desktop não têm a API: no-op silencioso. */
+function haptic(pattern) {
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Mantém a tela acesa enquanto grava: no celular a tela apagar suspende o navegador e mata a gravação. */
 function useScreenWakeLock(active) {
   useEffect(() => {
@@ -104,12 +115,21 @@ export function useVoiceRecording({
   conversaId,
   podeEnviar,
   onSendAudioFile,
+  onAudioPlaceholder,
+  onAudioPlaceholderDiscard,
   onRecordingStateChange,
   onConversationChange,
   showToast,
 }) {
+  // Refs: o composer é memoizado sem comparar callbacks; lê sempre a versão mais recente.
+  const onAudioPlaceholderRef = useRef(onAudioPlaceholder);
+  const onAudioPlaceholderDiscardRef = useRef(onAudioPlaceholderDiscard);
+  onAudioPlaceholderRef.current = onAudioPlaceholder;
+  onAudioPlaceholderDiscardRef.current = onAudioPlaceholderDiscard;
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  /** Microfone abrindo: o botão dá retorno visual (o pedido de permissão pode demorar). */
+  const [isStarting, setIsStarting] = useState(false);
   /**
    * Gravação interrompida (ligação, outro app pegou o microfone, fone desconectou, navegador
    * parou o recorder). Antes o áudio inteiro era DESCARTADO — o atendente falava 1 minuto e
@@ -170,11 +190,18 @@ export function useVoiceRecording({
   }, [cleanupSession, updateDraft]);
 
   const sendFile = useCallback(
-    async (file, { generation, durationMs } = {}) => {
+    async (file, { generation, durationMs, placeholderTempId = null } = {}) => {
       try {
-        await onSendAudioFile?.(file);
+        await onSendAudioFile?.(file, placeholderTempId ? { placeholderTempId } : undefined);
       } catch (sendError) {
         console.error("Erro ao enviar áudio gravado:", sendError);
+        if (placeholderTempId) {
+          try {
+            onAudioPlaceholderDiscardRef.current?.(placeholderTempId);
+          } catch {
+            /* ignore */
+          }
+        }
         // NÃO chama cleanupSession aqui: o recorder deste áudio já parou, e o que estiver em
         // mediaRecorderRef agora é uma gravação NOVA — limpar a sessão matava essa outra.
         // Se nada estiver gravando, o áudio volta como rascunho para tentar de novo.
@@ -214,6 +241,7 @@ export function useVoiceRecording({
     }
 
     startingRef.current = true;
+    setIsStarting(true);
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     updateDraft(null);
@@ -364,6 +392,25 @@ export function useVoiceRecording({
         const dropPreparingDraft = () => {
           if (draftRef.current?.preparing) updateDraft(null);
         };
+        // Bolha criada no toque em "enviar": em qualquer saída sem envio ela precisa sumir.
+        const takePlaceholder = () => {
+          const id = recorder.__zapPlaceholderTempId || null;
+          recorder.__zapPlaceholderTempId = null;
+          if (recorder.__zapPlaceholderTimer) {
+            clearTimeout(recorder.__zapPlaceholderTimer);
+            recorder.__zapPlaceholderTimer = null;
+          }
+          return id;
+        };
+        const discardPlaceholder = () => {
+          const id = takePlaceholder();
+          if (!id) return;
+          try {
+            onAudioPlaceholderDiscardRef.current?.(id);
+          } catch {
+            /* ignore */
+          }
+        };
         const recordedChunks = chunks.slice();
         const localStartedAt = recorder.__zapStartedAt || startedAt;
         const stoppedAt = recorder.__zapStopAt || Date.now();
@@ -373,8 +420,12 @@ export function useVoiceRecording({
           // Interrupção vinda do próprio navegador: a UI de gravação ainda estava aberta.
           cleanupSession({ markCanceled: false, releaseMic: false });
         }
-        if (wasCanceled) return;
+        if (wasCanceled) {
+          discardPlaceholder();
+          return;
+        }
         if (recordedChunks.length === 0) {
+          discardPlaceholder();
           if (interrupted) dropPreparingDraft();
           showToast?.(
             interrupted
@@ -391,6 +442,7 @@ export function useVoiceRecording({
         const extension = audioExtensionFromMime(finalType);
         const blob = new Blob(recordedChunks, { type: finalType });
         if (elapsedMs < RECORDED_AUDIO_MIN_MS || blob.size < RECORDED_AUDIO_MIN_BYTES) {
+          discardPlaceholder();
           if (interrupted) dropPreparingDraft();
           showToast?.(interrupted ? TOAST_INTERROMPIDA_SEM_AUDIO : TOAST_AUDIO_CURTO);
           return;
@@ -398,6 +450,7 @@ export function useVoiceRecording({
         // Passar do teto por poucos segundos (aba em segundo plano atrasa o auto-envio) não
         // pode jogar fora 10 minutos de fala: o corte real é a duração decodificada abaixo.
         if (elapsedMs > RECORDED_AUDIO_MAX_MS + 15000) {
+          discardPlaceholder();
           if (interrupted) dropPreparingDraft();
           showToast?.(TOAST_AUDIO_LONGO);
           return;
@@ -416,11 +469,13 @@ export function useVoiceRecording({
             : null;
           durationMs = pickRecordedDurationMs({ rawDurationMs, elapsedMs });
           if (Number.isFinite(durationMs) && durationMs < RECORDED_AUDIO_MIN_MS) {
+            discardPlaceholder();
             if (interrupted) dropPreparingDraft();
             showToast?.(interrupted ? TOAST_INTERROMPIDA_SEM_AUDIO : TOAST_AUDIO_CURTO);
             return;
           }
           if (Number.isFinite(durationMs) && durationMs > RECORDED_AUDIO_MAX_MS + 5000) {
+            discardPlaceholder();
             if (interrupted) dropPreparingDraft();
             showToast?.(TOAST_AUDIO_LONGO);
             return;
@@ -433,6 +488,7 @@ export function useVoiceRecording({
           audioTraceMarca("ficheiro montado");
         } catch (buildError) {
           console.error("Erro ao preparar o áudio gravado:", buildError);
+          discardPlaceholder();
           if (interrupted) dropPreparingDraft();
           showToast?.({
             type: "error",
@@ -443,6 +499,7 @@ export function useVoiceRecording({
         }
 
         if (interrupted) {
+          discardPlaceholder();
           // Outra gravação já começou, a conversa mudou ou o componente saiu: descarta.
           if (
             !mountedRef.current ||
@@ -458,6 +515,7 @@ export function useVoiceRecording({
             seconds: Math.max(1, Math.round((Number(durationMs) || elapsedMs) / 1000)),
             reason: recorder.__zapInterrupted,
           });
+          haptic([18, 60, 18]);
           showToast?.({
             type: "warning",
             title: "Gravação interrompida",
@@ -466,12 +524,18 @@ export function useVoiceRecording({
           return;
         }
 
-        await sendFile(file, { generation, durationMs });
+        // A bolha já está na tela desde o toque: o envio a completa no lugar. Se a rede de
+        // segurança já a removeu (navegador demorou demais), o envio cria uma nova normalmente.
+        const placeholderTempId = takePlaceholder();
+        await sendFile(file, { generation, durationMs, placeholderTempId });
       };
 
       recorder.start(400);
       mediaRecorderRef.current = recorder;
-      if (mountedRef.current && generation === generationRef.current) setIsRecording(true);
+      if (mountedRef.current && generation === generationRef.current) {
+        setIsRecording(true);
+        haptic(12);
+      }
     } catch (error) {
       console.error("Erro ao iniciar gravação:", error);
       const name = String(error?.name || "");
@@ -489,6 +553,7 @@ export function useVoiceRecording({
       showToast?.({ type: "error", title: "Microfone", message });
     } finally {
       startingRef.current = false;
+      if (mountedRef.current) setIsStarting(false);
     }
   }, [cleanupSession, conversaId, isRecording, podeEnviar, sendFile, showToast, updateDraft]);
 
@@ -510,6 +575,41 @@ export function useVoiceRecording({
     if (!mediaRecorderRef.current && !isRecording) {
       cleanupSession({ releaseMic: true });
       return;
+    }
+    const rec = mediaRecorderRef.current;
+    // A bolha do áudio aparece JÁ, no toque (como no WhatsApp). O navegador ainda leva até ~2 s
+    // no celular para finalizar o arquivo; antes a tela ficava parada esse tempo todo.
+    if (rec && !rec.__zapPlaceholderTempId && rec.state && rec.state !== "inactive") {
+      const elapsedMs = Date.now() - (Number(rec.__zapStartedAt) || Date.now());
+      if (elapsedMs >= RECORDED_AUDIO_MIN_MS) {
+        let placeholderTempId = null;
+        try {
+          placeholderTempId = onAudioPlaceholderRef.current?.({ elapsedMs }) || null;
+        } catch (placeholderError) {
+          console.warn("[audio] não foi possível desenhar a bolha antecipada:", placeholderError);
+        }
+        if (placeholderTempId) {
+          rec.__zapPlaceholderTempId = placeholderTempId;
+          // Rede de segurança: se o navegador nunca entregar o arquivo (onstop não dispara),
+          // a bolha não pode ficar girando para sempre.
+          rec.__zapPlaceholderTimer = setTimeout(() => {
+            rec.__zapPlaceholderTimer = null;
+            const id = rec.__zapPlaceholderTempId;
+            if (!id) return;
+            rec.__zapPlaceholderTempId = null;
+            try {
+              onAudioPlaceholderDiscardRef.current?.(id);
+            } catch {
+              /* ignore */
+            }
+            showToastRef.current?.({
+              type: "error",
+              title: "Áudio",
+              message: "O navegador não entregou o áudio gravado. Grave novamente.",
+            });
+          }, 20000);
+        }
+      }
     }
     cleanupSession({ requestDataBeforeStop: true, preserveOnStop: true, releaseMic: true });
   }, [cleanupSession, isRecording, sendFile, updateDraft]);
@@ -593,6 +693,7 @@ export function useVoiceRecording({
 
   return {
     isRecording,
+    isStarting,
     recordingSeconds,
     draft,
     hasDraft: Boolean(draft),

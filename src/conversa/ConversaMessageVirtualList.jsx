@@ -224,6 +224,22 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
     };
   }, [scrollRef, count, mobileThread]);
 
+  /*
+   * Desde a v3.14 o `scrollToIndex` do TanStack abre um laço de "reconcile" (rAF, até 5 s)
+   * que, a cada remedição de linha, volta a aplicar o alvo DELE. Quando nós sobrescrevemos o
+   * scrollTop logo a seguir (restaurar âncora após histórico, fundo real), os dois alvos
+   * divergem: qualquer foto/áudio que mede nesses 5 s puxava a tela para o alvo do
+   * virtualizer e o nosso snap devolvia — o "sobe um pouco, desce" sem o utilizador tocar.
+   * Este corte encerra o laço; chamado quando o scroll é nosso ou quando o utilizador mexe.
+   */
+  const stopVirtualReconcile = useCallback(() => {
+    try {
+      virtualizer.scrollState = null;
+    } catch {
+      /* ignore */
+    }
+  }, [virtualizer]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -231,13 +247,16 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
         if (index < 0 || index >= count) return;
         virtualizer.scrollToIndex(index, options);
       },
-      scrollToEnd: (options) => {
+      /** Interrompe qualquer scrollToIndex em curso (wheel/touch do utilizador). */
+      cancelProgrammaticScroll: stopVirtualReconcile,
+      scrollToEnd: () => {
         if (count <= 0) return;
-        virtualizer.scrollToIndex(count - 1, {
-          align: "end",
-          behavior: "auto",
-          ...(options && typeof options === "object" ? options : {}),
-        });
+        /*
+         * Fundo = scrollHeight − clientHeight, o mesmo que o virtualizer calcularia para a
+         * última linha com align "end". Aplicado direto, sem abrir o laço de reconcile, que
+         * podia arrastar o utilizador de volta ao fim se ele subisse logo a seguir a um snap.
+         */
+        stopVirtualReconcile();
         const scrollEl = scrollRef?.current;
         if (scrollEl) {
           try {
@@ -286,12 +305,22 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
         const prevOffsetInViewport = Number.isFinite(Number(anchor.offset))
           ? Number(anchor.offset)
           : anchor.itemStart + anchor.margin - anchor.scrollTop;
-        virtualizer.scrollToIndex(newIndex, { align: "start", behavior: "auto" });
+        /*
+         * Posição lida de `measurementsCache` (todas as linhas, medidas ou estimadas) em vez
+         * de `getVirtualItems()` (só as renderizadas — a linha-âncora, deslocada pelo lote
+         * novo, quase nunca estava lá no 1.º apply). E SEM `scrollToIndex`: o alvo dele
+         * (align start − 12px) diverge do offset que restauramos, e o laço de reconcile
+         * puxava a tela para lá a cada foto do lote novo que medisse.
+         */
+        stopVirtualReconcile();
+        const margin = anchor.margin ?? scrollMarginRef.current;
         const apply = () => {
-          const row = virtualizer.getVirtualItems().find((v) => v.index === newIndex);
+          const row = virtualizer.measurementsCache?.[newIndex];
           if (!row) return;
-          const margin = anchor.margin ?? scrollMarginRef.current;
-          scrollEl.scrollTop = Math.max(0, row.start + margin - prevOffsetInViewport);
+          /* Mesmo referencial de getScrollAnchor: as linhas são pintadas em translate(start)
+             dentro da raiz que já está em offsetTop = margin. */
+          const next = Math.max(0, row.start + margin - prevOffsetInViewport);
+          if (Math.abs(scrollEl.scrollTop - next) >= 1) scrollEl.scrollTop = next;
         };
         apply();
         /* Uma confirmação no frame seguinte cobre a montagem do novo range. As
@@ -300,7 +329,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
         return true;
       },
     }),
-    [virtualizer, count, items, conversaId]
+    [virtualizer, count, items, conversaId, stopVirtualReconcile]
   );
 
   useEffect(() => {

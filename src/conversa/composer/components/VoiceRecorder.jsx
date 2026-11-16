@@ -33,8 +33,8 @@ export default function VoiceRecorder({ open, seconds, interrupted = false, prep
         <span className="wa-recording-hint" role={interrupted ? "status" : undefined}>
           {interrupted
             ? preparing
-              ? "Gravação interrompida · salvando…"
-              : "Gravação interrompida · enviar?"
+              ? "Interrompida · salvando…"
+              : "Interrompida · enviar?"
             : "Toque para enviar"}
         </span>
         <button

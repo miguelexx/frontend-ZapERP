@@ -1495,7 +1495,9 @@ const { prefillRascunho } = draft;
     /* ---- as três seções do formulário têm título de mesmo nível ---- */
     {
       const html = formular({});
-      const titulos = html.match(/class="wa-orc-sectionTitle"/g) || [];
+      // `wa-orc-sectionTitle` pode vir acompanhado de `--comAcao` (o título que carrega o botão
+      // de recolher o bloco, hoje só montado no celular): o que a guarda cobra é o TÍTULO.
+      const titulos = html.match(/class="wa-orc-sectionTitle(?: [^"]*)?"/g) || [];
       assert(
         titulos.length >= 3,
         `form: os três blocos (cliente/vendedor, busca, itens) têm título — achei ${titulos.length}`
@@ -1503,6 +1505,122 @@ const { prefillRascunho } = draft;
       assert(
         /<label for="wa-orc-produtoBusca">Pesquisar produto<\/label>/.test(html),
         "form: o título da busca continua sendo o rótulo do campo (um só para olho e leitor)"
+      );
+    }
+
+    /* ------------------------------------------------------------------ *
+     * CELULAR: o que sai da ÁRVORE, não só do layout
+     * ------------------------------------------------------------------ *
+     * As três decisões do drawer no celular (doc 36, passagem de 16/11) escondem blocos de
+     * verdade — `display: none` deixaria o nó tabulável e lido por leitor de tela, além de
+     * manter montado o estado de quem foi escondido. Por isso elas vivem em `useOrcamentoMobile`
+     * e aparecem aqui: é renderizando que se prova que o nó SUMIU.
+     *
+     * O interruptor é o `window.matchMedia` que o hook consulta no primeiro render. Fora deste
+     * bloco não existe `window` nenhum, e a árvore provada no resto do arquivo é a de desktop.
+     */
+    {
+      const comCelular = (fn) => {
+        const anterior = Object.prototype.hasOwnProperty.call(globalThis, "window")
+          ? globalThis.window
+          : undefined;
+        globalThis.window = {
+          matchMedia: (consulta) => ({
+            matches: String(consulta).includes("600px"),
+            addEventListener() {},
+            removeEventListener() {},
+          }),
+          location: { hostname: "localhost", href: "http://localhost/", protocol: "http:" },
+        };
+        try {
+          return fn();
+        } finally {
+          if (anterior === undefined) delete globalThis.window;
+          else globalThis.window = anterior;
+        }
+      };
+
+      const RESOLVIDO = {
+        clienteBusca: "MARIA APARECIDA",
+        clienteCodigoErp: "0001234",
+        clienteNome: "MARIA APARECIDA AMADEI",
+        vendedorBusca: "SUZINEI",
+        vendedorCodigoErp: "003",
+        vendedorNome: "SUZINEI DOS SANTOS",
+        itens: [ITEM_M2],
+      };
+      const PRECO_M2 = {
+        7001: {
+          estado: "ok",
+          valores: { preco_unitario: "33.038", estoque_previsto: "420.000", ativo: true },
+          carimbos: {},
+        },
+      };
+
+      /* ---- cliente e vendedor resolvidos viram UMA linha, e os campos saem do DOM ---- */
+      const compacto = comCelular(() =>
+        render(Componentes.Form, { rascunho: RESOLVIDO, precos: PRECO_M2 })
+      );
+      assert(
+        compacto.includes("wa-orc-destinoResumo"),
+        "celular: cliente e vendedor já escolhidos viram uma linha só"
+      );
+      assert(
+        !compacto.includes("wa-orc-section--dupla") && !compacto.includes('id="wa-orc-cliente"'),
+        "celular: recolhido, o campo de cliente SAI do DOM — não fica escondido por CSS"
+      );
+      assert(
+        compacto.includes("MARIA APARECIDA AMADEI") && compacto.includes("SUZINEI DOS SANTOS"),
+        "celular: a linha recolhida diz para quem é o orçamento, com os nomes do ERP"
+      );
+
+      /* ---- sem CÓDIGO nos dois, nada se recolhe: texto digitado não é escolha ---- */
+      const digitado = comCelular(() =>
+        render(Componentes.Form, {
+          rascunho: { ...RESOLVIDO, clienteCodigoErp: "" },
+          precos: PRECO_M2,
+        })
+      );
+      assert(
+        digitado.includes("wa-orc-section--dupla") && !digitado.includes("wa-orc-destinoResumo"),
+        "celular: cliente sem código do ERP mantém o bloco aberto (digitar não é escolher)"
+      );
+
+      /* ---- o desconto no total começa atrás de um botão ---- */
+      assert(
+        compacto.includes("wa-orc-descontoAbrir") && !compacto.includes("wa-orc-descontoTipo-btn"),
+        "celular: o desconto no total começa fechado, num botão só"
+      );
+      const desktop = render(Componentes.Form, { rascunho: RESOLVIDO, precos: PRECO_M2 });
+      assert(
+        !desktop.includes("wa-orc-descontoAbrir") && desktop.includes("wa-orc-descontoTipo-btn"),
+        "desktop: o desconto continua aberto como sempre esteve"
+      );
+      assert(
+        desktop.includes("wa-orc-section--dupla") && !desktop.includes("wa-orc-destinoResumo"),
+        "desktop: cliente e vendedor continuam em dois campos lado a lado"
+      );
+
+      /* ---- "alterar preço" fecha a linha dos valores no celular, e só no celular ---- */
+      assert(
+        /wa-orc-precoNegoc-abrir[^>]*>Alterar preço<\/button><\/span>/.test(compacto),
+        "celular: o 'alterar preço' entra na linha dos valores, encostado no preço"
+      );
+      assert(
+        !/wa-orc-precoNegoc-abrir[^>]*>Alterar preço<\/button><\/span>/.test(desktop) &&
+          desktop.includes("wa-orc-precoNegoc-abrir"),
+        "desktop: o 'alterar preço' continua na linha própria, abaixo dos valores"
+      );
+
+      /* ---- a dica longa da busca vira placeholder no celular ---- */
+      assert(
+        compacto.includes('placeholder="Nome, marca ou código de barras"') &&
+          !compacto.includes("bipe/cole o código de barras"),
+        "celular: a orientação da busca vive no placeholder, não num parágrafo fixo"
+      );
+      assert(
+        desktop.includes("bipe/cole o código de barras"),
+        "desktop: a dica longa da busca continua escrita abaixo do campo"
       );
     }
 

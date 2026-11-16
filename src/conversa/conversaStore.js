@@ -1679,6 +1679,36 @@ export const useConversaStore = create((set, get) => {
       })
     },
 
+    /**
+     * Completa uma bolha otimista JÁ desenhada (mesmo tempId) com os dados do arquivo — usado
+     * pelo áudio, cuja bolha nasce no toque em "enviar" antes de o navegador entregar o blob.
+     * Mantém a posição/ordem (criado_em, _stableInsertSeq) da bolha original. Devolve false se
+     * ela não está mais na lista (conversa trocada, removida) para o chamador decidir.
+     */
+    hidratarMensagemTemp: (tempId, partial = {}) => {
+      if (!tempId) return false
+      takeAndApplyAnexarBatch()
+      let encontrada = false
+      set((state) => {
+        const list = state.mensagens || []
+        const idx = list.findIndex((m) => String(m.tempId) === String(tempId))
+        if (idx < 0) return state
+        encontrada = true
+        const prev = list[idx]
+        const next = [...list]
+        next[idx] = {
+          ...prev,
+          ...partial,
+          tempId: prev.tempId,
+          client_temp_id: prev.client_temp_id ?? prev.tempId,
+          criado_em: prev.criado_em,
+          _stableInsertSeq: prev._stableInsertSeq,
+        }
+        return { mensagens: next }
+      })
+      return encontrada
+    },
+
     marcarMensagemTempErro: (tempId, opts = {}) => {
       if (!tempId) return
       takeAndApplyAnexarBatch()

@@ -120,6 +120,112 @@ export function snapThreadToBottom(container, virtualListRef, opts = {}) {
   }
 }
 
+function prefersReducedMotion() {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Desliza a thread até ao fim com desaceleração suave (estilo app nativo).
+ *
+ * - Incremental: cada frame anda uma fração do que FALTA até ao fundo atual, por isso segue
+ *   o conteúdo que cresce (linhas medidas pelo virtualizer) e respeita as compensações de
+ *   scrollTop que o virtualizer faça a meio, em vez de as sobrescrever com uma curva fixa.
+ * - Distância longa: salta primeiro para ~1 ecrã acima do fim — animar 40 ecrãs de histórico
+ *   seria lento e obrigaria o virtualizer a montar/medir tudo pelo caminho.
+ * - `canContinue()` falso (wheel/touch do utilizador) aborta na hora.
+ * - prefers-reduced-motion → salto direto.
+ *
+ * Devolve uma função que cancela a animação.
+ */
+export function smoothScrollThreadToBottom(container, { canContinue, onDone, maxMs = 650 } = {}) {
+  if (!container) return () => {};
+  const maxTop = () => Math.max(0, (container.scrollHeight || 0) - (container.clientHeight || 0));
+  let finished = false;
+  let raf = 0;
+  const finish = (completed) => {
+    if (finished) return;
+    finished = true;
+    cancelFrame(raf);
+    try {
+      onDone?.(completed);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  if (prefersReducedMotion()) {
+    try {
+      container.scrollTop = container.scrollHeight;
+    } catch {
+      /* ignore */
+    }
+    finish(true);
+    return () => {};
+  }
+
+  const viewport = container.clientHeight || 600;
+  const lead = viewport * 1.1;
+  if (maxTop() - container.scrollTop > lead) {
+    try {
+      container.scrollTop = maxTop() - lead;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const now = () =>
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  const startedAt = now();
+  let last = startedAt;
+
+  const step = () => {
+    if (finished) return;
+    if (typeof canContinue === "function" && !canContinue()) {
+      finish(false);
+      return;
+    }
+    const t = now();
+    const dt = Math.min(48, Math.max(1, t - last));
+    last = t;
+    const target = maxTop();
+    const cur = container.scrollTop;
+    const remaining = target - cur;
+    if (Math.abs(remaining) <= 1 || t - startedAt >= maxMs) {
+      try {
+        container.scrollTop = container.scrollHeight;
+      } catch {
+        /* ignore */
+      }
+      finish(true);
+      return;
+    }
+    /* ~18% do restante por frame a 60 fps, normalizado pelo dt real (120 Hz anda o mesmo). */
+    const alpha = 1 - Math.pow(1 - 0.18, dt / 16.67);
+    const delta = remaining * alpha;
+    const minStep = Math.sign(remaining) * Math.min(Math.abs(remaining), 1.5);
+    try {
+      container.scrollTop = cur + (Math.abs(delta) < 1.5 ? minStep : delta);
+    } catch {
+      finish(false);
+      return;
+    }
+    raf = scheduleFrame(step);
+  };
+
+  raf = scheduleFrame(step);
+  return () => finish(false);
+}
+
 export function useAutoScroll({
   conversaId,
   loading,

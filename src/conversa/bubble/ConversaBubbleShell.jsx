@@ -123,6 +123,7 @@ const Bubble = memo(function Bubble({
     isSticker,
     isFile,
     isAudioOrVoice,
+    audioTemPlayer,
     isVideo,
     isContact,
     isLocation,
@@ -590,7 +591,7 @@ const Bubble = memo(function Bubble({
           <div className="wa-bubble-metaLeft">
             {showFloatingMetaTime ? (
               <>
-                {!(isAudioOrVoice && mediaUrl) ? (
+                {!(isAudioOrVoice && audioTemPlayer) ? (
                   <>
                     <EditedLabel msg={msg} />
                     <span className="wa-bubble-time">{formatHora(msg?.criado_em)}</span>

@@ -42,6 +42,7 @@ export default function BubbleTypedContent({
     isSticker,
     isVideo,
     isAudioOrVoice,
+    audioTemPlayer,
     isFile,
     isLocation,
     isContact,
@@ -111,7 +112,7 @@ export default function BubbleTypedContent({
       />
     );
   }
-  if (includeAudioAndCall && isAudioOrVoice && mediaUrl) {
+  if (includeAudioAndCall && isAudioOrVoice && (mediaUrl || audioTemPlayer)) {
     return (
       <AudioMessage
         msg={msg}

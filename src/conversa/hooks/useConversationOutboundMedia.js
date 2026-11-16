@@ -115,8 +115,23 @@ export function useConversationOutboundMedia({
 }) {
   const handleEnviarArquivo = useCallback(
     async (file, opts = {}) => {
-      if (!file || !conversaId) return;
+      // Áudio do composer: a bolha já nasceu no toque em "enviar" (estado "preparando"). Em
+      // qualquer saída antecipada ela precisa sumir, senão ficaria órfã girando para sempre.
+      const descartarPlaceholder = () => {
+        if (!opts.placeholderTempId) return;
+        removerMensagemTemp(opts.placeholderTempId);
+        try {
+          opts.placeholderRevert?.();
+        } catch {
+          /* ignore */
+        }
+      };
+      if (!file || !conversaId) {
+        descartarPlaceholder();
+        return;
+      }
       if (isArquivoBloqueadoWhatsApp(file)) {
+        descartarPlaceholder();
         showToast({
           type: "error",
           title: "Arquivo não permitido",
@@ -127,6 +142,7 @@ export function useConversationOutboundMedia({
       }
       // Feedback imediato: o middleware do backend rejeitaria com 400 depois do upload inteiro.
       if (arquivoExcedeLimiteUpload(file)) {
+        descartarPlaceholder();
         showToast({
           type: "error",
           title: "Arquivo muito grande",
@@ -136,6 +152,7 @@ export function useConversationOutboundMedia({
         return;
       }
       if (!podeEnviar) {
+        descartarPlaceholder();
         showToast({
           type: "warning",
           title: "Conversa não assumida",
@@ -147,13 +164,17 @@ export function useConversationOutboundMedia({
       const searchResultSendTransition = beginSearchResultSendTransition?.();
       const conversaAberta = await garantirConversaAbertaParaEnvio();
       if (!conversaAberta) {
+        descartarPlaceholder();
         clearPending();
         return;
       }
       searchResultSendTransition?.afterConversationReady?.();
   
       const flightKey = `${conversaId}:${file?.name || "arquivo"}:${file?.size ?? 0}:${file?.lastModified ?? 0}`;
-      if (arquivoEnvioInFlightRef.current.has(flightKey)) return;
+      if (arquivoEnvioInFlightRef.current.has(flightKey)) {
+        descartarPlaceholder();
+        return;
+      }
       arquivoEnvioInFlightRef.current.add(flightKey);
   
       const legenda = String(opts.caption ?? "").trim();
@@ -167,7 +188,7 @@ export function useConversationOutboundMedia({
         forceStickerType: opts.forceStickerType,
         forceVoiceType: opts.tipo === "voice" || opts.tipo === "ptt",
         tipo: opts.tipo,
-        tempId: opts.reuseTempId || undefined,
+        tempId: opts.reuseTempId || opts.placeholderTempId || undefined,
       });
       const tempId = optimisticMsg.tempId;
       if (opts.reuseTempId) removerMensagemTemp(opts.reuseTempId);
@@ -190,8 +211,20 @@ export function useConversationOutboundMedia({
         message_id: tempId,
       });
       const revertOutgoingStatus = applyOutgoingStatusOptimistic();
-      const revertModoSimples = appendOutgoingOptimisticMessage(optimisticMsg);
-      audioTraceMarca("bolha otimista na store");
+      // Bolha "preparando" já na tela: completa-a no lugar (mesma posição, sem piscar). Se ela
+      // sumiu (conversa trocada/recarregada), cai no caminho normal de anexar.
+      const hidratouPlaceholder = opts.placeholderTempId
+        ? useConversaStore.getState().hidratarMensagemTemp(tempId, {
+            ...optimisticMsg,
+            _audioPreparando: false,
+          })
+        : false;
+      const revertModoSimples = hidratouPlaceholder
+        ? typeof opts.placeholderRevert === "function"
+          ? opts.placeholderRevert
+          : null
+        : appendOutgoingOptimisticMessage(optimisticMsg);
+      audioTraceMarca(hidratouPlaceholder ? "bolha preparada completada" : "bolha otimista na store");
       clearPending();
   
       const formData = new FormData();

@@ -255,7 +255,8 @@ export default function ComposerFooter({
               onPointerDown={(event) => event.preventDefault()}
               onClick={voiceRecording.startRecording}
               disabled={!conversaId || !podeEnviar}
-              className="wa-micBtn"
+              className={`wa-micBtn${voiceRecording.isStarting ? " isStarting" : ""}`}
+              aria-busy={voiceRecording.isStarting || undefined}
               title="Gravar áudio"
               type="button"
               aria-label="Gravar áudio"

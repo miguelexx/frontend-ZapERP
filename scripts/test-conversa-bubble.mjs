@@ -247,6 +247,22 @@ assert.equal(retryOf({ direcao: "out", id: 8, tipo: "texto", status: "delivered"
 assert.equal(retryOf({ direcao: "out", id: 9, tipo: "texto", status: "read" }).canShowRetry, false);
 assert.equal(retryOf({ direcao: "out", id: 10, tipo: "texto", status: "status_indefinido" }).canShowRetry, false);
 assert.equal(retryOf({ direcao: "out", tipo: "texto", status: "erro" }).canShowRetry, false);
+// Bolha de áudio nascida no toque em "enviar" (sem URL ainda): layout de player, hora no player.
+{
+  const prep = classify({ direcao: "out", tipo: "voice", tempId: "tmp-p1", _audioPreparando: true }, "");
+  assert.equal(prep.isAudioPreparando, true);
+  assert.equal(prep.audioTemPlayer, true);
+  assert.equal(prep.hasInlineMetaClass, false);
+  assert.equal(prep.showFloatingMetaTime, true);
+  // Sem a marca, áudio sem URL continua no rótulo de fallback (comportamento de sempre).
+  const semUrl = classify({ direcao: "out", tipo: "voice", tempId: "tmp-p2" }, "");
+  assert.equal(semUrl.audioTemPlayer, false);
+  assert.equal(semUrl.hasInlineMetaClass, true);
+  // Com URL a marca é irrelevante: é o player real.
+  const pronto = classify({ direcao: "out", tipo: "voice", tempId: "tmp-p3", _audioPreparando: true }, "blob:x");
+  assert.equal(pronto.isAudioPreparando, false);
+  assert.equal(pronto.audioTemPlayer, true);
+}
 // Áudio recusado antes de ser salvo (sem id): retry local com o arquivo retido na sessão.
 assert.equal(
   retryOf({ direcao: "out", tipo: "audio", status: "erro", envio_erro: true, tempId: "tmp-a1", retry_local: true }).canShowRetry,

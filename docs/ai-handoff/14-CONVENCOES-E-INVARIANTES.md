@@ -30,6 +30,16 @@
   (doc 08, 16/11/2026): a compensação por `item.start < scrollTop` no virtualizer e a exceção
   de folga > 24px no `snapIfStickBottom` durante a abertura. Mexeu na moldura? Rode
   `e2e/audit-local-mock.spec.js -g "historico com muitas midias"` nos dois projetos.
+- **Não chame `virtualizer.scrollToIndex` e depois sobrescreva o `scrollTop`** (16/11/2026).
+  Desde a v3.14 o TanStack abre um laço de reconcile (rAF, até 5 s) que reaplica o alvo
+  dele a cada remedição — com o nosso `scrollTop` diferente, a thread "subia e descia
+  sozinha" (medido: 149 px sem input após carregar histórico). `scrollToEnd` e
+  `restoreAfterPrepend` em `ConversaMessageVirtualList` escrevem o `scrollTop` direto (lendo
+  `measurementsCache`) e chamam `stopVirtualReconcile`; wheel/touch/pointer chamam
+  `cancelProgrammaticScroll`. Referencial: as linhas são pintadas em `translate(start)` dentro
+  da raiz em `offsetTop = scrollMargin`, logo posição real = `start + margin`.
+  "Ir para recentes" usa `smoothScrollThreadToBottom` (useAutoScroll); enquanto anima,
+  `snapIfStickBottom` não age. Regressão: `e2e/thread-scroll-stability.spec.js`.
 - Safe-area inferior com conversa aberta é do `.wa-footer`, não do `main-content` (doc 11).
   Reservar nos dois volta a deixar a faixa morta debaixo do composer.
 - Mobile 640px: lista XOR chat; `popstate` só fecha UI.
