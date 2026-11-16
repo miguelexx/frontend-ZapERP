@@ -1023,12 +1023,15 @@ body:has(.atendimento-layout) #root {
     display: none;
   }
 
-  .app-layout:has(.atendimento-layout.conversation-open) .main-content {
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-
+  /*
+   * Conversa aberta: NADA de padding aqui. Reservar a safe-area no main deixava uma faixa
+   * morta do fundo do app entre o composer e a borda do ecrã (no iPhone, a altura inteira da
+   * home indicator). Quem reserva agora é o próprio composer (`.wa-footer`, em conversa.css),
+   * cujo fundo preenece essa faixa — como no WhatsApp, onde a barra encosta na borda.
+   */
+  .app-layout:has(.atendimento-layout.conversation-open) .main-content,
   .app-layout:has(.atendimento-layout.conversation-open) .main-content.main-content--crm {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: 0;
   }
 
   /* Teclado no chat: remove safe-area extra que virava faixa branca acima do teclado */

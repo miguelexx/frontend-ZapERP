@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatMmSs } from "../../utils/conversaViewHelpers";
 import { IconPlay } from "../../conversaViewIcons";
+import {
+  clampAspectRatio,
+  mediaRatioKey,
+  recallAspectRatio,
+  rememberAspectRatio,
+} from "../utils/mediaAspectRatio";
 import MessageCaption from "./MessageCaption";
 
 /** Preview estavel de video: evita salto de layout e oferece affordance clara no mobile. */
@@ -9,18 +15,35 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
   const [failed, setFailed] = useState(false);
   const [durationSec, setDurationSec] = useState(0);
   const optimistic = !!msg?._optimisticBlobUrl;
+  const ratioKey = useMemo(() => mediaRatioKey(msg, src), [
+    msg?.whatsapp_id,
+    msg?.id,
+    msg?.tempId,
+    msg?.client_temp_id,
+    src,
+  ]);
+  // Mesma ideia da foto: a moldura toma a forma real do vídeo (retrato deixa de ser cortado
+  // dentro de um 16/9) e a proporção fica em cache para a remontagem na lista virtual.
+  const [ratio, setRatio] = useState(() => recallAspectRatio(ratioKey));
 
   useEffect(() => {
     setReady(false);
     setFailed(false);
     setDurationSec(0);
-  }, [src]);
+    setRatio(recallAspectRatio(ratioKey));
+  }, [src, ratioKey]);
 
   const handleLoadedMetadata = useCallback((event) => {
-    const duration = Number(event?.currentTarget?.duration || 0);
+    const el = event?.currentTarget;
+    const duration = Number(el?.duration || 0);
     if (Number.isFinite(duration) && duration > 0) setDurationSec(duration);
+    const r = clampAspectRatio(el?.videoWidth, el?.videoHeight);
+    if (r > 0) {
+      rememberAspectRatio(ratioKey, r);
+      setRatio((atual) => (atual === r ? atual : r));
+    }
     setReady(true);
-  }, []);
+  }, [ratioKey]);
 
   return (
     <button
@@ -31,6 +54,7 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
         ready ? "isReady" : "isLoading",
         failed ? "hasError" : "",
       ].filter(Boolean).join(" ")}
+      style={ratio > 0 ? { "--wa-media-ar": ratio } : undefined}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onClick={onClick}

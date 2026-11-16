@@ -139,8 +139,16 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
          * pela altura medida. Bloqueá-la enquanto `isScrolling` fazia cada diferença
          * acumulada deslocar o conteúdo para uma posição aparentemente aleatória.
          */
-        const itemBottom = item.end + margin;
-        const willAdjust = itemBottom <= scrollTop;
+        /*
+         * Basta a linha COMEÇAR acima do topo visível. Antes exigia-se a linha inteira
+         * acima (`item.end <= scrollTop`): a linha que cruza a dobra — justamente a foto
+         * que acabou de decodificar e trocou a moldura quadrada pela proporção real —
+         * ficava de fora e empurrava tudo o que vinha depois dela (~100px de salto ao
+         * subir por um histórico com fotos). Crescendo ou encolhendo acima da dobra, o
+         * conteúdo visível tem de ficar no mesmo pixel.
+         */
+        const itemStart = item.start + margin;
+        const willAdjust = itemStart < scrollTop;
         if (import.meta.env.DEV && willAdjust) {
           const estimated = estimateThreadRowSize(items[item.index], mobileThread);
           scrollProfiler.correction((item.size ?? estimated) - estimated, "size-change");

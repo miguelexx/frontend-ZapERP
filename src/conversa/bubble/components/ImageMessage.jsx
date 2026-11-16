@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pickLoadedMediaSrcFromEvent, resolveBubbleMediaCandidates } from "../../utils/conversaViewHelpers";
 import { canReprocessInboundMedia, requestInboundMediaReprocess } from "../utils/inboundMediaReprocess";
+import {
+  applyAspectRatioVar,
+  clampAspectRatio,
+  mediaRatioKey,
+  recallAspectRatio,
+  rememberAspectRatio,
+} from "../utils/mediaAspectRatio";
 import MessageCaption from "./MessageCaption";
 
+/** Sobe do <img> até a moldura (botão) que recorta a foto — é nela que mora a proporção. */
+function frameOf(el) {
+  return el?.closest?.(".wa-bubble-imgLink") || el?.parentElement || null;
+}
+
 /** Imagem na bolha com fallback: blob local → URL do servidor → proxy. */
-export function BubbleImage({ msg, alt, className, out }) {
+export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
   // StickerMessage não passa `out`: deriva da própria mensagem — o backend só
   // reprocessa mídia recebida, então mídia nossa não deve ganhar o botão.
   const ehOut = out !== undefined ? !!out : String(msg?.direcao || "").toLowerCase() === "out";
@@ -53,6 +65,9 @@ export function BubbleImage({ msg, alt, className, out }) {
     setLoaded(complete);
     if (complete && el.naturalWidth > 0 && el.naturalHeight > 0) {
       el.style.setProperty("--wa-img-ar", `${el.naturalWidth} / ${el.naturalHeight}`);
+      const ratio = clampAspectRatio(el.naturalWidth, el.naturalHeight);
+      applyAspectRatioVar(frameOf(el), ratio);
+      onAspectRatio?.(ratio);
     }
   }, [candidates.join("\u0001")]);
 
@@ -158,6 +173,10 @@ export function BubbleImage({ msg, alt, className, out }) {
         if (el?.naturalWidth > 0 && el?.naturalHeight > 0) {
           /* Fixa a proporção real para reloads/cache da mesma bolha (menos CLS). */
           el.style.setProperty("--wa-img-ar", `${el.naturalWidth} / ${el.naturalHeight}`);
+          /* A moldura assume a forma da foto já neste paint (sem esperar o re-render). */
+          const ratio = clampAspectRatio(el.naturalWidth, el.naturalHeight);
+          applyAspectRatioVar(frameOf(el), ratio);
+          onAspectRatio?.(ratio);
         }
       }}
       onError={() => {
@@ -190,11 +209,27 @@ export default function ImageMessage({
   onPointerUp,
   onClick,
 }) {
+  const ratioKey = useMemo(() => mediaRatioKey(msg, mediaUrl), [
+    msg?.whatsapp_id,
+    msg?.id,
+    msg?.tempId,
+    msg?.client_temp_id,
+    mediaUrl,
+  ]);
+  // Lembrada de uma montagem anterior: ao rolar de volta, a bolha já nasce na forma da foto
+  // em vez de abrir quadrada e "pular" quando o arquivo decodifica.
+  const [ratio, setRatio] = useState(() => recallAspectRatio(ratioKey));
+
+  useEffect(() => {
+    setRatio(recallAspectRatio(ratioKey));
+  }, [ratioKey]);
+
   return (
     <div className="wa-bubble-mediaStack">
       <button
         type="button"
         className="wa-bubble-imgLink"
+        style={ratio > 0 ? { "--wa-media-ar": ratio } : undefined}
         onPointerDown={onPointerDown}
         onPointerUp={(e) => onPointerUp?.(e, pickLoadedMediaSrcFromEvent(e) || mediaUrl, "imagem")}
         onClick={(e) => onClick?.(e, pickLoadedMediaSrcFromEvent(e) || mediaUrl, "imagem")}
@@ -204,6 +239,11 @@ export default function ImageMessage({
           alt="imagem"
           className="wa-bubble-img"
           out={out}
+          onAspectRatio={(r) => {
+            if (!(r > 0)) return;
+            rememberAspectRatio(ratioKey, r);
+            setRatio((atual) => (atual === r ? atual : r));
+          }}
         />
       </button>
       <MessageCaption texto={texto} show={showCaption} />

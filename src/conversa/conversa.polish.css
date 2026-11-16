@@ -11,6 +11,11 @@
    tocar no tamanho desenhado. Acrescentar ali uma regra de cor, tipo ou forma é mudar o
    telemóvel, que é o que não se quer.
 
+   ATUALIZAÇÃO 16/11/2026 (pedido do Miguel, com print): o cabeçalho do telemóvel passou a
+   ser compactado de propósito — os botões da 2ª linha descem de 38 para 32px e o cabeçalho
+   inteiro de 86 para ~75px. "Assumir" e "Transferir" continuam SEMPRE visíveis; é a única
+   restrição. O resto do ficheiro (desktop) continua intocado.
+
    Carrega depois de `conversa.css` e antes de `conversa.whatsapp.css` (modo simples).
 
    O diagnóstico, medido no render e não a olho. Cabeçalho do desktop: quatro botões e
@@ -602,13 +607,16 @@
 
   /* (b) crescem, porque o wrapper corta o pseudo */
   html body .app-layout #main-content .wa-header .wa-header-setorBtn {
-    /* 38 como os vizinhos: a linha já tem essa altura por causa deles,
-       por isso subir daqui não custa um pixel de cabeçalho. */
-    min-height: 38px !important;
+    /*
+     * 32 como os vizinhos — eram 38 (16/11/2026: pedido para encolher o cabeçalho no
+     * telemóvel, que comia 86px de 727). 32 continua acima do alvo mínimo confortável e
+     * devolve 9px de conversa; quem manda na altura da linha são estes três botões.
+     */
+    min-height: 32px !important;
     /* Só a altura deixava um retângulo em pé (34 de largura por 38 de altura),
        com a palavra espremida. Com respiro lateral volta a ser uma cápsula,
        da mesma família do "Transf." e do "Encerr." ao lado. */
-    padding: 0 12px !important;
+    padding: 0 11px !important;
   }
 
   /*
@@ -618,7 +626,7 @@
    * quem desenha é o botão.
    */
   html body .app-layout #main-content .wa-header .wa-header-mobileRow2-sector {
-    min-height: 38px;
+    min-height: 32px;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -634,6 +642,6 @@
     .wa-btn-danger,
     .wa-crmSendBtn
   ) {
-    min-height: 38px !important;
+    min-height: 32px !important;
   }
 }

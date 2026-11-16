@@ -869,8 +869,18 @@ function ConversaViewBody() {
   const snapIfStickBottom = useCallback(() => {
     const c = messagesContainerRef.current;
     if (!c || loadingMore || userScrollLockRef.current || jumpHoldRef.current) return;
-    /* Abertura: o snap é só do useAutoScroll. ResizeObserver a competir = pulo ao revelar. */
-    if (threadOpeningRef.current) return;
+    /*
+     * Abertura: o snap é do useAutoScroll — o ResizeObserver a competir com ele dava pulo ao
+     * revelar a thread. EXCEÇÃO (16/11/2026): se já há uma folga real no fundo, o snap de
+     * abertura não está "a competir", está em falta — a cadeia dele acabou e a mídia mediu
+     * depois (foto que troca a moldura quadrada pela proporção real ao decodificar). Nesse
+     * caso a conversa abria com a última mensagem escondida abaixo da dobra e ninguém
+     * reancorava. 24px tolera a remedição de 1 linha sem acordar este caminho à toa.
+     */
+    if (threadOpeningRef.current) {
+      const folga = (c.scrollHeight || 0) - (c.scrollTop || 0) - (c.clientHeight || 0);
+      if (folga <= 24) return;
+    }
     if (!shouldStickToBottomRef.current) return;
     const list = useConversaStore.getState().mensagens || [];
     const last = list.length ? list[list.length - 1] : null;

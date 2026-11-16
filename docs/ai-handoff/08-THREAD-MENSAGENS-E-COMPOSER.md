@@ -1084,3 +1084,78 @@ que não têm nada a ver com esta sessão:
 
 O token certo é `--ds-accent` (theme.css, nos dois temas) — foi o que o balão do contador
 passou a usar depois de a sonda visual o apanhar transparente.
+
+## 2026-11-16 — Bolha de mídia e cartão de link na proporção real (estilo WhatsApp)
+
+**Problema.** A moldura da mídia era fixa: foto em `aspect-ratio: 1/1` com `object-fit: contain`
+(retrato e paisagem ganhavam tarja cinza dos dois lados), vídeo preso em `16/9` com `cover`
+(vídeo de celular era cortado em cima e embaixo) e o cartão de link num bloco fixo de `258px`
+com miniatura `1.91/1` — num link de vídeo vertical (TikTok, Reels) a miniatura saía achatada e,
+quando o texto da mensagem era maior que o cartão, o cartão ficava mais estreito que a bolha.
+
+**Agora.** A moldura toma a forma do arquivo, como no WhatsApp.
+
+- `bubble/utils/mediaAspectRatio.js` (novo): `clampAspectRatio(w, h, min, max)` devolve o número
+  largura/altura já limitado (`0.62`–`2.4` para foto/vídeo; `0.86`–`1.91` para o cartão de link),
+  mais um **cache de módulo por mensagem/URL** (`mediaRatioKey` → `recall`/`rememberAspectRatio`).
+- A proporção vai para a CSS var **`--wa-media-ar`** no elemento que recorta (`.wa-bubble-imgLink`,
+  `.wa-bubble-videoLink`, `.wa-linkPrev`) — não no `<img>`. O CSS calcula
+  `width: min(--wa-media-max-w, --wa-media-max-h × --wa-media-ar)` e `aspect-ratio: --wa-media-ar`,
+  e a mídia preenche com `object-fit: cover` (só os extremos da faixa cortam, igual ao WhatsApp).
+- **Por que o cache:** a thread é virtualizada. Sem ele, ao rolar de volta a linha remonta, a
+  proporção seria "descoberta" outra vez e o scroll saltaria (CLS). Com ele, a bolha já remonta na
+  forma certa. **Sem** a variável (antes do 1º load) vale o fallback de antes — quadrado na foto,
+  16/9 no vídeo —, que continua reservando a área. `ImageMessage` também grava a var de forma
+  imperativa dentro do `onLoad` (acerta já no primeiro paint, sem esperar o re-render).
+- Quem mexer nos blocos mobile (`@media (max-width: 640px)` e `480px`) deve sobrescrever
+  **`--wa-media-max-w` / `--wa-media-max-h`**, nunca a `width` da `<img>`: largura fixa na imagem
+  volta a quebrar a moldura.
+
+**Cartão de link (`LinkPreviewMessage` + `.wa-linkPrev`).** Ocupa a largura inteira da bolha
+(`width: 100%` + `min-width: min(270px, 68vw)`, e a bolha cresce até caber). `contain: inline-size`
+é **obrigatório**: a bolha é `width: fit-content` e sem a contenção a largura natural da miniatura
+(720–1200px) entrava no cálculo e estourava a bolha até o limite da coluna com três palavras de
+texto. Miniatura menor que 180px de lado cai no layout compacto (`.wa-linkPrev--compact`, imagem
+52px ao lado do texto) em vez de virar foto gigante borrada. A bolha que carrega o cartão usa
+`:has(.wa-linkPrev)` para reduzir o padding a 3px (o cartão encosta nas bordas) e devolve o respiro
+ao texto/nome do remetente/resposta citada — o texto mantém a faixa de 34px à direita da hora.
+
+Validado em harness estático (Vite dev) a 760px e a 375px: foto 9:16 → 260×420; 16:9 e 1:1 sem
+tarja; cartão acompanha a bolha em texto curto e longo. `npm run test:bubble` e `npm run build` OK.
+
+### 2026-11-16 (parte 2) — O preço da proporção real: âncora de scroll
+
+A moldura da foto deixou de ser fixa (ver secção acima), e **isso mexe no scroll**: a bolha
+nasce quadrada (estimativa) e, quando o arquivo decodifica, muda de altura — retrato cresce
+~80px, paisagem encolhe ~150px. O caminho da thread estava afinado para "mídia nunca muda de
+altura", então duas coisas tiveram de mudar junto. Quem mexer na moldura outra vez precisa
+saber disto:
+
+1. **`ConversaMessageVirtualList` — compensação acima da dobra.** Em
+   `shouldAdjustScrollPositionOnItemSizeChange`, a condição passou de "a linha inteira está
+   acima do topo visível" (`item.end + margin <= scrollTop`) para "a linha COMEÇA acima"
+   (`item.start + margin < scrollTop`). A linha que cruza a dobra — justamente a foto que
+   acabou de decodificar — ficava de fora e empurrava ~100px tudo o que vinha depois dela ao
+   subir pelo histórico (`e2e/audit-local-mock.spec.js › historico com muitas midias`,
+   `historyProbe.delta`).
+2. **`ConversaView.snapIfStickBottom` — exceção na abertura.** O guard
+   `if (threadOpeningRef.current) return;` continua a valer, MENOS quando já há folga real no
+   fundo (> 24px). Medido: a cadeia de snaps do `useAutoScroll` termina, a mídia mede depois e
+   a conversa abria com a última mensagem escondida 80px abaixo da dobra, sem ninguém
+   reancorar (mesmo teste, asserção `gaps de abertura`). Com a exceção, a folga aparece por
+   1–2 frames e fecha.
+
+A estimativa de `estimateThreadRowSize` para imagem (356 mobile / 372 desktop) continua a
+corresponder à moldura QUADRADA de antes do load — é a caixa que a linha realmente ocupa no
+primeiro layout, por isso não foi mexida.
+
+### 2026-11-16 (parte 3) — Legenda e hora da mídia
+
+- Legenda de foto/vídeo perdeu a faixa mais escura (`color-mix(... 12% preto)`): fica no mesmo
+  fundo da bolha, como no WhatsApp. `padding-right` subiu para 62px — com 56px a última
+  palavra encostava na hora.
+- Hora+tiques da mídia COM legenda: era uma cápsula preta com blur (desenhada para ficar POR
+  CIMA da foto) em cima de um fundo sólido. Agora é texto discreto (`--wa-text-muted`).
+- Hora da mídia SEM legenda: o chip saiu do canto SUPERIOR direito para o INFERIOR direito.
+  No topo tapava o assunto da foto e disputava o canto com a setinha do menu
+  (`.wa-msgMenuBtn--top`, também em top/right). Figurinha continua com o chip no topo.

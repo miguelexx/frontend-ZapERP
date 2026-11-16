@@ -4311,11 +4311,24 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   align-items: flex-start;
 }
 
+/*
+ * Moldura NA FORMA da foto (WhatsApp): `--wa-media-ar` é o número largura/altura que o
+ * ImageMessage grava quando o arquivo decodifica (e relembra do cache ao remontar a linha
+ * virtualizada). A largura é a menor entre o teto da coluna e "altura máxima × proporção",
+ * então retrato fica estreito e alto, paisagem fica largo e baixo — sem tarja cinza dos lados.
+ * Sem a variável (antes do primeiro load) vale o quadrado de antes, que reserva a área e
+ * segura o scroll.
+ */
 .wa-bubble.image-message .wa-bubble-imgLink {
+  --wa-media-max-w: min(340px, calc(100vw - 56px));
+  --wa-media-max-h: 420px;
   margin: 0;
-  width: min(340px, calc(100vw - 56px));
+  width: max(
+    132px,
+    min(var(--wa-media-max-w), calc(var(--wa-media-max-h) * var(--wa-media-ar, 1)))
+  );
   max-width: min(420px, calc(100vw - 72px));
-  aspect-ratio: 1 / 1;
+  aspect-ratio: var(--wa-media-ar, 1);
   background: rgba(11, 20, 26, 0.06);
   contain: layout paint;
 }
@@ -4333,16 +4346,16 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 .wa-bubble.image-message .wa-bubble-img {
   display: block;
   /*
-   * Moldura quadrada estável: a altura não muda quando o arquivo termina de decodificar.
-   * Fotos retrato/paisagem usam object-fit:contain dentro da moldura, portanto não são
-   * cortadas e também não deslocam dezenas de mensagens durante a rolagem.
+   * A foto preenche a moldura de ponta a ponta. Como a moldura já tem a proporção real do
+   * arquivo, `cover` não corta nada no caso comum; só recorta os extremos (panorâmica muito
+   * larga ou retrato muito alto), que é exatamente o que o WhatsApp faz.
    */
   width: 100%;
   height: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: auto;
   max-width: 100%;
   max-height: none;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   vertical-align: bottom;
 }
@@ -4400,35 +4413,44 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 /* Legenda + hora no rodapé: faixa inferior contínua + meta absoluta (WhatsApp) */
 .wa-bubble.image-message:has(.wa-bubble-caption) .wa-bubble-caption {
   border-radius: 0 0 12px 12px;
-  padding: 6px 56px 10px 10px;
+  /* 62px à direita: a hora + os dois tiques cabem sem a última palavra encostar neles. */
+  padding: 7px 62px 9px 10px;
   min-height: 0;
   line-height: 1.35;
 }
 
+/*
+ * A legenda fica no MESMO fundo da bolha, como no WhatsApp. Antes levava uma faixa mais
+ * escura (12% de preto) que recortava a bolha em duas e não existe no original.
+ */
 .wa-bubble-in.image-message:has(.wa-bubble-caption) .wa-bubble-caption {
-  background: color-mix(in oklab, var(--wa-bubble-in) 88%, #000 12%);
+  background: transparent;
 }
 
 .wa-bubble-out.image-message:has(.wa-bubble-caption) .wa-bubble-caption {
-  background: color-mix(in oklab, var(--wa-bubble-out) 90%, #fff 10%);
+  background: transparent;
 }
 
-/* Hora/ticks no canto inferior direito da faixa de legenda */
+/*
+ * Hora/tiques no canto inferior direito da legenda. Sem cápsula escura: a legenda é fundo de
+ * bolha, não é a foto — o "chip" com blur só faz sentido POR CIMA da imagem (foto sem
+ * legenda, logo abaixo). Aqui é texto pequeno e discreto, como no WhatsApp.
+ */
 .wa-bubble.image-message:has(.wa-bubble-caption) .wa-bubble-meta {
   top: auto;
-  bottom: 6px;
-  right: 7px;
+  bottom: 7px;
+  right: 10px;
   left: auto;
   height: auto;
-  min-height: 18px;
+  min-height: 0;
   align-items: center;
-  background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 3px 7px;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  padding: 0;
   pointer-events: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 
 .wa-bubble.image-message:has(.wa-bubble-caption) .wa-bubble-metaLeft {
@@ -4438,26 +4460,26 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble.image-message:has(.wa-bubble-caption) .wa-bubble-time {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--wa-text-muted);
   font-size: 11px;
   line-height: 1;
 }
 
 .wa-bubble.image-message:has(.wa-bubble-caption) .wa-bubble-meta .wa-ticks {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--wa-text-muted);
 }
 
 .wa-bubble.image-message:has(.wa-bubble-caption) .wa-bubble-meta .wa-ticks.isRead {
-  color: #9ef2ff;
+  color: var(--wa-status-blue, #53bdeb);
 }
 
 .wa-bubble-out.image-message:has(.wa-bubble-caption) .wa-bubble-meta {
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 1px 2px rgba(11, 20, 26, 0.08);
+  background: transparent;
+  box-shadow: none;
 }
 
 .wa-bubble-out.image-message:has(.wa-bubble-caption) .wa-bubble-time {
-  color: rgba(17, 27, 33, 0.72);
+  color: var(--wa-text-muted);
 }
 
 .wa-bubble-out.image-message:has(.wa-bubble-caption) .wa-bubble-meta .wa-ticks.isRead {
@@ -4494,25 +4516,26 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-caption {
-  padding: 6px 56px 10px 10px;
+  padding: 7px 62px 9px 10px;
   border-radius: 0 0 12px 12px;
   line-height: 1.35;
 }
 
+/* Mesma regra da foto com legenda: hora discreta no fundo da bolha, sem cápsula escura. */
 .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-meta {
   top: auto;
-  bottom: 6px;
-  right: 7px;
+  bottom: 7px;
+  right: 10px;
   left: auto;
   height: auto;
-  min-height: 18px;
+  min-height: 0;
   align-items: center;
-  background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 3px 7px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-metaLeft {
@@ -4522,18 +4545,18 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-time {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--wa-text-muted);
   font-size: 11px;
   line-height: 1;
 }
 
 .wa-bubble-out.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-time {
-  color: rgba(17, 27, 33, 0.72);
+  color: var(--wa-text-muted);
 }
 
 .wa-bubble-out.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-meta {
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 1px 2px rgba(11, 20, 26, 0.08);
+  background: transparent;
+  box-shadow: none;
 }
 
 .wa-row-out .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-mediaStack {
@@ -5815,32 +5838,84 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 .wa-orderMsg-total strong { font-size: 14px; font-weight: 700; color: #079a74; }
 [data-theme="dark"] .wa-orderMsg-total strong { color: #29c79a; }
 
-/* ───────── Pré-visualização de link — LinkPreviewMessage ───────── */
+/* ───────── Pré-visualização de link — LinkPreviewMessage ─────────
+ *
+ * Padrão WhatsApp: o cartão ocupa a LARGURA INTEIRA da bolha (a bolha é que cresce até caber
+ * o cartão, via `min-width`), a miniatura encosta nas três bordas de cima e a altura dela sai
+ * da proporção real da imagem (`--wa-media-ar`, limitada entre quase quadrada e 1.91/1 pelo
+ * LinkPreviewMessage). Antes era um bloco fixo de 258px com moldura 1.91/1: num cartão de
+ * vídeo/retrato (TikTok, Reels) a foto saía achatada e o cartão ficava mais estreito que a
+ * bolha quando o texto era maior.
+ */
 .wa-linkPrev {
-  width: 258px;
-  max-width: 76vw;
-  margin-bottom: 4px;
+  width: 100%;
+  min-width: min(270px, 68vw);
+  max-width: 100%;
+  box-sizing: border-box;
+  /*
+   * A bolha tem largura fit-content: sem isto, a MINIATURA (um <img> com largura natural de
+   * 720/1200px) entraria no cálculo da largura ideal e estouraria a bolha até o limite da
+   * coluna, mesmo com um texto de três palavras. Com a contenção no eixo horizontal, quem
+   * dita a largura mínima da bolha é o `min-width` do cartão; o resto vem do texto.
+   */
+  contain: inline-size;
+  margin: 0 0 3px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.55);
   box-shadow: inset 0 0 0 1px rgba(11, 20, 26, 0.06);
   cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.wa-linkPrev:hover { background: rgba(255, 255, 255, 0.78); }
+.wa-linkPrev:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
 }
 [data-theme="dark"] .wa-linkPrev {
   background: rgba(0, 0, 0, 0.16);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
+[data-theme="dark"] .wa-linkPrev:hover { background: rgba(0, 0, 0, 0.26); }
+
 .wa-linkPrev-img {
   width: 100%;
-  aspect-ratio: 1.91 / 1;
+  aspect-ratio: var(--wa-media-ar, 1.91);
   object-fit: cover;
+  object-position: center;
   display: block;
   background: rgba(11, 20, 26, 0.06);
 }
-.wa-linkPrev-img--empty { display: grid; place-items: center; color: rgba(11, 20, 26, 0.3); }
+.wa-linkPrev-img--empty {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1.91;
+  color: rgba(11, 20, 26, 0.3);
+}
 [data-theme="dark"] .wa-linkPrev-img { background: rgba(255, 255, 255, 0.06); }
 [data-theme="dark"] .wa-linkPrev-img--empty { color: rgba(255, 255, 255, 0.28); }
-.wa-linkPrev-info { display: flex; flex-direction: column; gap: 2px; padding: 8px 11px 10px; }
+
+/* Miniatura pequena (favicon, ícone de app): linha compacta, imagem ao lado do texto. */
+.wa-linkPrev--compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  min-width: min(266px, 66vw);
+}
+.wa-linkPrev--compact .wa-linkPrev-img {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  aspect-ratio: 1;
+  border-radius: 7px;
+  object-fit: contain;
+  padding: 4px;
+  box-sizing: border-box;
+}
+.wa-linkPrev--compact .wa-linkPrev-info { padding: 0; min-width: 0; }
+
+.wa-linkPrev-info { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px 9px; min-width: 0; }
 .wa-linkPrev-title {
   font-size: 13.5px;
   font-weight: 600;
@@ -5870,6 +5945,25 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   color: #079a74;
 }
 [data-theme="dark"] .wa-linkPrev-domain { color: #29c79a; }
+
+/*
+ * Bolha que carrega o cartão: padding mínimo, para o cartão encostar nas bordas como no
+ * WhatsApp. O texto, o nome do remetente e a resposta citada recuperam o respiro próprio —
+ * e o texto mantém a faixa reservada à direita para hora + tiques (meta inline).
+ */
+.wa-bubble:has(.wa-linkPrev) { padding: 3px 3px 4px; }
+.wa-bubble:has(.wa-linkPrev) .wa-bubble-text { padding: 3px 34px 2px 7px; }
+.wa-bubble:has(.wa-linkPrev) .wa-bubble-remetente { gap: 0; }
+.wa-bubble:has(.wa-linkPrev) .wa-bubble-remetente-nome,
+.wa-bubble:has(.wa-linkPrev) .wa-bubble-fwd-badge,
+.wa-bubble:has(.wa-linkPrev) .wa-bubble-atendente {
+  padding-left: 7px;
+  padding-right: 7px;
+}
+.wa-bubble:has(.wa-linkPrev) .wa-replyCtx { margin-bottom: 3px; }
+@media (max-width: 480px) {
+  .wa-linkPrev { min-width: min(250px, 72vw); }
+}
 
 
 [data-theme="dark"] .wa-poll-option {
@@ -7114,9 +7208,17 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(248px, 34vw, 380px);
-  max-width: min(380px, calc(100vw - 72px));
-  aspect-ratio: 16 / 9;
+  /* Igual à foto: a moldura toma a forma real do vídeo assim que os metadados chegam
+     (`--wa-media-ar`, gravado pelo VideoBubblePreview). Sem isso, vídeo de celular
+     (retrato) era cortado em cima e embaixo dentro de um 16/9. */
+  --wa-media-max-w: min(380px, calc(100vw - 72px));
+  --wa-media-max-h: 420px;
+  width: max(
+    200px,
+    min(clamp(248px, 34vw, 380px), calc(var(--wa-media-max-h) * var(--wa-media-ar, 1.7778)))
+  );
+  max-width: var(--wa-media-max-w);
+  aspect-ratio: var(--wa-media-ar, 16 / 9);
   border-radius: 13px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -7275,7 +7377,8 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 
   .wa-bubble-videoLink,
   .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-videoLink {
-    width: min(78vw, 320px);
+    --wa-media-max-h: min(440px, 62vh);
+    width: min(78vw, 320px, calc(var(--wa-media-max-h) * var(--wa-media-ar, 1.7778)));
     max-width: calc(100vw - 74px);
     min-width: min(230px, calc(100vw - 92px));
     border-radius: 12px;
@@ -7328,12 +7431,9 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   pointer-events: none;
 }
 
-/* Para mídias sem faixa de legenda: meta no canto superior direito.
-   Imagem/vídeo com legenda usa meta no rodapé (regras específicas acima em :has(.wa-bubble-caption)). */
-.wa-bubble.wa-bubble-media.image-message:not(:has(.wa-bubble-caption)) .wa-bubble-meta,
+/* Figurinha: chip no topo (a figurinha não tem fundo onde apoiar o rodapé). */
 .wa-bubble.wa-bubble-media.sticker-message .wa-bubble-meta,
-.wa-bubble.sticker-message .wa-bubble-meta,
-.wa-bubble-video:not(:has(.wa-bubble-caption)) .wa-bubble-meta {
+.wa-bubble.sticker-message .wa-bubble-meta {
   top: 5px;
   bottom: auto;
   right: 5px;
@@ -7343,6 +7443,27 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   border-radius: 8px;
   padding: 2px 5px;
   gap: 4px;
+}
+
+/*
+ * Foto/vídeo SEM legenda: chip da hora no RODAPÉ direito, como no WhatsApp. No topo ele
+ * tapava o assunto da foto (que costuma estar em cima) e ainda disputava o canto com a
+ * setinha do menu (`.wa-msgMenuBtn--top`, também em top/right). Com legenda, as regras
+ * de `:has(.wa-bubble-caption)` acima mandam.
+ */
+.wa-bubble.wa-bubble-media.image-message:not(:has(.wa-bubble-caption)) .wa-bubble-meta,
+.wa-bubble-video:not(:has(.wa-bubble-caption)) .wa-bubble-meta {
+  top: auto;
+  bottom: 7px;
+  right: 7px;
+  transform: none;
+  background: rgba(0, 0, 0, 0.34);
+  color: #fff;
+  border-radius: 8px;
+  padding: 2px 6px;
+  gap: 4px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 /* Áudio: menu fica no canto superior direito, hora permanece no rodapé */
@@ -7618,7 +7739,19 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
           mask-image: none;
 }
 
-.wa-bubble-media .wa-msgMenuBtn-caret {
+/* Cartão de link no topo da bolha: a seta cai em cima da miniatura, então usa o mesmo scrim
+   da mídia. Com nome de remetente/resposta citada antes do cartão ela fica sobre o fundo do
+   balão e continua com o estilo padrão. */
+.wa-bubble:has(> .wa-bubble-body > .wa-linkPrev:first-child) .wa-msgMenuBtn--top {
+  background: linear-gradient(215deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.28) 45%, rgba(0, 0, 0, 0) 72%) !important;
+  color: #fff !important;
+  border-radius: 0 9px 0 18px !important;
+  -webkit-mask-image: none;
+          mask-image: none;
+}
+
+.wa-bubble-media .wa-msgMenuBtn-caret,
+.wa-bubble:has(> .wa-bubble-body > .wa-linkPrev:first-child) .wa-msgMenuBtn-caret {
   opacity: 0.95;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
@@ -10333,7 +10466,9 @@ main.main-content--crm .wa-mediaPreview--imageUnified .wa-mediaPreview-composer 
 ========================================================= */
 
 .wa-footer {
-  padding: 11px 16px 13px;
+  /* env() é 0 no desktop; em tablet/telemóvel cobre a home indicator (o main-content
+     deixou de reservar essa faixa com a conversa aberta — ver styles/app.css). */
+  padding: 11px 16px calc(13px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -12750,14 +12885,16 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   }
 
   .wa-bubble.image-message .wa-bubble-imgLink {
+    /* Mobile preenche mais a coluna; a altura continua saindo de largura × proporção. */
+    --wa-media-max-w: min(420px, calc(100vw - 24px));
+    --wa-media-max-h: min(480px, 68vh);
     max-width: min(420px, calc(100vw - 24px));
   }
 
   .wa-bubble.image-message .wa-bubble-img {
-    /* Mobile preenche mais a coluna; altura continua reservada por width + aspect-ratio. */
-    width: min(420px, calc(100vw - 24px));
-    max-width: min(420px, calc(100vw - 24px));
-    max-height: min(480px, 68vh);
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
   }
 
   .wa-bubble.image-message .wa-bubble-caption {
@@ -12819,9 +12956,12 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   .wa-footer {
     flex-shrink: 0;
     align-items: flex-end;
-    /* main-content já reserva safe-area-inset-bottom no mobile (conversa aberta),
-       então o composer mantém padding fixo para não duplicar a faixa inferior. */
-    padding: 8px 12px 11px;
+    /*
+     * A safe-area inferior é reservada AQUI (o main não reserva mais nada com a conversa
+     * aberta): assim o fundo do composer cobre a faixa da home indicator em vez de sobrar
+     * uma tira morta do fundo do app por baixo dele.
+     */
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
     padding-left: calc(12px + env(safe-area-inset-left, 0));
     padding-right: calc(12px + env(safe-area-inset-right, 0));
     flex-wrap: nowrap;
@@ -13166,9 +13306,14 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
     max-width: min(calc(100vw - 14px), 420px);
   }
 
+  .wa-bubble.image-message .wa-bubble-imgLink {
+    --wa-media-max-w: min(calc(100vw - 14px), 420px);
+    --wa-media-max-h: min(480px, 68vh);
+  }
+
   .wa-bubble.image-message .wa-bubble-img {
-    /* Preenche a coluna; altura reservada por width + aspect-ratio (sem placeholder que colapsa). */
-    width: min(calc(100vw - 14px), 420px);
+    /* Preenche a moldura; a altura vem de largura × proporção (sem placeholder que colapsa). */
+    width: 100%;
   }
 
   .wa-bubble-meta { font-size: 10px; gap: 2px; padding: 0 8px; }
@@ -14430,13 +14575,27 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
     height: 16px;
   }
 
+  /* Cabeçalho compacto (16/11/2026): 2 linhas em ~75px — 4 + 32 (identidade) + 3 + 32 (ações) + 4 */
   .wa-header.wa-header--atendMobile {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     column-gap: 6px;
-    row-gap: 4px;
-    padding: 5px 8px 4px;
-    padding-top: max(5px, env(safe-area-inset-top, 0px));
+    row-gap: 3px;
+    padding: 4px 8px 4px;
+    padding-top: max(4px, env(safe-area-inset-top, 0px));
+  }
+
+  .wa-header.wa-header--atendMobile .wa-header-back {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    border-radius: 9px;
+  }
+
+  .wa-header.wa-header--atendMobile .wa-header-back svg {
+    width: 18px;
+    height: 18px;
   }
 
   .wa-header.wa-header--atendMobile .wa-header-left {
@@ -14495,12 +14654,12 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   .wa-atendToolbar--compact .wa-btn-danger,
   .wa-atendToolbar--compact .wa-btn-secondary,
   .wa-atendToolbar--compact .wa-btn-aguardar-cliente {
-    min-height: 30px !important;
-    height: 30px !important;
-    padding: 0 7px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 9px !important;
     font-size: 10.5px !important;
     line-height: 1.05 !important;
-    border-radius: 8px !important;
+    border-radius: 9px !important;
     gap: 4px !important;
   }
 
@@ -14514,11 +14673,11 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-atendBtn--assumir-hero.wa-btn-assumir-destaque,
   .wa-atendToolbar--compact .wa-atendBtn--assumir-hero.wa-btn-primary,
   .wa-atendToolbar--compact .wa-atendBtn--assumir-hero.wa-btn-assumir-destaque {
-    min-height: 34px !important;
-    height: 34px !important;
-    min-width: 72px;
-    padding: 0 10px !important;
-    font-size: 11.5px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    min-width: 70px;
+    padding: 0 12px !important;
+    font-size: 11px !important;
     border-radius: 9px !important;
   }
 
@@ -14928,10 +15087,11 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 /* Mobile conversa: transferir mais compacto para liberar espaco no header. */
 @media (max-width: 640px) {
   .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-btn-transferir {
-    min-height: 31px !important;
-    height: 31px !important;
-    padding: 0 7px !important;
-    font-size: 10.25px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 10.5px !important;
+    border-radius: 9px !important;
     gap: 4px !important;
   }
 

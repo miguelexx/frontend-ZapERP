@@ -23,6 +23,15 @@
 - Fechar thread (`closeSelectedConversation`) **não** encerra o atendimento.
 - `carregarConversa` tem abort + generation; `leave_conversa` no clear.
 - Um dono de scroll por painel; `min-height: 0` no flex do layout.
+- Moldura de mídia na bolha vem de `--wa-media-ar` (proporção real + cache por mensagem, ver
+  08). No mobile sobrescreva `--wa-media-max-w/-h`, nunca a `width` da `<img>`; e `.wa-linkPrev`
+  precisa de `contain: inline-size` — sem isso a miniatura estoura a bolha `fit-content`.
+- Mídia que muda de altura ao decodificar só não desloca a thread por causa de DUAS defesas
+  (doc 08, 16/11/2026): a compensação por `item.start < scrollTop` no virtualizer e a exceção
+  de folga > 24px no `snapIfStickBottom` durante a abertura. Mexeu na moldura? Rode
+  `e2e/audit-local-mock.spec.js -g "historico com muitas midias"` nos dois projetos.
+- Safe-area inferior com conversa aberta é do `.wa-footer`, não do `main-content` (doc 11).
+  Reservar nos dois volta a deixar a faixa morta debaixo do composer.
 - Mobile 640px: lista XOR chat; `popstate` só fecha UI.
 
 ## Permissões e rotas
