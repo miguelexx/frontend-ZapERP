@@ -50,10 +50,16 @@ export function getRetryUiState(msg, classified, { onReenviarFalha, onReenviarAu
       : typeof onReenviarAudio === "function"
         ? onReenviarAudio
         : null;
+  const temIdServidor = retryMensagemId != null && String(retryMensagemId).trim() !== "";
+  // Áudio que nem chegou a ser salvo no servidor: o reenvio usa o arquivo retido na sessão.
+  const retryLocalAudio =
+    !temIdServidor &&
+    isAudioOrVoice &&
+    msg?.retry_local === true &&
+    String(msg?.tempId ?? msg?.client_temp_id ?? "").trim() !== "";
   const canShowRetry =
     out &&
-    retryMensagemId != null &&
-    String(retryMensagemId).trim() !== "" &&
+    (temIdServidor || retryLocalAudio) &&
     typeof onRetry === "function" &&
     retryFailedConfirmed &&
     !retryBlockedStatus &&

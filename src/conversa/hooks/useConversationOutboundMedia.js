@@ -353,6 +353,15 @@ export function useConversationOutboundMedia({
           persistedFailure?.id == null &&
           (classified?.kind === OUTBOUND_ERROR_KIND.OFFLINE || classified?.uncertain === true);
         if (!vaiParaFila) removerPreGravado();
+        // Áudio recusado sem linha no servidor (ex.: 422 de conversão, 403 antes de assumir):
+        // sem id não havia como reenviar e a gravação se perdia. O File continua retido em
+        // audioRetryFilesRef; a marca libera o "Tentar novamente" da bolha para reenviá-lo.
+        if (isAudioSend && !vaiParaFila && persistedFailure?.id == null) {
+          marcarMensagemTempErro(tempId, {
+            erro_mensagem: classified?.message || undefined,
+            retry_local: true,
+          });
+        }
         void preGravado.then(() =>
           persistirMidiaNaOutboxSeRetryavel({
             classified,

@@ -1702,6 +1702,9 @@ export const useConversaStore = create((set, get) => {
             ? { id: opts.mensagem_id }
             : {}),
           ...(opts?.erro_mensagem ? { erro_mensagem: String(opts.erro_mensagem) } : {}),
+          // Áudio recusado ANTES de ser salvo no servidor (sem id): o File ainda está retido na
+          // sessão e a bolha pode oferecer "Tentar novamente" reenviando-o com o mesmo tempId.
+          ...(opts?.retry_local === true ? { retry_local: true } : {}),
         }
         return { mensagens: next }
       })

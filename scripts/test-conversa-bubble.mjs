@@ -247,6 +247,25 @@ assert.equal(retryOf({ direcao: "out", id: 8, tipo: "texto", status: "delivered"
 assert.equal(retryOf({ direcao: "out", id: 9, tipo: "texto", status: "read" }).canShowRetry, false);
 assert.equal(retryOf({ direcao: "out", id: 10, tipo: "texto", status: "status_indefinido" }).canShowRetry, false);
 assert.equal(retryOf({ direcao: "out", tipo: "texto", status: "erro" }).canShowRetry, false);
+// Áudio recusado antes de ser salvo (sem id): retry local com o arquivo retido na sessão.
+assert.equal(
+  retryOf({ direcao: "out", tipo: "audio", status: "erro", envio_erro: true, tempId: "tmp-a1", retry_local: true }).canShowRetry,
+  true
+);
+// Sem a marca (ex.: F5 perdeu o File) continua sem botão — não promete o que não consegue.
+assert.equal(
+  retryOf({ direcao: "out", tipo: "audio", status: "erro", envio_erro: true, tempId: "tmp-a2" }).canShowRetry,
+  false
+);
+// A marca não vale para texto/imagem: só o áudio tem o File retido.
+assert.equal(
+  retryOf({ direcao: "out", tipo: "texto", status: "erro", tempId: "tmp-t1", retry_local: true }).canShowRetry,
+  false
+);
+assert.equal(
+  retryOf({ direcao: "out", tipo: "audio", status: "pending", tempId: "tmp-a3", retry_local: true }).canShowRetry,
+  false
+);
 assert.equal(retryOf({ direcao: "in", id: 11, tipo: "texto", status: "erro" }).canShowRetry, false);
 assert.equal(retryOf({ direcao: "out", id: 12, tipo: "contact", status: "erro" }).canShowRetry, false);
 assert.equal(retryOf({ direcao: "out", id: 13, tipo: "texto", status: "erro" }, { hasHandler: false }).canShowRetry, false);

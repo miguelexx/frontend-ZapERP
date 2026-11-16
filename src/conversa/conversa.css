@@ -10933,6 +10933,23 @@ html:not([data-theme="dark"]) .wa-footer .wa-iconBtn:hover:not(:disabled) {
   50% { opacity: 0.6; transform: scale(1.1); }
 }
 
+/* Rascunho de gravação interrompida: ponto parado em âmbar (não está mais gravando). */
+.wa-recording-bar--interrupted .wa-recording-dot {
+  animation: none;
+  background: #f59e0b;
+}
+
+.wa-recording-bar--interrupted .wa-recording-hint {
+  color: var(--wa-text);
+}
+
+.wa-recording-send:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+  filter: none;
+}
+
 .wa-recording-time {
   font-size: 15px;
   font-weight: 500;

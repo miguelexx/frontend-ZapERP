@@ -29,6 +29,8 @@ export function messageRowVisualSignature(item) {
     safeStr(item.status ?? item.status_mensagem),
     item.envio_erro ? "1" : "0",
     item.em_retry || item._retrying ? "1" : "0",
+    // Libera o "Tentar novamente" do áudio recusado antes de ser salvo (bubbleRetry).
+    item.retry_local === true ? "1" : "0",
     safeStr(item.tipo),
     safeStr(item.texto ?? item.conteudo).slice(0, 512),
     safeStr(item._optimisticBlobUrl).slice(0, 200),

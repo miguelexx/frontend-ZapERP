@@ -104,7 +104,7 @@ export default function ComposerFooter({
       ) : null}
 
       {/* O textarea permanece montado sob o overlay para preservar o teclado mobile. */}
-      <div className={`wa-footer ${voiceRecording.isRecording ? "wa-footer--recording" : ""} ${notaInternaAtiva && !editMode ? "wa-footer--nota" : ""} ${editMode ? "wa-footer--edit" : ""}`}>
+      <div className={`wa-footer ${voiceRecording.isRecording || voiceRecording.hasDraft ? "wa-footer--recording" : ""} ${notaInternaAtiva && !editMode ? "wa-footer--nota" : ""} ${editMode ? "wa-footer--edit" : ""}`}>
         {composerFooterHint && !voiceRecording.isRecording ? (
           <div className="wa-footer-hint" role="status">{composerFooterHint}</div>
         ) : null}
@@ -369,8 +369,14 @@ export default function ComposerFooter({
         </div>
 
         <VoiceRecorder
-          open={voiceRecording.isRecording}
-          seconds={voiceRecording.recordingSeconds}
+          open={voiceRecording.isRecording || voiceRecording.hasDraft}
+          interrupted={!voiceRecording.isRecording && voiceRecording.hasDraft}
+          preparing={!voiceRecording.isRecording && Boolean(voiceRecording.draft?.preparing)}
+          seconds={
+            !voiceRecording.isRecording && voiceRecording.draft
+              ? voiceRecording.draft.seconds
+              : voiceRecording.recordingSeconds
+          }
           onCancel={voiceRecording.cancelRecording}
           onSend={voiceRecording.stopRecording}
         />

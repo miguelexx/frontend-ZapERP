@@ -3049,6 +3049,17 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     async ({ mensagemId, tempId, kind } = {}) => {
       const mid = Number(mensagemId);
       if (!Number.isSafeInteger(mid) || mid <= 0 || !conversaId) {
+        // Áudio recusado antes de ser salvo (sem id no servidor): reenvia o arquivo retido
+        // nesta sessão com o MESMO tempId (o backend deduplica por client_temp_id).
+        const retido = tempId ? audioRetryFilesRef.current.get(String(tempId)) : null;
+        if (conversaId && retido?.file) {
+          void handleEnviarArquivo(retido.file, {
+            tipo: retido.tipo === "audio" ? "audio" : "voice",
+            enqueueAudio: true,
+            reuseTempId: String(tempId),
+          });
+          return;
+        }
         showToast({
           type: "warning",
           title: "Não é possível reenviar",
@@ -3176,7 +3187,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
         audioRetryRequestInFlightRef.current.delete(retryKey);
       }
     },
-    [conversaId, marcarMensagemTempErro, reconciliarMensagem, refresh, showToast]
+    [conversaId, handleEnviarArquivo, marcarMensagemTempErro, reconciliarMensagem, refresh, showToast]
   );
 
   /** Compat: áudio antigo chama o mesmo fluxo de mídia. */
