@@ -30,8 +30,29 @@ import AguardarClienteModal from "./AguardarClienteModal";
 import AguardandoClienteCountdown from "./AguardandoClienteCountdown";
 import "./aguardarPagamento.css";
 
+/** Erro de timeout/rede do axios (sem resposta do servidor). */
+function isSemRespostaDoServidor(e) {
+  if (e?.response) return false;
+  const code = String(e?.code || "");
+  const msg = String(e?.message || "");
+  return code === "ECONNABORTED" || code === "ETIMEDOUT" || code === "ERR_NETWORK" || /timeout|network error/i.test(msg);
+}
+
+/*
+ * Antes devolvia `e.message` cru: o atendente lia "timeout of 55000ms exceeded" ou
+ * "Network Error" no toast. Timeout/rede agora têm texto em português que diz o que fazer.
+ */
 function getApiErrorMessage(e) {
-  return e?.response?.data?.error || e?.message || "Erro na operação.";
+  const api = e?.response?.data?.error;
+  if (api) return api;
+  if (isSemRespostaDoServidor(e)) {
+    const code = String(e?.code || "");
+    const msg = String(e?.message || "");
+    return code === "ERR_NETWORK" || /network error/i.test(msg)
+      ? "Sem conexão com o servidor. Verifique a internet e tente de novo."
+      : "O servidor demorou a responder. A tela foi atualizada com o estado atual — confira antes de tentar de novo.";
+  }
+  return e?.message || "Erro na operação.";
 }
 
 /** Usuário desativado não pode receber transferência (backend também rejeita). */
@@ -528,6 +549,16 @@ export default function AtendimentoActions({
     } catch (e) {
       console.error(`${tituloErro}:`, e);
       if (showToast) showToast({ title: tituloErro, message: getApiErrorMessage(e) });
+      /* Sem resposta não quer dizer que falhou: o servidor pode ter encerrado/assumido e só a
+         resposta se perdeu. O store reverteu o otimista às cegas; um refresh silencioso traz
+         o estado real em vez de deixar a tela a mentir. */
+      if (isSemRespostaDoServidor(e)) {
+        try {
+          useConversaStore.getState().refresh?.({ silent: true });
+        } catch {
+          /* ignore */
+        }
+      }
     } finally {
       acoesOtimistasEmVooRef.current.delete(id);
       setBusy(false);

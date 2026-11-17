@@ -1912,9 +1912,16 @@ export const useConversaStore = create((set, get) => {
     transferirConversa: async (conversaId, novoAtendenteId, observacao = null) =>
       withMessagesScrollPreserved(async () => {
         await transferirChat(conversaId, Number(novoAtendenteId), observacao)
-        await get().refresh({ silent: true })
+      }).then(() => {
         useChatStore.getState().requestChatListResync({ force: true })
         set({ atendimentosLoadedFor: null })
+        /*
+         * Refresh em 2.º plano (16/11/2026): antes o modal de transferência ficava travado
+         * durante DUAS viagens à rede (POST + GET completo) antes de fechar. O POST já é a
+         * confirmação; o GET só atualiza o cabeçalho e chega logo a seguir, com a âncora de
+         * scroll preservada do mesmo jeito.
+         */
+        void withMessagesScrollPreserved(() => get().refresh({ silent: true })).catch(() => {})
       }),
 
     /**
@@ -1941,6 +1948,13 @@ export const useConversaStore = create((set, get) => {
       const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
+      /* Se as mensagens já estavam visíveis (supervisor/admin), o refresh no fim é silencioso:
+         o normal liga `loading`, a thread virava skeleton e saltava para o fim. */
+      const jaTinhaHistorico =
+        openConv &&
+        String(openConv.id) === String(conversaId) &&
+        openConv.mensagens_bloqueadas !== true &&
+        (get().mensagens || []).length > 0
       const optimistic = { id: conversaId, mensagens_bloqueadas: false, participante_ativo: true }
       get().patchConversa(optimistic)
       chatStore.updateChat(optimistic)
@@ -1959,7 +1973,7 @@ export const useConversaStore = create((set, get) => {
         chatStore.requestChatListTab?.("minha_fila")
       }
       // Recarrega o histórico completo (quando bloqueada, as mensagens não foram buscadas).
-      await get().refresh()
+      await get().refresh(jaTinhaHistorico ? { silent: true } : undefined)
       useChatStore.getState().requestChatListResync({ force: true })
       set({ atendimentosLoadedFor: null })
     },

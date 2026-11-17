@@ -292,10 +292,20 @@ body:has(.atendimento-layout) #root {
   height: 100%;
   min-height: 0;
 }
-/* Rail de ícones rola internamente em telas baixas, em vez de empurrar o shell. */
+/*
+ * Rail de ícones: com `overflow-y:auto` sempre, o rail era um container
+ * de rolagem e cortava o tooltip `.sidebar-nav-label` (absoluto em left:100%+12px): no
+ * desktop nenhum rótulo aparecia. No desktop com altura folgada fica visível; em telas
+ * baixas (e na barra inferior ≤768px, mesmo elemento) continua a rolar como antes.
+ */
 .sidebar--v2 {
   overflow-y: auto;
   overflow-x: hidden;
+}
+@media (min-width: 769px) and (min-height: 601px) {
+  .sidebar--v2 {
+    overflow: visible;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1018,9 +1028,16 @@ body:has(.atendimento-layout) #root {
     padding-top: 0;
   }
 
-  /* Conversa aberta no atendimento: some com a barra inferior (IA, Campanhas, etc.) para o chat usar a tela inteira */
-  .app-layout:has(.atendimento-layout.conversation-open) .sidebar {
-    display: none;
+  /*
+   * Conversa aberta no atendimento: some com a barra inferior (IA, Campanhas, etc.) para o
+   * chat usar a tela inteira — SÓ até 640px, onde a tela é lista XOR conversa e existe o
+   * botão voltar no cabeçalho. Entre 641 e 768px (iPad em retrato) a lista continua ao lado
+   * da conversa e não há voltar: esconder a barra deixava o atendente sem navegação nenhuma.
+   */
+  @media (max-width: 640px) {
+    .app-layout:has(.atendimento-layout.conversation-open) .sidebar {
+      display: none;
+    }
   }
 
   /*
@@ -1029,9 +1046,11 @@ body:has(.atendimento-layout) #root {
    * home indicator). Quem reserva agora é o próprio composer (`.wa-footer`, em conversa.css),
    * cujo fundo preenece essa faixa — como no WhatsApp, onde a barra encosta na borda.
    */
-  .app-layout:has(.atendimento-layout.conversation-open) .main-content,
-  .app-layout:has(.atendimento-layout.conversation-open) .main-content.main-content--crm {
-    padding-bottom: 0;
+  @media (max-width: 640px) {
+    .app-layout:has(.atendimento-layout.conversation-open) .main-content,
+    .app-layout:has(.atendimento-layout.conversation-open) .main-content.main-content--crm {
+      padding-bottom: 0;
+    }
   }
 
   /* Teclado no chat: remove safe-area extra que virava faixa branca acima do teclado */

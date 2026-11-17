@@ -10,6 +10,7 @@ import {
   isEmAtendimentoUltimaDoCliente,
   esperaMinutosAnchorKey,
   getAtendimentoAssigneeNames,
+  resolveListaAudioDurationSec,
 } from "./chatListRowAtendimento";
 import { ultimaMensagemOutboundStatusKey } from "./chatListStoreCompare";
 import { nivelFromAutoTags } from "../atendimento/aguardarClientePrazo";
@@ -40,7 +41,10 @@ export function chatRowLastPreviewKey(c) {
   const url = String(last?.url_absoluta || last?.url || "");
   const criado = String(last?.criado_em || "");
   const dir = normalizeDirection(last?.direcao);
-  return `${criado}|${dir}|${tipo}|${txt}|${url}`;
+  // Duração do áudio entra na chave: o preview mostra "Áudio · 0:12" com ela, e o valor
+  // pode chegar num patch posterior que não mexe em mais nada.
+  const dur = resolveListaAudioDurationSec(last) ?? "";
+  return `${criado}|${dir}|${tipo}|${txt}|${url}|${dur}`;
 }
 
 /** Nome, avatar, setor, empresa e tag visíveis no card (comparador MemoChatRow). */
@@ -82,7 +86,8 @@ export function chatRowPropsAreEqual(prev, next) {
     prev.currentUserName === next.currentUserName &&
     prev.showWhatsappInstanceUi === next.showWhatsappInstanceUi &&
     prev.showResponsavelAtendimento === next.showResponsavelAtendimento &&
-    prev.tzVersion === next.tzVersion
+    prev.tzVersion === next.tzVersion &&
+    prev.dayKey === next.dayKey
   ) {
     return true;
   }
@@ -90,6 +95,8 @@ export function chatRowPropsAreEqual(prev, next) {
   if (prev.showResponsavelAtendimento !== next.showResponsavelAtendimento) return false;
   // Fuso da empresa mudou: a hora da linha precisa ser reformatada.
   if (prev.tzVersion !== next.tzVersion) return false;
+  // Virou o dia (fuso da empresa): "14:05" passa a "Ontem", "Ontem" a dia da semana, etc.
+  if (prev.dayKey !== next.dayKey) return false;
   const a = prev.chat || {};
   const b = next.chat || {};
   const pa = rowPrefs(a);

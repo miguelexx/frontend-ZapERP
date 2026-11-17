@@ -5,6 +5,7 @@ import { FORWARD_DEST_MAX } from "../conversaConstants";
 import { safeString } from "../utils/conversaViewHelpers";
 import { IconClose, IconForward } from "../conversaViewIcons";
 import { isGroupConversation } from "../../utils/conversaUtils";
+import { getAvatarImageSrc } from "../../utils/avatarProxyUrl";
 import {
   IconArrowForwardUp,
   IconCheck,
@@ -55,7 +56,8 @@ function Avatar({ name, foto, size = 44 }) {
     >
       {showImg ? (
         <img
-          src={foto}
+          /* Foto de host de terceiros vai pelo /media/proxy — ver utils/avatarProxyUrl.js. */
+          src={getAvatarImageSrc(foto) || foto}
           alt=""
           className="wa-forwardAvatar-img"
           onError={() => setImgError(true)}

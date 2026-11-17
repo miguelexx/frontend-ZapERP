@@ -326,7 +326,11 @@ export default function AudioMessage({
         ) : (
         <AudioWavePlayer
           candidates={audioPlaybackCandidates}
-          msgKey={msg?.whatsapp_id || msg?.id || msg?.tempId || audioPlaybackCandidates[0] || mediaUrl}
+          /* tempId primeiro (mesma ordem de getMessageListReactKey): a chave não pode mudar
+             quando o servidor confirma o envio — `id` e depois `whatsapp_id` chegam em
+             patches separados e cada troca resetava o player para "0:00" (com o áudio a
+             tocar) e redesenhava a onda, semeada por esta chave. */
+          msgKey={msg?.tempId || msg?.client_temp_id || msg?.id || msg?.whatsapp_id || audioPlaybackCandidates[0] || mediaUrl}
           avatarUrl={!out ? peerAvatarUrl : null}
           avatarLabel={!out ? peerName : null}
           sentAtLabel={formatHora(msg?.criado_em)}

@@ -41,6 +41,8 @@ function ConversaViewOverlays({
   podeTransferirSetor,
   showTransferirSetor,
   departamentos,
+  departamentosStatus,
+  onRetryDepartamentos,
   conversa,
   transferirSetorLoading,
   setShowTransferirSetor,
@@ -193,6 +195,8 @@ function ConversaViewOverlays({
         <ConversaSetorPanel
           open={showTransferirSetor}
           departamentos={departamentos}
+          status={departamentosStatus}
+          onRetry={onRetryDepartamentos}
           conversa={conversa}
           transferirSetorLoading={transferirSetorLoading}
           onClose={() => setShowTransferirSetor(false)}

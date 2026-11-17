@@ -71,7 +71,9 @@ export default function Atendimento() {
     applyDocumentTitle(unreadTitleTotal);
   }, [unreadTitleTotal]);
 
-  const isRoot = location.pathname === "/atendimento";
+  /* Barra final (`/atendimento/`) também é a raiz: antes caía no <Outlet/>, que não tem rota
+     aninhada, e a área da conversa ficava vazia mesmo com conversa selecionada. */
+  const isRoot = location.pathname.replace(/\/+$/, "") === "/atendimento";
   const openConversaId = location.state?.openConversaId;
   const hasSelectedConversa = selectedId != null && selectedId !== "";
 

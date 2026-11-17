@@ -1,3 +1,5 @@
+import { tickSignature } from "../utils/messageTicks";
+
 /**
  * Comparação para React.memo do ThreadRow — evita re-render quando só outras linhas mudam.
  * Não compara callbacks (assumidos estáveis via useCallback no pai).
@@ -27,6 +29,10 @@ export function messageRowVisualSignature(item) {
     safeStr(item.client_temp_id),
     safeStr(item.whatsapp_id),
     safeStr(item.status ?? item.status_mensagem),
+    /* Regra única do tique (doc 14): `envio_demorado` (watchdog dos 45s), `aguardando_conexao`,
+       `envio_incerto`, `lida_em`, `entregue_em` e `situacao` não mudam `status` — sem isto a
+       linha memoizada não repintava e o tique âmbar "envio demorado" nunca aparecia. */
+    tickSignature(item),
     item.envio_erro ? "1" : "0",
     item.em_retry || item._retrying ? "1" : "0",
     // Libera o "Tentar novamente" do áudio recusado antes de ser salvo (bubbleRetry).
@@ -85,6 +91,7 @@ export function threadRowPropsAreEqual(prev, next) {
 
   if (prev.messageKey !== next.messageKey) return false;
   if (prev.messageVisualSig !== next.messageVisualSig) return false;
+  if (prev.tzVersion !== next.tzVersion) return false;
   if (prev.allowEnterAnimation !== next.allowEnterAnimation) return false;
 
   if (prev.isSelected !== next.isSelected) return false;
@@ -92,6 +99,7 @@ export function threadRowPropsAreEqual(prev, next) {
   if (prev.isPinned !== next.isPinned) return false;
   if (prev.isStarred !== next.isStarred) return false;
   if (prev.reactionForMessage !== next.reactionForMessage) return false;
+  if (Boolean(prev.reactionFromPeer) !== Boolean(next.reactionFromPeer)) return false;
   if (prev.reactionLoadingForMessage !== next.reactionLoadingForMessage) return false;
   if (prev.showMobileReactionPicker !== next.showMobileReactionPicker) return false;
 

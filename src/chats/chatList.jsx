@@ -448,6 +448,16 @@ export default function ChatList() {
     filterRequestKeyRef.current = filterRequestKey;
     filterRequestBaseKeyRef.current = filterRequestBaseKey;
     filterRequestSearchRef.current = debouncedSearch;
+    /*
+     * Outra aba/filtro/busca = outra lista: começa do topo, como no WhatsApp. Antes o
+     * scrollTop da lista anterior ficava, e a nova abria "no meio". Zera também o scroll
+     * salvo (senão o voltar da conversa no mobile devolvia a posição da lista anterior).
+     * Escrita direta aqui (antes da pintura) + nonce do store, que o ChatListRows reaplica
+     * no frame seguinte e que impede a âncora de reordenação de desfazer o zero.
+     */
+    scrollSaveRef.current = 0;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    useChatStore.getState().requestChatListScrollToTop?.();
     setActiveListTotalCount(null);
     setChatListPage({
       hasMore: false,

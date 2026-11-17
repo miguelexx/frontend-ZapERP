@@ -44,6 +44,14 @@ prévia               |  selo
 `row-gap: 0` é intencional: as faixas 3 e 4 só existem quando há conteúdo, e com `row-gap`
 custariam espaço mesmo vazias. O respiro vem de `margin-top`.
 
+**As faixas 3 e 4 levam `grid-column: 1 / -1` (CONFIRMADO 2026-11-16).** No JSX elas vêm
+*antes* do `.chat-list-row-mid`, sem posição explícita; o auto-placement jogava-as nas
+células livres da 3ª linha e a de tags caía na coluna `auto` da hora/selo — alargava a
+coluna e espremia nome e prévia. Hoje: largura inteira, `margin-top: 4px`, padding vertical
+zerado, `height: 20px` → 24px = `ROW_METRICS.extraRow`. Medido no browser (1280px, 60
+linhas, tags em 1 a cada 5): faixa com a largura da `.chat-list-row-main`, linha com tags
+94px, sem tags 76px, `scrollHeight - clientHeight` = 0 em todas.
+
 ### CONTRATO DE ALTURA — três sítios que andam juntos
 
 A lista é virtualizada por **estimativa** (`estimateChatListRowSize`, sem `measureElement`):
@@ -77,6 +85,12 @@ escuro, telemóvel e desktop, nos dois modos.
 
 - `CHAT_LIST_ROW_GAP` é `0` e `--cl-chat-row-gap` é `0px`. O gap entra no virtualizador
   à parte, fora da estimativa.
+- **Trocar a identidade de `estimateSize` NÃO re-mede** no `@tanstack/virtual-core` 3.14
+  (o memo de `getMeasurements` só olha count/paddingStart/scrollMargin/getItemKey/enabled/
+  lanes + `itemSizeCache`). Mudar `chatsFiltrados` re-mede por tabela (troca `getItemKey`);
+  o resto que o estimador lê (etiquetas do WhatsApp, layout mobile, modo simples,
+  responsável, nº de instâncias, pendentes) passa por `virtualizer.measure()` num layout
+  effect em `ChatListRows.jsx`. Campo novo no estimador = dependência nova nesse efeito.
 - **A régua entre linhas saiu (2026-11-04).** A linha é um cartão arredondado que flutua
   sobre o painel, como no WhatsApp para desktop: `border-radius: 10px`, `margin-inline: 8px`
   (6 no telemóvel) e realce só na passagem do cursor ou na seleção. O `--zs-row-inset`, que
@@ -228,8 +242,9 @@ Regra que passa a valer, e que é o que mantém o sistema coerente:
   ficaria mais brilhante que o nome do contacto. Daí `--zs-st-idle-fg` ser uma menta
   travada. Medido: **5.9:1** no escuro e **5.45:1** no claro, contra 15.8/16.4:1 do nome —
   acima do mínimo legível e claramente abaixo do nome, que é a hierarquia que se queria.
-- Efeito colateral bom: com o verde fora, a **pílula azul de não-lidas** passa a ser o
-  único elemento que salta na coluna direita. É o que de facto pede ação.
+- ~~Efeito colateral bom: com o verde fora, a pílula azul de não-lidas passa a ser o
+  único elemento que salta na coluna direita.~~ **Desatualizado:** a pílula de não lidas
+  saiu do card no commit `0c2dd6d37` (ver "Contagem de não lidas" abaixo).
 - O selo "Aguardando atendente" passa a ter a cápsula no **wrapper** (`.chat-list-status-tech--staff`)
   e não na pílula interna. No `chatList.css` a cápsula mudava de sítio entre telemóvel e
   desktop; unificar foi o que permitiu pôr rótulo e minutos dentro da mesma peça.
@@ -291,6 +306,45 @@ inteira — sem o fallback ficariam iniciais brancas sobre nada.
 O avatar de grupo deixou de ser o emoji `👥` (desenhado pela fonte do sistema, a cores,
 diferente em cada SO) e passou a ser `IconeGrupoAvatar`, SVG no mesmo traço 1.7 dos ícones
 do cabeçalho.
+
+## A foto do card vai pelo `/media/proxy` (CONFIRMADO 2026-11-16)
+
+**Sintoma:** no celular nenhuma foto de perfil aparecia — todos os cards caíam nas
+iniciais — enquanto no desktop as mesmas conversas mostravam a foto.
+
+**Causa:** a foto era o **único `<img>` do app que ia direto a um host de terceiros**
+(`pps.whatsapp.net` / `*.fbcdn.net`, a URL que a UltraMSG/Whapi devolve e o backend guarda
+em `clientes.foto_perfil`). Toda a outra mídia recebida já passava pelo `/media/proxy` da
+API. Buscar de uma origem de terceiros é o primeiro pedido que bloqueio de rastreamento do
+browser, DNS filtrado da operadora e economia de dados cortam no aparelho — no desktop,
+sem esses filtros, a mesma URL funcionava. Não era layout, não era CSS, não era o payload:
+componente, estilos e dados são idênticos nas duas telas.
+
+**Regra:** todo `<img>` de foto de perfil passa por `getAvatarImageSrc`
+(`src/utils/avatarProxyUrl.js`), que envolve URLs de outra origem em
+`{API}/media/proxy?url=…&access_token=…`. Vale para o avatar do card, a miniatura da
+prévia de contato (vCard) e o cabeçalho da conversa (`useConversationHeaderIdentity`, que
+alimenta também o avatar do `AudioMessage`). O host do WhatsApp/Facebook já está na
+allowlist do proxy (`helpers/allowedInboundMediaUrl.js`) — **não há nada a mudar no
+backend**.
+
+Pontos que não podem ser "simplificados":
+
+- **O token vai na query** porque `<img>` não manda header `Authorization`. É o mesmo
+  contrato que `/media/proxy` já usa para `<audio>`/`<video>` (`authBearerOrQuery`).
+- **`avatarAttempt` entra nas deps do `useMemo`** do `avatarSrc`: cada retentativa
+  recalcula a URL com o token atual. Sem isso, um JWT rotacionado entre a montagem e o
+  retry mandava o token velho e o proxy respondia 401.
+- **A última retentativa usa a URL direta.** Se o proxy estiver fora, o comportamento volta
+  a ser exatamente o de antes — nunca pior.
+- **`resolveAvatarUrl` / `getContactDisplay` continuam devolvendo a URL canônica.** O proxy
+  é aplicado só na hora de montar o `src`. `chatListRowCompare` e `lockCardAvatarUrl`
+  comparam por essa URL canônica: embutir o token nela faria a chave de memo mudar a cada
+  rotação de JWT.
+
+Regressão coberta por `e2e/avatar-foto-perfil.spec.js`, que **aborta** o host de terceiros
+(simulando o aparelho) e exige que as fotos apareçam mesmo assim, nos dois projects
+(desktop e mobile).
 
 ## Tique de envio: card e bolha, uma decisão só (CONFIRMADO 2026-11-03)
 
@@ -372,6 +426,49 @@ em fluxo do `.app-layout`, com 68px (medido: `x: 0`, `position: relative`).
 A barra inferior do telemóvel **continua retrátil** e não foi tocada; o
 `layouts/useNavReveal.js` continua a servi-la com `eixo: "y"`. A opção `eixo: "x"` ficou
 sem utilizador — fica lá se o rail retrátil voltar.
+
+## Rolagem, hora e prévia do card (CONFIRMADO 2026-11-16)
+
+Correções da auditoria da lista. Validado no browser com HTTP simulado (60 conversas,
+desktop 1280px e mobile 390px), não em aparelho físico.
+
+- **Âncora na reordenação** (`ChatListRows.jsx`). Card que sobe para o topo deslocava todos
+  os índices e, com `overflow-anchor: none`, nada compensava: quem rolava no meio via a lista
+  andar sob o dedo. Agora, a cada commit e a cada `scroll`, guardamos chave + deslocamento das
+  4 primeiras linhas visíveis; quando `chatsFiltrados` (ou as alturas, via `measure()`) muda,
+  reescrevemos o `scrollTop` para a mesma linha ficar no mesmo pixel. Medido: linha 120 a
+  20px antes e depois do bump (scrollTop 1500 → 1576).
+  - **No topo (scrollTop ≤ 2px) não se mexe**: o card novo aparece em cima, como no WhatsApp.
+  - Se a própria linha âncora é a que sobe, ela é ignorada: escolhe-se o deslocamento de
+    índice mais comum entre os candidatos (o card que subiu é o ponto fora da curva).
+  - Referencial: `scrollMargin` é 0; topo real = `innerOffset` (padding do scroller) +
+    `start`. Fora do modo virtual lê-se o DOM. Escreve-se o `scrollTop` direto, nunca
+    `scrollToIndex` (laço de reconcile da v3.14 — doc 14).
+  - Não age quando outro efeito escreveu o scroll no mesmo commit (nonce de topo, volta da
+    conversa no mobile) nem quando o `scrollTop` atual já difere do guardado (alguém mexeu).
+    Com a conversa aberta no mobile (linhas `display: none`) não guarda nem restaura.
+  - Risco conhecido: escrever `scrollTop` durante a inércia do iOS corta a inércia.
+- **Trocar aba/filtro/busca volta ao topo** (`chatList.jsx`, efeito de `filterRequestKey`):
+  zera `scrollTop` e `scrollSaveRef` antes da pintura e chama `requestChatListScrollToTop`
+  (que antes não tinha chamador). A restauração ao voltar da conversa no mobile continua a
+  funcionar (medido: 1200 → 1200).
+- **Histerese do modo virtual**: entra com ≥ 24 linhas (`CHAT_LIST_VIRTUAL_THRESHOLD`), só
+  sai abaixo de 16 (`CHAT_LIST_VIRTUAL_EXIT_THRESHOLD`). O modo do último commit fica num ref
+  escrito em layout effect. Antes, 23↔24 remontava a lista inteira.
+- **Hora do card como no WhatsApp** (`chatListTimeLabel.js`): hoje → `14:05`; ontem →
+  `Ontem`; 2–6 dias → dia da semana curto (`Seg`, `Ter`…); mais antigo → `03/11`. "Hoje" é o
+  dia civil **no fuso da empresa** (`companyDayKey`). A linha repinta na virada do dia pela
+  prop `dayKey` (derivada do `minuteTick` + `tzVersion` em `ChatListRows`), que entra no
+  `chatRowPropsAreEqual`.
+- **Áudio na prévia**: usa primeiro a duração que vem na mensagem
+  (`resolveListaAudioDurationSec`, mesmos campos de `resolveInboundAudioDurationSec` da
+  thread); só sem ela mede o arquivo. Sem duração conhecida (medindo ou falhou) mostra
+  `Áudio`, nunca `0:00`. A duração entra em `chatRowLastPreviewKey`.
+- **Enter/Espaço no chevron** abre o menu, não a conversa: `handleRowKeyDown` ignora eventos
+  cujo alvo não é a própria linha.
+- **Selo de prazo do "Aguardar cliente" em tempo real**: `chatRowListStoreKey` passou a
+  incluir `aguardando_cliente_prazo_ate`, `_nivel` e `_prazo_origem` (antes o `set()` era
+  pulado num patch que só mexia no prazo).
 
 ## Componentes
 
@@ -534,7 +631,16 @@ As correções desta auditoria foram verificadas por leitura de fluxo, TypeScrip
 - Regra atual de resync preservada: aproximadamente seis eventos ou cinco segundos, com force imediato. Referências históricas acima a throttle de 2,5s não descrevem esse hook atual.
 - Não há certificação integral: guard de membership otimista pode bloquear rollback; Minha fila pode truncar pelo badge desatualizado; estimativa de altura e outros cenários precisam da validação descrita no relatório. Não retirar proteções nem religar medidas dinâmicas preventivamente.
 
-## Contagem de não lidas (CONFIRMADO 2026-11-05)
+## Contagem de não lidas (HISTÓRICO — removida no commit `0c2dd6d37`, 2026-11-05)
+
+> **Estado atual (verificado 2026-11-16):** o card **não** tem pílula de não lidas nem o
+> wrapper `.chat-list-row-metaBottom`. O commit `0c2dd6d37` tirou os dois do
+> `ChatListRow.jsx`; o `StatusPill` (ou "Sem conversa") voltou a ser filho direto de
+> `.chat-list-row-meta` e ocupa sozinho a célula col 2 / linha 2 da grelha. A conversa com
+> mensagens por ler distingue-se pela classe `has-unread` na linha (nome a 700 e hora
+> realçada em `chatList.flat.css`). As regras `.chat-list-unread` ainda existem no
+> `chatList.css`, sem utilizador no card. O texto abaixo descreve a versão removida e fica
+> só como registo — não a reintroduza sem rever a largura da coluna 2.
 
 `.chat-list-unread` existe no `chatList.css` desde sempre, mas estava escondido com
 `display: none !important`. Essa regra entrou no commit `ffa5ff812` ("etiqueta

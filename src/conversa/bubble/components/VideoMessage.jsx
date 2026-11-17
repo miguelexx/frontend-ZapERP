@@ -26,12 +26,17 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
   // dentro de um 16/9) e a proporção fica em cache para a remontagem na lista virtual.
   const [ratio, setRatio] = useState(() => recallAspectRatio(ratioKey));
 
+  /* Reset do player só quando o ARQUIVO muda. Antes também resetava quando só a chave
+     mudava (id chegando depois do envio): `loadedmetadata` não volta a disparar com o mesmo
+     src e o vídeo ficava preso em "carregando", sem duração. */
   useEffect(() => {
     setReady(false);
     setFailed(false);
     setDurationSec(0);
-    setRatio(recallAspectRatio(ratioKey));
-  }, [src, ratioKey]);
+  }, [src]);
+  useEffect(() => {
+    setRatio((prev) => recallAspectRatio(ratioKey) || prev);
+  }, [ratioKey]);
 
   const handleLoadedMetadata = useCallback((event) => {
     const el = event?.currentTarget;

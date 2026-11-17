@@ -411,11 +411,9 @@ function ConversaViewBody() {
   ]);
 
   const [sending, setSending] = useState(false);
-  const [threadOpening, setThreadOpening] = useState(false);
-  /** Garante máscara no 1º frame da troca (setState no render), não só no useLayoutEffect pós-paint. */
-  const threadOpeningForIdRef = useRef(null);
+  /** Conversa cujo snap de abertura já assentou (máscara derivada — ver `threadOpening`). */
+  const [openSnapDoneKey, setOpenSnapDoneKey] = useState(null);
   const threadOpeningRef = useRef(false);
-  threadOpeningRef.current = threadOpening;
   const sendingCountRef = useRef(0);
   const setSendingTracked = useCallback((active) => {
     if (active) {
@@ -673,14 +671,28 @@ function ConversaViewBody() {
       : conversaId != null && conversaId !== ""
         ? String(conversaId)
         : null;
-  if (openingThreadKey !== threadOpeningForIdRef.current) {
-    threadOpeningForIdRef.current = openingThreadKey;
-    if (openingThreadKey) {
-      if (!threadOpening) setThreadOpening(true);
-    } else if (threadOpening) {
-      setThreadOpening(false);
-    }
-  }
+  /*
+   * Máscara DERIVADA (16/11/2026): "abrindo" = há conversa e o snap dela ainda não assentou.
+   * Antes era `setThreadOpening(true)` durante o render guardado por um ref mutado no mesmo
+   * render. Quando o React descartava esse render (troca vinda do cache, num único `set` do
+   * store), o setState perdia-se mas o ref ficava — a máscara nunca entrava e via-se a lista
+   * no topo (scrollTop 0), depois o salto para o fim e o reajuste das medições (~140px).
+   * Derivado de estado, não há render descartável que a deixe de fora: já vale no 1.º frame.
+   */
+  const threadOpening = openingThreadKey != null && openSnapDoneKey !== openingThreadKey;
+  threadOpeningRef.current = threadOpening;
+  const openingThreadKeyRef = useRef(openingThreadKey);
+  openingThreadKeyRef.current = openingThreadKey;
+  /** Só aceita `false` (snap assentou / fallback): marca a conversa ATUAL como aberta. */
+  const setThreadOpening = useCallback((opening) => {
+    if (opening) return;
+    const key = openingThreadKeyRef.current;
+    setOpenSnapDoneKey((prev) => (prev === key ? prev : key));
+  }, []);
+  useEffect(() => {
+    /* Fechou a conversa: reabrir a mesma volta a mascarar até ao novo snap. */
+    if (!openingThreadKey) setOpenSnapDoneKey(null);
+  }, [openingThreadKey]);
 
   /*
    * Reset no MESMO render da troca de conversa. O useLayoutEffect rodava depois do paint:
@@ -1212,6 +1224,17 @@ function ConversaViewBody() {
     zapMsgsInitialPassRef.current = false;
   }, [loading, conversaId, mensagens]);
 
+  /*
+   * Mensagem que chega com o atendente a ler histórico não monta (fora do overscan), logo
+   * nunca entrava em `zapSeenMsgKeysRef`. Quando ele descia minutos depois, a bolha "antiga"
+   * fazia a animação de chegada. Marca como vista na hora em que chega longe do fim.
+   */
+  useLayoutEffect(() => {
+    if (!conversaId || !lastMsg || zapMsgsInitialPassRef.current) return;
+    if (shouldStickToBottomRef.current) return;
+    zapSeenMsgKeysRef.current.add(getMessageListReactKey(lastMsg, conversaId));
+  }, [conversaId, lastMsg]);
+
   /**
    * Timeout/rede: status_indefinido + refresh (não erro/provedor).
    * Falha confirmada: erro. Preserva client_temp_id; não cria segunda mensagem.
@@ -1301,6 +1324,8 @@ function ConversaViewBody() {
     showTransferirSetor,
     setShowTransferirSetor,
     departamentos,
+    departamentosStatus,
+    carregarDepartamentos,
     transferirSetorLoading,
     setorAtual,
     handleOpenTransferirSetor,
@@ -2477,6 +2502,11 @@ function ConversaViewBody() {
     }
 
     setEditSaving(true);
+    /* O utilizador pode trocar de conversa durante o PATCH. A troca já limpou a edição e
+       restaurou o rascunho da conversa nova; mexer no composer depois disso apagava o
+       rascunho DELA (e o foco forçado abria o teclado no mobile). */
+    const aindaNestaConversa = () =>
+      String(useConversaStore.getState().selectedId ?? "") === String(conversaId ?? "");
     try {
       const res = await editarMensagem(conversaId, msg.id, { texto: nextTexto });
       const saved = res?.mensagem;
@@ -2496,8 +2526,10 @@ function ConversaViewBody() {
       if (res?.ultima_mensagem) {
         useChatStore.getState().setUltimaMensagem(conversaId, res.ultima_mensagem);
       }
-      setEditingMessage(null);
-      restoreComposerDraftAfterEdit();
+      if (aindaNestaConversa()) {
+        setEditingMessage(null);
+        restoreComposerDraftAfterEdit();
+      }
     } catch (e) {
       console.error("Erro ao editar mensagem:", e);
       useConversaStore.getState().patchMensagem(
@@ -2520,7 +2552,7 @@ function ConversaViewBody() {
         title: "Falha ao editar",
         message: apiMsg || "Não foi possível editar a mensagem.",
       });
-      focusMessageInput({ force: true });
+      if (aindaNestaConversa()) focusMessageInput({ force: true });
     } finally {
       setEditSaving(false);
     }
@@ -2981,14 +3013,16 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   }, [mensagensComSeparadores]);
 
   useLayoutEffect(() => {
-    if (!threadOpening || !openingThreadKey) return undefined;
+    if (!threadOpening || !openingThreadKey || loading) return undefined;
     /*
      * A máscara só cai quando o snap de abertura assenta (onOpenSnapReady).
-     * Este timeout evita thread invisível se o snap não disparar.
+     * Este timeout evita thread invisível se o snap não disparar. Conta só a partir de
+     * quando há mensagens (`!loading`): contando desde o clique, uma API lenta gastava o
+     * prazo no "Carregando…" e a máscara caía antes das fotos visíveis assentarem.
      */
-    const fallback = window.setTimeout(() => setThreadOpening(false), 1000);
+    const fallback = window.setTimeout(() => setThreadOpening(false), 1100);
     return () => window.clearTimeout(fallback);
-  }, [threadOpening, openingThreadKey]);
+  }, [threadOpening, openingThreadKey, loading, setThreadOpening]);
 
   useEffect(() => {
     if (!import.meta?.env?.DEV) return;
@@ -3406,6 +3440,8 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           podeTransferirSetor={podeTransferirSetor}
           showTransferirSetor={showTransferirSetor}
           departamentos={departamentos}
+          departamentosStatus={departamentosStatus}
+          onRetryDepartamentos={carregarDepartamentos}
           conversa={conversa}
           transferirSetorLoading={transferirSetorLoading}
           setShowTransferirSetor={setShowTransferirSetor}

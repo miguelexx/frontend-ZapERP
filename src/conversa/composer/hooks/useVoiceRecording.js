@@ -623,7 +623,17 @@ export function useVoiceRecording({
         draftRef.current ||
         startingRef.current
       ) {
+        const tinhaAudio = Boolean(isRecording || mediaRecorderRef.current || draftRef.current);
         cancelRecording();
+        /* Antes era descarte silencioso: gravava 1 minuto, clicava noutra conversa (ou numa
+           notificação) e o áudio sumia sem explicação. */
+        if (tinhaAudio) {
+          showToastRef.current?.({
+            type: "warning",
+            title: "Gravação descartada",
+            message: "O áudio em gravação foi descartado porque você abriu outra conversa.",
+          });
+        }
       }
       onConversationChange?.();
     }

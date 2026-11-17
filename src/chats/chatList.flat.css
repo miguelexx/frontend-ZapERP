@@ -639,9 +639,18 @@ html body .app-layout #main-content .chat-list-root .chat-list-time-espera-min--
   opacity: 0.85 !important;
 }
 
-/* Faixas de etiquetas/tags: uma linha, altura fixa. */
+/* Faixas de etiquetas/tags: uma linha, altura fixa, LARGURA INTEIRA.
+   Sem `grid-column` o auto-placement da grelha jogava as duas faixas nas células
+   livres da 3ª linha — a de tags caía na coluna `auto` da hora/selo, alargava-a e
+   espremia nome e prévia. `1 / -1` dá-lhes a linha toda (faixas 3 e 4, pela ordem do
+   JSX). Altura = 4 de margem + 20 de conteúdo = `ROW_METRICS.extraRow` (24) no
+   estimador; o padding vertical do `chatList.css` sai para os 20px serem conteúdo. */
 html body .app-layout #main-content .chat-list-root .chat-list-row-wa-labels,
 html body .app-layout #main-content .chat-list-root .chat-list-row-tags {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
   display: flex !important;
   flex-wrap: nowrap;
   align-items: center;

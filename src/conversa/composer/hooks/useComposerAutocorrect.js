@@ -137,7 +137,16 @@ export function useComposerAutocorrect({
   }, [contextMatches, enabled, getContext, normalizeWord, runFlash, setTexto, syncTextareaHeight]);
 
   const handleInputChange = useCallback((event) => {
-    const nextValue = capitalizeMessageStart(texto, event.target.value);
+    const raw = event.target.value;
+    /*
+     * Maiúscula inicial só com "Correção/A" ligada e nunca em texto COLADO/arrastado. Colar
+     * `abc123XY` (cupom), uma chave PIX ou `www.site.com` no campo vazio virava `Abc123XY` /
+     * `Www…` — inclusive com a correção desligada. Digitação que insere a palavra inteira de
+     * uma vez (teclado de deslizar/autocompletar no celular) continua a capitalizar.
+     */
+    const inputType = String(event?.nativeEvent?.inputType || "");
+    const veioDeColar = inputType.startsWith("insertFromPaste") || inputType === "insertFromDrop" || inputType === "insertFromYank";
+    const nextValue = enabled && !veioDeColar ? capitalizeMessageStart(texto, raw) : raw;
     if (trackedRef.current.length > 0) {
       const remaining = [];
       for (const item of trackedRef.current) {
@@ -160,6 +169,7 @@ export function useComposerAutocorrect({
     if (!syncSlashContext(nextValue, cursor) && savedRepliesOpen) closeSavedReplies();
   }, [
     closeSavedReplies,
+    enabled,
     hasWordWithContext,
     resetTracking,
     savedRepliesOpen,

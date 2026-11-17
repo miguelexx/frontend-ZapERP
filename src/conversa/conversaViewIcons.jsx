@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import DSToast from "../components/feedback/Toast";
 
 /* =========================================================
@@ -189,7 +190,7 @@ export function IconLinkOut(props) {
 
 export function ChatToast({ toast, onClose }) {
   if (!toast) return null;
-  return (
+  const node = (
     <DSToast
       title={toast.title || "Aviso"}
       message={toast.message}
@@ -197,6 +198,9 @@ export function ChatToast({ toast, onClose }) {
       onClose={onClose}
     />
   );
+  /* Portal no body: o toast é fixed centrado no viewport, mas dentro da área do chat
+     (`isolation: isolate`) ficava por baixo da lista/rail e do backdrop dos modais. */
+  return typeof document !== "undefined" ? createPortal(node, document.body) : node;
 }
 
 /**

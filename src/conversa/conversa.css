@@ -6103,6 +6103,25 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   animation: wa-popIn 0.18s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
+/*
+ * Desktop (16/11/2026): o seletor base ficava NO FLUXO dentro da bolha — clicar em 🙂 fazia a
+ * bolha crescer ~36px (e alargava bolhas estreitas), empurrando as linhas de baixo. Agora
+ * flutua acima da bolha, como no WhatsApp Web. O menu inline do mobile continua em fluxo.
+ */
+.wa-bubble > .wa-reactionPicker:not(.wa-reactionPicker--menuMobile):not(.wa-reactionPicker--selectedMobile) {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 8;
+  margin-top: 0;
+  white-space: nowrap;
+  max-width: min(360px, calc(100vw - 24px));
+}
+.wa-bubble-out > .wa-reactionPicker:not(.wa-reactionPicker--menuMobile):not(.wa-reactionPicker--selectedMobile) {
+  left: auto;
+  right: 0;
+}
+
 .wa-reactionPicker--selectedMobile {
   position: absolute;
   left: 0;
@@ -6554,7 +6573,6 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   background: linear-gradient(90deg, rgba(46, 134, 255,.55), rgba(46, 134, 255,.95));
   box-shadow: 0 0 0 1px rgba(46, 134, 255,.06);
   transition: width 0.14s ease-out;
-  will-change: width;
 }
 
 .wa-audioBar{
@@ -6564,7 +6582,10 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   opacity: .95;
   transition: background .18s ease, opacity .18s ease, transform .18s ease;
   transform-origin: bottom;
-  will-change: transform;
+  /* SEM will-change (16/11/2026): fixo aqui promovia CADA barra a camada de composição —
+     26 por áudio, 78 com 3 áudios na tela — e o browser recompunha todas a cada frame,
+     inclusive ao digitar (Layerize ~10ms/frame medido). A animação `wa-audio-breathe` do
+     áudio a tocar já é promovida pelo próprio browser enquanto corre. */
 }
 .wa-bubble-out .wa-audioBar{
   background: linear-gradient(180deg, rgba(17,27,33,.08), rgba(17,27,33,.20));
@@ -6585,7 +6606,6 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   box-shadow: 0 0 0 2px rgba(255,255,255,.92), 0 8px 22px rgba(0,0,0,.12);
   pointer-events:none;
   transition: left 0.12s ease-out, transform 0.22s ease, box-shadow 0.25s ease;
-  will-change: left;
 }
 .wa-audioPlayer.isPlaying .wa-audioDot{
   animation: wa-audio-dot 1.4s ease-in-out infinite;
@@ -11250,6 +11270,7 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   bottom: 82px;
   width: min(360px, calc(100vw - 32px));
   max-height: min(460px, calc(100vh - 120px));
+  max-height: min(460px, calc(100dvh - 120px));
   background: #fff;
   border: 1px solid rgba(0,0,0,.1);
   border-radius: 14px;
@@ -16050,4 +16071,71 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
   background: #1E6FE8;
   border-color: #1E6FE8;
   color: #fff;
+}
+
+/* Ação textual dentro de mensagens de estado (ex.: "Tentar de novo" no painel de setor). */
+.wa-linkBtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--wa-action-blue, var(--ds-accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.wa-linkBtn:focus-visible {
+  outline: 2px solid var(--wa-action-blue, var(--ds-accent));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/*
+ * CONTRASTE NA BOLHA ENVIADA (16/11/2026). A bolha enviada é azul-clara nos DOIS temas
+ * (--zaperp-bubble-out-solid #B6CFF7), mas várias regras de dark mode foram escritas para
+ * bolha escura e pintavam texto branco nela (~2:1): citação, cartão de link, "apagada para
+ * todos" e "Encaminhado". Escopo na bolha: o tema escuro só escurece o texto da recebida.
+ */
+[data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-name {
+  color: rgba(17, 27, 33, 0.88);
+}
+[data-theme="dark"] .wa-replyCtx.isOut .wa-replyCtx-snippet {
+  color: rgba(17, 27, 33, 0.68);
+}
+[data-theme="dark"] .wa-bubble-out .wa-linkPrev-title {
+  color: #111b21;
+}
+[data-theme="dark"] .wa-bubble-out .wa-linkPrev-desc {
+  color: rgba(17, 27, 33, 0.66);
+}
+[data-theme="dark"] .wa-bubble-out .wa-linkPrev-domain {
+  color: #1a56c4;
+}
+[data-theme="dark"] .wa-bubble-out .wa-bubble-deletedNote:not(.wa-bubble-deletedNote--cliente) {
+  color: rgba(17, 27, 33, 0.62);
+  background: rgba(17, 27, 33, 0.06);
+}
+/* "Encaminhado": base era branco a .5 (invisível na enviada) e a recebida escura recebia
+   cinza-escuro a .42 (invisível no dark). */
+.wa-bubble-out .wa-bubble-fwd-badge {
+  color: rgba(17, 27, 33, 0.5);
+}
+[data-theme="dark"] .wa-bubble-in .wa-bubble-fwd-badge {
+  color: rgba(233, 237, 239, 0.6);
+}
+
+/* Mensagem fixada no tema escuro (16/11/2026): as regras base cravam branco/#0f172a e não
+   havia override — ficava uma faixa branca sobre a thread azul-marinho. Só cor; a geometria
+   (sticky, padding, altura) não muda. */
+[data-theme="dark"] .wa-pinBar {
+  background: var(--wa-glass-strong);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  color: var(--wa-text);
+}
+[data-theme="dark"] .wa-pinBar-text {
+  color: var(--wa-text);
+}
+[data-theme="dark"] .wa-pinBar-hint {
+  color: var(--wa-text-muted);
 }

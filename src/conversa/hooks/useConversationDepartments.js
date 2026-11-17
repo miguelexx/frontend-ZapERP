@@ -15,6 +15,8 @@ import api from "../../api/http";
 export function useConversationDepartments({ conversaId, conversa, refresh, showToast }) {
   const [showTransferirSetor, setShowTransferirSetor] = useState(false);
   const [departamentos, setDepartamentos] = useState([]);
+  /** "idle" | "loading" | "ready" | "error" — antes `[]` valia "a carregar" para sempre. */
+  const [departamentosStatus, setDepartamentosStatus] = useState("idle");
   const [transferirSetorLoading, setTransferirSetorLoading] = useState(false);
 
   const setorAtual =
@@ -23,12 +25,14 @@ export function useConversationDepartments({ conversaId, conversa, refresh, show
       : null;
 
   const carregarDepartamentos = useCallback(async () => {
+    setDepartamentosStatus((prev) => (prev === "ready" ? prev : "loading"));
     try {
       const { data } = await api.get("/dashboard/departamentos");
       setDepartamentos(Array.isArray(data) ? data : []);
+      setDepartamentosStatus("ready");
     } catch (e) {
       console.error("Erro ao carregar departamentos:", e);
-      setDepartamentos([]);
+      setDepartamentosStatus("error");
     }
   }, []);
 
@@ -88,6 +92,8 @@ export function useConversationDepartments({ conversaId, conversa, refresh, show
     showTransferirSetor,
     setShowTransferirSetor,
     departamentos,
+    departamentosStatus,
+    carregarDepartamentos,
     transferirSetorLoading,
     setorAtual,
     handleOpenTransferirSetor,

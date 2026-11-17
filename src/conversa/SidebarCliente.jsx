@@ -13,6 +13,7 @@ import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
 import { IconClipboard, IconClose, IconLinkOut, IconPencil, IconPhone, IconTrash } from "./conversaViewIcons";
 import SidebarGrupo from "./SidebarGrupo";
 import { removeChatIdFromFilterRowCaches } from "../chats/chatListSidebarCache";
+import { getAvatarImageSrc } from "../utils/avatarProxyUrl";
 
 function initials(nome = "") {
   const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
@@ -574,7 +575,8 @@ export default function SidebarCliente({
       ? (conversa?.foto_grupo ?? null)
       : (conversa?.foto_perfil ?? conversa?.foto_perfil_contato_cache ?? conversa?.cliente?.foto_perfil ?? conversa?.clientes?.foto_perfil ?? null);
     const s = url ? String(url).trim() : "";
-    return s && s.startsWith("http") ? s : null;
+    // Foto de host de terceiros vai pelo /media/proxy — ver utils/avatarProxyUrl.js.
+    return s && s.startsWith("http") ? getAvatarImageSrc(s) || s : null;
   }, [conversa, isGroup]);
 
   useEffect(() => {

@@ -8,6 +8,7 @@ import { messageRowVisualSignature } from "./threadRowCompare";
 import ClosedAttendancePanel from "./ClosedAttendancePanel";
 import { SkeletonMessages } from "../components/feedback/Skeleton";
 import { useOnlineStatus } from "../utils/useOnlineStatus";
+import { useCompanyTimezoneVersion } from "../utils/useCompanyTimezone";
 
 const EMPTY_SET = new Set();
 const EMPTY_OBJECT = Object.freeze({});
@@ -110,6 +111,9 @@ function ConversaThread({
   onAdicionarGrupoContact,
 }) {
   const estaOnline = useOnlineStatus();
+  /* A hora de cada bolha usa o fuso da empresa; sem isto nas props do ThreadRow a linha
+     memoizada ficava no fuso antigo depois de o admin trocar o estado (doc 14). */
+  const tzVersion = useCompanyTimezoneVersion();
   const threadConversaId = scrollThreadId ?? conversaId;
   /** Igual ao ConversaView anterior: chave React da bolha usa conversaId carregado, não só selectedId. */
   const messageKeyConversaId = conversaId ?? threadConversaId;
@@ -190,6 +194,7 @@ function ConversaThread({
           item={item}
           messageKey={messageKey}
           messageVisualSig={messageVisualSig}
+          tzVersion={tzVersion}
           allowEnterAnimation={allowEnterAnimation}
           BubbleComponent={BubbleComponent}
           zapSeenMsgKeysRef={zapSeenMsgKeysRef}
@@ -202,6 +207,9 @@ function ConversaThread({
           isPinned={safePinnedSet.has(String(messageKey))}
           isStarred={safeStarredSet.has(String(messageKey))}
           reactionForMessage={safeLocalReactions[String(messageKey)] || item.__reaction}
+          /* Reação que veio do CLIENTE (inbound): não é "Sua reação" nem pode ser removida
+             pelo atendente. */
+          reactionFromPeer={!safeLocalReactions[String(messageKey)] && Boolean(item.__reaction)}
           reactionLoadingForMessage={Boolean(safeReactionLoading[String(messageKey)])}
           showMobileReactionPicker={Boolean(showSelectedReactionPicker && safeSelectedSet.has(String(messageKey)))}
           currentUserId={myUserId}
@@ -234,6 +242,7 @@ function ConversaThread({
     },
     [
       threadRowCount,
+      tzVersion,
       messageKeyConversaId,
       BubbleComponent,
       zapSeenMsgKeysRef,

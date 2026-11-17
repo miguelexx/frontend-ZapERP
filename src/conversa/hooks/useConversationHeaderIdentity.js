@@ -11,6 +11,7 @@ import { useChatStore, getChatByIdFromStore } from "../../chats/chatsStore";
 import { chatRowListStoreKey } from "../../chats/chatListStoreCompare";
 import { useWhatsappInstancesStore } from "../../chats/whatsappInstancesStore";
 import { initials, statusBadge, safeString, resolveConversaAvatarUrl } from "../utils/conversaViewHelpers";
+import { getAvatarImageSrc } from "../../utils/avatarProxyUrl";
 
 function isLidValue(v) {
   return v != null && String(v).trim().toLowerCase().startsWith("lid:");
@@ -94,7 +95,12 @@ export function useConversationHeaderIdentity({
         conversa?.clientes?.foto_perfil ??
         null
       );
-  const avatarUrl = resolveConversaAvatarUrl(rawAvatarUrl);
+  // A foto do cabeçalho (e a que o AudioMessage usa na bolha) é a MESMA do card: se for de
+  // um host de terceiros, vai pelo /media/proxy da API — ver utils/avatarProxyUrl.js.
+  const avatarUrl = useMemo(() => {
+    const resolvida = resolveConversaAvatarUrl(rawAvatarUrl);
+    return resolvida ? getAvatarImageSrc(resolvida) || resolvida : resolvida;
+  }, [rawAvatarUrl]);
   const avatar = useMemo(() => (isGroup ? "👥" : initials(nome)), [isGroup, nome]);
   const [avatarImgError, setAvatarImgError] = useState(false);
   const showAvatarImg = Boolean(avatarUrl && !avatarImgError);

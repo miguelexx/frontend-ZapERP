@@ -30,6 +30,43 @@ function cancelFrame(id) {
   }
 }
 
+/**
+ * Imagens DENTRO da janela visível da thread que ainda não decodificaram. Na abertura a
+ * máscara espera por elas: ao decodificar, a moldura troca para a proporção real e a bolha
+ * muda de altura — com a thread já visível isso era um salto de ~150px na cara do utilizador.
+ */
+function countPendingVisibleMedia(container) {
+  if (!container || typeof container.querySelectorAll !== "function") return 0;
+  let viewport;
+  try {
+    viewport = container.getBoundingClientRect();
+  } catch {
+    return 0;
+  }
+  let pending = 0;
+  const imgs = container.querySelectorAll("img");
+  for (let i = 0; i < imgs.length; i += 1) {
+    const img = imgs[i];
+    if (img.complete) continue;
+    if (img.loading === "lazy" && !img.currentSrc && !img.src) continue;
+    const r = img.getBoundingClientRect();
+    if (r.bottom <= viewport.top || r.top >= viewport.bottom || r.height === 0) continue;
+    pending += 1;
+  }
+  return pending;
+}
+
+function nowMs() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
+/** Teto da espera por mídia visível na abertura (a máscara não pode prender a thread). */
+const OPEN_MEDIA_WAIT_MAX_MS = 650;
+/** Frames seguidos sem mídia pendente nem mudança de altura para considerar assentado. */
+const OPEN_QUIET_FRAMES = 2;
+
 function canRunProgrammaticSnap(opts = {}) {
   if (typeof opts.canSnap === "function" && !opts.canSnap()) return false;
   return true;
@@ -445,10 +482,25 @@ export function useAutoScroll({
         snapThreadToBottom(c, virtualListRef, { min: true, followUpFrame: false, ...guard });
       };
       snapHard();
-      rafOnce = scheduleFrame(() => {
+      const startedAt = nowMs();
+      let quiet = 0;
+      let lastHeight = -1;
+      /* Revela só quando a mídia visível decodificou e a altura parou (teto 650ms). */
+      const waitSettled = () => {
+        if (cancelled) return;
         snapHard();
-        finishOpenSnap();
-      });
+        const c = messagesContainerRef?.current;
+        const h = c ? c.scrollHeight : 0;
+        const pending = countPendingVisibleMedia(c);
+        quiet = pending === 0 && h === lastHeight ? quiet + 1 : 0;
+        lastHeight = h;
+        if (quiet >= OPEN_QUIET_FRAMES || nowMs() - startedAt >= OPEN_MEDIA_WAIT_MAX_MS || isUserScrollLocked()) {
+          finishOpenSnap();
+          return;
+        }
+        rafOnce = scheduleFrame(waitSettled);
+      };
+      rafOnce = scheduleFrame(waitSettled);
       return () => {
         cancelled = true;
         cancelFrame(rafOnce);
@@ -466,8 +518,16 @@ export function useAutoScroll({
      */
     const SETTLE_FRAMES = 6;
     let settleFrame = 0;
+    const startedAt = nowMs();
+    let quiet = 0;
+    let lastHeight = -1;
 
     snap();
+    /*
+     * Depois dos frames mínimos de acomodação, a máscara só cai quando a mídia visível já
+     * decodificou e a altura ficou parada OPEN_QUIET_FRAMES frames (teto 650ms). Assim a troca
+     * da moldura das fotos acontece por baixo da máscara, não na frente do utilizador.
+     */
     const settle = () => {
       if (cancelled) return;
       if (isUserScrollLocked() || !shouldStickToBottomRef.current) {
@@ -476,11 +536,18 @@ export function useAutoScroll({
       }
       settleFrame += 1;
       snap();
-      if (settleFrame < SETTLE_FRAMES) {
-        rafChain = scheduleFrame(settle);
-      } else {
+      const c = messagesContainerRef?.current;
+      const h = c ? c.scrollHeight : 0;
+      const pending = countPendingVisibleMedia(c);
+      quiet = pending === 0 && h === lastHeight ? quiet + 1 : 0;
+      lastHeight = h;
+      const minFramesDone = settleFrame >= SETTLE_FRAMES;
+      const timedOut = nowMs() - startedAt >= OPEN_MEDIA_WAIT_MAX_MS;
+      if (minFramesDone && (quiet >= OPEN_QUIET_FRAMES || timedOut)) {
         finishOpenSnap();
+        return;
       }
+      rafChain = scheduleFrame(settle);
     };
     rafChain = scheduleFrame(settle);
 

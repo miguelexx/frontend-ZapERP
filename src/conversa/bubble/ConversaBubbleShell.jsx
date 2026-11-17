@@ -56,6 +56,7 @@ const Bubble = memo(function Bubble({
   onReenviarAudio,
   onReenviarFalha,
   localReaction,
+  reactionFromPeer = false,
   onReact,
   onRemoveReaction,
   reactionBusy,
@@ -233,13 +234,34 @@ const Bubble = memo(function Bubble({
     if (!menuOpen) clearSkipNextMediaTap();
   }, [menuOpen, clearSkipNextMediaTap]);
 
+  /*
+   * Entrada da bolha como ESTADO, não como classList (16/11/2026). Antes:
+   * - o snap ao fim punha `.is-scrolling`, que cancela a animação (`animationcancel`, não
+   *   `animationend`); ao sair a classe, a entrada recomeçava do zero — a bolha aparecia,
+   *   sumia e entrava de novo;
+   * - abrir o menu numa das 2 últimas bolhas re-renderizava a Bubble, o React reescrevia o
+   *   className e apagava o `zap-anim-settled` posto à mão: a entrada tocava outra vez.
+   * Agora a classe sai pelo React, uma vez, no fim OU no cancelamento da animação.
+   */
+  const [entering, setEntering] = useState(Boolean(zapAnimateIn));
   useEffect(() => {
-    if (!zapAnimateIn || !bubbleRef.current) return undefined;
+    if (!entering || !bubbleRef.current) return undefined;
     const el = bubbleRef.current;
-    const onEnd = () => el.classList.add("zap-anim-settled");
-    el.addEventListener("animationend", onEnd, { once: true });
-    return () => el.removeEventListener("animationend", onEnd);
-  }, [zapAnimateIn]);
+    const done = (event) => {
+      if (event && event.target !== el) return; // animações dos filhos (onda do áudio etc.)
+      setEntering(false);
+    };
+    el.addEventListener("animationend", done);
+    el.addEventListener("animationcancel", done);
+    /* Rede de segurança: se nenhuma animação correr (reduced-motion, regra suprimida), a
+       classe não pode ficar pendurada. */
+    const t = window.setTimeout(() => setEntering(false), 900);
+    return () => {
+      el.removeEventListener("animationend", done);
+      el.removeEventListener("animationcancel", done);
+      window.clearTimeout(t);
+    };
+  }, [entering]);
 
   useLayoutEffect(() => {
     const el = bubbleRef.current;
@@ -422,7 +444,7 @@ const Bubble = memo(function Bubble({
           reactionExpanded={reactionExpanded}
           reactionBusy={reactionBusy}
           apagadaParaTodos={msg?.apagada_para_todos}
-          localReaction={localReaction}
+          localReaction={reactionFromPeer ? null : localReaction}
           onReact={(emo) => onReact?.(msg, emo)}
           onRemoveReaction={() => onRemoveReaction?.(msg)}
           onExpandToggle={() => setReactionExpanded((v) => !v)}
@@ -439,7 +461,7 @@ const Bubble = memo(function Bubble({
         }}
         className={[
           "wa-bubble",
-          zapAnimateIn ? "zap-message-enter" : "",
+          entering ? "zap-message-enter" : "",
           out ? "wa-bubble-out" : "wa-bubble-in",
           hasInlineMetaClass ? "hasInlineMeta" : "",
           (isImg || isSticker) ? "wa-bubble-media" : "",
@@ -610,7 +632,7 @@ const Bubble = memo(function Bubble({
             reactionExpanded={reactionExpanded}
             reactionBusy={reactionBusy}
             apagadaParaTodos={msg?.apagada_para_todos}
-            localReaction={localReaction}
+            localReaction={reactionFromPeer ? null : localReaction}
             onReact={(emo) => onReact?.(msg, emo)}
             onRemoveReaction={() => onRemoveReaction?.(msg)}
             onExpandToggle={() => setReactionExpanded((v) => !v)}
@@ -621,7 +643,7 @@ const Bubble = memo(function Bubble({
           />
         ) : null}
 
-        <ReactionBadge localReaction={localReaction} />
+        <ReactionBadge localReaction={localReaction} fromPeer={reactionFromPeer} />
       </div>
       </SwipeReplyTrack>
 
@@ -644,7 +666,7 @@ const Bubble = memo(function Bubble({
         downloadBusy={downloadBusy}
         reactionExpanded={reactionExpanded}
         reactionBusy={reactionBusy}
-        localReaction={localReaction}
+        localReaction={reactionFromPeer ? null : localReaction}
         onClose={() => setMenuOpen(false)}
         onAction={runAction}
         onReact={(emo) => onReact?.(msg, emo)}

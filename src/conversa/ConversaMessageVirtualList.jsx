@@ -434,6 +434,23 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
     };
   }, [onVirtualContentResize, count, mobileThread]);
 
+  /*
+   * Reancoragem NO MESMO frame em que a altura total muda (16/11/2026). O ResizeObserver da
+   * raiz acima não chega a tempo: quem dispara a mudança é o RO das LINHAS (mais fundas), e a
+   * spec adia para o frame seguinte observações de elementos mais rasos do que os já
+   * processados. Resultado medido: 1 frame pintado com a última bolha empurrada 80–120px para
+   * baixo e depois puxada de volta ("bug visual rápido" ao abrir). Este layout effect corre
+   * antes do paint do re-render que trouxe a altura nova. O RO continua como rede de
+   * segurança; o `snapIfStickBottom` ignora a 2.ª chamada (sem delta de altura).
+   */
+  const totalSize = virtualizer.getTotalSize();
+  const prevTotalSizeRef = useRef(totalSize);
+  useLayoutEffect(() => {
+    if (prevTotalSizeRef.current === totalSize) return;
+    prevTotalSizeRef.current = totalSize;
+    onVirtualContentResize?.();
+  }, [totalSize, onVirtualContentResize]);
+
   if (count === 0) return null;
 
   return (
@@ -453,7 +470,10 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
             left: 0,
             width: "100%",
             maxWidth: "100%",
-            transform: `translate3d(0, ${vRow.start}px, 0)`,
+            /* translateY (2D), não translate3d: o 3D promovia cada linha a camada de
+               composição (13+ camadas recompostas por frame). O scroller já é composto
+               inteiro; as linhas não precisam de camada própria. */
+            transform: `translateY(${vRow.start}px)`,
           }}
         >
           {renderItem(items[vRow.index], vRow.index)}

@@ -185,6 +185,24 @@ export function pickListaUltimaMensagem(c) {
   return best;
 }
 
+/**
+ * Duração (s) de um áudio que já vem na própria mensagem — mesmos campos que a thread lê
+ * (`resolveInboundAudioDurationSec` em conversa/conversaOutboundMediaMerge.js). `null`
+ * quando não há duração conhecida. O card usa isto ANTES de baixar o arquivo para medir.
+ */
+export function resolveListaAudioDurationSec(msg) {
+  if (!msg) return null;
+  const raw =
+    msg.audio_duracao_sec ??
+    msg.audioDuracaoSec ??
+    msg.duracao_segundos ??
+    msg.duration ??
+    msg.audio_duration ??
+    null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Entre várias mensagens, retorna a de timestamp mais recente. */
 export function pickNewerMessage(...msgs) {
   let best = null;

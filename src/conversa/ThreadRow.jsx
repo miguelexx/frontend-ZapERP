@@ -138,6 +138,7 @@ function ThreadRow({
   isPinned,
   isStarred,
   reactionForMessage,
+  reactionFromPeer = false,
   reactionLoadingForMessage,
   showMobileReactionPicker,
   currentUserId,
@@ -245,6 +246,7 @@ function ThreadRow({
       onReenviarAudio={onReenviarAudio}
       onReenviarFalha={onReenviarFalha}
       localReaction={reactionForMessage}
+      reactionFromPeer={reactionFromPeer}
       onReact={onReact}
       onRemoveReaction={onRemoveReaction}
       reactionBusy={reactionLoadingForMessage}

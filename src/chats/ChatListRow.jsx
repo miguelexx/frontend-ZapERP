@@ -1,6 +1,7 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { formatHoraEmpresa } from "../utils/companyTimezone";
+import { formatChatListTimeLabel } from "./chatListTimeLabel";
 import { resolveTickState } from "../utils/messageTicks";
 import { useEmpresaStore } from "../auth/empresaStore";
 import { useAuthStore } from "../auth/authStore";
@@ -27,6 +28,7 @@ import {
 } from "../atendimento/aguardarClientePrazo";
 import ConversationActionMenuTrigger from "./ConversationActionMenuTrigger";
 import { getContactDisplay, lockCardAvatarUrl } from "./chatListDisplay";
+import { getAvatarImageSrc } from "../utils/avatarProxyUrl";
 import { contactIdentitySignature } from "./chatContactIdentity";
 import { placeholderSnippetLabel } from "../conversa/bubble/utils/bubbleClassify";
 import {
@@ -42,6 +44,7 @@ import {
   atendimentoRowVisualClass,
   isEmAtendimentoUltimaDoCliente,
   getAtendimentoAssigneeNames,
+  resolveListaAudioDurationSec,
 } from "./chatListRowAtendimento";
 import { chatRowPropsAreEqual } from "./chatListRowCompare";
 import { useWhatsappLabelsStore, selectConversationLabels } from "./whatsappLabelsStore";
@@ -111,9 +114,14 @@ function parseToDate(ts) {
 // utils/companyTimezone e é memoizado lá: toLocaleTimeString com options construía um
 // Intl.DateTimeFormat novo a cada linha renderizada — custo alto multiplicado pelas rows
 // visíveis.
+// Como no WhatsApp: hoje → hora; ontem → "Ontem"; até 6 dias → dia da semana; depois →
+// data curta (`chatListTimeLabel.js`, dia civil no fuso da empresa). A linha repinta na
+// virada do dia pela prop `dayKey` (ChatListRows → chatRowPropsAreEqual).
 function formatHora(ts) {
   const d = parseToDate(ts);
   if (!d) return "";
+  const rotulo = formatChatListTimeLabel(d);
+  if (rotulo) return rotulo;
   const hora = formatHoraEmpresa(d);
   if (hora) return hora;
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -495,7 +503,9 @@ function PreviewLine({ chat, audioDurationSec }) {
 
   if (tipo === "audio") {
     const dur = formatDuracaoSegundos(audioDurationSec);
-    const durLabel = dur || "0:00";
+    // Sem duração conhecida (ainda medindo, ou a medição falhou): "Áudio", não um "0:00"
+    // que parece um áudio vazio.
+    const durLabel = dur || "Áudio";
     return (
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
         {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
@@ -592,8 +602,9 @@ function PreviewLine({ chat, audioDurationSec }) {
     const parsed = parseVCardMeta(txt) || {};
     const nome = (meta?.nome && String(meta.nome).trim()) || parsed.nome || "Contato";
     const telefone = meta?.telefone || parsed.telefone;
+    // Mesma regra do avatar do card: foto de terceiro vai pelo proxy da API.
     const fotoPerfil = meta?.foto_perfil && String(meta.foto_perfil).trim().startsWith("http")
-      ? String(meta.foto_perfil).trim()
+      ? getAvatarImageSrc(String(meta.foto_perfil).trim()) || null
       : null;
     const iniciais = nome
       .trim()
@@ -1404,6 +1415,13 @@ function ChatRow({
     !semConversa && lastTipoResolved === "audio" && (last?.url || last?.url_absoluta)
       ? (last?.url_absoluta || getMediaUrl(String(last.url)))
       : "";
+  /*
+   * Duração que já vem na mensagem (mesmos campos da thread) ganha de medir o arquivo:
+   * não depende de rede e está certa na primeira pintura. Só sem ela é que se baixa o
+   * metadado do áudio; enquanto isso — ou se falhar — o card mostra só "Áudio", nunca "0:00".
+   */
+  const knownAudioSec =
+    !semConversa && lastTipoResolved === "audio" ? resolveListaAudioDurationSec(last) : null;
   const [audioSec, setAudioSec] = useState(() => (audioUrl && audioDurationCache.has(audioUrl) ? audioDurationCache.get(audioUrl) : null));
 
   const lastTipo = lastTipoResolved;
@@ -1411,7 +1429,7 @@ function ChatRow({
 
   useEffect(() => {
     let cancelled = false;
-    if (!audioUrl) {
+    if (!audioUrl || knownAudioSec != null) {
       setAudioSec(null);
       return;
     }
@@ -1420,6 +1438,8 @@ function ChatRow({
       setAudioSec(cached);
       return;
     }
+    // URL nova sem cache: não herdar a duração do áudio anterior enquanto mede.
+    setAudioSec(null);
     enqueueAudioDuration(audioUrl).then((sec) => {
       if (cancelled) return;
       if (sec != null) setAudioSec(sec);
@@ -1427,10 +1447,11 @@ function ChatRow({
     return () => {
       cancelled = true;
     };
-  }, [audioUrl]);
+  }, [audioUrl, knownAudioSec]);
 
-  const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioSec });
-  const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioSec} />;
+  const audioDisplaySec = knownAudioSec ?? audioSec;
+  const previewTitle = semConversa ? "Sem mensagens" : getPreview(chat, { audioDurationSec: audioDisplaySec });
+  const previewNode = semConversa ? <span className="chat-list-previewText">Sem mensagens</span> : <PreviewLine chat={chat} audioDurationSec={audioDisplaySec} />;
   const unread = Number(chat?.unread_count ?? chat?.unread ?? 0);
   // Etiquetas automáticas de "Aguardar cliente" não entram no card: o selo premium
   // «Aguardando cliente / Cliente atrasado» já comunica o estado (sem duplicar).
@@ -1458,6 +1479,17 @@ function ChatRow({
   const avatarRetryTimerRef = useRef(null);
   const [opening, setOpening] = useState(false);
   const showAvatarImg = Boolean(avatarUrl && !imgError);
+  /*
+    A foto vai pelo /media/proxy (mesma origem do resto da mídia) — ver avatarProxyUrl.js.
+    `avatarAttempt` entra nas deps de propósito: cada retentativa recalcula a URL com o
+    token atual do storage (se o JWT rodou entre a montagem e o retry, a URL velha dava 401).
+    Na ÚLTIMA tentativa cai para a URL direta: se o proxy estiver fora, o comportamento
+    volta a ser exatamente o de antes desta mudança, nunca pior.
+  */
+  const avatarSrc = useMemo(
+    () => (avatarAttempt >= 2 ? avatarUrl : getAvatarImageSrc(avatarUrl) || avatarUrl),
+    [avatarUrl, avatarAttempt]
+  );
   const setorLabelNome =
     !isGroup && chat?.departamento_id != null
       ? String(chat.setor ?? chat?.departamento?.nome ?? chat?.departamentos?.nome ?? "").trim()
@@ -1585,6 +1617,10 @@ function ChatRow({
   }
 
   function handleRowKeyDown(e) {
+    // Só a própria linha abre a conversa. Enter/Espaço no chevron de ações (um <button>
+    // filho) sobem até aqui: sem este corte o preventDefault matava o click do botão e
+    // a conversa abria em vez do menu.
+    if (e.target !== e.currentTarget) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       activateRow();
@@ -1619,7 +1655,7 @@ function ChatRow({
              foto piscar ao rolar. */
           <img
             key={`${avatarUrl}:${avatarAttempt}`}
-            src={avatarUrl}
+            src={avatarSrc}
             alt=""
             className={`chat-list-avatar-img${imgLoaded ? " is-loaded" : ""}`}
             referrerPolicy="no-referrer"

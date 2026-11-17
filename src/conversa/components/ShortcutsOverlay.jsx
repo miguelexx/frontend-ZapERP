@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import "./shortcuts-overlay.css";
 
 /**
@@ -59,7 +60,9 @@ export default function ShortcutsOverlay({ open, onClose }) {
 
   const atalhos = listaAtalhos(ehMac());
 
-  return (
+  /* Portal no body: dentro da área do chat (`isolation: isolate`) o z-index 1200 valia só lá
+     dentro — a lista e o rail pintavam POR CIMA do cartão e o fundo não os escurecia. */
+  const node = (
     <div
       className="wa-shortcuts__backdrop"
       role="presentation"
@@ -114,4 +117,5 @@ export default function ShortcutsOverlay({ open, onClose }) {
       </div>
     </div>
   );
+  return typeof document !== "undefined" ? createPortal(node, document.body) : node;
 }

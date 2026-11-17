@@ -50,12 +50,29 @@ export function buildMensagensComSeparadores(mensagens, isGroup) {
       const m = text.match(/rea[cç][aã]o:\s*(.+)$/i);
       if (m && m[1]) {
         emoji = m[1].trim();
-      } else if (text) {
-        emoji = text.slice(-2).trim() || text.slice(-1);
+      } else if (text && !/^\s*rea[cç][aã]o\s*:?\s*$/i.test(text)) {
+        /* Só aceita emoji de verdade. Antes `text.slice(-2)` pegava as 2 últimas letras:
+           quando o cliente REMOVE a reação o backend grava "Reação" (sem emoji) e a bolha
+           ganhava um badge "ão". */
+        const emojis = text.match(/\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*/gu);
+        emoji = emojis && emojis.length ? emojis[emojis.length - 1] : "";
       }
-      const prevMsg = list[list.length - 1];
-      if (prevMsg && prevMsg.id != null && emoji) {
-        reactionsByMsgId[String(prevMsg.id)] = emoji;
+      /* Alvo: a mensagem citada, se o backend a indicar; senão a anterior (comportamento antigo). */
+      const alvoId = msg?.reply_meta?.replyToId ?? msg?.reply_meta?.id ?? msg?.reaction_target_id ?? null;
+      let alvo = null;
+      if (alvoId != null) {
+        for (let k = list.length - 1; k >= 0; k -= 1) {
+          const cand = list[k];
+          if (cand && (String(cand.id) === String(alvoId) || String(cand.whatsapp_id ?? "") === String(alvoId))) {
+            alvo = cand;
+            break;
+          }
+        }
+      }
+      if (!alvo) alvo = list[list.length - 1];
+      if (alvo && alvo.id != null) {
+        if (emoji) reactionsByMsgId[String(alvo.id)] = emoji;
+        else delete reactionsByMsgId[String(alvo.id)]; // "Reação" sem emoji = removeu
       }
       continue;
     }

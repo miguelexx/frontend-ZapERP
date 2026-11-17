@@ -99,13 +99,22 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   },
   ref
 ) {
-  const { texto, setTexto, textoRef } = useComposerDraft(conversaId);
+  /* Lidos no momento de persistir/restaurar (refs: o hook não re-renderiza por eles). */
+  const notaAtivaRef = useRef(false);
+  const draftDoOutroModoRef = useRef("");
+  const conversaIdAtualRef = useRef(conversaId);
+  conversaIdAtualRef.current = conversaId;
+  const getPersistText = useCallback(
+    () => (notaAtivaRef.current ? String(draftDoOutroModoRef.current || "") : null),
+    []
+  );
+  const { texto, setTexto, textoRef } = useComposerDraft(conversaId, { getPersistText });
   const [notaInternaAtiva, setNotaInternaAtiva] = useState(false);
+  notaAtivaRef.current = notaInternaAtiva;
   // Aba ativa do painel unificado de emojis + figurinhas (persiste entre aberturas).
   const [mediaTab, setMediaTab] = useState("emoji");
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const modePickerRef = useRef(null);
-  const draftDoOutroModoRef = useRef("");
 
   const inputRef = useRef(null);
   const prevTextLenRef = useRef(0);
@@ -221,6 +230,9 @@ const ConversaComposer = forwardRef(function ConversaComposer(
 
   // Reset modo nota quando troca de conversa
   useEffect(() => {
+    /* useComposerDraft já gravou o rascunho de CLIENTE da conversa anterior (efeito
+       declarado antes deste, com o modo nota ainda visível no ref). */
+    notaAtivaRef.current = false;
     setNotaInternaAtiva(false);
     draftDoOutroModoRef.current = "";
   }, [conversaId]);
@@ -260,6 +272,9 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     const currentTexto = String(textoRef.current || "");
     const savedOther = draftDoOutroModoRef.current;
     draftDoOutroModoRef.current = currentTexto;
+    /* Ref antes do setTexto: o efeito de persistência que o setTexto dispara já tem de ver o
+       modo novo (senão gravaria a nota como rascunho de cliente por um ciclo). */
+    notaAtivaRef.current = !notaAtivaRef.current;
     setTexto(savedOther);
     setNotaInternaAtiva((prev) => !prev);
   }, []);
@@ -301,26 +316,53 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     focusInput();
   }, [conversaId, podeEnviar, focusInput]);
 
+  /** Comprimento do valor na última medição (decide se pode encolher). */
+  const lastMeasuredLenRef = useRef(-1);
+  /** min/max-height do CSS por largura de janela (media queries mudam com o resize). */
+  const textareaBoundsRef = useRef({ width: -1, cap: 0, floor: 0 });
+
   const syncTextareaHeight = useCallback(() => {
     const el = inputRef.current;
     if (!el || el.tagName !== "TEXTAREA") return;
-    if (!String(el.value || "").trim()) {
+    const value = String(el.value || "");
+    if (!value.trim()) {
       el.style.height = "";
       delete el.dataset.scrollable;
       delete el.dataset.multiline;
+      lastMeasuredLenRef.current = -1;
       return;
     }
-    el.style.height = "auto";
-    const computed = getComputedStyle(el);
-    const maxPx = parseFloat(computed.maxHeight);
-    const minPx = parseFloat(computed.minHeight);
-    const cap = Number.isFinite(maxPx) && maxPx > 0 ? maxPx : WA_INPUT_FALLBACK_MAX_HEIGHT_PX;
-    const floor = Number.isFinite(minPx) && minPx > 0 ? minPx : 44;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 0;
+    const bounds = textareaBoundsRef.current;
+    if (bounds.width !== vw) {
+      const computed = getComputedStyle(el);
+      const maxPx = parseFloat(computed.maxHeight);
+      const minPx = parseFloat(computed.minHeight);
+      bounds.width = vw;
+      bounds.cap = Number.isFinite(maxPx) && maxPx > 0 ? maxPx : WA_INPUT_FALLBACK_MAX_HEIGHT_PX;
+      bounds.floor = Number.isFinite(minPx) && minPx > 0 ? minPx : 44;
+    }
+    const { cap, floor } = bounds;
+    /*
+     * Reflow por tecla (16/11/2026): antes TODA tecla fazia height=auto → ler scrollHeight →
+     * escrever height, o que obriga 2 layouts síncronos da coluna inteira (thread incluída).
+     * Agora só se volta a `auto` quando o texto ENCOLHEU (única situação em que a caixa pode
+     * precisar de baixar). Crescendo ou igual, basta ler scrollHeight: se cabe na altura
+     * atual não se escreve nada; se transborda, sobe direto para a nova altura.
+     */
+    const shrunk = lastMeasuredLenRef.current < 0 || value.length < lastMeasuredLenRef.current;
+    lastMeasuredLenRef.current = value.length;
+    if (shrunk) el.style.height = "auto";
     const contentHeight = Math.ceil(el.scrollHeight);
     const next = Math.max(floor, Math.min(contentHeight, cap));
-    el.style.height = `${next}px`;
-    el.dataset.scrollable = contentHeight > cap + 1 ? "true" : "false";
-    el.dataset.multiline = contentHeight > floor + 2 ? "true" : "false";
+    if (shrunk || contentHeight > el.clientHeight + 1) {
+      const nextPx = `${next}px`;
+      if (el.style.height !== nextPx) el.style.height = nextPx;
+    }
+    const scrollable = contentHeight > cap + 1 ? "true" : "false";
+    const multiline = contentHeight > floor + 2 ? "true" : "false";
+    if (el.dataset.scrollable !== scrollable) el.dataset.scrollable = scrollable;
+    if (el.dataset.multiline !== multiline) el.dataset.multiline = multiline;
   }, []);
 
   const {
@@ -419,10 +461,24 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     syncTextareaHeight();
   }, [texto, syncTextareaHeight]);
 
+  /*
+   * `sending` é global (contador de envios em voo no ConversaView, inclusive upload de mídia).
+   * Passado direto aos controles, travava emoji, +, câmera e o X da resposta a CADA envio —
+   * botões piscavam desabilitados e, durante um upload de áudio/foto, clicar no + não fazia
+   * nada. O envio é otimista e enfileirado, então esses controles não precisam de exclusão.
+   * Só a edição (PATCH único) continua a travar enquanto salva.
+   */
+  const controlsBusy = editMode ? Boolean(sending) : false;
+
   useLayoutEffect(() => {
     const len = String(texto ?? "").length;
     const threadKey = scrollThreadId ?? conversaId;
-    const height = Number(inputRef.current?.offsetHeight) || 0;
+    /* Altura do BLOCO do composer (campo + barra de resposta/edição), não só do textarea:
+       "Responder" adiciona ~62px acima do campo e, sem isto, as últimas mensagens sumiam
+       abaixo da dobra com a thread colada ao fim. */
+    const inputEl = inputRef.current;
+    const stackEl = inputEl?.closest?.(".wa-composerStack");
+    const height = Number(stackEl?.offsetHeight ?? inputEl?.offsetHeight) || 0;
     onTextMetrics?.({ length: len, height, threadKey, loading });
     if (String(prevTextConversaRef.current) !== String(threadKey ?? "")) {
       prevTextConversaRef.current = threadKey;
@@ -433,7 +489,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     prevTextLenRef.current = len;
     if (prevLen <= 0 || len !== 0) return;
     onTextMetrics?.({ length: len, height, threadKey, loading, cleared: true });
-  }, [texto, conversaId, scrollThreadId, loading, onTextMetrics]);
+  }, [texto, conversaId, scrollThreadId, loading, onTextMetrics, replyBarPreview, editMode]);
 
   useEffect(() => {
     resetAutocorrectTracking();
@@ -477,8 +533,14 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         if (sendLockedRef.current === t) return;
         sendLockedRef.current = t;
         setTexto("");
-        draftDoOutroModoRef.current = "";
+        const conversaDaNota = conversaIdAtualRef.current;
         const saved = await onSendInternalNote(t);
+        /* Trocou de conversa durante o POST: nunca despejar a nota no composer de OUTRA
+           conversa (o toast de falha já avisou). */
+        if (saved === false && String(conversaIdAtualRef.current ?? "") !== String(conversaDaNota ?? "")) {
+          sendLockedRef.current = null;
+          return;
+        }
         if (saved === false) {
           // Não perder o conteúdo quando a API falha. Se o usuário já começou
           // outra nota durante a requisição, preserva o novo texto e acrescenta
@@ -709,13 +771,13 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         preview={replyBarPreview}
         variant={editMode ? "edit" : "reply"}
         isRecording={isRecording}
-        sending={sending}
+        sending={controlsBusy}
         onCancel={onCancelReply}
       />
 
       <ComposerFooter
         conversaId={conversaId}
-        sending={sending}
+        sending={controlsBusy}
         podeEnviar={podeEnviar}
         editMode={editMode}
         editAllowEmpty={editAllowEmpty}

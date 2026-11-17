@@ -93,10 +93,10 @@ export function ReactionButton({
   );
 }
 
-export function ReactionBadge({ localReaction }) {
+export function ReactionBadge({ localReaction, fromPeer = false }) {
   if (!localReaction) return null;
   return (
-    <div className="wa-bubble-reaction" aria-label={`Sua reação: ${localReaction}`}>
+    <div className="wa-bubble-reaction" aria-label={`${fromPeer ? "Reação do contato" : "Sua reação"}: ${localReaction}`}>
       {localReaction}
     </div>
   );

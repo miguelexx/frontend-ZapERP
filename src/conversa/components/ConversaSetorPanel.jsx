@@ -3,6 +3,8 @@ import { IconClose } from "../conversaViewIcons";
 export default function ConversaSetorPanel({
   open,
   departamentos,
+  status,
+  onRetry,
   conversa,
   transferirSetorLoading,
   onClose,
@@ -30,7 +32,18 @@ export default function ConversaSetorPanel({
           </button>
         </div>
         <div className="wa-tagsPanel-body">
-          {departamentos.length === 0 ? (
+          {status === "error" && departamentos.length === 0 ? (
+            <div className="wa-muted" role="alert">
+              Não foi possível carregar os setores.{" "}
+              {onRetry ? (
+                <button type="button" className="wa-linkBtn" onClick={() => onRetry()}>
+                  Tentar de novo
+                </button>
+              ) : null}
+            </div>
+          ) : departamentos.length === 0 && status === "ready" ? (
+            <div className="wa-muted">Nenhum setor cadastrado.</div>
+          ) : departamentos.length === 0 ? (
             <div className="wa-muted">Carregando setores...</div>
           ) : (
             <div className="wa-tagsList">

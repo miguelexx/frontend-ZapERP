@@ -9,6 +9,11 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  /* Celular deitado (812x375): o conteúdo (~390px) passava da altura e o botão
+     "Reconectar canal" ficava cortado sem rolagem. `safe center` centra quando cabe e
+     alinha ao topo quando não cabe. */
+  overflow-y: auto;
+  align-items: safe center;
   text-align: center;
   color: #fff;
   background: #b00020;

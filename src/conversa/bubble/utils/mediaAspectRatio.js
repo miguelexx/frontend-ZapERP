@@ -41,11 +41,17 @@ export function clampAspectRatio(width, height, min = MEDIA_AR_MIN, max = MEDIA_
   return Math.round(Math.min(max, Math.max(min, ratio)) * 1000) / 1000;
 }
 
-/** Chave estável da mídia: id do provedor → id local → tempId → URL. */
+/**
+ * Chave estável da mídia: tempId → client_temp_id → id local → id do provedor → URL.
+ * tempId PRIMEIRO (16/11/2026): numa foto enviada, `id` e `whatsapp_id` chegam em patches
+ * separados da URL; com o id do provedor à frente a chave mudava, `recall` devolvia 0 e a
+ * moldura voltava ao quadrado sem `onLoad` novo para a corrigir. O reconcile preserva o
+ * tempId, então a chave fica igual durante toda a vida da bolha.
+ */
 export function mediaRatioKey(msg, fallbackSrc) {
   const m = msg && typeof msg === "object" ? msg : null;
   const id =
-    (m && (m.whatsapp_id || m.id || m.tempId || m.client_temp_id)) || "";
+    (m && (m.tempId || m.client_temp_id || m.id || m.whatsapp_id)) || "";
   if (id) return `m:${id}`;
   const src = String(fallbackSrc || "").trim();
   // blob: muda a cada sessão — não serve de chave entre remontagens.

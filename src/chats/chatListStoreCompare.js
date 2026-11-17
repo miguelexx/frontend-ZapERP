@@ -25,6 +25,11 @@ export function chatRowListStoreKey(c) {
     String(c.finalizacao_motivo ?? ""),
     Boolean(c.finalizada_automaticamente),
     String(c.aguardando_cliente_desde ?? ""),
+    // Selo de prazo do "Aguardar cliente": sem estes três, um patch que só mexe no prazo
+    // (ou no nível) era tido como "nada mudou" e o set() era pulado — o selo ficava parado.
+    String(c.aguardando_cliente_prazo_ate ?? ""),
+    String(c.aguardando_cliente_nivel ?? ""),
+    String(c.aguardando_cliente_prazo_origem ?? ""),
     String(c.ui_hint_reaberto_ausencia_cliente ?? ""),
     Boolean(c.reaberta_por_falta_interacao),
     String(c.reaberta_falta_interacao_em ?? ""),
