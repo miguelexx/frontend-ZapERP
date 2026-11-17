@@ -17,7 +17,7 @@ import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore"
 import { contactIdentitiesConflict } from "../chats/chatContactIdentity"
 import { buildPatchAguardandoPagamentoOptimista } from "../utils/pagamentoPrazoFormat"
 import { calcularAguardarClientePrazoAteLocal } from "../atendimento/aguardarClientePrazo"
-import { getStatusAtendimentoEffective } from "../utils/conversaUtils"
+import { getStatusAtendimentoEffective, isGroupConversation } from "../utils/conversaUtils"
 import { normalizeMensagemStatusKey } from "../chats/chatListStoreCompare"
 import { attachReplyMeta } from "./replyMeta"
 import {
@@ -328,6 +328,11 @@ function persistCurrentConversaToCache(state) {
 }
 
 let carregarConversaGeneration = 0
+
+/** "" para null/undefined/espaços — usado ao decidir se um campo do card está vazio. */
+function safeTrim(v) {
+  return v != null ? String(v).trim() : ""
+}
 let carregarConversaAbortController = null
 let carregarConversaCompletion = null
 let refreshConversaAbortController = null
@@ -1007,6 +1012,54 @@ export const useConversaStore = create((set, get) => {
             useChatStore.getState().updateChat(chatListPatch)
           })
         }
+
+        /*
+         * Nome e foto do detalhe também voltam para o card.
+         *
+         * O cabeçalho lê o detalhe; o card lê a row da lista. A row pode ter sido
+         * carregada ANTES de o contato ser sincronizado — é o próprio GET de abertura que
+         * dispara o enriquecimento no backend. Resultado visível: cabeçalho com a foto e
+         * card nas iniciais, lado a lado, na mesma tela.
+         *
+         * Só PREENCHE o que está vazio (`updateChatContato` / o ramo de grupo do
+         * `updateChat`): nunca troca um nome ou uma foto que o card já tem por outro —
+         * essa é a regra do doc 07 ("não limpar URL http válida da mesma pessoa"), e é
+         * `contato_atualizado` quem corrige foto trocada, não este caminho.
+         *
+         * `contactIdentitiesConflict` barra o caso em que o detalhe é de OUTRA pessoa
+         * (conversa unificada, LID remapeado): aí herdar nome/foto poria a cara de um
+         * cliente no card de outro.
+         */
+        scheduleAfterPaint(() => {
+          if (generation !== carregarConversaGeneration) return
+          if (String(get().selectedId) !== String(normalizedId)) return
+          const chatStore = useChatStore.getState()
+          const row = getChatByIdFromStore(normalizedId, chatStore.chats)
+          if (!row || !conversa) return
+          if (contactIdentitiesConflict(row, conversa)) return
+
+          if (isGroupConversation(conversa)) {
+            const nomeGrupo = safeTrim(conversa?.nome_grupo)
+            const fotoGrupo = safeTrim(conversa?.foto_grupo)
+            const patch = { id: normalizedId }
+            if (nomeGrupo && !safeTrim(row?.nome_grupo)) patch.nome_grupo = nomeGrupo
+            if (fotoGrupo && !safeTrim(row?.foto_grupo)) patch.foto_grupo = fotoGrupo
+            if (Object.keys(patch).length > 1) chatStore.updateChat(patch)
+            return
+          }
+
+          const nome = safeTrim(conversa?.contato_nome) || safeTrim(conversa?.nome_contato_cache)
+          const foto =
+            safeTrim(conversa?.foto_perfil) ||
+            safeTrim(conversa?.foto_perfil_contato_cache) ||
+            safeTrim(conversa?.cliente?.foto_perfil) ||
+            safeTrim(conversa?.clientes?.foto_perfil)
+          if (!nome && !foto) return
+          chatStore.updateChatContato(normalizedId, {
+            contato_nome: nome || undefined,
+            foto_perfil: foto || undefined,
+          })
+        })
 
         // Não disparar refresh() extra: o GET de abertura já trouxe o recorte.
         // Mensagens que chegarem no meio do load entram pelo socket (join_conversa).

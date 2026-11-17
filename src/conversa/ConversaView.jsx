@@ -946,6 +946,58 @@ function ConversaViewBody() {
     restoreMessagesScrollAnchor(messagesContainerRef.current, anchor);
   }, [selectMode]);
 
+  /*
+   * Barras no topo da thread (16/11/2026): `.wa-pinBar`, `.wa-modoSimplesLidaBar`, o banner de
+   * encerrado e o aviso "Sem conexão" entram EM FLUXO acima da lista. Com
+   * `overflow-anchor: none`, fixar uma mensagem com o atendente no meio do histórico
+   * empurrava tudo ~44px (e o banner chegado por socket fazia o mesmo). O virtualizer não vê
+   * isto (o container não muda de tamanho) e mexer na margem dele é frágil — tentativa
+   * revertida, ver doc 14. Aqui fica FORA do virtualizer: a cada commit regista quais barras
+   * existem e onde começa a lista; só quando o CONJUNTO de barras muda, compensa o scrollTop
+   * pela diferença real do início da lista, antes do paint.
+   * Fica de fora de propósito: troca de conversa, abertura (máscara) e o modo seleção — esse
+   * tem a sua própria âncora (selectModeAnchorRef), não podem compensar duas vezes.
+   */
+  const topBarsStateRef = useRef(null);
+  useLayoutEffect(() => {
+    const c = messagesContainerRef.current;
+    if (!c) {
+      topBarsStateRef.current = null;
+      return;
+    }
+    let sig = "";
+    let listTop = null;
+    for (const el of c.children) {
+      if (typeof el.matches !== "function") continue;
+      if (el.matches(".wa-pinBar, .wa-modoSimplesLidaBar, .wa-closedAttendance-banner, .wa-offlinePill")) {
+        sig += `${el.className}|`;
+      } else if (listTop == null && el.matches(".wa-messages-virtual-root, .wa-messages-static-root")) {
+        listTop = el.offsetTop;
+      }
+    }
+    const prev = topBarsStateRef.current;
+    const convKey = String(scrollThreadId ?? "");
+    topBarsStateRef.current = { convKey, selectMode, sig, listTop };
+    if (!prev || prev.convKey !== convKey || prev.selectMode !== selectMode) return;
+    if (prev.sig === sig || listTop == null || prev.listTop == null) return;
+    if (threadOpeningRef.current) return;
+    const delta = listTop - prev.listTop;
+    if (Math.abs(delta) < 1) return;
+    const now = c.scrollTop;
+    const atMax = c.scrollHeight - c.clientHeight - now < 1;
+    try {
+      if (delta > 0) {
+        // Barra entrou: conteúdo desceu `delta`; subir o scroll o mesmo tanto (no fim também).
+        c.scrollTop = now + delta;
+      } else if (!atMax) {
+        // Barra saiu: conteúdo subiu. No fim o browser já ajustou (clamp) — nada a fazer.
+        c.scrollTop = Math.max(0, now + delta);
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+
   /** Evita animação zapAnimateIn na bolha otimista (parece “pulo” ao enviar). */
   const markOptimisticSeen = useCallback(
     (msg) => {
@@ -2066,17 +2118,19 @@ function ConversaViewBody() {
     const t = safeString(forcedLooksLikeEvent ? undefined : forcedText).trim();
     if (!t) return;
     const searchResultSendTransition = beginSearchResultSendTransition();
-    const conversaAberta = await garantirConversaAbertaParaEnvio();
-    if (!conversaAberta) {
-      // O composer já limpou o campo antes de chamar este handler: sem devolver o texto, uma
-      // falha ao reabrir a conversa (rede/5xx) fazia a mensagem digitada sumir de vez.
-      if (String(useConversaStore.getState().selectedId) === String(conversaId)) {
-        const draftAtual = String(composerRef.current?.getText?.() ?? "").trim();
-        if (!draftAtual) composerRef.current?.setText?.(t);
-      }
-      return;
-    }
-    searchResultSendTransition?.afterConversationReady?.();
+    /*
+     * Reabrir pelo envio (16/11/2026): antes o `await garantirConversaAbertaParaEnvio()`
+     * corria AQUI, antes da bolha e fora da fila. (1) Enter apagava o campo e nenhuma bolha
+     * aparecia durante a ida ao servidor. (2) O reabrir já marca a conversa como aberta de
+     * forma otimista, então uma 2.ª mensagem enviada nessa janela pulava o reabrir e entrava
+     * PRIMEIRO na fila — o cliente recebia a msg2 antes da msg1. Agora a bolha nasce já e o
+     * reabrir é o 1.º passo do `runSend`, dentro da fila serializada: a ordem é a do Enter.
+     */
+    const precisaReabrir = (() => {
+      const atual = useConversaStore.getState().conversa;
+      const alvo = atual && String(atual.id) === String(conversaId) ? atual : conversa;
+      return isClosedAttendance(alvo);
+    })();
     const socket = getSocket();
     if (socket?.connected) socket.emit("typing_stop", { conversa_id: conversaId });
     const chatParaNome = fromChat ?? conversa;
@@ -2133,7 +2187,25 @@ function ConversaViewBody() {
         modo: OUTBOX_MODO_INCERTO,
         emVooMs: OUTBOX_EM_VOO_MS,
       });
-    if (!isBrowserOffline()) gravarIntencaoEmVoo();
+    // Conversa encerrada: a intenção só é gravada depois de o reabrir confirmar (dentro do
+    // runSend). Gravada antes, um F5 durante o reabrir deixava a fila offline a mandar a
+    // mensagem para uma conversa que continuava encerrada.
+    if (!isBrowserOffline() && !precisaReabrir) gravarIntencaoEmVoo();
+
+    /* O reabrir falhou: desfaz a bolha e devolve o texto, como o fluxo antigo fazia antes de
+       pintar a bolha. Se já há texto no campo (outra mensagem que falhou antes), acrescenta
+       numa linha nova para não perder nenhuma e manter a ordem. */
+    const desfazerEnvioPorFalhaAoReabrir = () => {
+      removeFromOutbox(tempId);
+      revertModoSimples?.();
+      revertOutgoingStatus?.();
+      useConversaStore.getState().removerMensagemTemp?.(tempId);
+      if (String(useConversaStore.getState().selectedId) === String(conversaId)) {
+        const draftAtual = String(composerRef.current?.getText?.() ?? "");
+        composerRef.current?.setText?.(draftAtual.trim() ? `${draftAtual}\n${t}` : t);
+        if (replyTo) setReplyTo(replyTo);
+      }
+    };
 
     const enfileirarOffline = () => {
       enqueueOutboxText({
@@ -2164,6 +2236,17 @@ function ConversaViewBody() {
       enviarTextoEmAndamentoRef.current = true;
       setSendingTracked(true);
       try {
+        // 1.º passo, dentro da fila: garante a conversa aberta (reabre se estiver encerrada).
+        // Antes do teste de offline de propósito: sem rede o reabrir falha e a mensagem volta
+        // ao campo, exatamente como antes — nunca vai para a fila offline de conversa fechada.
+        const conversaAberta = await garantirConversaAbertaParaEnvio();
+        if (!conversaAberta) {
+          envioFalhou = true;
+          desfazerEnvioPorFalhaAoReabrir();
+          return;
+        }
+        searchResultSendTransition?.afterConversationReady?.();
+
         // Sem internet: bolha ja esta na tela; persiste e espera reconexao.
         // Nao chama a API (evitaria timeout longo) e nao marca erro.
         if (isBrowserOffline()) {

@@ -245,16 +245,26 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
 - **Composer informa a altura do BLOCO** (`.wa-composerStack`) em `onTextMetrics`: a barra de
   resposta/edição também reancora a thread no fim.
 
-### Pendências conhecidas (não feitas nesta auditoria)
+### Pendências conhecidas
 
-- **Barra fixada / "marcar como lida" / banner de encerrado chegado por socket** ainda deslocam
-  a thread (~44px medido) quando o atendente está no meio do histórico. Tentativa com
-  MutationObserver + `scrollMargin` revertida: as linhas são pintadas em `translateY(start)` e
-  o `start` do TanStack JÁ inclui `scrollMargin`, então mudar a margem move raiz e linhas — a
-  compensação precisa de âncora por DOM (linha visível + `getBoundingClientRect`), não de
-  aritmética de margem. Também derivou o histórico ao interagir com `.wa-loadOlder*`.
-- Reabrir conversa pelo envio espera a rede ANTES da bolha otimista e pode inverter a ordem de
-  2 mensagens rápidas (mover `garantirConversaAbertaParaEnvio` para dentro da fila `runSend`).
+- **Barras no topo da thread — RESOLVIDO (16/11/2026, 2.ª rodada).** Fixar/desafixar, "marcar
+  como lida", banner de encerrado (inclusive por socket) e "Sem conexão" deslocavam a thread
+  ~45px. A correção fica FORA do virtualizer: um `useLayoutEffect` sem deps no `ConversaView`
+  (`topBarsStateRef`) regista a cada commit quais barras existem e o `offsetTop` da raiz da
+  lista; só quando o conjunto de barras muda compensa o `scrollTop` pela diferença (entrou:
+  `+delta`, também no fim; saiu: `-delta`, exceto no fim, onde o clamp do browser já basta).
+  Ignora troca de conversa, abertura (máscara) e mudança de `selectMode` (tem âncora própria).
+  NÃO mexer na margem do virtualizer para isto: o `start` do TanStack já inclui
+  `scrollMargin` (tentativa via MutationObserver + margem foi revertida — derivava o histórico
+  com `.wa-loadOlder*`). Regressão: `e2e/thread-top-bars.spec.js` (A/B: 45px → 0,2px).
+- **Reabrir pelo envio — RESOLVIDO (16/11/2026, 2.ª rodada).** `handleEnviar` pinta a bolha na
+  hora e `garantirConversaAbertaParaEnvio()` é o 1.º passo do `runSend`, DENTRO da fila
+  serializada `enviarTextoQueueRef` — a ordem é a do Enter. Conversa encerrada não grava a
+  intenção na outbox antes de o reabrir confirmar. Reabrir falhou → bolha removida
+  (`removerMensagemTemp`), status revertido, texto devolvido ao campo (acrescentado numa linha
+  nova se já houver texto). Regressão: `e2e/reabrir-envio-ordem.spec.js` (antes: servidor
+  recebia a msg2 antes da msg1 e a bolha levava ~950ms). Mídia (`useConversationOutboundMedia`)
+  ainda chama `garantirConversaAbertaParaEnvio` antes da bolha — mesmo padrão, não alterado.
 - Grupos: `BubbleTypedContent` remonta quando `__showRemetente` alterna; onda do áudio mede
   34 barras e depois N (fazer `update()` síncrono); cartão de link compacto não vai ao cache;
   "apagar para todos" tira o `tempId` e remonta a bolha.

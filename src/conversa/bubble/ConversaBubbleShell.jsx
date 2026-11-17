@@ -152,6 +152,11 @@ const Bubble = memo(function Bubble({
   const [reactionExpanded, setReactionExpanded] = useState(false);
   const showReactionPicker = !isCall && (reactionOpen || showMobileReactionPicker);
 
+  // Barra de reações no topo do menu (igual WhatsApp Web) — vale para o menu da setinha, para
+  // o clique-direito e para o bottom-sheet mobile. Só não aparece em ligação ou mensagem
+  // apagada para todos, onde reagir não existe.
+  const menuShowsReactionBar = !isCall && !msg?.apagada_para_todos;
+
   const {
     menuOpen,
     setMenuOpen,
@@ -160,14 +165,16 @@ const Bubble = memo(function Bubble({
     menuAnchorRef,
     menuBtnRef,
     menuElRef,
-  } = useMessageMenu({ menuUsesBottomSheet });
+  } = useMessageMenu({
+    menuUsesBottomSheet,
+    anchoredWidth: menuShowsReactionBar ? 268 : 220,
+    reflowKey: reactionExpanded,
+  });
 
-  // Desktop: menu aberto por clique-direito mostra a barra de reações no topo (igual WhatsApp
-  // Web). O menu da setinha (hover) segue enxuto, sem reações.
-  const [menuViaContext, setMenuViaContext] = useState(false);
+  // Fechou o menu (backdrop/Esc) ou o picker: a barra volta compacta na proxima abertura.
   useEffect(() => {
-    if (!menuOpen) setMenuViaContext(false);
-  }, [menuOpen]);
+    if (!menuOpen && !reactionOpen) setReactionExpanded(false);
+  }, [menuOpen, reactionOpen]);
 
   const onBubbleContextMenuDesktop = useCallback(
     (e) => {
@@ -178,7 +185,6 @@ const Bubble = memo(function Bubble({
       }
       e.preventDefault();
       if (selectMode) return;
-      setMenuViaContext(true);
       openMenuAtPoint(e.clientX, e.clientY);
     },
     [selectMode, openMenuAtPoint]
@@ -653,7 +659,7 @@ const Bubble = memo(function Bubble({
         menuStyle={menuStyle}
         menuElRef={menuElRef}
         mobileMessageChrome={mobileMessageChrome}
-        showReactionBar={mobileMessageChrome || menuViaContext}
+        showReactionBar={menuShowsReactionBar}
         isCall={isCall}
         apagadaParaTodos={msg?.apagada_para_todos}
         out={out}

@@ -346,6 +346,40 @@ Regressão coberta por `e2e/avatar-foto-perfil.spec.js`, que **aborta** o host d
 (simulando o aparelho) e exige que as fotos apareçam mesmo assim, nos dois projects
 (desktop e mobile).
 
+## O detalhe devolve nome e foto para o card (CONFIRMADO 2026-11-16)
+
+**Sintoma:** com a conversa aberta no desktop, o **cabeçalho mostrava a foto** do cliente e
+o **card da lista ficava nas iniciais** — a mesma pessoa, lado a lado, na mesma tela.
+
+**Causa:** são duas fontes. O cabeçalho (`useConversationHeaderIdentity`) lê o detalhe
+(`GET /chats/:id`); o card lê a row da lista (`GET /chats`). A row pode ter sido carregada
+**antes** de o contato ser sincronizado — é o próprio GET de abertura que dispara o
+enriquecimento no backend (`helpers/conversaEnrichment.js`). No `carregarConversa`, o único
+patch que voltava para a lista era de **status** (`status_atendimento`,
+`aguardando_cliente_desde`, `exibir_badge_aberta`); nome e foto nunca voltavam, então o card
+ficava parado nas iniciais até um refresh completo.
+
+**Regra:** ao terminar o load do detalhe, `conversaStore.carregarConversa` também devolve
+nome/foto para a row — contato via `updateChatContato`, grupo via o ramo de
+`nome_grupo`/`foto_grupo` do `updateChat`.
+
+Pontos que não podem ser "simplificados":
+
+- **Só PREENCHE o que está vazio.** Este caminho nunca troca um nome ou uma foto que o card
+  já tem — é a regra do bloco de sincronização mais abaixo ("não limpar URL http válida da
+  mesma pessoa"). Quem **corrige** foto trocada é o evento `contato_atualizado`, não este.
+- **`contactIdentitiesConflict(row, conversa)` barra a herança** quando o detalhe é de outra
+  pessoa (conversa unificada, LID remapeado) — sem isso, a cara de um cliente entraria no
+  card de outro.
+- **Roda dentro de `scheduleAfterPaint`** com as mesmas guardas do patch de status
+  (`generation` e `selectedId`): abrir outra conversa no meio do load não pode deixar o
+  patch cair na row errada.
+
+Regressão coberta por `e2e/avatar-card-sincroniza.spec.js`: a lista devolve a row **sempre
+sem foto**, o detalhe traz a foto, e o teste exige que o card acompanhe **e continue com a
+foto** depois dos refreshes seguintes. É desktop-only porque no mobile a lista sai da tela
+quando a conversa abre — o bug não depende de layout.
+
 ## Tique de envio: card e bolha, uma decisão só (CONFIRMADO 2026-11-03)
 
 A mesma mensagem aparecia com ✓✓ na thread e ✓ no card. Eram duas regras: a bolha em

@@ -13,7 +13,7 @@ function shallowStyleEqual(a, b) {
   return true;
 }
 
-export function useMessageMenu({ menuUsesBottomSheet } = {}) {
+export function useMessageMenu({ menuUsesBottomSheet, anchoredWidth = 220, reflowKey = null } = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
   const menuAnchorRef = useRef(null);
@@ -141,7 +141,9 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
     }
 
     const rect = anchorEl.getBoundingClientRect();
-    const desiredW = 220;
+    // Com a barra de reacoes no topo, o menu da setinha precisa do mesmo card largo do
+    // clique-direito, senao a pilha de emojis quebra em duas linhas.
+    const desiredW = anchoredWidth;
     const w = Math.max(180, Math.min(desiredW, vw - 16));
 
     let left = rect.right - w;
@@ -186,14 +188,17 @@ export function useMessageMenu({ menuUsesBottomSheet } = {}) {
       zIndex: 10002,
       transformOrigin: `${placed === "up" ? "bottom" : "top"} ${Math.round(clamp(rect.right - left, 0, w))}px`,
     });
-  }, [menuUsesBottomSheet, applyMenuStyle]);
+  }, [menuUsesBottomSheet, anchoredWidth, applyMenuStyle]);
 
+  // `reflowKey` existe para o conteudo que muda com o menu ABERTO (ex.: "+" da barra de
+  // reacoes, que acrescenta uma linha de emojis): sem reposicionar, o card cresce para fora
+  // da viewport.
   useLayoutEffect(() => {
     if (!menuOpen || menuUsesBottomSheet) return;
     computeMenuPosition();
     const raf = requestAnimationFrame(() => computeMenuPosition());
     return () => cancelAnimationFrame(raf);
-  }, [menuOpen, menuUsesBottomSheet, computeMenuPosition]);
+  }, [menuOpen, menuUsesBottomSheet, reflowKey, computeMenuPosition]);
 
   useEffect(() => {
     if (!menuOpen) return;
