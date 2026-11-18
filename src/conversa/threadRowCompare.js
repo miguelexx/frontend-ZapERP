@@ -59,6 +59,7 @@ export function messageRowVisualSignature(item) {
     safeStr(item.apagada_por_nome),
     item.encaminhado ? "1" : "0",
     item.__showRemetente ? "1" : "0",
+    safeStr(item.__botCompact),
     safeStr(item.__reaction),
     item.__captionBundleTop ? "1" : "0",
     item.__captionBundleFollow ? "1" : "0",

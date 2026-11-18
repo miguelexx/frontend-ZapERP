@@ -1,5 +1,5 @@
-import { memo } from "react";
-import { ArrowLeftRight, EyeOff, Pencil, ShieldCheck, StickyNote, UserCheck } from "lucide-react";
+import { memo, useState } from "react";
+import { ArrowLeftRight, Bot, ChevronDown, EyeOff, Pencil, ShieldCheck, StickyNote, UserCheck } from "lucide-react";
 import DaySeparator from "./DaySeparator";
 import { threadRowPropsAreEqual } from "./threadRowCompare";
 import { formatHora } from "./utils/conversaViewHelpers";
@@ -119,6 +119,38 @@ function InternalNoteCard({ item, zapAnimateIn, canEdit, onEdit }) {
 }
 
 /**
+ * Triagem automática resumida (18/11/2026): o menu de setores e a confirmação do bot viram uma
+ * pílula central, como os avisos de sistema do WhatsApp. Só visual — a mensagem é a mesma; um
+ * toque abre a bolha original logo abaixo (copiar, dados da mensagem, etc. continuam lá).
+ */
+function BotTriageRow({ item, children }) {
+  const [open, setOpen] = useState(false);
+  const label = String(item?.__botCompact || "");
+  const kind = item?.__botCompactKind === "menu" ? "menu" : "confirmacao";
+  return (
+    <div className={`wa-botTriage${open ? " is-open" : ""}`}>
+      <div className="wa-row wa-row-botTriage" data-msg-id={item?.id}>
+        <button
+          type="button"
+          className={`wa-botTriage-pill wa-botTriage-pill--${kind}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={open ? "Recolher mensagem automática" : "Ver a mensagem automática completa"}
+        >
+          <span className="wa-botTriage-icon" aria-hidden="true">
+            <Bot size={13} strokeWidth={2.2} />
+          </span>
+          <span className="wa-botTriage-label">{label}</span>
+          <span className="wa-botTriage-time">{formatHora(item?.criado_em)}</span>
+          <ChevronDown className="wa-botTriage-chev" size={13} strokeWidth={2.2} aria-hidden="true" />
+        </button>
+      </div>
+      {open ? children : null}
+    </div>
+  );
+}
+
+/**
  * Uma linha do thread virtualizado: separador de dia ou bolha de mensagem.
  * BubbleComponent vem do ConversaView (referência estável) para evitar mover ~800 linhas nesta etapa.
  */
@@ -216,7 +248,7 @@ function ThreadRow({
     return <InternalMovementCard item={item} zapAnimateIn={zapAnimateIn} />;
   }
 
-  return (
+  const bubble = (
     <BubbleComponent
       msg={item}
       zapAnimateIn={zapAnimateIn}
@@ -261,6 +293,13 @@ function ThreadRow({
       menuUsesBottomSheet={menuUsesBottomSheet}
     />
   );
+
+  /* No modo seleção a bolha aparece inteira: a pílula não tem caixa de seleção. */
+  if (item.__botCompact && !selectMode) {
+    return <BotTriageRow item={item}>{bubble}</BotTriageRow>;
+  }
+
+  return bubble;
 }
 
 export default memo(ThreadRow, threadRowPropsAreEqual);

@@ -325,6 +325,14 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
   `--tag-texto`) lidas pela regra; `tagTextColor` escolhe texto escuro em cor clara.
 - **Aviso "WhatsApp desconectado" (claro) com 2.8:1 — RESOLVIDO.** Texto do mesmo âmbar,
   escurecido via `color-mix` (~6.5:1); borda/ícone e o tema escuro ficam como estavam.
+- **Triagem automática resumida na thread (18/11/2026, só visual).** `utils/botTriageDisplay.js`
+  decide como DESENHAR; bot, backend e store intocados. Menu de setores e confirmação do bot
+  (saída, texto, SEM autor/`usuario_nome`/`enviado_por_usuario`/tempId + padrão de menu ou de
+  confirmação) viram pílula central (`BotTriageRow` no `ThreadRow`, `__botCompact` na linha) que
+  expande a bolha original; no modo seleção a bolha aparece inteira. A movimentação `transferiu`
+  sem `de_usuario_id` (sistema) não é desenhada (`isSystemTransferMovement`, filtrada no
+  `buildMensagensComSeparadores`); a feita por atendente continua. O bot não marca as próprias
+  mensagens — se um dia marcar, troque a heurística pela marca.
 - **Grupos: remontagem do conteúdo da bolha — NÃO alterado de propósito.** Quando
   `__showRemetente` alterna (lote antigo carregado acima, nome que chega depois), o
   `BubbleTypedContent` troca de pai (`.wa-bubble-remetente` ↔ `.wa-bubble-body`) e remonta (foto

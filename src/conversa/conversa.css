@@ -16549,3 +16549,90 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
 [data-theme="dark"] .wa-pinBar-hint {
   color: var(--wa-text-muted);
 }
+
+/* =========================================================
+   TRIAGEM AUTOMÁTICA RESUMIDA (botTriageDisplay, 18/11/2026)
+   Menu de setores e confirmação do bot viram uma pílula central — mesma família visual do
+   separador de dia. Um toque abre a bolha original logo abaixo. Só visual.
+========================================================= */
+
+.wa-row.wa-row-botTriage {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.wa-botTriage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(520px, 92%);
+  min-height: 28px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 78%, transparent);
+  background: color-mix(in srgb, var(--wa-panel) 78%, transparent);
+  color: var(--ds-text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 16%, transparent),
+    0 6px 18px -15px rgba(15, 23, 42, 0.36);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wa-botTriage-pill:hover {
+  color: var(--wa-text);
+  border-color: color-mix(in srgb, var(--wa-green) 34%, var(--wa-panel-border));
+}
+
+.wa-botTriage-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--wa-green);
+  background: color-mix(in srgb, var(--wa-green) 13%, transparent);
+}
+
+.wa-botTriage-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wa-botTriage-time {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.wa-botTriage-chev {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  transition: transform 160ms ease;
+}
+
+.wa-botTriage.is-open .wa-botTriage-chev {
+  transform: rotate(180deg);
+}
+
+[data-theme="dark"] .wa-botTriage-pill {
+  background: rgba(255, 255, 255, 0.08);
+  color: #9fb0bd;
+}
+
+@media (max-width: 640px) {
+  .wa-botTriage-pill {
+    max-width: 94%;
+    font-size: 11px;
+  }
+}

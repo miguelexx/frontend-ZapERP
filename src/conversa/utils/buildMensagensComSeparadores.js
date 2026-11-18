@@ -11,21 +11,28 @@ import {
   sameCaptionBundleAuthor,
   captionFollowTimeOk,
 } from "./conversaViewHelpers";
+import { botTriageLabel, classifyBotTriageMessage, isSystemTransferMovement } from "./botTriageDisplay";
 
 const timelineMsgRowCache = new WeakMap();
 
-export function getOrCreateTimelineMsgRow(msg, showRemetente, reaction) {
+export function getOrCreateTimelineMsgRow(msg, showRemetente, reaction, botCompact = null) {
   const cached = timelineMsgRowCache.get(msg);
   if (
     cached &&
     cached.__showRemetente === showRemetente &&
     cached.__reaction === reaction &&
+    (cached.__botCompact ?? null) === botCompact &&
     !cached.__captionBundleTop &&
     !cached.__captionBundleFollow
   ) {
     return cached;
   }
   const row = { ...msg, __type: "msg", __showRemetente: showRemetente, __reaction: reaction };
+  /* Rótulo da pílula da triagem automática (botTriageDisplay) — só visual. */
+  if (botCompact) {
+    row.__botCompact = botCompact;
+    row.__botCompactKind = botCompact.startsWith("Menu") ? "menu" : "confirmacao";
+  }
   timelineMsgRowCache.set(msg, row);
   return row;
 }
@@ -76,6 +83,10 @@ export function buildMensagensComSeparadores(mensagens, isGroup) {
       }
       continue;
     }
+    /* Transferência feita pelo SISTEMA (triagem/distribuição): o card escuro de "Movimentação
+       interna" não é desenhado — poluía a thread sem dizer nada ao atendente (18/11/2026).
+       Transferências feitas por uma pessoa continuam aparecendo. */
+    if (isSystemTransferMovement(msg)) continue;
     list.push(msg);
   }
 
@@ -111,8 +122,10 @@ export function buildMensagensComSeparadores(mensagens, isGroup) {
       (isNewDay || !prev || prevOut || curSender !== prevSender);
 
     const reaction = reactionsByMsgId[String(msg.id)];
+    const botInfo = classifyBotTriageMessage(msg);
+    const botCompact = botInfo ? botTriageLabel(botInfo) : null;
 
-    out.push(getOrCreateTimelineMsgRow(msg, showRemetente, reaction));
+    out.push(getOrCreateTimelineMsgRow(msg, showRemetente, reaction, botCompact));
   }
 
   for (let i = 0; i < out.length; i++) {

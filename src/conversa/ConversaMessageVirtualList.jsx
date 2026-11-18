@@ -28,6 +28,8 @@ function isInternalMovementEstimate(item) {
 function estimateThreadRowSize(item, mobileThread) {
   if (!item) return mobileThread ? 112 : 96;
   if (item.__type === "day") return mobileThread ? 34 : 32;
+  /* Pílula da triagem automática (recolhida). Expandida, a medição real corrige. */
+  if (item.__botCompact) return mobileThread ? 40 : 38;
   if (isInternalMovementEstimate(item)) return mobileThread ? 116 : 98;
   const tipo = String(item.tipo || "").toLowerCase();
   if (tipo === "sticker") return mobileThread ? 132 : 140;
