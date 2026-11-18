@@ -126,8 +126,11 @@ function ConversaViewOverlays({
   shareContactList,
   shareContactLoading,
   shareContactSending,
+  shareContactSelectedIds,
+  shareContactMax,
   handleShareContactClose,
-  handleShareContactSelect,
+  toggleShareContactSelect,
+  handleShareContactConfirm,
   shareLocationOpen,
   shareLocationGeoLoading,
   shareLocationGeoError,
@@ -326,8 +329,11 @@ function ConversaViewOverlays({
             list={shareContactList}
             loading={shareContactLoading}
             sending={shareContactSending}
+            selectedIds={shareContactSelectedIds}
+            maxSelecionados={shareContactMax}
+            onToggleContact={toggleShareContactSelect}
+            onConfirm={handleShareContactConfirm}
             onClose={handleShareContactClose}
-            onSelectContact={handleShareContactSelect}
           />
         </Suspense>
       ) : null}

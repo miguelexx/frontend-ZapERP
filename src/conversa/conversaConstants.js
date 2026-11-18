@@ -1,6 +1,8 @@
 /** Limites e constantes da tela de conversa (compartilhados). */
 export const FORWARD_SELECT_MAX = 30;
 export const FORWARD_DEST_MAX = 10;
+/** Máximo de contatos marcados por envio no modal "Enviar contato" (um POST por contato). */
+export const SHARE_CONTACT_MAX = 10;
 export const STICKER_RECENTS_LIMIT = 36;
 /** Máximo de documentos por envio no menu Documentos (estilo WhatsApp Web). */
 export const MAX_DOCUMENTOS_LOTE_ENVIO = 4;

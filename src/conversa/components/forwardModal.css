@@ -459,3 +459,69 @@
   border-color: rgba(0, 212, 170, 0.4);
   background: rgba(46, 134, 255, 0.13);
 }
+
+/* =========================================================
+   ENVIAR CONTATO — agenda estilo WhatsApp (.wa-share*)
+   Dono: ShareContactModal. Reaproveita a linha .wa-fwdRow do
+   encaminhar; aqui só o que é próprio da agenda (busca fixa,
+   letra de seção e lista mais justa).
+========================================================= */
+
+/* Busca fixa no topo: rolar a agenda não esconde o campo.
+   O top negativo cobre o padding do .wa-modal-body ao grudar. */
+.wa-shareSearchWrap {
+  position: sticky;
+  top: -12px;
+  z-index: 3;
+  margin: -12px 0 0;
+  padding: 12px 0 6px;
+  background: var(--ds-bg-raised);
+}
+
+.wa-shareSection {
+  margin-top: 0;
+}
+
+.wa-shareLetter {
+  margin: 12px 2px 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--wa-green, #2E86FF);
+}
+
+.wa-shareSection:first-of-type .wa-shareLetter {
+  margin-top: 2px;
+}
+
+.wa-shareSection .wa-forwardList {
+  gap: 2px;
+}
+
+@media (max-width: 560px) {
+  /* Sem o cartão cinza das seções do encaminhar: a agenda é uma lista contínua. */
+  .wa-forwardOverlay .wa-shareSection {
+    margin-top: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  [data-theme="dark"] .wa-forwardOverlay .wa-shareSection {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .wa-forwardOverlay .wa-shareLetter {
+    margin: 12px 4px 4px;
+    font-size: 12px;
+  }
+
+  .wa-forwardOverlay .wa-shareSection .wa-forwardList {
+    gap: 2px;
+  }
+
+  .wa-forwardOverlay .wa-shareSearchWrap {
+    padding-bottom: 4px;
+  }
+}

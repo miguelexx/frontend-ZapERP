@@ -453,6 +453,14 @@
       outline 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
+  /* Em movimento, sem transição (18/11/2026). O `!important` acima vencia o `transition: none`
+     do `.is-scrolling` em `conversa.css`: no início E no fim de cada rolagem (inclusive os
+     snaps da abertura) todas as bolhas visíveis animavam a sombra por 160ms — recálculo de
+     estilo + pintura a cada frame, ~6 recálculos da thread inteira por abertura medidos. */
+  html body .app-layout #main-content .wa-messages.is-scrolling .wa-bubble {
+    transition: none !important;
+  }
+
   @media (hover: hover) {
     html body .app-layout #main-content .wa-messages .wa-bubble:hover {
       /* Sem salto. A sombra de `conversa.css` continua a fazer o realce. */

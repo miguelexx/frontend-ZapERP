@@ -50,6 +50,33 @@
   - O snap de abertura (`useAutoScroll`) só libera a máscara quando as `<img>` visíveis
     decodificaram e a altura ficou parada 2 frames (teto `OPEN_MEDIA_WAIT_MAX_MS` = 650ms).
   - O fallback de 1,1s da máscara conta a partir de `!loading`, não do clique.
+- **Abertura pelo cache espera a lista do servidor** (17/11/2026, regressão
+  `e2e/thread-open-premium.spec.js`). Antes a máscara caía sobre a lista do CACHE e o GET de
+  abertura trocava-a já à vista: 36px (1 msg nova), 149px (lote maior) no desktop, 166px no
+  celular. Agora `conversaStore.openRefreshPendingId` marca "abriu pelo cache, GET pendente";
+  o `ConversaView` mantém `threadOpening` enquanto ele vale (prazo `OPEN_FRESH_WAIT_MAX_MS` =
+  850ms), `setThreadOpening(false)` é ignorado nessa fase, e o `useAutoScroll` (prop
+  `awaitingFresh`) refaz a abertura inteira quando ele cai. Limpe o campo no MESMO `set` da lista
+  nova e no `finally` — se ficar preso, só o prazo solta a conversa.
+- **Lista estática ↔ virtual no celular tem histerese por conversa** (`ConversaThread`): decide
+  na 1.ª pintura com itens (> 24 = virtual); estática só vira virtual acima de 60
+  (`MOBILE_STATIC_KEEP_MAX`); virtual nunca volta. Trocar de componente remonta todas as bolhas.
+- **Véu da abertura** (`components/ThreadOpeningVeil.jsx`): bolhas-fantasma ancoradas no fundo
+  durante a máscara, fade cruzado com a thread. É irmão ABSOLUTO do `.wa-messages` (copia a caixa
+  dele); dentro do scroller entraria no gap do flex, no `offsetTop` da lista e no `scrollHeight`.
+  Com o véu ativo o `ConversaThread` não desenha o `SkeletonMessages` (`suppressLoadingSkeleton`).
+- **Sonda de salto lê depois da pintura** (rAF → `MessageChannel`). Ler dentro do rAF força o
+  layout antes do ResizeObserver reancorar e acusa saltos que nunca foram pintados (101px falso
+  medido no celular).
+- **`.is-scrolling` não pode perder para o `transition` da bolha** (18/11/2026): o
+  `conversa.polish.css` (desktop) dá à `.wa-bubble` `transition: box-shadow … !important`, que
+  vencia o `transition: none` do `.is-scrolling` — no início e no fim de cada rolagem todas as
+  bolhas animavam a sombra por 160ms (recálculo de estilo por frame). Há um override com
+  `.is-scrolling` na mesma especificidade+1. Com a máscara de abertura ativa a classe nem é posta
+  (o scroll é só dos snaps). Custo medido da abertura (CPU 4×, build de produção): o grosso é
+  recálculo de ESTILO (~200ms), não layout (~30ms) nem seletor (`:has()` soma ~50ms no total).
+- **`dist/` é versionado** neste repo: `npm run build` sobrescreve os assets commitados. Para
+  medir, gere em outra pasta (`vite build --outDir <tmp>`).
 - Safe-area inferior com conversa aberta é do `.wa-footer`, não do `main-content` (doc 11).
   Reservar nos dois volta a deixar a faixa morta debaixo do composer.
 - Mobile 640px: lista XOR chat; `popstate` só fecha UI.

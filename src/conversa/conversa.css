@@ -2346,6 +2346,124 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
   transition: none;
 }
 
+/* Véu da abertura (ThreadOpeningVeil, 17/11/2026): bolhas-fantasma ancoradas no fundo
+   cobrem o intervalo da máscara e saem em fade cruzado com a thread. Irmão absoluto do
+   scroller (não entra no fluxo nem no scrollHeight). Entra com um pequeno atraso: abertura
+   rápida não chega a mostrar o véu; sai mais rápido do que a thread entra (220ms) para as
+   duas camadas não ficarem sobrepostas por muito tempo. */
+.wa-openVeil {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 160ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 160ms;
+}
+
+.wa-openVeil.is-active {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 200ms cubic-bezier(0.16, 1, 0.3, 1) 90ms,
+    visibility 0s linear 0s;
+}
+
+.wa-openVeil-rows {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 var(--veil-pad-x-r, 24px) var(--veil-pad-b, 18px) var(--veil-pad-x-l, 24px);
+}
+
+.wa-openVeil-row {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.wa-openVeil-row--in {
+  justify-content: flex-start;
+}
+
+.wa-openVeil-row--out {
+  justify-content: flex-end;
+}
+
+.wa-openVeil-bubble {
+  display: block;
+  max-width: 420px;
+  min-width: 96px;
+  border-radius: var(--wa-bubble-radius-lg, 12px);
+  background: var(--wa-bubble-in);
+  opacity: 0.55;
+  box-shadow: var(--wa-shadow-bubble);
+  position: relative;
+  overflow: hidden;
+}
+
+.wa-openVeil-row--out .wa-openVeil-bubble {
+  background: var(--wa-bubble-out);
+}
+
+/* No escuro a bolha enviada é clara sobre fundo marinho: a 55% o fantasma ficava mais
+   chamativo do que as mensagens de verdade. O esqueleto tem de ser mais quieto que o conteúdo. */
+[data-theme="dark"] .wa-openVeil-bubble {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .wa-openVeil-row--out .wa-openVeil-bubble {
+  opacity: 0.22;
+}
+
+/* Brilho que atravessa as bolhas — só transform (compositor) e só com o véu ativo. */
+.wa-openVeil-bubble::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--ds-text-primary, #000) 7%, transparent) 50%,
+    transparent 80%
+  );
+  transform: translateX(-100%);
+}
+
+.wa-openVeil.is-active .wa-openVeil-bubble::after {
+  animation: wa-openVeil-sheen 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes wa-openVeil-sheen {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-openVeil.is-active .wa-openVeil-bubble::after {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .wa-openVeil-rows {
+    gap: 8px;
+  }
+  .wa-openVeil-bubble {
+    max-width: 78%;
+    min-width: 84px;
+  }
+}
+
 /* Não mantém o grande glow animado competindo por composição enquanto a thread rola. */
 .wa-messages.is-scrolling::before,
 .wa-messages.is-scrolling::after {
@@ -11394,66 +11512,341 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   border-color: var(--ds-border);
 }
 
-/* ===== Painel unificado: Emojis + Figurinhas (abas) ===== */
+/* ===== Painel unificado: Emojis + Figurinhas (estilo WhatsApp) =====
+   topo = categorias · busca em pílula · seções com título · rodapé Emoji|Figurinhas */
 .wa-mediaPanel {
   animation: wa-panelAppear 0.18s ease-out;
-}
-.wa-mediaTabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: var(--wa-header-bg);
-}
-.wa-mediaTab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--wa-text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.08s ease;
-}
-.wa-mediaTab svg {
-  opacity: 0.85;
-}
-.wa-mediaTab:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--wa-text);
-}
-.wa-mediaTab:active {
-  transform: scale(0.97);
-}
-.wa-mediaTab.isActive {
-  background: color-mix(in srgb, var(--wa-green) 14%, transparent);
-  color: var(--wa-green);
-}
-.wa-mediaTab.isActive svg {
-  opacity: 1;
 }
 .wa-mediaBtn.isActive {
   color: var(--wa-green);
   background: color-mix(in srgb, var(--wa-green) 10%, transparent);
 }
 
-[data-theme="dark"] .wa-mediaTabs {
-  background: var(--ds-surface-2);
-  border-color: var(--ds-border);
+.wa-mp {
+  --mp-bg: #ffffff;
+  --mp-soft: #f0f2f5;
+  --mp-hover: rgba(17, 27, 33, 0.06);
+  --mp-line: rgba(17, 27, 33, 0.08);
+  --mp-icon: #8696a0;
+  --mp-text: #111b21;
+  --mp-muted: #667781;
+  width: min(440px, calc(100vw - 32px));
+  height: min(440px, calc(100vh - 120px));
+  height: min(440px, calc(100dvh - 120px));
+  background: var(--mp-bg);
+  border: 1px solid var(--mp-line);
+  border-radius: 18px;
+  box-shadow:
+    0 2px 6px rgba(11, 20, 26, 0.06),
+    0 18px 48px rgba(11, 20, 26, 0.16);
 }
-[data-theme="dark"] .wa-mediaTab:hover {
-  background: var(--ds-hover);
-  color: var(--wa-text);
+
+/* Categorias (topo) */
+.wa-mpCats {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 2px;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid var(--mp-line);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-[data-theme="dark"] .wa-mediaTab.isActive {
-  background: color-mix(in srgb, var(--wa-green) 22%, transparent);
+.wa-mpCats::-webkit-scrollbar { display: none; }
+.wa-mpCat {
+  position: relative;
+  flex: 1 0 36px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--mp-icon);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.wa-mpCat:hover { color: var(--mp-text); background: var(--mp-hover); }
+.wa-mpCat::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--wa-green);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+.wa-mpCat.isActive { color: var(--wa-green); }
+.wa-mpCat.isActive::after { transform: scaleX(1); }
+.wa-mpCat:focus-visible { outline: 2px solid var(--wa-green); outline-offset: -2px; }
+
+/* Título da aba Figurinhas */
+.wa-mpTitleBar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 49px;
+  padding: 0 14px 0 18px;
+  border-bottom: 1px solid var(--mp-line);
+}
+.wa-mpTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mp-text);
+}
+.wa-mpCreateLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wa-green) 12%, transparent);
   color: var(--wa-green);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.wa-mpCreateLink span { font-size: 17px; line-height: 1; }
+.wa-mpCreateLink:hover { background: color-mix(in srgb, var(--wa-green) 18%, transparent); }
+
+/* Busca em pílula */
+.wa-mpSearchRow {
+  flex: 0 0 auto;
+  padding: 10px 14px 4px;
+}
+.wa-mpSearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px 0 14px;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  background: var(--mp-soft);
+  color: var(--mp-icon);
+  cursor: text;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.wa-mpSearch:focus-within {
+  background: var(--mp-bg);
+  border-color: var(--wa-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-green) 14%, transparent);
+}
+.wa-mpSearchIcon { display: inline-flex; flex: 0 0 auto; }
+.wa-mpSearch input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--mp-text);
+  font-size: 14.5px;
+}
+.wa-mpSearch input::placeholder { color: var(--mp-muted); }
+.wa-mpSearchClear {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mp-muted);
+  cursor: pointer;
+}
+.wa-mpSearchClear:hover { background: var(--mp-hover); color: var(--mp-text); }
+
+/* Corpo rolável com seções */
+.wa-mpBody {
+  position: relative; /* offsetTop das seções relativo ao corpo (scroll-spy) */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 10px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(134, 150, 160, 0.45) transparent;
+}
+.wa-mpBody::-webkit-scrollbar { width: 6px; }
+.wa-mpBody::-webkit-scrollbar-thumb { background: rgba(134, 150, 160, 0.45); border-radius: 6px; }
+.wa-mpBody::-webkit-scrollbar-track { background: transparent; }
+.wa-mpSection { padding-top: 4px; }
+.wa-mpSectionTitle {
+  margin: 0;
+  padding: 12px 6px 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--mp-muted);
+}
+
+.wa-mpEmojiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+}
+.wa-mpEmoji {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+.wa-mpEmoji:hover { background: var(--mp-hover); transform: scale(1.12); }
+.wa-mpEmoji:active { transform: scale(0.94); }
+.wa-mpEmoji:focus-visible { outline: 2px solid var(--wa-green); outline-offset: -2px; }
+
+.wa-mpEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 100%;
+  padding: 36px 24px;
+  text-align: center;
+  color: var(--mp-muted);
+  font-size: 13px;
+}
+.wa-mpEmpty strong { color: var(--mp-text); font-size: 14.5px; font-weight: 600; }
+.wa-mpEmptyIcon { font-size: 34px; margin-bottom: 4px; opacity: 0.7; }
+
+/* Figurinhas */
+.wa-mpStickerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 6px;
+  padding: 0 4px;
+}
+.wa-mpSticker,
+.wa-mpStickerCreate {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.wa-mpSticker:hover { background: var(--mp-hover); }
+.wa-mpSticker:hover img { transform: scale(1.06); }
+.wa-mpSticker:active { transform: scale(0.95); }
+.wa-mpSticker img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.15s ease;
+  -webkit-user-drag: none;
+}
+.wa-mpStickerCreate {
+  flex-direction: column;
+  gap: 4px;
+  border: 1.5px dashed color-mix(in srgb, var(--mp-icon) 60%, transparent);
+  color: var(--mp-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.wa-mpStickerCreate:hover {
+  border-color: var(--wa-green);
+  color: var(--wa-green);
+  background: color-mix(in srgb, var(--wa-green) 6%, transparent);
+}
+.wa-mpStickerCreatePlus { font-size: 28px; font-weight: 300; line-height: 1; }
+.wa-mpSticker:focus-visible,
+.wa-mpStickerCreate:focus-visible { outline: 2px solid var(--wa-green); outline-offset: -2px; }
+.wa-mpHint {
+  margin: 14px 10px 4px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--mp-muted);
+  text-align: center;
+}
+
+/* Rodapé: alternador Emoji | Figurinhas */
+.wa-mpFoot {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--mp-line);
+}
+.wa-mpSwitch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--mp-soft);
+}
+.wa-mpSwitchBtn {
+  width: 58px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mp-icon);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+.wa-mpSwitchBtn:hover { color: var(--mp-text); }
+.wa-mpSwitchBtn.isActive {
+  background: var(--mp-bg);
+  color: var(--wa-green);
+  box-shadow: 0 1px 3px rgba(11, 20, 26, 0.14);
+}
+.wa-mpSwitchBtn:focus-visible { outline: 2px solid var(--wa-green); outline-offset: 1px; }
+
+[data-theme="dark"] .wa-mp {
+  --mp-bg: var(--ds-surface-1);
+  --mp-soft: var(--ds-surface-2);
+  --mp-hover: var(--ds-hover);
+  --mp-line: var(--ds-border);
+  --mp-icon: var(--ds-text-tertiary);
+  --mp-text: var(--ds-text-primary);
+  --mp-muted: var(--ds-text-tertiary);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] .wa-mpSwitchBtn.isActive { background: var(--ds-surface-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-mpEmoji,
+  .wa-mpSticker,
+  .wa-mpSticker img,
+  .wa-mpCat::after { transition: none; }
+  .wa-mpEmoji:hover { transform: none; }
+}
+
+@media (max-width: 520px) {
+  .wa-mp { border-radius: 16px; }
+  .wa-mpEmojiGrid { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); }
+  .wa-mpEmoji { height: 42px; font-size: 26px; }
+  .wa-mpEmoji:hover { transform: none; }
+  .wa-mpStickerGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .wa-emojiHead{

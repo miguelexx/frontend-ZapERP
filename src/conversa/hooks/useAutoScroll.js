@@ -276,6 +276,8 @@ export function useAutoScroll({
   suppressAutoScrollRef,
   userScrollLockRef,
   cancelOpenSnapPendingRef,
+  /** Abriu pelo cache e a lista do servidor ainda não chegou (máscara continua). */
+  awaitingFresh = false,
   onOpenSnapReady,
 }) {
   const prevConversaIdRef = useRef(null);
@@ -286,6 +288,7 @@ export function useAutoScroll({
   const prevSnapConversaKeyRef = useRef(null);
   const openSnapInProgressRef = useRef(false);
   const openSnapUserCancelledRef = useRef(false);
+  const prevAwaitingFreshRef = useRef({ key: null, value: false });
   const onOpenSnapReadyRef = useRef(onOpenSnapReady);
   onOpenSnapReadyRef.current = onOpenSnapReady;
   /*
@@ -416,6 +419,21 @@ export function useAutoScroll({
     }
     const becameReady = prevLoadingForSnapRef.current === true && loading === false;
     prevLoadingForSnapRef.current = loading;
+    /*
+     * Abertura pelo cache (17/11/2026): o snap acima assentou a lista do CACHE, por baixo da
+     * máscara. Quando a lista do servidor chega (ou acaba o prazo de espera), as alturas
+     * mudam — refaz a abertura inteira (snap + espera da mídia visível) antes de revelar.
+     */
+    const prevAwait = prevAwaitingFreshRef.current;
+    prevAwaitingFreshRef.current = { key: convKey, value: awaitingFresh };
+    if (
+      prevAwait.key === convKey &&
+      prevAwait.value === true &&
+      awaitingFresh === false &&
+      !openSnapUserCancelledRef.current
+    ) {
+      pendingJumpToBottomRef.current = true;
+    }
     if (loading) return;
 
     const shouldSnapLatest =
@@ -581,5 +599,6 @@ export function useAutoScroll({
     suppressAutoScrollRef,
     userScrollLockRef,
     cancelOpenSnapPendingRef,
+    awaitingFresh,
   ]);
 }

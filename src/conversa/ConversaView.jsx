@@ -138,6 +138,7 @@ import ConversaHeader from "./components/ConversaHeader";
 import ConversaViewOverlays from "./components/ConversaViewOverlays";
 import ConversaTimelinePanel from "./components/ConversaTimelinePanel";
 import ConversaDropOverlay from "./components/ConversaDropOverlay";
+import ThreadOpeningVeil from "./components/ThreadOpeningVeil";
 
 import { useChatStore, getChatByIdFromStore } from "../chats/chatsStore";
 import { useMatchMedia } from "../hooks/useMatchMedia";
@@ -154,6 +155,13 @@ import "../components/feedback/toast.css";
 /* =========================================================
    ConversaView — coordenador
 ========================================================= */
+
+/**
+ * Prazo para a máscara de abertura esperar a lista do servidor quando a conversa abriu pelo
+ * cache. Cobre a latência típica do GET /chats/:id; passado isto, revela o cache (melhor uma
+ * mensagem nova entrar depois do que a conversa ficar em branco).
+ */
+const OPEN_FRESH_WAIT_MAX_MS = 850;
 
 function ConversaViewBody() {
   const {
@@ -188,6 +196,8 @@ function ConversaViewBody() {
 
   const selectedId = useConversaStore((s) => s.selectedId);
   const setSelectedId = useConversaStore((s) => s.setSelectedId);
+  /** Aberta pelo cache e o GET de abertura ainda não chegou (ver conversaStore). */
+  const openRefreshPendingId = useConversaStore((s) => s.openRefreshPendingId);
 
   /** Só a entrada da conversa atual — e como CHAVE primitiva: setTyping cria um objeto novo
    *  a cada typing_start, e devolver o objeto re-renderizava o coordenador inteiro por evento. */
@@ -679,20 +689,50 @@ function ConversaViewBody() {
    * no topo (scrollTop 0), depois o salto para o fim e o reajuste das medições (~140px).
    * Derivado de estado, não há render descartável que a deixe de fora: já vale no 1.º frame.
    */
-  const threadOpening = openingThreadKey != null && openSnapDoneKey !== openingThreadKey;
+  /*
+   * Abertura pelo CACHE (17/11/2026): a thread do cache aparecia, e 100–700ms depois o GET de
+   * abertura trocava a lista (mensagens novas desde a última visita, lote maior, no celular a
+   * troca lista estática → virtual). Tudo isso acontecia já com a thread à vista — salto de
+   * 36–166px medido frame a frame. Agora a máscara espera também a lista do servidor, com
+   * prazo: API lenta não pode prender a conversa em branco (passado o prazo, revela o cache e
+   * a lista nova entra como entraria uma mensagem).
+   */
+  const [freshWaitExpiredKey, setFreshWaitExpiredKey] = useState(null);
+  const awaitingFresh =
+    openingThreadKey != null &&
+    openRefreshPendingId != null &&
+    String(openRefreshPendingId) === openingThreadKey &&
+    freshWaitExpiredKey !== openingThreadKey;
+  const awaitingFreshRef = useRef(awaitingFresh);
+  awaitingFreshRef.current = awaitingFresh;
+  const threadOpening =
+    openingThreadKey != null && (openSnapDoneKey !== openingThreadKey || awaitingFresh);
   threadOpeningRef.current = threadOpening;
   const openingThreadKeyRef = useRef(openingThreadKey);
   openingThreadKeyRef.current = openingThreadKey;
-  /** Só aceita `false` (snap assentou / fallback): marca a conversa ATUAL como aberta. */
+  /**
+   * Só aceita `false` (snap assentou / fallback): marca a conversa ATUAL como aberta.
+   * Enquanto a lista do servidor não chega, ignora: o snap que assentou foi o da lista do
+   * cache — quando a lista nova chega, o useAutoScroll refaz o snap e chama de novo.
+   */
   const setThreadOpening = useCallback((opening) => {
     if (opening) return;
+    if (awaitingFreshRef.current) return;
     const key = openingThreadKeyRef.current;
     setOpenSnapDoneKey((prev) => (prev === key ? prev : key));
   }, []);
   useEffect(() => {
     /* Fechou a conversa: reabrir a mesma volta a mascarar até ao novo snap. */
     if (!openingThreadKey) setOpenSnapDoneKey(null);
+    /* Cada abertura tem o seu prazo de espera pela lista do servidor. */
+    setFreshWaitExpiredKey(null);
   }, [openingThreadKey]);
+  useEffect(() => {
+    if (!awaitingFresh || !openingThreadKey) return undefined;
+    const key = openingThreadKey;
+    const timer = window.setTimeout(() => setFreshWaitExpiredKey(key), OPEN_FRESH_WAIT_MAX_MS);
+    return () => window.clearTimeout(timer);
+  }, [awaitingFresh, openingThreadKey]);
 
   /*
    * Reset no MESMO render da troca de conversa. O useLayoutEffect rodava depois do paint:
@@ -1262,6 +1302,7 @@ function ConversaViewBody() {
     suppressAutoScrollRef,
     userScrollLockRef,
     cancelOpenSnapPendingRef,
+    awaitingFresh,
     onOpenSnapReady: () => setThreadOpening(false),
   });
 
@@ -1403,9 +1444,12 @@ function ConversaViewBody() {
     shareContactList,
     shareContactLoading,
     shareContactSending,
+    shareContactSelectedIds,
+    shareContactMax,
     openShareContact,
     handleShareContactClose,
-    handleShareContactSelect,
+    toggleShareContactSelect,
+    handleShareContactConfirm,
   } = useShareContact({ conversaId, showToast });
 
   const {
@@ -3096,16 +3140,18 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   }, [mensagensComSeparadores]);
 
   useLayoutEffect(() => {
-    if (!threadOpening || !openingThreadKey || loading) return undefined;
+    if (!threadOpening || !openingThreadKey || loading || awaitingFresh) return undefined;
     /*
      * A máscara só cai quando o snap de abertura assenta (onOpenSnapReady).
      * Este timeout evita thread invisível se o snap não disparar. Conta só a partir de
      * quando há mensagens (`!loading`): contando desde o clique, uma API lenta gastava o
      * prazo no "Carregando…" e a máscara caía antes das fotos visíveis assentarem.
+     * Na abertura pelo cache conta a partir da chegada da lista do servidor (ou do prazo
+     * dela): antes disso o `setThreadOpening(false)` é ignorado e o timer não serviria.
      */
     const fallback = window.setTimeout(() => setThreadOpening(false), 1100);
     return () => window.clearTimeout(fallback);
-  }, [threadOpening, openingThreadKey, loading, setThreadOpening]);
+  }, [threadOpening, openingThreadKey, loading, awaitingFresh, setThreadOpening]);
 
   useEffect(() => {
     if (!import.meta?.env?.DEV) return;
@@ -3608,8 +3654,11 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           shareContactList={shareContactList}
           shareContactLoading={shareContactLoading}
           shareContactSending={shareContactSending}
+          shareContactSelectedIds={shareContactSelectedIds}
+          shareContactMax={shareContactMax}
           handleShareContactClose={handleShareContactClose}
-          handleShareContactSelect={handleShareContactSelect}
+          toggleShareContactSelect={toggleShareContactSelect}
+          handleShareContactConfirm={handleShareContactConfirm}
           shareLocationOpen={shareLocationOpen}
           shareLocationGeoLoading={shareLocationGeoLoading}
           shareLocationGeoError={shareLocationGeoError}
@@ -3715,6 +3764,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             mensagensComSeparadores={mensagensComSeparadores}
             mensagens={mensagens}
             loading={loading}
+            suppressLoadingSkeleton={threadOpening}
             loadingMore={loadingMore}
             hasMore={hasMore}
             cursor={cursor}
@@ -3775,6 +3825,9 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
 
           <div ref={bottomRef} />
         </div>
+
+        {/* Véu da abertura: bolhas-fantasma enquanto a máscara esconde a thread (fade cruzado). */}
+        <ThreadOpeningVeil active={threadOpening} targetRef={messagesContainerRef} />
 
         {/* Barra de seleção estilo WhatsApp — overlay fixo no rodapé (fora do scroll) */}
         <ConversaSelectionBar

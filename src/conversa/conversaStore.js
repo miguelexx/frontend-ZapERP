@@ -634,6 +634,13 @@ export const useConversaStore = create((set, get) => {
     tags: [],
     loading: false,
     loadError: null,
+    /**
+     * Conversa aberta a partir do cache (sessionStorage/estado em memória) cujo GET de
+     * abertura ainda não chegou. A thread fica mascarada até lá (com prazo, no ConversaView):
+     * revelar o cache e trocar pela lista do servidor logo depois fazia as bolhas saltarem
+     * 36–166px na frente do atendente (17/11/2026, e2e/thread-open-premium.spec.js).
+     */
+    openRefreshPendingId: null,
     lockedBy: null,
     cursor: null,
     cursorId: null,
@@ -669,6 +676,7 @@ export const useConversaStore = create((set, get) => {
           selectedId: null,
           loading: false,
           loadError: null,
+          openRefreshPendingId: null,
           loadingMore: false,
           conversa: null,
           mensagens: [],
@@ -690,7 +698,7 @@ export const useConversaStore = create((set, get) => {
       if (String(get().selectedId) !== String(id)) {
         cancelConversationRequests()
         carregarConversaGeneration += 1
-        set({ selectedId: id, loading: false })
+        set({ selectedId: id, loading: false, openRefreshPendingId: null })
         return
       }
       set({ selectedId: id })
@@ -823,6 +831,7 @@ export const useConversaStore = create((set, get) => {
         loadingMore: false,
         selectedId: normalizedId,
         loadError: null,
+        openRefreshPendingId: reuseClient || hasCached ? normalizedId : null,
         conversa: reuseClient
           ? st0.conversa
           : hasCached && cachedEarly.conversa
@@ -968,6 +977,7 @@ export const useConversaStore = create((set, get) => {
           tags: Array.isArray(tags) ? tags : [],
           loading: false,
           loadError: null,
+          openRefreshPendingId: null,
           cursor: nextCursor,
           cursorId: Number.isFinite(nextCursorId) ? nextCursorId : null,
           hasMore: !!nextCursor,
@@ -1122,6 +1132,7 @@ export const useConversaStore = create((set, get) => {
         }
         if (generation !== carregarConversaGeneration) return
         if (String(get().selectedId ?? "") !== String(normalizedId)) return
+        if (get().openRefreshPendingId != null) set({ openRefreshPendingId: null })
         if (get().loading) {
           set({
             loading: false,

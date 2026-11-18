@@ -348,7 +348,12 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
     const onScroll = () => {
       if (!isScrollingRef.current) {
         isScrollingRef.current = true;
-        scrollEl.classList.add("is-scrolling");
+        /* Com a thread mascarada (abertura), o scroll é só dos snaps programáticos: a classe
+           (que só mexe em pintura/hover) não serve a ninguém e cada liga/desliga recalculava
+           o estilo da thread inteira. A lógica de isScrollingRef continua igual. */
+        if (!scrollEl.classList.contains("wa-messages--opening")) {
+          scrollEl.classList.add("is-scrolling");
+        }
       }
       window.clearTimeout(scrollEndTimer);
       scrollEndTimer = window.setTimeout(() => {

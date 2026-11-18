@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { Archive, Undo2 } from "lucide-react";
 import { getMessageListReactKey } from "./conversaStore";
 import { getStatusAtendimentoEffective, isClosedAttendanceStatus } from "../utils/conversaUtils";
@@ -20,6 +20,14 @@ const EMPTY_ARRAY = Object.freeze([]);
  * Conversas menores mantêm lista estática (scroll nativo mais previsível no toque).
  */
 const MOBILE_VIRTUALIZE_THRESHOLD = 24;
+/**
+ * Com a conversa já na tela, a lista estática só vira virtual acima deste total (o mesmo teto
+ * que a estática desenha, MOBILE_STATIC_MAX). Trocar de componente remonta todas as bolhas:
+ * fotos recarregam e o scroll salta (166px medidos quando o GET de abertura trazia 28 itens
+ * sobre os 20 do cache, 17/11/2026). Por isso o tipo é escolhido UMA vez por conversa e só
+ * muda por necessidade real — e nunca de virtual de volta para estática.
+ */
+const MOBILE_STATIC_KEEP_MAX = 60;
 
 function firstFilled(...values) {
   for (const value of values) {
@@ -53,6 +61,8 @@ function ConversaThread({
   mensagensComSeparadores,
   mensagens,
   loading,
+  /** O véu da abertura (ThreadOpeningVeil) já desenha as bolhas-fantasma. */
+  suppressLoadingSkeleton = false,
   loadingMore,
   hasMore,
   cursor,
@@ -131,6 +141,28 @@ function ConversaThread({
     reactionLoading && typeof reactionLoading === "object" ? reactionLoading : EMPTY_OBJECT;
 
   const threadRowCount = safeMensagensComSeparadores.length;
+
+  /*
+   * Tipo de lista com histerese, por conversa. Desktop é sempre virtual. No celular: decide na
+   * 1.ª pintura com mensagens; estática → virtual só acima de MOBILE_STATIC_KEEP_MAX; virtual
+   * fica virtual. Ref (não state): o valor é derivado e idempotente — um render descartado
+   * deixa no máximo a mesma decisão que o render seguinte tomaria.
+   */
+  const listModeRef = useRef({ key: null, virtual: false });
+  const listModeKey = `${headerCompact ? "m" : "d"}:${String(threadConversaId ?? "")}`;
+  let renderVirtualList;
+  if (!headerCompact) {
+    renderVirtualList = true;
+  } else if (threadRowCount === 0) {
+    renderVirtualList = listModeRef.current.key === listModeKey && listModeRef.current.virtual;
+  } else if (listModeRef.current.key !== listModeKey) {
+    renderVirtualList = threadRowCount > MOBILE_VIRTUALIZE_THRESHOLD;
+    listModeRef.current = { key: listModeKey, virtual: renderVirtualList };
+  } else {
+    renderVirtualList =
+      listModeRef.current.virtual || threadRowCount > MOBILE_STATIC_KEEP_MAX;
+    listModeRef.current.virtual = renderVirtualList;
+  }
   const showSelectedReactionPicker =
     Boolean(compactMessageUx && selectMode && !forwardSelectIntent && safeSelectedSet.size === 1);
 
@@ -350,7 +382,7 @@ function ConversaThread({
     return (
       <>
         {closedBanner}
-        <SkeletonMessages />
+        {suppressLoadingSkeleton ? null : <SkeletonMessages />}
       </>
     );
   }
@@ -450,7 +482,7 @@ function ConversaThread({
       {/* Mobile com muitas mensagens usa lista virtualizada para evitar DOM explosion.
           Desktop sempre usa lista virtualizada (comportamento original inalterado).
           Mobile com poucas mensagens mantém lista estática (scroll nativo no toque). */}
-      {!headerCompact || safeMensagensComSeparadores.length > MOBILE_VIRTUALIZE_THRESHOLD ? (
+      {renderVirtualList ? (
         <ConversaMessageVirtualList
           key={`wa-thread-${headerCompact ? "mobile" : "desktop"}-${String(threadConversaId ?? "")}`}
           ref={virtualThreadRef}
