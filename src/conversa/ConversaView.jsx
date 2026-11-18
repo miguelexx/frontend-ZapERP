@@ -109,6 +109,7 @@ import { useConversationOutboundMedia } from "./hooks/useConversationOutboundMed
 import { useConversationFileDrop } from "./hooks/useConversationFileDrop";
 import { useAutoScroll, snapThreadToBottom, smoothScrollThreadToBottom } from "./hooks/useAutoScroll";
 import { useMobileKeyboardViewport } from "./hooks/useMobileKeyboardViewport";
+import { useHeaderHeightVar } from "./hooks/useHeaderHeightVar";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import { useForwardFlow } from "./hooks/useForwardFlow";
 import { useMediaViewer } from "./hooks/useMediaViewer";
@@ -751,6 +752,9 @@ function ConversaViewBody() {
 
   /* Mobile: cabeçalho fixo (viewport) + padding no shell; teclado via visualViewport.
      Corpo extraído para o hook useMobileKeyboardViewport (mesmo comportamento). */
+  /* Altura real do cabeçalho → `--wa-header-h` (painéis de busca/tags/setor/histórico). */
+  useHeaderHeightVar(waShellRef, waHeaderRef);
+
   useMobileKeyboardViewport({
     conversaId,
     waShellRef,

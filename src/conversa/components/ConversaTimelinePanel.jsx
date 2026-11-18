@@ -17,7 +17,7 @@ export default function ConversaTimelinePanel({
 }) {
   if (!open) return null;
 
-  const list = atendimentos || [];
+  const list = Array.isArray(atendimentos) ? atendimentos : [];
 
   return (
     <div className="wa-timeline" role="region" aria-label="Historico do atendimento">

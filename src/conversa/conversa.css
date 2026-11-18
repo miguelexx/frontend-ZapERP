@@ -531,6 +531,16 @@ html:not([data-theme="dark"]) .wa-header::after {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* No escuro o fundo claro cravado ficava sob iniciais em `--wa-text` (quase branco): ~1.1:1,
+   iniciais invisíveis no cabeçalho (18/11/2026). Fundo neutro escuro derivado dos tokens. */
+[data-theme="dark"] .wa-avatar {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--wa-text) 20%, var(--wa-header-bg)) 0%,
+    color-mix(in srgb, var(--wa-text) 11%, var(--wa-header-bg)) 100%
+  );
+}
+
 .wa-avatar {
   width: 40px;
   height: 40px;
@@ -1228,7 +1238,9 @@ html:not([data-theme="dark"]) .wa-header-btn:hover {
 
 .wa-msgSearchPanel {
   position: absolute;
-  top: calc(56px + 10px);
+  /* Abaixo do cabeçalho REAL (2 linhas: 114px no desktop). `--wa-header-h` vem do
+     useHeaderHeightVar; o fallback é o valor antigo. */
+  top: calc(var(--wa-header-h, 56px) + 10px);
   right: 12px;
   bottom: 12px;
   z-index: 42;
@@ -1840,7 +1852,7 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
 /* Painéis flutuantes — flat, sombra leve, entrada suave */
 .wa-tagsPanel {
   position: absolute;
-  top: 64px;
+  top: calc(var(--wa-header-h, 60px) + 4px);
   right: 16px;
   width: 260px;
   max-width: 90vw;
@@ -2191,11 +2203,11 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
 
 .wa-timeline {
   position: absolute;
-  top: 60px;
+  top: var(--wa-header-h, 60px);
   right: 0;
   width: 320px;
   max-width: 90vw;
-  height: calc(100% - 60px);
+  height: calc(100% - var(--wa-header-h, 60px));
   background: var(--wa-glass-strong);
   border-left: 1px solid color-mix(in srgb, var(--wa-panel-border) 82%, transparent);
   box-shadow: -18px 0 42px -30px rgba(15, 23, 42, 0.5);
@@ -4111,7 +4123,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
     position: absolute;
     left: max(16px, env(safe-area-inset-left, 0px));
     right: max(16px, env(safe-area-inset-right, 0px));
-    top: calc(72px + 12px);
+    top: calc(var(--wa-header-h, 72px) + 12px);
     bottom: calc(56px + max(12px, env(safe-area-inset-bottom, 0px)));
     width: auto;
     min-width: 0;
@@ -15067,12 +15079,17 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
     min-width: 32px !important;
     min-height: 32px !important;
     border-radius: 10px !important;
+    /* O botão vive dentro de `.wa-actions`, e `.wa-actions button { padding: 0 13px }` vence o
+       `padding: 0` do `.wa-header-btn`: em 32px sobravam 4px e os três pontos viravam um risco
+       (ícone medido a 4×15px, 18/11/2026). O desktop já zera o padding (min-width: 641px). */
+    padding: 0 !important;
   }
 
   .wa-header.wa-header--atendMobile .wa-atendToolbar-overflowTrigger svg,
   .wa-atendToolbar-overflowTrigger svg {
     width: 15px !important;
     height: 15px !important;
+    flex-shrink: 0;
   }
 
   .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-btn-primary,

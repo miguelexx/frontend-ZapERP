@@ -678,6 +678,28 @@ function isReturnToParentSystemTag(tag) {
   return nome === "retornar ao pai" || nome === "retornar para o pai";
 }
 
+/**
+ * Texto legível sobre a cor da tag: escuro em cor clara (amarelo, verde-claro), branco no resto.
+ * Aceita #rgb/#rrggbb e rgb(); cor que não dá para ler cai no branco de sempre.
+ */
+function tagTextColor(cor) {
+  const s = String(cor || "").trim();
+  let r, g, b;
+  const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const h = hex[1].length === 3 ? hex[1].replace(/./g, "$&$&") : hex[1];
+    r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+  } else {
+    const m = s.match(/^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i);
+    if (!m) return "#fff";
+    [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  }
+  const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  // Ponto onde o contraste com branco e com #111b21 se igualam (~0.18).
+  return L > 0.18 ? "#111b21" : "#fff";
+}
+
 function TagMini({ tag }) {
   if (!tag) return null;
   const cor = String(tag?.cor || "").trim();
@@ -686,7 +708,9 @@ function TagMini({ tag }) {
     <span
       className={`chat-list-tag-mini${cor && !isSystemReturn ? " chat-list-tag-mini--colored" : ""}${isSystemReturn ? " chat-list-tag-mini--system-return" : ""}`}
       title={isSystemReturn ? `${tag?.nome} · Tag do sistema` : tag?.nome}
-      style={cor && !isSystemReturn ? { background: cor, color: "#fff" } : undefined}
+      /* Variáveis, não `background` inline: o `.chat-list-tag-mini` base usa `!important`, que
+         vence estilo inline — a tag ficava transparente com texto branco (18/11/2026). */
+      style={cor && !isSystemReturn ? { "--tag-cor": cor, "--tag-texto": tagTextColor(cor) } : undefined}
     >
       {isSystemReturn ? (
         <span className="chat-list-tag-system-icon" aria-hidden="true">

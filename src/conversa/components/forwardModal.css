@@ -525,3 +525,12 @@
     padding-bottom: 4px;
   }
 }
+
+/* Seção final "Sem nome salvo": não é letra, então não leva o verde das letras. */
+.wa-shareLetter--semNome {
+  color: var(--wa-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 11px;
+  margin-top: 16px;
+}

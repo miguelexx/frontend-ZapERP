@@ -389,7 +389,11 @@ export async function marcarAguardandoPagamentoChat(conversaId, { prazo, data })
 
 export async function listarAtendimentos(conversaId) {
   const { data } = await api.get(`/chats/${conversaId}/atendimentos`);
-  return data || [];
+  /* Só lista. Um 200 com outra coisa (página HTML de proxy/SW, formato embrulhado) chegava ao
+     painel do histórico e o `.map` derrubava a tela de atendimento inteira (18/11/2026). */
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.atendimentos)) return data.atendimentos;
+  return [];
 }
 
 export async function puxarChatFila() {

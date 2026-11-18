@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconUser } from "@tabler/icons-react";
 import { getAvatarImageSrc } from "../../utils/avatarProxyUrl";
 
 /**
@@ -34,10 +34,13 @@ function isValidAvatarUrl(url) {
   return s.length > 0 && /^https?:\/\//i.test(s) && s.toLowerCase() !== "null";
 }
 
-export function Avatar({ name, foto, size = 44 }) {
+export function Avatar({ name, foto, size = 44, placeholder = false }) {
   const [imgError, setImgError] = useState(false);
   const { initials, bg, color } = getAvatar(name);
   const showImg = !imgError && isValidAvatarUrl(foto);
+  // Contato sem nome (só o número): boneco genérico, como o WhatsApp — iniciais de
+  // um telefone ("+5", "55") não dizem nada.
+  const conteudo = showImg ? null : placeholder ? <IconUser size={Math.round(size * 0.5)} strokeWidth={1.7} /> : initials;
   return (
     <span
       className="wa-forwardAvatar"
@@ -59,13 +62,13 @@ export function Avatar({ name, foto, size = 44 }) {
           onError={() => setImgError(true)}
         />
       ) : (
-        initials
+        conteudo
       )}
     </span>
   );
 }
 
-export function DestRow({ name, sub, badge, foto, checked, disabled, onToggle }) {
+export function DestRow({ name, sub, badge, foto, checked, disabled, onToggle, placeholder }) {
   return (
     <button
       type="button"
@@ -77,7 +80,7 @@ export function DestRow({ name, sub, badge, foto, checked, disabled, onToggle })
       <span className={`wa-fwdCheck${checked ? " isOn" : ""}`} aria-hidden="true">
         {checked ? <IconCheck size={15} strokeWidth={3} /> : null}
       </span>
-      <Avatar name={name} foto={foto} />
+      <Avatar name={name} foto={foto} placeholder={placeholder} />
       <span className="wa-fwdRow-info">
         <span className="wa-fwdRow-name">{name}</span>
         {badge ? (

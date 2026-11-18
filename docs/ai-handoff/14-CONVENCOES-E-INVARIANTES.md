@@ -295,7 +295,50 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
 - Grupos: `BubbleTypedContent` remonta quando `__showRemetente` alterna; onda do áudio mede
   34 barras e depois N (fazer `update()` síncrono); cartão de link compacto não vai ao cache;
   "apagar para todos" tira o `tempId` e remonta a bolha.
-- Painéis com `top` cravado (timeline 60px, busca 66px, tags/setor 64px) cobrem a linha de
-  setor do cabeçalho de 2 linhas — publicar `--wa-header-h` também no desktop.
+- **Painéis com `top` cravado — RESOLVIDO (18/11/2026).** Busca abria em 66px com o cabeçalho
+  em 114px (desktop, 2 linhas) e 88px (celular): cobria a linha "Setor · Definir setor".
+  `hooks/useHeaderHeightVar.js` publica a altura real em `--wa-header-h` no `.wa-shell`
+  (ResizeObserver); busca/tags/setor/timeline usam `calc(var(--wa-header-h, <antigo>) + …)`.
+  Medido depois: busca 124px, setor 118px.
+- **Avatar do cabeçalho no escuro — RESOLVIDO (18/11/2026).** `.wa-avatar` tinha fundo claro
+  cravado e iniciais em `--wa-text` (quase branco no escuro): ~1.1:1. Override
+  `[data-theme="dark"] .wa-avatar` com fundo neutro escuro via `color-mix` dos tokens.
+- **Histórico de movimentações derrubava a tela — RESOLVIDO (18/11/2026).** `listarAtendimentos`
+  devolvia `data || []`; um 200 que não fosse lista (HTML de proxy/SW, formato embrulhado) chegava
+  ao `ConversaTimelinePanel` e o `list.map` levava o atendimento inteiro ao "Algo deu errado".
+  Serviço e painel agora aceitam só array (`data.atendimentos` também).
+- **"Mais opções" do cabeçalho no celular — RESOLVIDO (18/11/2026).** O gatilho
+  (`.wa-atendToolbar-overflowTrigger`) está dentro de `.wa-actions`, cujo
+  `button { padding: 0 13px }` vencia o `padding: 0` do `.wa-header-btn`: em 32px o ícone media
+  4×15px (três pontos viravam um risco). Regra mobile do gatilho leva `padding: 0 !important`.
+  Botão só-ícone novo dentro de `.wa-actions` precisa do mesmo cuidado.
+- **Nome espremido na lista por selo largo — RESOLVIDO (18/11/2026).** A grelha da linha
+  (`chatList.flat.css`) era `nome|hora / prévia|selo` em 2 colunas: a coluna da direita tomava a
+  largura do selo da 2.ª faixa e o nome ficava com 75px ("Maria A…"). Agora são 3 colunas
+  (`minmax(0,1fr) auto auto`): nome em `1/3` + hora em `3`; prévia em `1` + selo em `2/4`; o
+  respiro de 8px é `margin-left` da hora e do selo (não `column-gap`). Linhas sem selo largo
+  ficam com as larguras de antes; alturas não mudam (estimador intocado). Elemento novo na
+  faixa 1 ou 2 precisa de `grid-column` explícito, senão o auto-placement cai na coluna 2.
+- **Tags coloridas invisíveis na lista — RESOLVIDO (18/11/2026).** `.chat-list-tag-mini--colored`
+  tinha `background: transparent !important; color: #fff !important`, que vence o `style`
+  inline do `TagMini`: texto branco sem fundo. A cor agora vai por variáveis (`--tag-cor`,
+  `--tag-texto`) lidas pela regra; `tagTextColor` escolhe texto escuro em cor clara.
+- **Aviso "WhatsApp desconectado" (claro) com 2.8:1 — RESOLVIDO.** Texto do mesmo âmbar,
+  escurecido via `color-mix` (~6.5:1); borda/ícone e o tema escuro ficam como estavam.
+- **Grupos: remontagem do conteúdo da bolha — NÃO alterado de propósito.** Quando
+  `__showRemetente` alterna (lote antigo carregado acima, nome que chega depois), o
+  `BubbleTypedContent` troca de pai (`.wa-bubble-remetente` ↔ `.wa-bubble-body`) e remonta (foto
+  recarrega, áudio a tocar para). Corrigir exige um nó estável em TODAS as bolhas (wrapper com
+  `display: contents`) — muda `:first-child`/`>` de regras que hoje casam o conteúdo direto do
+  `.wa-bubble-body` (ex.: `conversa.css` `.wa-bubble:has(> .wa-bubble-body > .wa-linkPrev:first-child)`).
+  Custo/risco alto para um caso estreito; se for feito, auditar seletores estruturais antes.
+- **Estimador da lista vs. linha real — não reproduz (18/11/2026).** Sonda pós-pintura relativa
+  ao scroller, 90 conversas com tags/selos/nomes longos, desktop e celular, modo normal e simples:
+  0 deslocamentos. O "salto" de 49px que aparece medindo pela viewport no celular é o recolher
+  intencional da barra de filtros ao rolar.
+- **Testes e2e: a 5173 pode estar ocupada por um dev server apontado para a API de PRODUÇÃO**
+  (`reuseExistingServer: true` reaproveita-o; os mocks só interceptam `localhost:5000` e o token
+  falso toma 401 → loop em `/login`). Rode com um servidor próprio noutra porta e
+  `VITE_API_URL=http://localhost:5000`.
 - Lista: estimador de altura usa entradas diferentes da linha (responsável/selo no modo
   simples); negrito de não lida chega ~1s depois do card subir.

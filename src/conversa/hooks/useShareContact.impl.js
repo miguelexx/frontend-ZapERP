@@ -1,10 +1,69 @@
 import { enviarContato } from "../conversaService";
 import * as cfg from "../../api/configService";
 import { safeString } from "../utils/conversaViewHelpers";
+import { useChatStore } from "../../chats/chatsStore";
 
 /**
  * Corpo do compartilhamento de contato (fora do chunk crítico — ver lazyHookImpl.js).
  */
+
+/** Chave de identidade tolerante ao 9º dígito: DDD + os 8 últimos dígitos. */
+function chaveTelefone(tel) {
+  const d = String(tel || "").replace(/\D/g, "");
+  if (d.length < 10) return null;
+  const semPais = d.startsWith("55") && d.length >= 12 ? d.slice(2) : d;
+  if (semPais.length < 10) return null;
+  return `${semPais.slice(0, 2)}${semPais.slice(-8)}`;
+}
+
+/**
+ * Completa foto/nome com o que a lista de conversas já tem em memória.
+ *
+ * `clientes.foto_perfil` fica vazio para quem nasceu de um inbound (o webhook não traz
+ * foto) e para quem nunca passou pelo "Sincronizar fotos" — mas a conversa do mesmo
+ * contato costuma carregar a foto e o nome em cache. Como a lista já está no store, isto
+ * é de graça: nenhuma chamada nova. Quem não tem conversa segue com as iniciais.
+ */
+function enriquecerComConversas(clientes) {
+  let chats = null;
+  try {
+    chats = useChatStore.getState?.()?.chats;
+  } catch (_) {
+    chats = null;
+  }
+  if (!Array.isArray(chats) || chats.length === 0) return clientes;
+
+  const porCliente = new Map();
+  const porTelefone = new Map();
+  chats.forEach((c) => {
+    const foto =
+      (c?.foto_perfil && String(c.foto_perfil).trim()) ||
+      (c?.foto_perfil_contato_cache && String(c.foto_perfil_contato_cache).trim()) ||
+      null;
+    const nome = safeString(c?.contato_nome || c?.nome_contato_cache).trim() || null;
+    if (!foto && !nome) return;
+    const dado = { foto, nome };
+    if (c?.cliente_id != null && !porCliente.has(String(c.cliente_id))) {
+      porCliente.set(String(c.cliente_id), dado);
+    }
+    const k = chaveTelefone(c?.telefone_exibivel ?? c?.telefone);
+    if (k && !porTelefone.has(k)) porTelefone.set(k, dado);
+  });
+  if (porCliente.size === 0 && porTelefone.size === 0) return clientes;
+
+  return clientes.map((cli) => {
+    const temFoto = !!(cli?.foto_perfil && String(cli.foto_perfil).trim());
+    const temNome = !!safeString(cli?.nome).trim() && /\p{L}/u.test(String(cli.nome));
+    if (temFoto && temNome) return cli;
+    const dado =
+      porCliente.get(String(cli?.id)) || porTelefone.get(chaveTelefone(cli?.telefone)) || null;
+    if (!dado) return cli;
+    const out = { ...cli };
+    if (!temFoto && dado.foto) out.foto_perfil = dado.foto;
+    if (!temNome && dado.nome && /\p{L}/u.test(dado.nome)) out.nome = dado.nome;
+    return out;
+  });
+}
 
 /**
  * Efeito de busca debounced enquanto o modal está aberto. Devolve o cleanup.
@@ -39,7 +98,7 @@ export function runShareContactSearch({
       try {
         const list = await cfg.getClientes({ limit: 500 });
         if (cancelled) return;
-        const arr = Array.isArray(list) ? list : [];
+        const arr = enriquecerComConversas(Array.isArray(list) ? list : []);
         if (allContatosRef) allContatosRef.current = arr;
         setShareContactList(arr);
       } catch (e) {
@@ -61,8 +120,7 @@ export function runShareContactSearch({
     try {
       const list = await cfg.getClientes({ palavra: q.toLowerCase(), limit: 60 });
       if (cancelled) return;
-      const arr = Array.isArray(list) ? list : [];
-      setShareContactList(arr);
+      setShareContactList(enriquecerComConversas(Array.isArray(list) ? list : []));
     } catch (e) {
       if (cancelled) return;
       console.error("Erro ao buscar contatos:", e);

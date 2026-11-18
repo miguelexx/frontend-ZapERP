@@ -1303,7 +1303,9 @@ html:not([data-theme="dark"]) .chat-list-chips--secondary .admin-atendente-filte
 .chat-list-zapi-alert {
   background: var(--ds-warning-soft);
   border-bottom: 1px solid var(--ds-warning);
-  color: var(--ds-warning);
+  /* Âmbar puro sobre o próprio fundo claro dava 2.8:1 (texto de 12px ilegível). Mesmo matiz,
+     escurecido: ~6.5:1. O escuro tem regra própria abaixo e continua no âmbar claro. */
+  color: color-mix(in srgb, var(--ds-warning) 62%, #000);
   font-size: 0.78rem;
   padding: 6px 12px;
   display: flex;
@@ -2736,9 +2738,12 @@ html:not([data-theme="dark"]) .chat-list-row.zap-conversation-card.is-active {
   min-width: 0;
 }
 
+/* A cor vem da própria tag (`--tag-cor`/`--tag-texto`, postas no TagMini). Antes era
+   `background: transparent !important; color: #fff !important`, que vencia o estilo inline:
+   toda tag colorida virava texto branco sem fundo — invisível no tema claro (18/11/2026). */
 .chat-list-tag-mini--colored {
-  background: transparent !important;
-  color: #fff !important;
+  background: var(--tag-cor, var(--cl-beige-200)) !important;
+  color: var(--tag-texto, #fff) !important;
   max-width: 100%;
 }
 
