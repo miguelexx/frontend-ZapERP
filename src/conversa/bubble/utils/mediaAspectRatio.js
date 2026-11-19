@@ -28,6 +28,51 @@ export const LINK_PREVIEW_AR_MAX = 1.91;
 const MAX_ENTRIES = 600;
 const cache = new Map();
 
+/*
+ * Persistência entre recargas (19/11/2026). O cache era só de módulo: depois de um F5 toda foto
+ * voltava a nascer quadrada e a "descobrir" a forma ao decodificar — com rede lenta, já com a
+ * conversa à vista (salto de 80–100px medido). Guardar só chaves `m:<id da mensagem>`: chave
+ * `u:<url>` pode levar token do /media/proxy na query e não vai para o storage.
+ */
+const STORAGE_KEY = "zap_media_ar_v1";
+const PERSIST_MAX = 400;
+let persistTimer = 0;
+
+function loadPersisted() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return;
+    for (const pair of arr) {
+      if (!Array.isArray(pair) || pair.length !== 2) continue;
+      const [k, v] = pair;
+      if (typeof k === "string" && k.startsWith("m:") && typeof v === "number" && v > 0 && v < 10) {
+        cache.set(k, v);
+      }
+    }
+  } catch {
+    /* storage indisponível/corrompido: segue só com a memória */
+  }
+}
+
+function schedulePersist() {
+  if (typeof window === "undefined" || persistTimer) return;
+  persistTimer = window.setTimeout(() => {
+    persistTimer = 0;
+    try {
+      const out = [];
+      for (const [k, v] of cache) if (k.startsWith("m:")) out.push([k, v]);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(out.slice(-PERSIST_MAX)));
+    } catch {
+      /* quota/privado: ignora */
+    }
+  }, 1500);
+}
+
+loadPersisted();
+
 /**
  * Normaliza largura/altura naturais em um número (w/h) já limitado à faixa.
  * Retorna 0 quando as dimensões não servem (arquivo quebrado, metadados ausentes).
@@ -73,6 +118,7 @@ export function rememberAspectRatio(key, ratio) {
     const oldest = cache.keys().next();
     if (!oldest.done) cache.delete(oldest.value);
   }
+  if (key.startsWith("m:")) schedulePersist();
 }
 
 /**

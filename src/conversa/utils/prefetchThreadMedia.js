@@ -20,6 +20,11 @@ import {
   resolveBubbleMediaCandidates,
   normalizeMessageTipo,
 } from "./conversaViewHelpers";
+import {
+  clampAspectRatio,
+  mediaRatioKey,
+  rememberAspectRatio,
+} from "../bubble/utils/mediaAspectRatio";
 
 /** Quantas mídias recentes aquecer. As de baixo (mais novas) são as que renderizam primeiro. */
 const MAX_PREFETCH = 14;
@@ -66,6 +71,8 @@ export function prefetchThreadImages(mensagens) {
     if (saveDataOn()) return;
 
     const urls = [];
+    /** url → mensagem de foto: ao decodificar, a forma vai para o cache da moldura. */
+    const fotoPorUrl = new Map();
     const seen = new Set();
     // Da mais nova para a mais antiga: as de baixo aparecem primeiro ao abrir.
     for (let i = mensagens.length - 1; i >= 0 && urls.length < MAX_PREFETCH; i -= 1) {
@@ -76,6 +83,7 @@ export function prefetchThreadImages(mensagens) {
       if (!first || seen.has(first) || alreadyDone(first)) continue;
       seen.add(first);
       urls.push(first);
+      if (normalizeMessageTipo(msg?.tipo) === "imagem") fotoPorUrl.set(first, msg);
     }
 
     for (const url of urls) {
@@ -86,8 +94,25 @@ export function prefetchThreadImages(mensagens) {
       img.src = url;
       // decode() força o navegador a completar o pipeline (rede + decode) em background;
       // erros (404/403/rede) são engolidos — o retry/fallback vive na própria bolha.
+      /*
+       * Ao decodificar, guarda a forma da foto (19/11/2026): a bolha que montar depois — ao
+       * rolar o histórico, ou numa reabertura — já nasce na moldura certa em vez de quadrada.
+       */
+      const foto = fotoPorUrl.get(url);
+      const lembrarForma = () => {
+        try {
+          if (!foto) return;
+          const ratio = clampAspectRatio(img.naturalWidth, img.naturalHeight);
+          const key = mediaRatioKey(foto, url);
+          if (ratio > 0 && key) rememberAspectRatio(key, ratio);
+        } catch {
+          /* best-effort */
+        }
+      };
       if (typeof img.decode === "function") {
-        img.decode().catch(() => {});
+        img.decode().then(lembrarForma, () => {});
+      } else {
+        img.onload = lembrarForma;
       }
     }
   } catch {
