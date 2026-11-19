@@ -10,7 +10,7 @@ import "./ranking.css";
  * Card de celebração do campeão da semana. Reaproveita o overlay do ConfirmDialog
  * (mesma camada, blur e animação) — só o conteúdo é próprio.
  */
-export default function CampeaoCelebracao({ ciclo, usuarioId, onClose }) {
+export default function CampeaoCelebracao({ ciclo, usuarioId, podeVerRanking = false, onClose }) {
   const navigate = useNavigate();
   const titleId = `${useId()}-titulo`;
   const okRef = useRef(null);
@@ -58,16 +58,19 @@ export default function CampeaoCelebracao({ ciclo, usuarioId, onClose }) {
           Uma nova competição já começou. Quem será o próximo campeão?
         </p>
         <div className="rk-celebra-acoes">
-          <button
-            type="button"
-            className="ds-confirm-btn ds-confirm-btn--ghost"
-            onClick={() => {
-              onClose?.();
-              navigate("/ranking");
-            }}
-          >
-            Ver ranking
-          </button>
+          {/* O ranking completo mora em IA / Bot → Ranking: só quem acessa essa tela vê o atalho. */}
+          {podeVerRanking ? (
+            <button
+              type="button"
+              className="ds-confirm-btn ds-confirm-btn--ghost"
+              onClick={() => {
+                onClose?.();
+                navigate("/ia?tab=ranking");
+              }}
+            >
+              Ver ranking
+            </button>
+          ) : null}
           <button ref={okRef} type="button" className="ds-confirm-btn ds-confirm-btn--primary" onClick={() => onClose?.()}>
             Fechar
           </button>

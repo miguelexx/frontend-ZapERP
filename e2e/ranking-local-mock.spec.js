@@ -3,13 +3,14 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Ranking gamificado — API simulada (nenhum backend real). Cobre a página /ranking,
- * a celebração única do campeão, a aba admin em Configurações e o gate de permissão.
+ * Ranking gamificado — API simulada (nenhum backend real). Cobre a aba "Ranking" de IA / Bot,
+ * a configuração admin na mesma aba, a celebração única do campeão e os gates.
  */
 
 const SHOTS = process.env.RANKING_SHOTS_DIR || resolve("test-results", "ranking");
 
-const admin = { id: 1, nome: "Admin", email: "admin@local.test", perfil: "admin", role: "admin", company_id: 1, departamento_ids: [] };
+// Admin chamado "Maria" (id 2): é quem aparece como "você" no pódio do fixture.
+const admin = { id: 2, nome: "Maria", email: "maria.admin@local.test", perfil: "admin", role: "admin", company_id: 1, departamento_ids: [] };
 const atendente = { id: 2, nome: "Maria", email: "maria@local.test", perfil: "atendente", role: "atendente", company_id: 1, departamento_ids: [] };
 
 function cicloEncerrado(overrides = {}) {
@@ -110,13 +111,15 @@ const painelAdmin = {
   ciclo_atual: { id: 42, inicio: "2026-11-13T21:00:00.000Z", fim: "2026-11-20T21:00:00.000Z", timezone: "America/Sao_Paulo" },
 };
 
+
 test.beforeAll(() => mkdirSync(SHOTS, { recursive: true }));
 
-test("página do ranking: pódio, você destacado, contagem regressiva e celebração única", async ({ page }, info) => {
-  await installSession(page, atendente);
-  await installApi(page, { user: atendente, atual: rankingAtual(), config: painelAdmin });
-  await page.goto("/ranking");
+test("aba Ranking do IA / Bot: pódio, você destacado, contagem regressiva e celebração única", async ({ page }, info) => {
+  await installSession(page, admin);
+  await installApi(page, { user: admin, atual: rankingAtual(), config: painelAdmin });
+  await page.goto("/ia?tab=ranking");
 
+  await expect(page.locator(".ia-tab--active")).toHaveText("Ranking");
   await expect(page.getByRole("heading", { name: /Ranking da semana/ })).toBeVisible();
   const podio = page.getByRole("list", { name: "Três primeiros colocados" });
   await expect(podio.locator("li")).toHaveCount(3);
@@ -132,10 +135,11 @@ test("página do ranking: pódio, você destacado, contagem regressiva e celebra
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await expect(dialog).toContainText("João conquistou o 1º lugar nesta semana!");
   await expect(dialog).toContainText("Foram 87 atendimentos realizados.");
+  await expect(dialog.getByRole("button", { name: "Ver ranking" })).toBeVisible();
   await page.screenshot({ path: resolve(SHOTS, `celebracao-${info.project.name}.png`) });
   await dialog.getByRole("button", { name: "Fechar" }).click();
   await expect(dialog).toBeHidden();
-  await page.screenshot({ path: resolve(SHOTS, `ranking-${info.project.name}.png`), fullPage: true });
+  await page.screenshot({ path: resolve(SHOTS, `ranking-${info.project.name}.png`) });
 
   // Recarregar não mostra de novo (uma vez por pessoa por ciclo)
   await page.reload();
@@ -144,8 +148,17 @@ test("página do ranking: pódio, você destacado, contagem regressiva e celebra
   await expect(page.getByRole("dialog", { name: /Temos um campeão!/ })).toHaveCount(0);
 });
 
+test("link antigo /ranking abre a aba Ranking do IA / Bot e o menu não tem mais o item", async ({ page }) => {
+  await installSession(page, admin);
+  await installApi(page, { user: admin, atual: rankingAtual({ ultimo: null }), config: painelAdmin });
+  await page.goto("/ranking");
+  await expect(page).toHaveURL(/\/ia\?tab=ranking/);
+  await expect(page.getByRole("heading", { name: /Ranking da semana/ })).toBeVisible();
+  await expect(page.locator('aside a[href="/ranking"]')).toHaveCount(0);
+});
+
 test("empate no 1º lugar celebra todos os vencedores", async ({ page }) => {
-  await installSession(page, atendente);
+  await installSession(page, admin);
   const ultimo = cicloEncerrado({
     id: 50,
     vencedores: [
@@ -154,25 +167,27 @@ test("empate no 1º lugar celebra todos os vencedores", async ({ page }) => {
     ],
     total_vencedor: 10,
   });
-  await installApi(page, { user: atendente, atual: rankingAtual({ ultimo }), config: painelAdmin });
-  await page.goto("/ranking");
+  await installApi(page, { user: admin, atual: rankingAtual({ ultimo }), config: painelAdmin });
+  await page.goto("/ia?tab=ranking");
   const dialog = page.getByRole("dialog", { name: /Temos campeões!/ });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await expect(dialog).toContainText("João e Maria dividiram o 1º lugar nesta semana!");
 });
 
-test("admin configura em Configurações → Ranking e vê o histórico", async ({ page }, info) => {
+test("admin configura na mesma aba e vê o histórico", async ({ page }, info) => {
   await installSession(page, admin);
-  const api = await installApi(page, { user: admin, atual: rankingAtual({ ultimo: null, eu: 1 }), config: painelAdmin });
-  await page.goto("/configuracoes?tab=ranking");
+  const api = await installApi(page, { user: admin, atual: rankingAtual({ ultimo: null }), config: painelAdmin });
+  await page.goto("/ia?tab=ranking");
 
-  await expect(page.getByRole("heading", { name: "Ranking de atendimentos" })).toBeVisible();
+  const titulo = page.getByRole("heading", { name: "Configuração da competição" });
+  await expect(titulo).toBeVisible();
   await expect(page.getByRole("switch", { name: "Ranking ativo" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByText("Vencedores anteriores")).toBeVisible();
   await expect(page.locator(".rk-hist-item")).toContainText("João");
   await page.locator(".rk-hist-item summary").click();
   await expect(page.locator(".rk-hist-classificacao li")).toHaveCount(2);
-  await page.screenshot({ path: resolve(SHOTS, `config-${info.project.name}.png`), fullPage: true });
+  await titulo.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: resolve(SHOTS, `config-${info.project.name}.png`) });
 
   const salvar = page.getByRole("button", { name: "Salvar", exact: true });
   await expect(salvar).toBeDisabled();
@@ -191,19 +206,23 @@ test("admin configura em Configurações → Ranking e vê o histórico", async 
   expect(api.writes.length).toBe(1);
 });
 
-test("atendente: sem aba Ranking em Configurações e sem item no menu quando desligado", async ({ page }) => {
-  await installSession(page, atendente);
-  await installApi(page, { user: atendente, atual: rankingAtual({ ativo: false }), config: painelAdmin });
-  await page.goto("/ranking");
-  await expect(page.getByText("O ranking de atendimentos não está ativo")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Configurar ranking" })).toHaveCount(0);
-  await page.waitForTimeout(4500);
-  await expect(page.locator('a[href="/ranking"]')).toHaveCount(0);
+test("Configurações não tem mais a aba Ranking", async ({ page }) => {
+  await installSession(page, admin);
+  await installApi(page, { user: admin, atual: rankingAtual({ ultimo: null }), config: painelAdmin });
+  await page.goto("/configuracoes?tab=ranking");
+  await expect(page).toHaveURL(/tab=geral/);
+  await expect(page.locator(".ia-tabs").getByRole("button", { name: "Ranking" })).toHaveCount(0);
 });
 
-test("atendente vê o item Ranking no menu quando a competição está ativa", async ({ page }) => {
+test("atendente: /ranking volta ao atendimento, sem item no menu, celebração sem atalho", async ({ page }) => {
   await installSession(page, atendente);
-  await installApi(page, { user: atendente, atual: rankingAtual({ ultimo: null }), config: painelAdmin });
+  await installApi(page, { user: atendente, atual: rankingAtual(), config: painelAdmin });
   await page.goto("/ranking");
-  await expect(page.locator('a[href="/ranking"]').first()).toBeAttached({ timeout: 10_000 });
+  await expect(page).toHaveURL(/\/atendimento/);
+  await expect(page.locator('a[href="/ranking"]')).toHaveCount(0);
+  const dialog = page.getByRole("dialog", { name: /Temos um campeão!/ });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(dialog.getByRole("button", { name: "Ver ranking" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Fechar" }).click();
+  await expect(dialog).toBeHidden();
 });

@@ -22,9 +22,18 @@
   background: radial-gradient(ellipse 120% 70% at 50% -20%, rgba(212, 160, 23, 0.07), transparent 55%);
 }
 
-.rk-centro {
+/* Dentro da aba "Ranking" do IA / Bot: a casca (.ia-wrap/.ia-content) já dá respiro e largura. */
+.rk-page--aba {
+  padding: 0;
+  max-width: none;
+  margin: 0;
+  min-height: 0;
+}
+
+.rk-aba {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 28px;
 }
 
 /* ---------- Cabeçalho ---------- */
@@ -665,6 +674,9 @@
   .rk-page {
     padding: 18px 16px 32px;
     gap: 16px;
+  }
+  .rk-page--aba {
+    padding: 0;
   }
   .rk-resumo {
     grid-template-columns: 1fr;

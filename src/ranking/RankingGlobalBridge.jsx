@@ -1,6 +1,8 @@
 import { Suspense, useEffect, useRef } from "react";
 import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
 import { useAuthStore } from "../auth/authStore";
+import { usePermissoesStore } from "../auth/permissoesStore";
+import { can, canAcessarConfiguracoes } from "../auth/permissions";
 import { getSocket } from "../socket/socket";
 import { getRankingAtual } from "../api/rankingService";
 import { useRankingStore } from "./rankingStore";
@@ -27,6 +29,8 @@ const ATRASO_BOOT_MS = 4000;
 export default function RankingGlobalBridge() {
   const user = useAuthStore((s) => s.user);
   const celebracao = useRankingStore((s) => s.celebracao);
+  // Reavalia quando GET /usuarios/me/permissoes resolve (can() lê o store via getState()).
+  usePermissoesStore((s) => s.permissoes);
   const userRef = useRef(user);
   userRef.current = user;
 
@@ -108,7 +112,13 @@ export default function RankingGlobalBridge() {
 
   return (
     <Suspense fallback={null}>
-      <CampeaoCelebracao ciclo={celebracao} usuarioId={user?.id} onClose={fechar} />
+      <CampeaoCelebracao
+        ciclo={celebracao}
+        usuarioId={user?.id}
+        // Mesmos gates da rota /ia (chatbot_acessar) e do IaShell (config_acessar).
+        podeVerRanking={can("chatbot_acessar", user) && canAcessarConfiguracoes(user)}
+        onClose={fechar}
+      />
     </Suspense>
   );
 }

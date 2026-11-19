@@ -17,6 +17,7 @@ const IaSettingsSection = lazy(() => import("./configuracoes/IaSettingsSectionCo
 const AutomacoesSection = lazy(() => import("./automacoes/AutomacoesSectionController"));
 const AlertasSection = lazy(() => import("./alertas/AlertasAtendimentoSection"));
 const LogsSection = lazy(() => import("./logs/LogsSection"));
+const RankingTab = lazy(() => import("../ranking/RankingTab"));
 
 export const IA_TABS = [
   { id: "chatbot", label: "Chatbot de Triagem" },
@@ -25,6 +26,7 @@ export const IA_TABS = [
   { id: "automacoes", label: "Automações" },
   { id: "alertas", label: "Alertas de Atendimento" },
   { id: "logs", label: "Logs do bot" },
+  { id: "ranking", label: "Ranking" },
 ];
 
 function resolveTab(value) {
@@ -81,6 +83,7 @@ export default function IaShell() {
           {activeTab === "automacoes" ? <AutomacoesSection companyKey={companyKey} /> : null}
           {activeTab === "alertas" ? <AlertasSection companyKey={companyKey} /> : null}
           {activeTab === "logs" ? <LogsSection companyKey={companyKey} /> : null}
+          {activeTab === "ranking" ? <RankingTab /> : null}
         </Suspense>
       </div>
     </div>

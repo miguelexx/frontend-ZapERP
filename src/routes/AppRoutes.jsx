@@ -27,7 +27,6 @@ const Mensagens = lazy(() => import("../pages/Mensagens"));
 const Atalhos = lazy(() => import("../pages/Atalhos"));
 const InternalChat = lazy(() => import("../pages/InternalChat"));
 const Supervisao = lazy(() => import("../pages/Supervisao"));
-const Ranking = lazy(() => import("../pages/Ranking"));
 const HelpDesk = lazy(() => import("../pages/HelpDesk"));
 const DisparoMensagens = lazy(() => import("../pages/DisparoMensagens"));
 const DisparoWizardPage = lazy(() => import("../pages/DisparoWizardPage"));
@@ -169,14 +168,10 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
-          {/* Ranking gamificado: qualquer usuário vê o da própria empresa; a página trata "desligado". */}
+          {/* Ranking gamificado mora na aba "Ranking" de IA / Bot (link antigo/atalho). */}
           <Route
             path="/ranking"
-            element={
-              <LazyPage>
-                <Ranking />
-              </LazyPage>
-            }
+            element={<Navigate to={canAccessChatbot_ ? "/ia?tab=ranking" : "/atendimento"} replace />}
           />
           <Route
             path="/helpdesk"
