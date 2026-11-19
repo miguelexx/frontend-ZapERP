@@ -97,7 +97,13 @@ function analyse(samples) {
   const jumps = []; let prev = null;
   const reveals = []; const kinds = new Set(); const heads = new Set();
   let wasVisible = false;
+  // Só conta a partir do momento em que a NOVA conversa entra em abertura (máscara/opacidade 0):
+  // antes disso o que está na tela é a conversa ANTERIOR — uma foto dela a terminar o deslize
+  // (janela de deslize da moldura, 19/11/2026) não é salto da abertura que se está a medir.
+  let started = false;
   for (const s of samples) {
+    if (!started && (s.cls || s.op <= 0.02)) started = true;
+    if (!started) continue;
     kinds.add(s.kind); if (s.hh) heads.add(s.hh);
     const visible = s.op > 0.02;
     if (visible !== wasVisible) { reveals.push({ t: s.t, op: s.op }); wasVisible = visible; }

@@ -4452,13 +4452,23 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 .wa-bubble.image-message .wa-bubble-imgLink {
   --wa-media-max-w: min(340px, calc(100vw - 56px));
   --wa-media-max-h: 420px;
+  /* Proporção ANIMÁVEL (19/11/2026): com rede lenta a foto decodifica depois de a conversa já
+     estar à vista e a moldura trocava de quadrada para a forma real num único frame — tudo o
+     que estava acima saltava 80–100px. `--wa-media-ar-anim` é registrada (@property abaixo) e
+     transiciona: a moldura cresce em ~400ms e a thread acompanha (âncora no fim a cada frame).
+     Variável SEPARADA de propósito: registrar a `--wa-media-ar` daria a ela um valor inicial e
+     mataria os fallbacks de vídeo (16/9) e cartão de link (1.91). Montagem com proporção já
+     conhecida não anima (transição não corre no primeiro estilo).
+     Curva ease-in-out de 400ms, não ease-out: a altura da foto alta satura no teto (420px)
+     a ~55% do caminho, e com ease-out esses 55% passavam em 2–3 frames (salto de 40px/frame). */
+  --wa-media-ar-anim: var(--wa-media-ar, 1);
   margin: 0;
   width: max(
     132px,
-    min(var(--wa-media-max-w), calc(var(--wa-media-max-h) * var(--wa-media-ar, 1)))
+    min(var(--wa-media-max-w), calc(var(--wa-media-max-h) * var(--wa-media-ar-anim)))
   );
   max-width: min(420px, calc(100vw - 72px));
-  aspect-ratio: var(--wa-media-ar, 1);
+  aspect-ratio: var(--wa-media-ar-anim);
   background: rgba(11, 20, 26, 0.06);
   contain: layout paint;
 }
@@ -16634,5 +16644,27 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
   .wa-botTriage-pill {
     max-width: 94%;
     font-size: 11px;
+  }
+}
+
+
+/* Proporção animável da moldura de foto (ver `.wa-bubble.image-message .wa-bubble-imgLink`).
+   A transição só vale na janela logo depois de a conversa aparecer (`data-media-glide`, posto
+   pelo ConversaView): sob a máscara de abertura a troca tem de ser INSTANTÂNEA (senão a animação
+   atravessa a revelação), e ao carregar histórico/rolar para cima também (a âncora do
+   virtualizer compensa saltos instantâneos, não 400ms de remedições). */
+.wa-messages[data-media-glide="1"] .wa-bubble.image-message .wa-bubble-imgLink:not([data-ar-instant]) {
+  transition: --wa-media-ar-anim 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@property --wa-media-ar-anim {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-bubble.image-message .wa-bubble-imgLink {
+    transition: none;
   }
 }

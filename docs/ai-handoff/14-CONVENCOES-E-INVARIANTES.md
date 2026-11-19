@@ -333,6 +333,24 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
   sem `de_usuario_id` (sistema) não é desenhada (`isSystemTransferMovement`, filtrada no
   `buildMensagensComSeparadores`); a feita por atendente continua. O bot não marca as próprias
   mensagens — se um dia marcar, troque a heurística pela marca.
+- **Foto que chega depois da abertura (rede lenta) — 19/11/2026.** Com latência de produção
+  (API 1,3s, fotos 1,5–2s) a moldura trocava de quadrada para a forma real num frame já com a
+  conversa à vista: 80px (desktop) / 101px (celular). Três peças:
+  1. `mediaAspectRatio` persiste o cache (`localStorage` `zap_media_ar_v1`, só chaves `m:<id>` —
+     chave `u:<url>` pode levar token) e o `prefetchThreadImages` grava a forma ao decodificar.
+     Reabertura depois do F5: 0px.
+  2. Moldura de foto usa `--wa-media-ar-anim` (registrada com `@property`, separada da
+     `--wa-media-ar` para não matar os fallbacks de vídeo/cartão de link) e só TRANSICIONA
+     (400ms ease-in-out) dentro da janela `data-media-glide` do `.wa-messages`: 3,5s depois da
+     revelação, sem histórico a carregar, até o atendente rolar para cima. Sob a máscara, no
+     histórico e fora da janela a troca continua instantânea (a âncora do virtualizer compensa
+     salto instantâneo, não 400ms de remedições). Foto FORA da tela também troca na hora
+     (`data-ar-instant`, posto em `applyAspectRatioVar`). Resultado: ≤18–20px por frame em vez
+     de um salto; fundo termina colado (vão 0).
+  3. `snapIfStickBottom` só reancora remedição < 4px enquanto houver moldura a deslizar
+     (`mediaGlideCountRef`, eventos `transitionrun/end`), com acerto final no `transitionend`.
+  As sondas de abertura (`thread-open-*.spec.js`) só contam a partir da máscara da NOVA conversa:
+  antes disso a tela ainda é a conversa anterior.
 - **Grupos: remontagem do conteúdo da bolha — NÃO alterado de propósito.** Quando
   `__showRemetente` alterna (lote antigo carregado acima, nome que chega depois), o
   `BubbleTypedContent` troca de pai (`.wa-bubble-remetente` ↔ `.wa-bubble-body`) e remonta (foto

@@ -128,5 +128,27 @@ export function rememberAspectRatio(key, ratio) {
  */
 export function applyAspectRatioVar(el, ratio) {
   if (!el || !(ratio > 0)) return;
+  markGlideEligibility(el);
   el.style.setProperty("--wa-media-ar", String(ratio));
+}
+
+/*
+ * Só desliza (transição da moldura, janela `data-media-glide`) a foto que o atendente ESTÁ VENDO
+ * (19/11/2026). Foto fora da tela que decodifica depois da abertura troca de forma na hora: a
+ * âncora do fim absorve isso num frame só, invisível; animada, eram 400ms de remedições a
+ * empurrar a tela 1–2px por frame sem benefício nenhum. Atributo imperativo (o React não o
+ * gere): tem de estar posto ANTES da troca da proporção, no mesmo recálculo de estilo.
+ */
+function markGlideEligibility(el) {
+  try {
+    const scroller = el.closest && el.closest(".wa-messages");
+    if (!scroller) return;
+    const r = el.getBoundingClientRect();
+    const v = scroller.getBoundingClientRect();
+    const visivel = r.bottom > v.top && r.top < v.bottom;
+    if (visivel) el.removeAttribute("data-ar-instant");
+    else el.setAttribute("data-ar-instant", "1");
+  } catch {
+    /* sem layout (teste/SSR): segue sem marcar */
+  }
 }

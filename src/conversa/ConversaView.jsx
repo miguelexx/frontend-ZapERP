@@ -483,6 +483,8 @@ function ConversaViewBody() {
   const shouldStickToBottomRef = useRef(true);
   /** Meta do último snap via ResizeObserver — evita reancorar em ticks de status. */
   const lastResizeSnapMetaRef = useRef({ contentKey: null, scrollHeight: 0 });
+  /** Molduras de foto em transição agora (`--wa-media-ar-anim`, janela de deslize). */
+  const mediaGlideCountRef = useRef(0);
   const messagesLastScrollTopRef = useRef(0);
   /** Botão "ir para recentes": visível quando o utilizador está lendo histórico (longe do fim). */
   const [showScrollToRecent, setShowScrollToRecent] = useState(false);
@@ -957,11 +959,21 @@ function ConversaViewBody() {
      * Sem mudança de mensagem nem crescimento real de altura, reancorar causa o “pulo”.
      * Mídia que carrega (altura sobe) e mensagem nova (contentKey) continuam a snapar.
      */
-    if (!keyChanged && Math.abs(heightDelta) < 4) {
+    const distanceToBottom = scrollHeight - (c.scrollTop || 0) - (c.clientHeight || 0);
+    /*
+     * Remedição pequena (< 4px) continua ignorada — reancorar por 1–2px de tique/fonte movia a
+     * tela à toa. EXCEÇÃO (19/11/2026): com uma moldura de foto a deslizar (janela de deslize),
+     * cada frame soma poucos px e, descartados, a última mensagem terminava meio escondida.
+     * Só aí a remedição pequena reancora.
+     */
+    if (
+      !keyChanged &&
+      Math.abs(heightDelta) < 4 &&
+      (distanceToBottom <= 1 || mediaGlideCountRef.current === 0)
+    ) {
       lastResizeSnapMetaRef.current = { contentKey, scrollHeight };
       return;
     }
-    const distanceToBottom = scrollHeight - (c.scrollTop || 0) - (c.clientHeight || 0);
     if (!keyChanged && distanceToBottom < 2 && heightDelta <= 0) {
       lastResizeSnapMetaRef.current = { contentKey, scrollHeight };
       return;
@@ -1821,6 +1833,9 @@ function ConversaViewBody() {
      */
     if (top < prevTop - 1 && userScrollLockRef.current) {
       shouldStickToBottomRef.current = false;
+      /* Atendente subiu para ler: foto que decodificar agora troca de forma na hora (a âncora do
+         virtualizer compensa salto instantâneo, não 400ms de remedições). */
+      el.removeAttribute("data-media-glide");
       if (!jumpHoldRef.current) {
         cancelOpenSnapPendingRef.current?.();
         scheduleUserScrollUnlock(headerCompact ? 320 : 240);
@@ -3156,6 +3171,55 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
     const fallback = window.setTimeout(() => setThreadOpening(false), 1100);
     return () => window.clearTimeout(fallback);
   }, [threadOpening, openingThreadKey, loading, awaitingFresh, setThreadOpening]);
+
+  /*
+   * Janela de "deslize" da moldura de foto (19/11/2026). Com rede lenta a foto decodifica DEPOIS
+   * de a conversa aparecer e a moldura trocava de quadrada para a forma real num frame (salto de
+   * 80–100px). Nos primeiros segundos após a revelação, com o atendente no fim da conversa, essa
+   * troca anima (CSS `[data-media-glide]`) e a thread acompanha. Fora daí — sob a máscara, ao
+   * carregar histórico, depois de rolar para cima — continua instantânea, como sempre foi.
+   * Atributo no DOM (não className/estado): não re-renderiza o coordenador e o React não o apaga.
+   */
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return undefined;
+    if (threadOpening || loading || loadingMore) {
+      el.removeAttribute("data-media-glide");
+      return undefined;
+    }
+    el.setAttribute("data-media-glide", "1");
+    const timer = window.setTimeout(() => el.removeAttribute("data-media-glide"), 3500);
+    /* Conta as molduras a deslizar: só durante elas a remedição pequena reancora o fundo; no
+       fim, um acerto final com o fundo ainda colado (os últimos pixels da curva). */
+    const isGlide = (e) => e?.propertyName === "--wa-media-ar-anim";
+    const onRun = (e) => {
+      if (isGlide(e)) mediaGlideCountRef.current += 1;
+    };
+    const onEnd = (e) => {
+      if (!isGlide(e)) return;
+      mediaGlideCountRef.current = Math.max(0, mediaGlideCountRef.current - 1);
+      if (mediaGlideCountRef.current > 0) return;
+      if (userScrollLockRef.current || !shouldStickToBottomRef.current) return;
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (gap > 1) {
+        snapThreadToBottom(el, virtualThreadRef, {
+          followUpFrame: false,
+          canSnap: () => !userScrollLockRef.current && shouldStickToBottomRef.current,
+        });
+      }
+    };
+    el.addEventListener("transitionrun", onRun);
+    el.addEventListener("transitionend", onEnd);
+    el.addEventListener("transitioncancel", onEnd);
+    return () => {
+      window.clearTimeout(timer);
+      el.removeEventListener("transitionrun", onRun);
+      el.removeEventListener("transitionend", onEnd);
+      el.removeEventListener("transitioncancel", onEnd);
+      mediaGlideCountRef.current = 0;
+      el.removeAttribute("data-media-glide");
+    };
+  }, [threadOpening, loading, loadingMore, openingThreadKey]);
 
   useEffect(() => {
     if (!import.meta?.env?.DEV) return;

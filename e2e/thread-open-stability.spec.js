@@ -57,7 +57,12 @@ async function armProbe(page) {
 }
 function analyse(samples) {
   const jumps = []; let prev = null;
-  for (const s of samples) { if (s.op <= 0.02) { prev = null; continue; }
+  // Só conta a partir do momento em que a NOVA conversa entra em abertura (máscara/opacidade 0):
+  // antes disso o que está na tela é a conversa ANTERIOR — uma foto dela a terminar o deslize
+  // (janela de deslize da moldura, 19/11/2026) não é salto da abertura que se está a medir.
+  let started = false;
+  for (const s of samples) { if (!started && (s.cls || s.op <= 0.02)) started = true; if (!started) continue;
+    if (s.op <= 0.02) { prev = null; continue; }
     if (prev) { let maxd = 0; for (const k of Object.keys(s.pos)) if (k in prev.pos) maxd = Math.max(maxd, Math.abs(s.pos[k] - prev.pos[k]));
       if (maxd > 1) jumps.push({ t: s.t, d: maxd, op: s.op, st: s.st, sh: s.sh, ch: s.ch }); }
     prev = s; }
