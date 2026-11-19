@@ -107,7 +107,7 @@ import { useConversationSelection } from "./hooks/useConversationSelection";
 import { useConversationThreadActions } from "./hooks/useConversationThreadActions";
 import { useConversationOutboundMedia } from "./hooks/useConversationOutboundMedia";
 import { useConversationFileDrop } from "./hooks/useConversationFileDrop";
-import { useAutoScroll, snapThreadToBottom, smoothScrollThreadToBottom } from "./hooks/useAutoScroll";
+import { useAutoScroll, snapThreadToBottom, smoothScrollThreadToBottom, glideThreadToBottom } from "./hooks/useAutoScroll";
 import { useMobileKeyboardViewport } from "./hooks/useMobileKeyboardViewport";
 import { useHeaderHeightVar } from "./hooks/useHeaderHeightVar";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
@@ -162,7 +162,10 @@ import "../components/feedback/toast.css";
  * cache. Cobre a latência típica do GET /chats/:id; passado isto, revela o cache (melhor uma
  * mensagem nova entrar depois do que a conversa ficar em branco).
  */
-const OPEN_FRESH_WAIT_MAX_MS = 850;
+const OPEN_FRESH_WAIT_MAX_MS = 0;
+/* Era 850ms: a conversa esperava o servidor para aparecer. Agora (0 = desligado) mostra na hora
+   o que já tinha e, se o servidor trouxer mensagens novas, elas entram deslizando (snapIfStickBottom, janela de
+   deslize) — como mensagem chegando em tempo real, sem "pulo" (19/11/2026). */
 
 function ConversaViewBody() {
   const {
@@ -702,6 +705,7 @@ function ConversaViewBody() {
    */
   const [freshWaitExpiredKey, setFreshWaitExpiredKey] = useState(null);
   const awaitingFresh =
+    OPEN_FRESH_WAIT_MAX_MS > 0 &&
     openingThreadKey != null &&
     openRefreshPendingId != null &&
     String(openRefreshPendingId) === openingThreadKey &&
@@ -979,6 +983,32 @@ function ConversaViewBody() {
       return;
     }
     lastResizeSnapMetaRef.current = { contentKey, scrollHeight };
+    /*
+     * Mensagem NOVA no fim logo depois de a conversa aparecer (lista do servidor chegando depois
+     * do cache, ou mensagem em tempo real nos primeiros segundos): desliza até ela em vez do
+     * snap seco que empurrava a tela inteira num frame. Envio próprio continua instantâneo.
+     */
+    if (
+      keyChanged &&
+      distanceToBottom > 1 &&
+      c.getAttribute("data-media-glide") === "1" &&
+      !(last && isPendingOutgoingTemp(last))
+    ) {
+      smoothScrollCancelRef.current?.();
+      smoothScrollCancelRef.current = glideThreadToBottom(c, {
+        canContinue: () => !userScrollLockRef.current,
+        onDone: (completed) => {
+          smoothScrollCancelRef.current = null;
+          if (!completed || userScrollLockRef.current) return;
+          snapThreadToBottom(messagesContainerRef.current, virtualThreadRef, {
+            min: true,
+            followUpFrame: false,
+            canSnap: () => !userScrollLockRef.current,
+          });
+        },
+      });
+      return;
+    }
     const guard = {
       canSnap: () => !userScrollLockRef.current && shouldStickToBottomRef.current,
       followUpFrame: false,
@@ -1319,6 +1349,9 @@ function ConversaViewBody() {
     userScrollLockRef,
     cancelOpenSnapPendingRef,
     awaitingFresh,
+    /* Deslize programático em curso (ir para recentes / mensagem nova na abertura): nenhum
+       snap seco do useAutoScroll pode cortá-lo no meio. */
+    programmaticScrollRef: smoothScrollCancelRef,
     onOpenSnapReady: () => setThreadOpening(false),
   });
 
@@ -3151,8 +3184,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   // tzVersion: trocar o estado da empresa muda o fuso dos separadores de data e de toda
   // hora da thread — sem a dependencia, o memo serviria os separadores do fuso antigo.
   const mensagensComSeparadores = useMemo(
-    () => buildMensagensComSeparadores(mensagens, isGroup),
-    [mensagens, isGroup, tzVersion]
+    () =>
+      buildMensagensComSeparadores(mensagens, isGroup, {
+        /* Supervisor não vê o card escuro de "Movimentação interna" (admin continua vendo). */
+        ocultarMovimentacoesInternas: userRole === "supervisor",
+      }),
+    [mensagens, isGroup, tzVersion, userRole]
   );
   useLayoutEffect(() => {
     mensagensComSeparadoresRef.current = mensagensComSeparadores;
@@ -3180,13 +3217,23 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
    * carregar histórico, depois de rolar para cima — continua instantânea, como sempre foi.
    * Atributo no DOM (não className/estado): não re-renderiza o coordenador e o React não o apaga.
    */
+  const mediaGlideOpenedForKeyRef = useRef(null);
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (!el) return undefined;
-    if (threadOpening || loading || loadingMore) {
+    if (threadOpening || loading) {
+      /* Nova abertura: a janela pode abrir de novo quando esta revelar. */
+      if (threadOpening) mediaGlideOpenedForKeyRef.current = null;
       el.removeAttribute("data-media-glide");
       return undefined;
     }
+    /*
+     * A janela abre UMA vez por revelação. Antes `loadingMore` estava nas deps: ao terminar de
+     * carregar o histórico a janela reabria e as fotos do lote antigo deslizavam enquanto o
+     * atendente lia — 364px de deriva medidos (thread-scroll-stability, 19/11/2026).
+     */
+    if (mediaGlideOpenedForKeyRef.current === openingThreadKey) return undefined;
+    mediaGlideOpenedForKeyRef.current = openingThreadKey;
     el.setAttribute("data-media-glide", "1");
     const timer = window.setTimeout(() => el.removeAttribute("data-media-glide"), 3500);
     /* Conta as molduras a deslizar: só durante elas a remedição pequena reancora o fundo; no
@@ -3219,7 +3266,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
       mediaGlideCountRef.current = 0;
       el.removeAttribute("data-media-glide");
     };
-  }, [threadOpening, loading, loadingMore, openingThreadKey]);
+  }, [threadOpening, loading, openingThreadKey]);
+
+  /* Carregar histórico fecha a janela de deslize de vez (não reabre ao terminar). */
+  useEffect(() => {
+    if (loadingMore) messagesContainerRef.current?.removeAttribute("data-media-glide");
+  }, [loadingMore]);
 
   useEffect(() => {
     if (!import.meta?.env?.DEV) return;

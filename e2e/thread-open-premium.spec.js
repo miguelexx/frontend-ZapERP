@@ -111,13 +111,24 @@ function analyse(samples) {
     if (prev) {
       let maxd = 0, who = null;
       for (const k of Object.keys(s.pos)) if (k in prev.pos) { const d = Math.abs(s.pos[k] - prev.pos[k]); if (d > maxd) { maxd = d; who = k; } }
-      if (maxd > 1) jumps.push({ t: s.t, d: maxd, id: who, op: s.op, st: s.st, sh: s.sh, ch: s.ch, kind: s.kind, ctx: process.env.DIAG_CTX ? samples.filter((x) => Math.abs(x.t - s.t) < 120).map((x) => `${x.t}:${x.op}:${x.st}/${x.sh}/${x.ch}:${x.cls ? 'O' : '-'}:${x.kind}`) : undefined });
+      if (maxd > 1) jumps.push({ t: s.t, d: maxd, dt: s.t - prev.t, id: who, op: s.op, st: s.st, sh: s.sh, ch: s.ch, kind: s.kind, ctx: process.env.DIAG_CTX ? samples.filter((x) => Math.abs(x.t - s.t) < 120).map((x) => `${x.t}:${x.op}:${x.st}/${x.sh}/${x.ch}:${x.cls ? 'O' : '-'}:${x.kind}`) : undefined });
     }
     prev = s;
   }
   return { jumps, reveals, kinds: [...kinds], heads: [...heads] };
 }
 
+// Contrato desde 19/11/2026 (abertura quase instantânea, ~0,3s na reabertura): a conversa aparece
+// sem esperar foto nem a lista do servidor. Foto que decodifica depois DESLIZA (janela de deslize)
+// e mensagem nova do servidor ENTRA deslizando — movimento suave é permitido; SALTO não. Salto =
+// uma bolha visível mudar mais de 24px de um frame para o outro (os deslizes medem 3–21px por
+// frame; os saltos antigos eram 36–166px num frame só).
+// O passo é normalizado pelos frames que de fato passaram (frame perdido no navegador headless
+// pinta 2–3 frames de deslize de uma vez — isso não é salto do app; um salto real de 80–340px
+// continua reprovando mesmo atravessando frames perdidos).
+const MAX_PASSO_SUAVE = 24;
+const passoPorFrame = (j) => j.d / Math.max(1, Math.round((j.dt || 16.7) / 16.7));
+const bruscos = (jumps) => jumps.filter((j) => passoPorFrame(j) > MAX_PASSO_SUAVE);
 for (const delay of [120, 600]) {
   test(`abertura premium sem salto (api ${delay}ms)`, async ({ page }, testInfo) => {
     await setup(page, delay);
@@ -133,14 +144,14 @@ for (const delay of [120, 600]) {
       await armProbe(page); await tap(nome); await page.waitForTimeout(3100);
       const a = analyse(await page.evaluate(() => window.__probe));
       console.log(`[${testInfo.project.name} d${delay}] ${nome} 1a:`, JSON.stringify(a));
-      expect(a.jumps, `${nome} 1a abertura: nenhuma bolha visivel pode mudar de lugar`).toEqual([]);
+      expect(bruscos(a.jumps), `${nome} 1a abertura: nenhuma bolha visivel pode SALTAR`).toEqual([]);
       // sai da conversa (desktop: troca de conversa; mobile: volta a lista)
       await back(); await tap(outro); await page.waitForTimeout(1500); await back();
       // reabertura (cache + lote maior)
       await armProbe(page); await tap(nome); await page.waitForTimeout(3100);
       const b = analyse(await page.evaluate(() => window.__probe));
       console.log(`[${testInfo.project.name} d${delay}] ${nome} 2a:`, JSON.stringify(b));
-      expect(b.jumps, `${nome} reabertura (cache + lote maior): nenhuma bolha pode mudar de lugar`).toEqual([]);
+      expect(bruscos(b.jumps), `${nome} reabertura (cache + lote maior): nenhuma bolha pode SALTAR`).toEqual([]);
       const tipos = b.kinds.filter((k) => k !== "none");
       expect(tipos.length, `${nome} reabertura: a lista nao pode trocar de tipo (remonta)`).toBeLessThanOrEqual(1);
       await back();

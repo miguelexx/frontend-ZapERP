@@ -50,7 +50,7 @@
   - O snap de abertura (`useAutoScroll`) só libera a máscara quando as `<img>` visíveis
     decodificaram e a altura ficou parada 2 frames (teto `OPEN_MEDIA_WAIT_MAX_MS` = 650ms).
   - O fallback de 1,1s da máscara conta a partir de `!loading`, não do clique.
-- **Abertura pelo cache espera a lista do servidor** (17/11/2026, regressão
+- **[SUBSTITUÍDO em 19/11 — ver "Abertura quase instantânea" abaixo]** **Abertura pelo cache espera a lista do servidor** (17/11/2026, regressão
   `e2e/thread-open-premium.spec.js`). Antes a máscara caía sobre a lista do CACHE e o GET de
   abertura trocava-a já à vista: 36px (1 msg nova), 149px (lote maior) no desktop, 166px no
   celular. Agora `conversaStore.openRefreshPendingId` marca "abriu pelo cache, GET pendente";
@@ -351,6 +351,35 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
      (`mediaGlideCountRef`, eventos `transitionrun/end`), com acerto final no `transitionend`.
   As sondas de abertura (`thread-open-*.spec.js`) só contam a partir da máscara da NOVA conversa:
   antes disso a tela ainda é a conversa anterior.
+- **Supervisor não vê o card "Movimentação interna" (19/11/2026, só visual).** O backend ainda
+  envia a movimentação para `admin`/`supervisor` (`MOVIMENTACAO_INTERNA_PERFIS`); o
+  `ConversaView` passa `ocultarMovimentacoesInternas: userRole === "supervisor"` ao
+  `buildMensagensComSeparadores`, que pula essas linhas (notas internas continuam). A detecção
+  saiu do `ThreadRow` para `utils/internalMovement.js` (mesma regra). Admin continua vendo.
+- **Abertura quase instantânea (19/11/2026).** "Demora 1s para entrar" era quase tudo espera
+  nossa (medido: ~650ms de espera por foto + até 850ms pela lista do servidor). Agora:
+  `OPEN_MEDIA_WAIT_MAX_MS` 120 (era 650), `SETTLE_FRAMES` 2 (era 6), `OPEN_FRESH_WAIT_MAX_MS` 0
+  (desligado; `awaitingFresh` só vale se > 0) e fade da thread 130ms (era 220). Medido: reabrir
+  ~0,3s (era 0,84–1,16s); 1.ª abertura ≈ latência da API + ~0,18s (era + ~0,75s).
+  Contrato novo: movimento SUAVE depois da revelação é permitido, SALTO não.
+  - Mensagem nova no fim dentro da janela `data-media-glide` (lista do servidor depois do cache,
+    ou tempo real nos primeiros segundos) entra com `glideThreadToBottom` (useAutoScroll): sem
+    salto inicial, no máximo 18px por frame mesmo com frame lento. NÃO use o
+    `smoothScrollThreadToBottom` aqui: ele salta para 1 ecrã do fim e anda ~43% num frame lento
+    (+339px medidos). Envio próprio continua instantâneo.
+  - Enquanto um deslize programático corre (`smoothScrollCancelRef`, passado ao useAutoScroll como
+    `programmaticScrollRef`), nenhum snap seco o corta; e mensagem de outra pessoa dentro da janela
+    não faz snap no useAutoScroll (quem leva até ela é o deslize).
+  - A janela de deslize abre UMA vez por revelação (`mediaGlideOpenedForKeyRef`); terminar de
+    carregar histórico não a reabre (reabria: fotos do lote antigo deslizavam, 364px de deriva).
+  - Moldura de foto desliza em 560ms (era 400): o passo normal fica ~12px/frame.
+  - Cadeia de abertura interrompida ANTES do 1.º frame (duplo efeito do StrictMode em dev) volta
+    a ficar pendente (`rearmIfInterrupted`); interrompida depois, não (re-armar sempre fazia um snap
+    extra no histórico). Sem isso a máscara do celular só caía no fallback de 1,1s.
+  - Sondas `thread-open-*.spec.js`: salto = > 24px por frame, normalizado pelos frames que passaram
+    (`passoPorFrame`). Deslizes medem 3–21px/frame; os saltos antigos eram 36–342px num frame.
+  - Prefetch no `pointerdown` foi descartado: o `GET /chats/:id` completo MARCA COMO LIDA e
+    dispara sync de contato — apertar sem clicar marcaria a conversa como lida.
 - **Grupos: remontagem do conteúdo da bolha — NÃO alterado de propósito.** Quando
   `__showRemetente` alterna (lote antigo carregado acima, nome que chega depois), o
   `BubbleTypedContent` troca de pai (`.wa-bubble-remetente` ↔ `.wa-bubble-body`) e remonta (foto

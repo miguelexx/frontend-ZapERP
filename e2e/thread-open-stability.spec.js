@@ -64,10 +64,21 @@ function analyse(samples) {
   for (const s of samples) { if (!started && (s.cls || s.op <= 0.02)) started = true; if (!started) continue;
     if (s.op <= 0.02) { prev = null; continue; }
     if (prev) { let maxd = 0; for (const k of Object.keys(s.pos)) if (k in prev.pos) maxd = Math.max(maxd, Math.abs(s.pos[k] - prev.pos[k]));
-      if (maxd > 1) jumps.push({ t: s.t, d: maxd, op: s.op, st: s.st, sh: s.sh, ch: s.ch }); }
+      if (maxd > 1) jumps.push({ t: s.t, d: maxd, dt: s.t - prev.t, op: s.op, st: s.st, sh: s.sh, ch: s.ch }); }
     prev = s; }
   return jumps;
 }
+// Contrato desde 19/11/2026 (abertura quase instantânea, ~0,3s na reabertura): a conversa aparece
+// sem esperar foto nem a lista do servidor. Foto que decodifica depois DESLIZA (janela de deslize)
+// e mensagem nova do servidor ENTRA deslizando — movimento suave é permitido; SALTO não. Salto =
+// uma bolha visível mudar mais de 24px de um frame para o outro (os deslizes medem 3–21px por
+// frame; os saltos antigos eram 36–166px num frame só).
+// O passo é normalizado pelos frames que de fato passaram (frame perdido no navegador headless
+// pinta 2–3 frames de deslize de uma vez — isso não é salto do app; um salto real de 80–340px
+// continua reprovando mesmo atravessando frames perdidos).
+const MAX_PASSO_SUAVE = 24;
+const passoPorFrame = (j) => j.d / Math.max(1, Math.round((j.dt || 16.7) / 16.7));
+const bruscos = (jumps) => jumps.filter((j) => passoPorFrame(j) > MAX_PASSO_SUAVE);
 for (const delay of [80, 600]) {
   test(`abertura fica fixa (api ${delay}ms)`, async ({ page }, testInfo) => {
     await setup(page, delay);
@@ -78,13 +89,12 @@ for (const delay of [80, 600]) {
     await armProbe(page); await tap("Contato Um"); await page.waitForTimeout(2600);
     const first = analyse(await page.evaluate(() => window.__probe));
     console.log(`[${testInfo.project.name} d${delay}] 1a abertura saltos:`, JSON.stringify(first));
-    expect(first, "1a abertura: nenhuma bolha visivel pode mudar de lugar").toEqual([]);
+    expect(bruscos(first), "1a abertura: nenhuma bolha visivel pode SALTAR").toEqual([]);
     await back(); await tap("Contato Dois"); await page.waitForTimeout(1800); await back();
     await armProbe(page); await tap("Contato Um"); await page.waitForTimeout(2600);
     const again = analyse(await page.evaluate(() => window.__probe));
     console.log(`[${testInfo.project.name} d${delay}] reabertura (cache) saltos:`, JSON.stringify(again));
-    // Unico movimento admitido: a API traz 1 mensagem nova e a thread sobe a altura dela.
-    expect(again.length).toBeLessThanOrEqual(1);
-    expect(again.every((j) => j.d <= 60)).toBe(true);
+    // A API traz 1 mensagem nova depois de a conversa aparecer: ela entra deslizando (sem salto).
+    expect(bruscos(again), "reabertura: a mensagem nova entra deslizando, sem salto").toEqual([]);
   });
 }

@@ -12,6 +12,8 @@ import {
   captionFollowTimeOk,
 } from "./conversaViewHelpers";
 import { botTriageLabel, classifyBotTriageMessage, isSystemTransferMovement } from "./botTriageDisplay";
+import { isInternalMovementMessage } from "./internalMovement";
+import { isInternalNote } from "../internalNote";
 
 const timelineMsgRowCache = new WeakMap();
 
@@ -42,7 +44,9 @@ export function getOrCreateTimelineMsgRow(msg, showRemetente, reaction, botCompa
  * reações inbound e bundle visual foto+legenda. Extraído de ConversaView sem
  * alterar a regra de agrupamento.
  */
-export function buildMensagensComSeparadores(mensagens, isGroup) {
+export function buildMensagensComSeparadores(mensagens, isGroup, opts = {}) {
+  /* Perfil supervisor não vê os cards de "Movimentação interna" (19/11/2026) — só visual. */
+  const ocultarMovimentacoes = opts?.ocultarMovimentacoesInternas === true;
   const raw = Array.isArray(mensagens) ? mensagens : [];
   const list = [];
   const reactionsByMsgId = {};
@@ -87,6 +91,7 @@ export function buildMensagensComSeparadores(mensagens, isGroup) {
        interna" não é desenhado — poluía a thread sem dizer nada ao atendente (18/11/2026).
        Transferências feitas por uma pessoa continuam aparecendo. */
     if (isSystemTransferMovement(msg)) continue;
+    if (ocultarMovimentacoes && !isInternalNote(msg) && isInternalMovementMessage(msg)) continue;
     list.push(msg);
   }
 

@@ -62,8 +62,13 @@ function nowMs() {
     : Date.now();
 }
 
-/** Teto da espera por mídia visível na abertura (a máscara não pode prender a thread). */
-const OPEN_MEDIA_WAIT_MAX_MS = 650;
+/**
+ * Teto da espera por mídia visível na abertura (a máscara não pode prender a thread).
+ * Era 650ms — a maior parte do "demora 1s para entrar" medido (19/11/2026). Agora a foto que
+ * decodifica depois da revelação desliza (janela `data-media-glide`) ou, fora da tela, troca
+ * invisível com a âncora; e a forma já vista vem do cache persistido. Esperar muito não compensa.
+ */
+const OPEN_MEDIA_WAIT_MAX_MS = 120;
 /** Frames seguidos sem mídia pendente nem mudança de altura para considerar assentado. */
 const OPEN_QUIET_FRAMES = 2;
 
@@ -263,6 +268,80 @@ export function smoothScrollThreadToBottom(container, { canContinue, onDone, max
   return () => finish(false);
 }
 
+/**
+ * Deslize GENTIL até ao fim (19/11/2026) — para mensagens novas que chegam logo depois de a
+ * conversa aparecer (lista do servidor depois do cache). O `smoothScrollThreadToBottom` acima é
+ * do "ir para recentes": salta para 1 ecrã do fim e, num frame lento, anda ~43% do que falta —
+ * medido: +339px num único frame. Aqui não há salto inicial e cada frame anda no máximo
+ * `maxStepPx`, mesmo que o frame demore; o alvo é recalculado a cada frame (conteúdo que cresce).
+ */
+export function glideThreadToBottom(container, { canContinue, onDone, maxStepPx = 18, maxMs = 1300 } = {}) {
+  if (!container) return () => {};
+  const maxTop = () => Math.max(0, (container.scrollHeight || 0) - (container.clientHeight || 0));
+  let finished = false;
+  let raf = 0;
+  const finish = (completed) => {
+    if (finished) return;
+    finished = true;
+    cancelFrame(raf);
+    try {
+      onDone?.(completed);
+    } catch {
+      /* ignore */
+    }
+  };
+  if (prefersReducedMotion()) {
+    try {
+      container.scrollTop = container.scrollHeight;
+    } catch {
+      /* ignore */
+    }
+    finish(true);
+    return () => {};
+  }
+  const startedAt = nowMs();
+  let last = startedAt;
+  const step = () => {
+    if (finished) return;
+    if (typeof canContinue === "function" && !canContinue()) {
+      finish(false);
+      return;
+    }
+    const t = nowMs();
+    const dt = Math.min(33, Math.max(1, t - last));
+    last = t;
+    const remaining = maxTop() - container.scrollTop;
+    if (Math.abs(remaining) <= 1) {
+      finish(true);
+      return;
+    }
+    if (t - startedAt >= maxMs) {
+      try {
+        container.scrollTop = container.scrollHeight;
+      } catch {
+        /* ignore */
+      }
+      finish(true);
+      return;
+    }
+    /* Aproximação suave (~14% do que falta por frame a 60fps), limitada a maxStepPx por frame. */
+    const alpha = 1 - Math.pow(1 - 0.14, dt / 16.67);
+    let delta = remaining * alpha;
+    const cap = maxStepPx;
+    if (Math.abs(delta) > cap) delta = Math.sign(delta) * cap;
+    if (Math.abs(delta) < 1) delta = Math.sign(remaining) * Math.min(1, Math.abs(remaining));
+    try {
+      container.scrollTop = container.scrollTop + delta;
+    } catch {
+      finish(false);
+      return;
+    }
+    raf = scheduleFrame(step);
+  };
+  raf = scheduleFrame(step);
+  return () => finish(false);
+}
+
 export function useAutoScroll({
   conversaId,
   loading,
@@ -278,6 +357,8 @@ export function useAutoScroll({
   cancelOpenSnapPendingRef,
   /** Abriu pelo cache e a lista do servidor ainda não chegou (máscara continua). */
   awaitingFresh = false,
+  /** Ref não-nula enquanto um deslize suave até o fim está em curso (ConversaView). */
+  programmaticScrollRef,
   onOpenSnapReady,
 }) {
   const prevConversaIdRef = useRef(null);
@@ -312,7 +393,8 @@ export function useAutoScroll({
 
   function snapGuardOpts(extra = {}) {
     return {
-      canSnap: () => !isUserScrollLocked() && !suppressAutoScrollRef?.current,
+      canSnap: () =>
+        !isUserScrollLocked() && !suppressAutoScrollRef?.current && !programmaticScrollRef?.current,
       ...extra,
     };
   }
@@ -379,6 +461,15 @@ export function useAutoScroll({
         lastMsg?.fromMe === true ||
         (myUserId != null && lastMsg?.autor_usuario_id != null && String(lastMsg.autor_usuario_id) === String(myUserId));
       const pendingOwn = fromMe && isPendingOutgoingTemp(lastMsg);
+      /*
+       * Mensagem de OUTRA pessoa nos primeiros segundos após abrir (janela `data-media-glide`):
+       * quem leva até ela é o deslize do snapIfStickBottom (ConversaView), disparado pela
+       * remedição. Snap seco aqui chegaria antes (lista estática do celular) e cortaria o deslize.
+       */
+      if (!fromMe && container?.getAttribute?.("data-media-glide") === "1") {
+        prevLastKeyRef.current = lastMsgKey;
+        return;
+      }
       const shouldAutoScroll = Boolean(shouldStickToBottomRef.current || fromMe);
       if (shouldAutoScroll && container && !isUserScrollLocked()) {
         const near = isNearBottom(container, 200);
@@ -474,6 +565,22 @@ export function useAutoScroll({
     let t2 = 0;
     let finished = false;
 
+    /*
+     * Cadeia interrompida ANTES de assentar (o efeito re-rodou: StrictMode em dev, ou uma dep
+     * que muda no meio) volta a ficar pendente, para a próxima execução refazê-la. Antes o
+     * `pendingJumpToBottomRef` já tinha sido consumido e a 2.ª execução não fazia nada: a máscara
+     * só caía no fallback de 1,1s (medido no celular, 19/11/2026).
+     */
+    /* Só a interrupção IMEDIATA (antes do 1.º frame da cadeia — o duplo efeito do StrictMode)
+       re-arma. Cadeia cancelada mais tarde mantém o comportamento antigo: re-armar aí fazia um
+       snap extra durante o histórico (deriva de 364px no thread-scroll-stability). */
+    let firstFrameRan = false;
+    const rearmIfInterrupted = () => {
+      if (!finished && !firstFrameRan && !openSnapUserCancelledRef.current) {
+        pendingJumpToBottomRef.current = true;
+      }
+    };
+
     const finishOpenSnap = () => {
       if (finished || cancelled) return;
       finished = true;
@@ -505,6 +612,7 @@ export function useAutoScroll({
       let lastHeight = -1;
       /* Revela só quando a mídia visível decodificou e a altura parou (teto 650ms). */
       const waitSettled = () => {
+        firstFrameRan = true;
         if (cancelled) return;
         snapHard();
         const c = messagesContainerRef?.current;
@@ -523,6 +631,7 @@ export function useAutoScroll({
         cancelled = true;
         cancelFrame(rafOnce);
         openSnapInProgressRef.current = false;
+        rearmIfInterrupted();
       };
     }
 
@@ -534,7 +643,8 @@ export function useAutoScroll({
      * competição. Com a mídia já reservada (aspect-ratio no CSS) e as estimativas alinhadas,
      * a diferença estimativa↔medição é pequena e poucos frames bastam para assentar.
      */
-    const SETTLE_FRAMES = 6;
+    /* Era 6: a estimativa das linhas já é boa e o resto é absorvido pela âncora. */
+    const SETTLE_FRAMES = 2;
     let settleFrame = 0;
     const startedAt = nowMs();
     let quiet = 0;
@@ -547,6 +657,7 @@ export function useAutoScroll({
      * da moldura das fotos acontece por baixo da máscara, não na frente do utilizador.
      */
     const settle = () => {
+      firstFrameRan = true;
       if (cancelled) return;
       if (isUserScrollLocked() || !shouldStickToBottomRef.current) {
         finishOpenSnap();
@@ -588,6 +699,7 @@ export function useAutoScroll({
       cancelFrame(rafChain);
       cancelFrame(rafOnce);
       openSnapInProgressRef.current = false;
+      rearmIfInterrupted();
     };
   }, [
     conversaId,

@@ -2350,7 +2350,8 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
    thread aparecia de supetão ao abrir a conversa. Só opacidade: não mexe no layout nem na
    geometria do virtualizador. */
 .wa-messages > * {
-  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* 130ms (era 220): a entrada continua suave, mas a conversa "está lá" mais cedo. */
+  transition: opacity 130ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .wa-messages.wa-messages--opening > * {
@@ -4455,11 +4456,11 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   /* Proporção ANIMÁVEL (19/11/2026): com rede lenta a foto decodifica depois de a conversa já
      estar à vista e a moldura trocava de quadrada para a forma real num único frame — tudo o
      que estava acima saltava 80–100px. `--wa-media-ar-anim` é registrada (@property abaixo) e
-     transiciona: a moldura cresce em ~400ms e a thread acompanha (âncora no fim a cada frame).
+     transiciona: a moldura cresce em ~560ms e a thread acompanha (âncora no fim a cada frame).
      Variável SEPARADA de propósito: registrar a `--wa-media-ar` daria a ela um valor inicial e
      mataria os fallbacks de vídeo (16/9) e cartão de link (1.91). Montagem com proporção já
      conhecida não anima (transição não corre no primeiro estilo).
-     Curva ease-in-out de 400ms, não ease-out: a altura da foto alta satura no teto (420px)
+     Curva ease-in-out de 560ms, não ease-out: a altura da foto alta satura no teto (420px)
      a ~55% do caminho, e com ease-out esses 55% passavam em 2–3 frames (salto de 40px/frame). */
   --wa-media-ar-anim: var(--wa-media-ar, 1);
   margin: 0;
@@ -16654,7 +16655,7 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
    atravessa a revelação), e ao carregar histórico/rolar para cima também (a âncora do
    virtualizer compensa saltos instantâneos, não 400ms de remedições). */
 .wa-messages[data-media-glide="1"] .wa-bubble.image-message .wa-bubble-imgLink:not([data-ar-instant]) {
-  transition: --wa-media-ar-anim 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: --wa-media-ar-anim 560ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @property --wa-media-ar-anim {
