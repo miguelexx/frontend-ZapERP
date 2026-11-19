@@ -42,6 +42,7 @@ const tests = [
   "test-chat-media-display.mjs",
   "test-chat-search-prefix.mjs",
   "test-company-timezone.mjs",
+  "test-ranking-gamificado.mjs",
   "test-importar-clientes-helpers.mjs",
   "test-image-send-edit.mjs",
   "test-foto-mobile-pipeline.mjs",

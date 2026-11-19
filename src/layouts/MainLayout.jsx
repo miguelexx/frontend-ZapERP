@@ -17,6 +17,7 @@ import {
   IconSun,
   IconUsers,
   IconTicket,
+  IconTrophy,
 } from "@tabler/icons-react";
 import ZapERPLogo from "../brand/ZapERPLogo";
 import { useAuthStore } from "../auth/authStore";
@@ -35,6 +36,8 @@ import { useMatchMedia } from "../hooks/useMatchMedia";
 import InternalChatGlobalSocketBridge from "../internal-chat/InternalChatGlobalSocketBridge";
 import { useInternalChatNotifyStore, selectInternalChatUnreadTotal } from "../internal-chat/internalChatNotifyStore";
 import HelpDeskGlobalSocketBridge from "../helpdesk/HelpDeskGlobalSocketBridge";
+import RankingGlobalBridge from "../ranking/RankingGlobalBridge";
+import { useRankingStore } from "../ranking/rankingStore";
 import { useHelpDeskNotifyStore, selectHelpDeskUnreadTotal } from "../helpdesk/helpDeskNotifyStore";
 import WhapiDisconnectedOverlay from "../components/WhapiDisconnectedOverlay";
 import ConnectionStatusBanner from "../components/ConnectionStatusBanner";
@@ -90,6 +93,10 @@ export default function MainLayout() {
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
   const canAccessDisparo = canAcessarDisparo(user);
+  // Ranking: aparece para todos quando a empresa ativou; admin vê sempre (para configurar).
+  const rankingAtivo = useRankingStore((s) => s.resumo?.ativo === true);
+  const isAdminPerfil = ["admin", "administrador"].includes(String(user?.perfil || "").toLowerCase());
+  const showRanking = rankingAtivo || isAdminPerfil;
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
   // Modo simples → pele WhatsApp (chatList.whatsapp.css). O atributo fica no <html>
@@ -157,6 +164,13 @@ export default function MainLayout() {
           show: canAccessSupervisao,
         },
         {
+          to: "/ranking",
+          label: "Ranking",
+          title: "Ranking de atendimentos",
+          icon: IconTrophy,
+          show: showRanking,
+        },
+        {
           to: "/permissoes",
           label: "Equipe",
           title: "Equipe",
@@ -218,6 +232,7 @@ export default function MainLayout() {
       showAtendimentoUnreadDot,
       helpDeskUnreadTotal,
       showInternalChatUnreadDot,
+      showRanking,
     ]
   );
 
@@ -289,6 +304,7 @@ export default function MainLayout() {
       <WhapiDisconnectedOverlay />
       <InternalChatGlobalSocketBridge />
       <HelpDeskGlobalSocketBridge />
+      <RankingGlobalBridge />
       <aside
         id="app-bottom-nav"
         className="sidebar sidebar--compact sidebar--v2"

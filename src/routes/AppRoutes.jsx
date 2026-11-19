@@ -27,6 +27,7 @@ const Mensagens = lazy(() => import("../pages/Mensagens"));
 const Atalhos = lazy(() => import("../pages/Atalhos"));
 const InternalChat = lazy(() => import("../pages/InternalChat"));
 const Supervisao = lazy(() => import("../pages/Supervisao"));
+const Ranking = lazy(() => import("../pages/Ranking"));
 const HelpDesk = lazy(() => import("../pages/HelpDesk"));
 const DisparoMensagens = lazy(() => import("../pages/DisparoMensagens"));
 const DisparoWizardPage = lazy(() => import("../pages/DisparoWizardPage"));
@@ -166,6 +167,15 @@ export default function AppRoutes() {
                   <Supervisao />
                 </LazyPage>
               </ProtectedRoute>
+            }
+          />
+          {/* Ranking gamificado: qualquer usuário vê o da própria empresa; a página trata "desligado". */}
+          <Route
+            path="/ranking"
+            element={
+              <LazyPage>
+                <Ranking />
+              </LazyPage>
             }
           />
           <Route

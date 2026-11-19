@@ -1,0 +1,718 @@
+/*
+ * Ranking gamificado — página /ranking, seção em Configurações e card de celebração.
+ * Só tokens --ds-* (claro/escuro automáticos) e a mesma linguagem da Supervisão:
+ * painéis com borda suave, eyebrow em caixa alta, acento teal/azul. Ouro/prata/bronze
+ * aparecem apenas como fio de destaque no pódio — discreto, nada infantil.
+ */
+
+.rk-page {
+  --rk-ouro: #d4a017;
+  --rk-prata: #94a3b8;
+  --rk-bronze: #b7703f;
+  --rk-acento: #0ea5e9;
+
+  padding: 28px clamp(16px, 3vw, 36px) 40px;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: var(--ds-text-primary);
+  min-height: 100%;
+  background: radial-gradient(ellipse 120% 70% at 50% -20%, rgba(212, 160, 23, 0.07), transparent 55%);
+}
+
+.rk-centro {
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- Cabeçalho ---------- */
+.rk-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.rk-eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ds-text-tertiary);
+}
+
+.rk-header h1 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(1.45rem, 2.4vw, 1.8rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.rk-header-icone {
+  color: var(--rk-ouro);
+}
+
+.rk-header-desc {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--ds-text-secondary);
+}
+
+/* ---------- Botões ---------- */
+.rk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: var(--ds-radius-md, 10px);
+  border: 1px solid transparent;
+  background: var(--ds-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--ds-transition-fast, 0.15s), opacity 0.15s;
+}
+
+.rk-btn:hover:not(:disabled) {
+  background: var(--ds-accent-hover, var(--ds-accent));
+}
+
+.rk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rk-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-focus-ring);
+}
+
+.rk-btn--ghost {
+  background: transparent;
+  color: var(--ds-text-primary);
+  border-color: var(--ds-border);
+}
+
+.rk-btn--ghost:hover:not(:disabled) {
+  background: var(--ds-hover);
+}
+
+/* ---------- Resumo (3 cards) ---------- */
+.rk-resumo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rk-resumo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ds-border) 88%, transparent);
+  background: var(--ds-surface-1);
+  min-width: 0;
+}
+
+.rk-resumo-card--tempo {
+  border-color: color-mix(in srgb, var(--rk-acento) 35%, var(--ds-border));
+}
+
+.rk-resumo-card--eu {
+  border-color: color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent) 6%, var(--ds-surface-1));
+}
+
+.rk-resumo-rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-tertiary);
+}
+
+.rk-contagem,
+.rk-resumo-valor {
+  font-size: 1.55rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.rk-resumo-valor--nome {
+  font-size: 1.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rk-resumo-sub {
+  font-size: 13px;
+  color: var(--ds-text-secondary);
+}
+
+.rk-aviso {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ds-text-secondary);
+  background: var(--ds-info-soft);
+  border: 1px solid color-mix(in srgb, var(--ds-info) 25%, transparent);
+}
+
+/* ---------- Painel ---------- */
+.rk-painel {
+  border: 1px solid color-mix(in srgb, var(--ds-border) 88%, transparent);
+  background: var(--ds-surface-1);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.rk-painel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+}
+
+.rk-painel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.rk-painel-count {
+  font-size: 12px;
+  color: var(--ds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rk-painel-corpo {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rk-rodape {
+  margin: 0;
+  padding: 12px 18px 16px;
+  font-size: 12px;
+  color: var(--ds-text-tertiary);
+}
+
+/* ---------- Pódio ---------- */
+.rk-podio {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.rk-podio-card {
+  --rk-cor: var(--rk-bronze);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 20px 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--rk-cor) 30%, var(--ds-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rk-cor) 9%, var(--ds-surface-1)), var(--ds-surface-1) 70%);
+  overflow: hidden;
+}
+
+.rk-podio-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--rk-cor);
+  opacity: 0.85;
+}
+
+.rk-podio-card--p1 {
+  --rk-cor: var(--rk-ouro);
+}
+
+.rk-podio-card--p2 {
+  --rk-cor: var(--rk-prata);
+}
+
+.rk-podio-card.is-eu,
+.rk-lista-item.is-eu {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 55%, transparent);
+}
+
+.rk-podio-medalha {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.rk-podio-card .rk-avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+}
+
+.rk-podio-nome {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  font-weight: 650;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.rk-podio-total {
+  font-size: 13px;
+  color: var(--ds-text-secondary);
+}
+
+.rk-podio-total strong {
+  font-size: 1.35rem;
+  color: var(--ds-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rk-podio-posicao {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-text-tertiary);
+}
+
+/* ---------- Avatar e tag ---------- */
+.rk-avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 650;
+  font-size: 14px;
+  color: var(--ds-text-primary);
+  background: var(--ds-surface-3, var(--ds-hover));
+}
+
+.rk-tag-eu {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--ds-accent);
+  background: var(--ds-accent-soft);
+}
+
+/* ---------- Lista (4º em diante) ---------- */
+.rk-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rk-lista-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ds-bg-sunken, var(--ds-surface-2));
+}
+
+.rk-lista-pos {
+  width: 30px;
+  flex: none;
+  text-align: center;
+  font-weight: 650;
+  color: var(--ds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rk-lista-corpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rk-lista-nome {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rk-barra {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-border) 70%, transparent);
+  overflow: hidden;
+}
+
+.rk-barra > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ds-accent);
+  opacity: 0.75;
+  transition: width 0.4s var(--ds-motion-ease, ease);
+}
+
+.rk-lista-total {
+  flex: none;
+  min-width: 36px;
+  text-align: right;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Última competição ---------- */
+.rk-ultimo-corpo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.rk-ultimo-trofeu {
+  font-size: 28px;
+}
+
+.rk-ultimo-nome {
+  margin: 0;
+  font-weight: 650;
+  font-size: 15px;
+}
+
+.rk-ultimo-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ds-text-secondary);
+}
+
+/* ---------- Configurações (admin) ---------- */
+.rk-cfg-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.rk-cfg-ciclo {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ds-text-secondary);
+}
+
+.rk-cfg-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.rk-hist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rk-hist-item details {
+  border: 1px solid color-mix(in srgb, var(--ds-border) 80%, transparent);
+  border-radius: 12px;
+  background: var(--ds-surface-1);
+}
+
+.rk-hist-item summary {
+  display: grid;
+  grid-template-columns: minmax(130px, auto) 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+}
+
+.rk-hist-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.rk-hist-periodo {
+  color: var(--ds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rk-hist-vencedor {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rk-hist-total {
+  font-size: 13px;
+  color: var(--ds-text-secondary);
+  white-space: nowrap;
+}
+
+.rk-hist-detalhe {
+  padding: 0 14px 14px;
+}
+
+.rk-hist-meta {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ds-text-tertiary);
+}
+
+.rk-hist-classificacao {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rk-hist-classificacao li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--ds-bg-sunken, var(--ds-surface-2));
+}
+
+.rk-hist-pos {
+  width: 28px;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+}
+
+.rk-hist-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rk-hist-qtd {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Celebração do campeão ---------- */
+.rk-celebra {
+  --rk-ouro: #d4a017;
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding: 30px 24px 22px;
+  text-align: center;
+  border-radius: var(--ds-radius-lg, 16px);
+  background: var(--ds-bg-overlay, var(--ds-surface-1));
+  color: var(--ds-text-primary);
+  border: 1px solid color-mix(in srgb, var(--rk-ouro) 30%, var(--ds-border));
+  box-shadow: var(--ds-shadow-modal, var(--ds-shadow-lg));
+  overflow: hidden;
+  animation: ds-confirm-pop 260ms var(--ease-premium, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.rk-celebra-halo {
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 220px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--rk-ouro) 22%, transparent), transparent);
+  pointer-events: none;
+}
+
+.rk-celebra-trofeu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  color: var(--rk-ouro);
+  background: color-mix(in srgb, var(--rk-ouro) 14%, var(--ds-surface-1));
+  border: 1px solid color-mix(in srgb, var(--rk-ouro) 35%, transparent);
+  animation: rk-trofeu-entra 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes rk-trofeu-entra {
+  from {
+    transform: scale(0.6) rotate(-8deg);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+.rk-celebra-eyebrow {
+  position: relative;
+  margin: 14px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-text-tertiary);
+}
+
+.rk-celebra-titulo {
+  position: relative;
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.rk-celebra-destaque {
+  position: relative;
+  margin: 10px 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rk-celebra-total {
+  position: relative;
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-text-secondary);
+}
+
+.rk-celebra-texto {
+  position: relative;
+  margin: 14px 0 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ds-text-secondary);
+}
+
+.rk-celebra-acoes {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-celebra,
+  .rk-celebra-trofeu,
+  .rk-barra > span {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 860px) {
+  .rk-resumo {
+    grid-template-columns: 1fr 1fr;
+  }
+  .rk-resumo-card--tempo {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .rk-page {
+    padding: 18px 16px 32px;
+    gap: 16px;
+  }
+  .rk-resumo {
+    grid-template-columns: 1fr;
+  }
+  .rk-podio {
+    grid-template-columns: 1fr;
+  }
+  .rk-podio-card {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "medalha avatar nome"
+      "medalha avatar total";
+    align-items: center;
+    justify-items: start;
+    text-align: left;
+    row-gap: 2px;
+    column-gap: 12px;
+    padding: 14px;
+  }
+  .rk-podio-medalha {
+    grid-area: medalha;
+  }
+  .rk-podio-card .rk-avatar {
+    grid-area: avatar;
+    width: 40px;
+    height: 40px;
+  }
+  .rk-podio-nome {
+    grid-area: nome;
+  }
+  .rk-podio-total {
+    grid-area: total;
+  }
+  .rk-podio-posicao {
+    display: none;
+  }
+  .rk-cfg-campos {
+    grid-template-columns: 1fr;
+  }
+  .rk-hist-item summary {
+    grid-template-columns: 1fr auto;
+  }
+  .rk-hist-periodo {
+    grid-column: 1 / -1;
+  }
+  .rk-header .rk-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
