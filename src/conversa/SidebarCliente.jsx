@@ -273,6 +273,16 @@ export default function SidebarCliente({
     return String(conversa.atendente_id) === String(user.id);
   }, [isGroup, user?.id, user?.perfil, conversa?.atendente_id]);
 
+  // Observação do atendimento: liberada para TODOS os perfis, mesmo sem assumir a conversa.
+  // Exige cadastro existente — criar/vincular cadastro continua exigindo `canEdit`.
+  // O PUT /clientes/:id não tem gate de perfil/atendente (só company_id do JWT).
+  const canEditObs = useMemo(() => {
+    if (canEdit) return true;
+    if (isGroup) return false;
+    if (user?.id == null) return false;
+    return Boolean(clienteId);
+  }, [canEdit, isGroup, user?.id, clienteId]);
+
   const [cliente, setCliente] = useState(null);
   const [clienteLoading, setClienteLoading] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -1119,8 +1129,83 @@ export default function SidebarCliente({
   const savingAny = Boolean(savingCliente || creatingCliente || savingNomeContato || deletingContact);
   const hasAnyChanges = Boolean(hasClienteChanges || hasNomeContatoChanges);
 
+  const hasObsChanges = useMemo(
+    () => String(cliObsText || "").trim() !== String(clienteBase.observacoes || "").trim(),
+    [cliObsText, clienteBase.observacoes]
+  );
+
+  /**
+   * Salva SÓ a observação — caminho de quem não assumiu a conversa (canEditObs sem canEdit).
+   * Preserva o "próximo contato" da base (campos travados para este usuário) e não envia
+   * nome/e-mail/empresa.
+   */
+  const handleSalvarObservacao = useCallback(async () => {
+    if (!clienteId || !canEditObs || savingCliente) return false;
+    const base = clienteBase;
+    const hasDt = Boolean(String(base.nextDate || "").trim() && String(base.nextTime || "").trim());
+    const observacoes = buildObservacoesWithNextContact(
+      cliObsText,
+      hasDt ? { date: base.nextDate, time: base.nextTime, note: String(base.nextNote || "").trim() } : null
+    );
+    setSavingCliente(true);
+    try {
+      const updated = await cfg.atualizarCliente(clienteId, { observacoes });
+      const row = updated?.id ? updated : { ...(cliente || {}), observacoes, id: clienteId };
+      setCliente(row);
+      hydrateFromCliente(row);
+      showToast?.({ type: "success", title: "Observação salva", message: "A nota ficou salva no cadastro do cliente." });
+      safeAudit({
+        acao: "detalhes_cliente_salvar_observacao",
+        conversa_id: conversa?.id ?? null,
+        cliente_id: clienteId,
+        usuario_id: user?.id ?? null,
+        usuario: user?.nome || user?.email || null,
+        diff: diffObject(
+          { observacoes: base.observacoes || "" },
+          { observacoes: String(cliObsText || "").trim() }
+        ),
+        criado_em: new Date().toISOString(),
+      });
+      onObservacaoSaved?.();
+      return true;
+    } catch (e) {
+      console.error("Erro ao salvar observação:", e);
+      showToast?.({
+        type: "error",
+        title: "Falha ao salvar observação",
+        message: e?.response?.data?.erro || e?.response?.data?.error || e?.message || "Não foi possível salvar.",
+      });
+      return false;
+    } finally {
+      setSavingCliente(false);
+    }
+  }, [
+    clienteId,
+    canEditObs,
+    savingCliente,
+    clienteBase,
+    cliObsText,
+    cliente,
+    hydrateFromCliente,
+    showToast,
+    safeAudit,
+    conversa?.id,
+    user?.id,
+    user?.nome,
+    user?.email,
+    onObservacaoSaved,
+  ]);
+
   const handleSalvarTudo = useCallback(async () => {
     if (!canEdit) {
+      if (canEditObs && !savingAny) {
+        if (hasObsChanges) {
+          await handleSalvarObservacao();
+        } else {
+          showToast?.({ type: "info", title: "Tudo certo", message: "Não há alterações pendentes." });
+        }
+        return;
+      }
       showToast?.({
         type: "error",
         title: "Somente leitura",
@@ -1152,12 +1237,15 @@ export default function SidebarCliente({
     }
   }, [
     canEdit,
+    canEditObs,
     savingAny,
     hasClienteChanges,
     hasNomeContatoChanges,
+    hasObsChanges,
     clienteId,
     handleSalvarNomeContato,
     handleSalvarCliente,
+    handleSalvarObservacao,
     handleCriarEVincularCliente,
     showToast,
   ]);
@@ -1399,6 +1487,7 @@ export default function SidebarCliente({
           {!canEdit ? (
             <div className="wa-sideCliente-lockHint">
               Para editar/salvar, você precisa <strong>assumir esta conversa</strong>.
+              {canEditObs ? " A observação do atendimento, mais abaixo, continua liberada." : null}
             </div>
           ) : null}
           {!clienteId ? (
@@ -1511,7 +1600,7 @@ export default function SidebarCliente({
         <section className="wa-sideCliente-section">
           <div className="wa-sideCliente-sectionHead">
             <h3 className="wa-sideCliente-sectionTitle">Observação do atendimento</h3>
-            {!canEdit ? <span className="wa-sideCliente-miniPill isRead">Somente leitura</span> : null}
+            {!canEditObs ? <span className="wa-sideCliente-miniPill isRead">Somente leitura</span> : null}
           </div>
           <p className="wa-sideCliente-fieldHint">
             Fica salva no cadastro do cliente — qualquer atendente que abrir esta conversa verá estas notas.
@@ -1521,7 +1610,7 @@ export default function SidebarCliente({
             value={cliObsText}
             onChange={(e) => setCliObsText(e.target.value)}
             placeholder="Ex.: Cliente VIP, prefere contato à tarde, combinou retorno amanhã..."
-            disabled={!canEdit || savingCliente || creatingCliente}
+            disabled={!canEditObs || savingCliente || creatingCliente}
             maxLength={2000}
           />
           <div className="wa-sideCliente-fieldFoot">
@@ -1531,8 +1620,16 @@ export default function SidebarCliente({
 
         <div className="wa-sideCliente-saveBar" role="region" aria-label="Salvar alterações">
           <div className="wa-sideCliente-saveLeft">
-            {!canEdit ? (
+            {!canEdit && !canEditObs ? (
               <span className="wa-sideCliente-saveStatus">Somente leitura</span>
+            ) : !canEdit ? (
+              savingAny ? (
+                <span className="wa-sideCliente-saveStatus">Salvando…</span>
+              ) : hasObsChanges ? (
+                <span className="wa-sideCliente-saveStatus isWarn">Observação não salva</span>
+              ) : (
+                <span className="wa-sideCliente-saveStatus">Só a observação é editável</span>
+              )
             ) : savingAny ? (
               <span className="wa-sideCliente-saveStatus">Salvando…</span>
             ) : !clienteId ? (
@@ -1560,14 +1657,15 @@ export default function SidebarCliente({
               className="wa-btn wa-btn-primary"
               onClick={handleSalvarTudo}
               disabled={
-                !canEdit ||
-                savingAny ||
-                (!clienteId && !telefoneCadastro) ||
-                (!clienteId && !hasAnyChanges) ||
-                (clienteId && !hasAnyChanges)
+                !canEdit
+                  ? !canEditObs || savingAny || !hasObsChanges
+                  : savingAny ||
+                    (!clienteId && !telefoneCadastro) ||
+                    (!clienteId && !hasAnyChanges) ||
+                    (clienteId && !hasAnyChanges)
               }
               aria-busy={savingAny}
-              title={!clienteId ? "Criar e vincular" : "Salvar alterações"}
+              title={!clienteId ? "Criar e vincular" : !canEdit ? "Salvar observação" : "Salvar alterações"}
             >
               {!clienteId ? (creatingCliente ? "Criando..." : "Criar e vincular") : (savingAny ? "Salvando..." : "Salvar")}
             </button>

@@ -245,6 +245,11 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     ? msg.reply_meta.link_preview
     : null;
   const hasLinkPreview = !!linkPreviewMeta && !!(linkPreviewMeta.url || linkPreviewMeta.title || linkPreviewMeta.preview);
+  // Anúncio "clique para WhatsApp" (Instagram/Facebook Ads): cartão do anúncio acima do texto.
+  const adMeta = (msg?.reply_meta?.ad && typeof msg.reply_meta.ad === "object")
+    ? msg.reply_meta.ad
+    : null;
+  const hasAd = !!adMeta && !!(adMeta.title || adMeta.body || adMeta.image || adMeta.source_url);
   const isCall = tipoMsg === "call";
   const textoRaw = safeString(msg?.texto);
   const textoRawNorm = String(textoRaw || "").trim().toLowerCase();
@@ -316,6 +321,8 @@ export function classifyBubbleMessage(msg, mediaUrl = "", contactMeta) {
     orderMeta,
     hasLinkPreview,
     linkPreviewMeta,
+    hasAd,
+    adMeta,
     isCall,
     contactBubbleMeta,
     texto,

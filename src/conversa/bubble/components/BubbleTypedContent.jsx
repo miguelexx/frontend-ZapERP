@@ -9,6 +9,7 @@ import PollMessage from "./PollMessage";
 import ProductMessage from "./ProductMessage";
 import OrderMessage from "./OrderMessage";
 import LinkPreviewMessage from "./LinkPreviewMessage";
+import AdReferralMessage from "./AdReferralMessage";
 import PixMessage from "./PixMessage";
 import WhapiTriageMessage from "./WhapiTriageMessage";
 import TextMessage, { FallbackMessage, CallMessage } from "./TextMessage";
@@ -60,6 +61,8 @@ export default function BubbleTypedContent({
     orderMeta,
     hasLinkPreview,
     linkPreviewMeta,
+    hasAd,
+    adMeta,
     isCall,
     hasText,
     texto,
@@ -179,6 +182,18 @@ export default function BubbleTypedContent({
   }
   if (includeAudioAndCall && isCall) {
     return <CallMessage texto={texto} />;
+  }
+  // Anúncio "clique para WhatsApp": cartão do anúncio ACIMA do texto do cliente. Quando o cliente
+  // não digitou nada, o texto gravado é só um rótulo do backend (texto_sintetico) — não repete o
+  // título embaixo do cartão, mas a linha da hora/status continua (TextMessage com texto vazio).
+  if (hasAd) {
+    const textoVisivel = adMeta?.texto_sintetico ? "" : texto;
+    return (
+      <>
+        <AdReferralMessage ad={adMeta} />
+        <TextMessage texto={textoVisivel} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />
+      </>
+    );
   }
   // Link com pré-visualização: cartão (foto + título + descrição + domínio) ACIMA do texto.
   if (hasLinkPreview) {

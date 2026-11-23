@@ -509,4 +509,41 @@ assert.match(audioMsgSrc, /wa-audioElHidden/);
   assert.match(audioSrc2, /aceitoPeloProvedor=\{temIdDoProvedor\(msg\)\}/, "bolha de audio liga a flag");
 }
 
+// ── Anúncio "clique para WhatsApp" (reply_meta.ad) ───────────────────────────
+{
+  const { adPlatform, adDomain, adKicker, safeHttpUrl, isRenderableAdImage } = await import("../src/conversa/bubble/utils/adReferral.js");
+  const ad = {
+    title: "Eliabedamasceno.imoveis", body: "VENDA…", media_type: "image",
+    image: "https://scontent.cdninstagram.com/v/casa.jpg",
+    source_url: "https://www.instagram.com/p/abc", source_type: "ad",
+  };
+  const c = classify({ id: 900, tipo: "texto", direcao: "in", texto: "Olá! Posso ter mais informações sobre isso?", reply_meta: { ad } });
+  assert.equal(c.hasAd, true, "reply_meta.ad liga o cartão do anúncio");
+  assert.deepEqual(c.adMeta, ad);
+  assert.equal(c.hasReply, false, "anúncio não vira citação fantasma");
+  assert.equal(c.isProduct, false);
+  assert.equal(c.hasText, true, "o texto do cliente continua");
+  assert.equal(classify({ id: 901, tipo: "texto", texto: "oi", reply_meta: { ad: {} } }).hasAd, false, "ad vazio não desenha cartão");
+  assert.equal(classify({ id: 902, tipo: "texto", texto: "oi" }).hasAd, false);
+
+  assert.equal(adPlatform(ad), "instagram");
+  assert.equal(adPlatform({ source_url: "https://fb.me/xyz" }), "facebook");
+  assert.equal(adPlatform({ source_url: "https://site.com.br/x" }), null);
+  assert.equal(adDomain(ad), "instagram.com");
+  assert.equal(adDomain({ source_url: "https://www.site.com.br/x" }), "site.com.br");
+  assert.equal(adKicker({ source_type: "post" }), "Publicação");
+  assert.equal(adKicker(ad), "Anúncio");
+  assert.equal(safeHttpUrl("javascript:alert(1)"), "", "nunca abre javascript:");
+  assert.equal(safeHttpUrl(" https://x.com/a "), "https://x.com/a");
+  assert.equal(isRenderableAdImage("data:image/jpeg;base64,AAA"), true);
+  assert.equal(isRenderableAdImage("casa.jpg"), false);
+
+  const typed = await readFile(new URL("../src/conversa/bubble/components/BubbleTypedContent.jsx", import.meta.url), "utf8");
+  assert.ok(typed.indexOf("if (hasAd)") > -1 && typed.indexOf("if (hasAd)") < typed.indexOf("if (hasLinkPreview)"),
+    "anúncio tem prioridade sobre o link comum");
+  assert.match(typed, /texto_sintetico \? "" : texto/, "rótulo sintético não se repete embaixo do cartão");
+  const adSrc = await readFile(new URL("../src/conversa/bubble/components/AdReferralMessage.jsx", import.meta.url), "utf8");
+  assert.match(adSrc, /safeHttpUrl\(a\.source_url\)/, "cartão só abre http(s)");
+}
+
 console.log("OK — Bubble modular: tipos, status, retry, reply, gestos e áudio passaram.");

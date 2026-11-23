@@ -29,9 +29,12 @@ export async function getAuditoria(limit = 100) {
   return data || []
 }
 
-// Auditoria (registrar ação) — se o backend suportar.
+// Auditoria (registrar ação) — best-effort. O backend NÃO tem POST /config/auditoria
+// (só GET) e o roteador de /config barra atendente com 403 antes de casar a rota.
+// `silent` evita que o interceptor global mostre "Acesso restrito" para atendente
+// logo depois de salvar a observação do cliente (o PUT /clientes/:id já deu certo).
 export async function registrarAuditoria(payload) {
-  const { data } = await api.post('/config/auditoria', payload)
+  const { data } = await api.post('/config/auditoria', payload, { silent: true })
   return data
 }
 
