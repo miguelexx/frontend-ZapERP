@@ -512,7 +512,52 @@ export function shouldAutoAssumirOnOutgoingSend(source, user, opts = {}) {
     return false;
   }
   if (status === "em_atendimento" || status === "aguardando_cliente") return false;
-  return status === "aberta" || status === "ociosa" || !status;
+  // "mensagem_disparada" sem responsável: o backend também assume no envio
+  // (conversationPolicy → executarAssumirConversa ⇒ em_atendimento). Sem isto o card
+  // seguia "Mensagem disparada" até o realtime e a busca não levava à Minha fila.
+  return status === "aberta" || status === "ociosa" || status === "mensagem_disparada" || !status;
+}
+
+/**
+ * Patch otimista de status para um envio do atendente (texto/mídia), ou `null` quando o envio
+ * não muda o status. Espelha o backend:
+ * - conversa livre (ou "aberta" minha / mensagem disparada sem dono) é assumida ⇒ em_atendimento;
+ * - todo envio de atendente numa conversa em atendimento marca `aguardando_cliente_desde`
+ *   (tryMarkWaitingAfterHumanOutbound), fora do modo simples ⇒ "Aguardando cliente" JÁ no
+ *   clique, sem passar por "Em atendimento" (24/11/2026). A única exceção do backend (texto
+ *   igual à mensagem de ausência) é corrigida pelo realtime do envio
+ *   (`aguardando_cliente_desde_atual`);
+ * - assumir encerra a espera de campanha (encerrarEsperaDeCampanhaAoAssumir).
+ * aguardando_cliente manual / pagamento_pendente / em_atraso não mudam (o backend também não).
+ */
+export function buildOutgoingStatusOptimisticPatch(source, user, opts = {}) {
+  if (!source || opts.isGroup === true || isGroupConversation(source)) return null;
+  const conversaId = opts.conversaId ?? source.id;
+  if (conversaId == null) return null;
+  const status = String(source.status_atendimento_real ?? source.status_atendimento ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  const autoAssumir = shouldAutoAssumirOnOutgoingSend(source, user, opts);
+  if (!autoAssumir && status !== "em_atendimento") return null;
+  const modoSimples =
+    user?.atendimento_modo_simples === true || source?.atendimento_modo_simples === true;
+  const nowMs = Number.isFinite(opts.nowMs) ? opts.nowMs : Date.now();
+  return {
+    id: conversaId,
+    status_atendimento: "em_atendimento",
+    status_atendimento_real: "em_atendimento",
+    exibir_badge_aberta: false,
+    tem_novas_mensagens_em_atendimento: false,
+    ui_status_optimistic_at: nowMs,
+    ...(!modoSimples ? { aguardando_cliente_desde: new Date(nowMs).toISOString() } : {}),
+    ...(autoAssumir && user?.id != null
+      ? { atendente_id: user.id, atendente_nome: user?.nome ?? null }
+      : {}),
+    ...(autoAssumir && source?.aguardando_resposta_campanha === true
+      ? { aguardando_resposta_campanha: false }
+      : {}),
+  };
 }
 
 /**
@@ -522,7 +567,10 @@ export function shouldAutoAssumirOnOutgoingSend(source, user, opts = {}) {
  */
 export function shouldMoveSearchedConversationToMinhaFila(source, user, opts = {}) {
   if (opts.searchActive !== true || !source || !user?.id) return false;
-  if (user?.atendimento_modo_simples === true || opts.isGroup === true) return false;
+  // Modo simples não tem a aba Minha fila (vira "aguardando_atendente").
+  if (user?.atendimento_modo_simples === true) return false;
+  // Grupo só pertence à Minha fila quando o próprio atendente o fixou (mesma regra da lista).
+  if (opts.isGroup === true || isGroupConversation(source)) return source.fixada === true;
 
   const status = String(
     source.status_atendimento_real ?? source.status_atendimento ?? ""
@@ -536,8 +584,84 @@ export function shouldMoveSearchedConversationToMinhaFila(source, user, opts = {
     status === "finalizada" ||
     status === "finalizado";
 
-  if (closed) return source.mensagens_bloqueadas !== true;
+  // Encerrada: o envio reabre para quem enviou. Sem `allowReopen` (envios que não passam
+  // pelo reabrir), ela continua encerrada e, portanto, fora da Minha fila.
+  if (closed) return opts.allowReopen !== false && source.mensagens_bloqueadas !== true;
+  // Já é minha (responsável ou co-atendente ativo): continua na Minha fila depois do envio.
+  if (isConversaJaVinculadaAoUsuario(source, user, status)) return true;
   return shouldAutoAssumirOnOutgoingSend(source, user, opts);
+}
+
+/**
+ * A conversa já está na Minha fila de `user` antes do envio (não muda de dono com ele).
+ * Permite trocar de aba no próprio clique, sem esperar o servidor.
+ */
+export function isConversaJaVinculadaAoUsuario(source, user, statusNormalizado = null) {
+  if (!source || !user?.id) return false;
+  if (source.aguardando_resposta_campanha === true) return false;
+  const status =
+    statusNormalizado ??
+    String(source.status_atendimento_real ?? source.status_atendimento ?? "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_");
+  if (
+    status !== "em_atendimento" &&
+    status !== "aguardando_cliente" &&
+    status !== "pagamento_pendente" &&
+    status !== "em_atraso"
+  ) {
+    return false;
+  }
+  if (source.participante_ativo === true) return true;
+  const atendenteId = source.atendente_id ?? source.responsavel_id ?? null;
+  return atendenteId != null && atendenteId !== "" && String(atendenteId) === String(user.id);
+}
+
+/** A lista lateral está mostrando resultados de busca (termo imediato ou debounced). */
+export function isChatListSearchActive(chatState = useChatStore.getState()) {
+  return chatState?.chatListSearchActive === true || chatState?.chatListSearchDebounced === true;
+}
+
+/**
+ * Fonte de verdade local da conversa para decidir a ida à Minha fila: a linha da lista
+ * (tem `fixada`, `participante_ativo`…) sobreposta pela conversa aberta (estado mais novo).
+ */
+export function resolveConversaParaMinhaFila(conversaId, fallback = null) {
+  const convState = useConversaStore.getState();
+  const openConv =
+    convState.conversa && String(convState.conversa.id) === String(conversaId) ? convState.conversa : null;
+  const row = (useChatStore.getState().chats || []).find((item) => String(item?.id) === String(conversaId));
+  if (!openConv && !row) return fallback || null;
+  return { ...(fallback || {}), ...(row || {}), ...(openConv || {}) };
+}
+
+/**
+ * Busca → envio: sai da pesquisa e mostra a Minha fila (como o WhatsApp volta para a lista
+ * de conversas com o chat no topo). Só age se o atendente continua nesta conversa — uma
+ * resposta HTTP atrasada não pode trocar a lista depois de ele ter aberto outro chat.
+ */
+export function requestMinhaFilaAposEnvioDaBusca(conversaId) {
+  if (conversaId == null) return false;
+  if (String(useConversaStore.getState().selectedId ?? "") !== String(conversaId)) return false;
+  useChatStore.getState().requestChatListTab?.("minha_fila", { clearSearch: true, resetScope: true });
+  return true;
+}
+
+/**
+ * Para envios que não passam pela bolha otimista nem pelo reabrir (contato, localização,
+ * enquete, catálogo): depois do aceite do servidor, se a conversa veio da busca e agora é da
+ * Minha fila, troca a lista. Encerrada não conta (esses envios não reabrem).
+ */
+export function moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId) {
+  if (conversaId == null || !isChatListSearchActive()) return false;
+  const source = resolveConversaParaMinhaFila(conversaId);
+  const user = useAuthStore.getState().user;
+  const ok = shouldMoveSearchedConversationToMinhaFila(source, user, {
+    searchActive: true,
+    allowReopen: false,
+  });
+  return ok ? requestMinhaFilaAposEnvioDaBusca(conversaId) : false;
 }
 
 function canAssumirUser(user) {

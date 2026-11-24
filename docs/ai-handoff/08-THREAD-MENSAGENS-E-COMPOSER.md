@@ -542,6 +542,42 @@ As fotos presas no relógio NÃO eram esses erros: instância UltraMSG com envio
 pelo provedor (pending aguardando ACK) — tratamento é operacional: deploy do backend atual
 (reconciliação varre pending a cada 5 min) + conferir conexão do WhatsApp no painel do provedor.
 
+### 2026-11-24 — Busca → envio → Minha fila (estilo WhatsApp), revisão completa
+
+Regra: contato aberto pela busca da lista + envio ⇒ a lista sai da pesquisa e mostra a Minha
+fila com a conversa no topo, sem o atendente tocar na barra de busca. Peças:
+
+- `shouldMoveSearchedConversationToMinhaFila` (conversaOptimisticMessage.js) agora cobre também
+  conversa **já minha** (responsável ou `participante_ativo`) e **grupo fixado** (`fixada`).
+  `opts.allowReopen === false` exclui encerrada (envios que não reabrem). Outro atendente, grupo
+  não fixado, campanha aguardando e modo simples continuam fora.
+- `beginSearchResultSendTransition` (ConversaView): já minha ⇒ troca no próprio clique
+  (`queueMicrotask`, depois da bolha); encerrada ⇒ ao reabrir; livre ⇒ no aceite do envio.
+- `requestMinhaFilaAposEnvioDaBusca` ⇒ `requestChatListTab("minha_fila", { clearSearch, resetScope })`.
+  `resetScope` faz o `useChatListFilterState` chamar `onTabRequestResetScope` (chatList.jsx), que
+  limpa o filtro por atendente do admin e a pendência ativa — eles se sobrepõem à aba.
+- Envios sem bolha otimista (contato, localização, enquete, catálogo/produto, Pix) chamam
+  `moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId)` após o sucesso.
+- chatList.jsx: ao entrar na Minha fila via cache de sessão, a conversa aberta é mesclada se
+  `conversaPertenceAMinhaFila` (sem "pulo" até o GET). Limpar a busca com cache da aba mostra o
+  cache na hora em vez de manter os resultados da pesquisa até o GET.
+- Testes: blocos 5b–5d em `scripts/test-optimistic-send-glitch.mjs`.
+
+**Etiqueta "Aguardando cliente" instantânea (2.ª rodada, mesmo dia).** O card/cabeçalho mostrava
+"Em atendimento" e ~0,5 s depois "Aguardando cliente". Três causas, todas fechadas:
+1. o patch otimista do envio não trazia `aguardando_cliente_desde` → agora vem de
+   `buildOutgoingStatusOptimisticPatch` (conversaOptimisticMessage.js, puro/testado);
+2. o realtime do assumir-no-envio trazia `aguardando_cliente_desde: null` antes do realtime do
+   envio → backend omite a chave (`linhaRealtimeAssumirNoEnvio`);
+3. o GET debounced de `atualizar_conversa` podia ler o banco antes do envio e sobrescrever o
+   cabeçalho → socket.js usa a linha do store com `preserveNewerOptimisticMembership` quando a
+   ação otimista tem < 15 s (`OTIMISTA_STATUS_JANELA_MS`).
+Reabrir pelo envio: `reabrirConversa(id, { paraEnviar: true })` já prevê o aguardando; o texto
+reaplica o status otimista após reabrir; `reabertaParaEnvioRef` faz o desfazer (falha de envio)
+voltar ao estado real da reabertura. Mensagem disparada sem dono passou a ser auto-assumida no
+otimista (o backend já assumia). Campanha: assumir zera `aguardando_resposta_campanha` (otimista
++ socket merge + backend).
+
 ### 2026-10-07 (parte 5) — 2ª auditoria independente envio/recebimento
 
 Certificação sobre o estado atual, incluindo diffs NÃO commitados de terceiros no fluxo de envio

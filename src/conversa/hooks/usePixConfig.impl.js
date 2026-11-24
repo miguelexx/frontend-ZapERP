@@ -1,3 +1,4 @@
+import { moverParaMinhaFilaSeEnvioVeioDaBusca } from "../conversaOptimisticMessage";
 import { getPixConfig, putPixConfig, enviarMensagemPix } from "../conversaService";
 import { safeString } from "../utils/conversaViewHelpers";
 
@@ -140,6 +141,7 @@ export async function handlePixMenuClick(ctx) {
         response: { status: 422, data },
       });
     }
+    moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
   } catch (err) {
     showToast({
       type: "error",

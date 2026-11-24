@@ -1923,6 +1923,8 @@ export const useConversaStore = create((set, get) => {
         atendente_nome: me?.nome ?? null,
         ui_status_optimistic_at: Date.now(),
         ...(me?.id != null ? { atendente_id: me.id } : {}),
+        // Assumir encerra a espera de campanha (backend: encerrarEsperaDeCampanhaAoAssumir).
+        ...(src?.aguardando_resposta_campanha === true ? { aguardando_resposta_campanha: false } : {}),
       }
       get().patchConversa(optimistic)
       chatStore.updateChat(optimistic)
@@ -1952,6 +1954,7 @@ export const useConversaStore = create((set, get) => {
             mensagens_bloqueadas: src.mensagens_bloqueadas,
             atendente_nome: src.atendente_nome,
             atendente_id: src.atendente_id,
+            ...(src.aguardando_resposta_campanha === true ? { aguardando_resposta_campanha: true } : {}),
           }
           get().patchConversa(revert)
           useChatStore.getState().updateChat(revert)
@@ -2042,7 +2045,8 @@ export const useConversaStore = create((set, get) => {
       set({ atendimentosLoadedFor: null })
     },
 
-    encerrarConversa: async (conversaId) =>
+    /** @param {{ enviarMensagemFinalizacao?: boolean }} [opts] — escolha da seta do "Encerrar"; ausente = padrão da empresa */
+    encerrarConversa: async (conversaId, opts) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
       const row = getChatByIdFromStore(conversaId, chatStore.chats)
@@ -2074,7 +2078,7 @@ export const useConversaStore = create((set, get) => {
         previousRow: src || null,
       })
       try {
-        const data = await encerrarChat(conversaId)
+        const data = await encerrarChat(conversaId, opts)
         const payload = data?.conversa ?? data ?? {}
         const patch = { ...optimistic, ...payload, id: conversaId }
         get().patchConversa(patch)
@@ -2110,13 +2114,22 @@ export const useConversaStore = create((set, get) => {
       }
       }),
 
-    reabrirConversa: async (conversaId) =>
+    /**
+     * @param {{ paraEnviar?: boolean }} [opts] `paraEnviar`: reabertura disparada por um envio do
+     *   atendente. O envio logo em seguida marca "aguardando cliente" no backend, então o card já
+     *   nasce assim (fora do modo simples) em vez de piscar "Em atendimento" durante o reabrir.
+     */
+    reabrirConversa: async (conversaId, opts = {}) =>
       withMessagesScrollPreserved(async () => {
       const chatStore = useChatStore.getState()
       const row = getChatByIdFromStore(conversaId, chatStore.chats)
       const openConv = get().conversa
       const src = row || (openConv && String(openConv.id) === String(conversaId) ? openConv : null)
       const me = getCurrentUserFromStorage()
+      const preverAguardandoCliente =
+        opts?.paraEnviar === true &&
+        me?.atendimento_modo_simples !== true &&
+        src?.atendimento_modo_simples !== true
       const optimistic = {
         id: conversaId,
         status_atendimento: "em_atendimento",
@@ -2128,7 +2141,7 @@ export const useConversaStore = create((set, get) => {
         departamento_id: null,
         setor: null,
         departamento: null,
-        aguardando_cliente_desde: null,
+        aguardando_cliente_desde: preverAguardandoCliente ? new Date().toISOString() : null,
         pagamento_concluido_em: null,
         pagamento_prazo_ate: null,
         pagamento_prazo_origem: null,
@@ -2148,6 +2161,11 @@ export const useConversaStore = create((set, get) => {
         const data = await reabrirChat(conversaId)
         const payload = data?.conversa ?? data ?? {}
         const patch = { ...optimistic, ...payload, id: conversaId }
+        // A linha do reabrir vem com aguardando_cliente_desde=null (o envio ainda não saiu):
+        // mantém a previsão até o realtime do envio confirmar/corrigir.
+        if (preverAguardandoCliente && patch.aguardando_cliente_desde == null) {
+          patch.aguardando_cliente_desde = optimistic.aguardando_cliente_desde
+        }
         get().patchConversa(patch)
         useChatStore.getState().updateChat(patch)
         useChatStore.getState().requestChatListResync({ force: true })

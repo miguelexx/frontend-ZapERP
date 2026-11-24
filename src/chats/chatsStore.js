@@ -187,6 +187,7 @@ export const useChatStore = create((set, get) => ({
   /** Pedido programático de troca de aba (ex.: "puxar conversa novamente" → minha_fila). */
   chatListTabRequest: null,
   chatListTabRequestClearSearch: false,
+  chatListTabRequestResetScope: false,
   chatListTabRequestNonce: 0,
   /** id → { expiresAt } — encerrar otimista; o socket consulta antes de addChat. */
   chatListHiddenClosed: {},
@@ -326,9 +327,13 @@ export const useChatStore = create((set, get) => ({
     const next = tab != null ? String(tab) : null
     if (!next) return
     const clearSearch = opts?.clearSearch === true
+    // resetScope: também desfaz recortes que se sobrepõem à aba (filtro por atendente do
+    // admin e pendência ativa) — senão "ir para a Minha fila" não mostraria a Minha fila.
+    const resetScope = opts?.resetScope === true
     set((s) => ({
       chatListTabRequest: next,
       chatListTabRequestClearSearch: clearSearch,
+      chatListTabRequestResetScope: resetScope,
       chatListTabRequestNonce: (s.chatListTabRequestNonce || 0) + 1,
       // Publica a visão de destino no mesmo tick. Socket/mutações otimistas que chegarem
       // antes do próximo render já avaliam a pertinência contra Minha fila, sem janela stale.
@@ -903,6 +908,8 @@ export const useChatStore = create((set, get) => ({
       chatListOptimisticMutation: null,
       chatListOptimisticMutationNonce: 0,
       chatListTabRequest: null,
+      chatListTabRequestClearSearch: false,
+      chatListTabRequestResetScope: false,
       chatListTabRequestNonce: 0,
       chatListHiddenClosed: {},
     })

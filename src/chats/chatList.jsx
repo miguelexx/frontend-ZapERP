@@ -229,6 +229,15 @@ export default function ChatList() {
 
   const searchRef = useRef(null);
 
+  /* Pedido programático "ir para a Minha fila" (ex.: busca → envio): sai também do recorte
+     por atendente do admin e da pendência ativa, que se sobrepõem à aba. */
+  const handleTabRequestResetScope = useCallback(() => {
+    if (pendenciaAtiva) clearPendenciaAtiva?.();
+    if (adminAtendenteFilterId != null && String(adminAtendenteFilterId).trim() !== "") {
+      clearAdminAtendenteFilter();
+    }
+  }, [pendenciaAtiva, clearPendenciaAtiva, adminAtendenteFilterId, clearAdminAtendenteFilter]);
+
   const scrollRef = useRef(null);
   const scrollSaveRef = useRef(0);
   const openByPhoneBusyRef = useRef(false);
@@ -323,6 +332,7 @@ export default function ChatList() {
     adminAtendenteFilterId,
     conversaIdsPendenciaQuery,
     filterScopeKey,
+    onTabRequestResetScope: handleTabRequestResetScope,
   });
 
   // Multi-instância: números ativos da empresa para o filtro por número (visível só quando há 2+).
@@ -412,9 +422,29 @@ export default function ChatList() {
       if (!searchActive && !getAdminAtendenteFilterScope({ adminAtendenteFilterId }) && TABS_HIDE_OPTIMISTIC_CLOSED.has(String(tab || ""))) {
         cachedList = cachedList.filter((c) => !isClosedAttendance(c));
       }
+      if (!searchActive && tab === "minha_fila" && !getAdminAtendenteFilterScope({ adminAtendenteFilterId })) {
+        cachedList = withOpenConversationInMinhaFila(cachedList);
+      }
       setChats(cachedList);
       if (!searchActive && tab === "minha_fila") setMinhaFilaList(cachedList);
       return true;
+    };
+
+    /*
+     * O cache de sessão da Minha fila é de ANTES da troca de aba. Quando o atendente chega
+     * aqui vindo da busca (envio que assumiu/reabriu a conversa), a conversa aberta ainda
+     * não está nele e só "pularia" para o topo quando o GET respondesse. Se ela já pertence
+     * à Minha fila (mesma regra da lista/socket), entra desde o primeiro frame, na posição
+     * que a ordenação lhe dá; o GET em seguida confirma ou corrige.
+     */
+    const withOpenConversationInMinhaFila = (list) => {
+      const openId = useConversaStore.getState().selectedId;
+      if (openId == null) return list;
+      if (list.some((c) => String(c?.id) === String(openId))) return list;
+      const openRow = (useChatStore.getState().chats || []).find((c) => String(c?.id) === String(openId));
+      if (!openRow || openRow.sem_conversa) return list;
+      if (!conversaPertenceAMinhaFila(openRow, useAuthStore.getState().user?.id)) return list;
+      return sortChatRowsByOrder(dedupeChatRowsByStableKey([openRow, ...list]), order);
     };
 
     if (!filterRequestKeyRef.current) {
@@ -440,9 +470,21 @@ export default function ChatList() {
      * cada 350 ms. Mantemos as linhas atuais até a resposta chegar (o `load` corre em
      * background e substitui-as); o esqueleto fica reservado a mudanças reais de filtro/aba.
      */
-    const preserveRowsDuringSearch = onlySearchChanged && hasRowsToPreserve;
-    const cachedNextFilterRows = !preserveRowsDuringSearch
+    /*
+     * Saindo da busca (termo zerado) com a lista da aba em cache: mostra-a já, como o
+     * WhatsApp ao fechar a pesquisa — manter os resultados até o GET deixava contatos
+     * fora da aba visíveis por um instante. Sem cache, preserva as linhas como antes.
+     */
+    const searchCleared = onlySearchChanged && !String(debouncedSearch || "").trim();
+    const cachedAfterSearchCleared = searchCleared
       ? hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey)
+      : null;
+    const preserveRowsDuringSearch =
+      onlySearchChanged && hasRowsToPreserve && !Array.isArray(cachedAfterSearchCleared);
+    const cachedNextFilterRows = !preserveRowsDuringSearch
+      ? (Array.isArray(cachedAfterSearchCleared)
+          ? cachedAfterSearchCleared
+          : hydrateChatListRowsForFilterFromSession(filterScopeKey, filterRequestKey))
       : null;
     const hasCachedNextFilter = Array.isArray(cachedNextFilterRows);
     filterRequestKeyRef.current = filterRequestKey;

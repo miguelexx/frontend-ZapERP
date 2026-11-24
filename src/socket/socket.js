@@ -1,6 +1,7 @@
 import { io } from "socket.io-client"
 import { useChatStore, getChatByIdFromStore, getChatsByIdIndex } from "../chats/chatsStore"
 import { contactIdentitiesConflict } from "../chats/chatContactIdentity"
+import { preserveNewerOptimisticMembership } from "../chats/chatListRowAtendimento"
 import {
   normalizeMensagemStatusKey,
   ultimaMensagemRefsEqual,
@@ -49,6 +50,9 @@ import {
 } from "./statusMensagemBatch"
 import { getStatusAtendimentoEffective, isClosedAttendance } from "../utils/conversaUtils"
 import { registrarLimpezaDeSessao } from "../runtime/sessionRuntime.js"
+
+/** Janela em que uma ação otimista de status (assumir/envio) prevalece sobre um GET de reconciliação. */
+const OTIMISTA_STATUS_JANELA_MS = 15000
 
 const TYPING_EXPIRY_MS = 5000
 const typingExpiryTimers = new Map()
@@ -1747,6 +1751,9 @@ export function initSocket(token) {
         "finalizada_automaticamente_em",
         "aguardando_cliente_desde",
         "ausencia_mensagem_enviada_em",
+        // Assumir/1.ª resposta encerram a espera de campanha: o card deixa de ser "Disparo
+        // enviado" já no evento, sem esperar o GET de reconciliação.
+        "aguardando_resposta_campanha",
       ]
       for (const k of ausenciaKeys) {
         if (k in payload) next[k] = payload[k]
@@ -2046,12 +2053,21 @@ export function initSocket(token) {
         }
         const selectedId = useConversaStore.getState().selectedId
         if (String(id) === String(selectedId)) {
+          // Mesma regra da lista: o GET (debounced) pode ter lido o banco ANTES do envio terminar
+          // (ex.: assumiu, mas ainda não marcou "aguardando cliente"). A linha do store já passou
+          // por applyNewerOptimisticMembershipTo — o cabeçalho usa esse resultado, senão piscava
+          // "Em atendimento" entre a previsão otimista e o realtime do envio.
+          const linhaStore = wasInList ? getChatByIdFromStore(id, useChatStore.getState().chats) : null
+          const otimistaRecente =
+            !!linhaStore &&
+            Date.now() - Number(linhaStore.ui_status_optimistic_at || 0) < OTIMISTA_STATUS_JANELA_MS
+          const linhaEfetiva = otimistaRecente ? preserveNewerOptimisticMembership(chat, linhaStore) : chat
           const meta = { id: chat.id }
-          mergeSetorEAtendenteNoAlvo(meta, chat)
-          if ("status_atendimento" in chat) meta.status_atendimento = chat.status_atendimento
-          if ("status_atendimento_real" in chat) meta.status_atendimento_real = chat.status_atendimento_real
-          if ("aguardando_cliente_desde" in chat) meta.aguardando_cliente_desde = chat.aguardando_cliente_desde
-          if ("exibir_badge_aberta" in chat) meta.exibir_badge_aberta = chat.exibir_badge_aberta
+          mergeSetorEAtendenteNoAlvo(meta, linhaEfetiva)
+          if ("status_atendimento" in linhaEfetiva) meta.status_atendimento = linhaEfetiva.status_atendimento
+          if ("status_atendimento_real" in linhaEfetiva) meta.status_atendimento_real = linhaEfetiva.status_atendimento_real
+          if ("aguardando_cliente_desde" in linhaEfetiva) meta.aguardando_cliente_desde = linhaEfetiva.aguardando_cliente_desde
+          if ("exibir_badge_aberta" in linhaEfetiva) meta.exibir_badge_aberta = linhaEfetiva.exibir_badge_aberta
           if ("modo_simples_aguardando" in chat) meta.modo_simples_aguardando = chat.modo_simples_aguardando
           if (chat.atendimento_modo_simples === true) meta.atendimento_modo_simples = true
           if ("lida" in chat) meta.lida = chat.lida

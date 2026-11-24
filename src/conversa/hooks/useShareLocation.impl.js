@@ -1,3 +1,4 @@
+import { moverParaMinhaFilaSeEnvioVeioDaBusca } from "../conversaOptimisticMessage";
 import { enviarLocalizacao } from "../conversaService";
 
 /**
@@ -43,6 +44,7 @@ export async function handleEnviarLocalizacao(ctx) {
     }
     setShareLocationOpen(false);
     setShareLocationGeoError(null);
+    moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
     showToast({
       type: "success",
       title: "Localização enviada",

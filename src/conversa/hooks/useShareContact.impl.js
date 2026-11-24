@@ -1,3 +1,4 @@
+import { moverParaMinhaFilaSeEnvioVeioDaBusca } from "../conversaOptimisticMessage";
 import { enviarContato } from "../conversaService";
 import * as cfg from "../../api/configService";
 import { safeString } from "../utils/conversaViewHelpers";
@@ -189,6 +190,7 @@ export async function handleShareContactSend(ctx, contatos) {
       setShareContactQuery("");
       setShareContactList([]);
       setShareContactSelected?.([]);
+      moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
       showToast({
         type: "success",
         title: enviados.length > 1 ? "Contatos enviados" : "Contato enviado",

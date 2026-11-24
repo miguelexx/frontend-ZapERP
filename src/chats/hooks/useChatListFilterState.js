@@ -19,6 +19,7 @@ export function useChatListFilterState({
   adminAtendenteFilterId,
   conversaIdsPendenciaQuery,
   filterScopeKey,
+  onTabRequestResetScope,
 }) {
   // O termo imediato filtra as linhas já carregadas; o debounced limita chamadas à API.
   // Assim a lista nunca exibe resultados sabidamente errados durante os 350 ms de espera.
@@ -68,15 +69,21 @@ export function useChatListFilterState({
 
   // Pedido programático de troca de aba (ex.: "puxar conversa novamente" → minha_fila).
   const chatListTabRequestNonce = useChatStore((s) => s.chatListTabRequestNonce);
+  const onTabRequestResetScopeRef = useRef(onTabRequestResetScope);
+  onTabRequestResetScopeRef.current = onTabRequestResetScope;
   useEffect(() => {
     if (!chatListTabRequestNonce) return;
     const requestState = useChatStore.getState();
     const requested = requestState.chatListTabRequest;
     const clearSearch = requestState.chatListTabRequestClearSearch === true;
+    const resetScope = requestState.chatListTabRequestResetScope === true;
     useChatStore.setState({
       chatListTabRequest: null,
       chatListTabRequestClearSearch: false,
+      chatListTabRequestResetScope: false,
     });
+    // Mesmo efeito do clique no chip (pendência + filtro do admin + busca saem juntos).
+    if (resetScope) onTabRequestResetScopeRef.current?.();
     if (clearSearch) clearChatSearch();
     if (requested && requested !== tabRef.current) setTab(requested);
   }, [chatListTabRequestNonce, clearChatSearch]);

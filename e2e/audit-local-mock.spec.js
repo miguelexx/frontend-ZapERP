@@ -1375,3 +1375,91 @@ test("Encerrar: duplo clique não atravessa para o Reabrir e a barra diz que est
     expect(corVeu).toBe(corTexto);
   }
 });
+
+/*
+ * Seta discreta do "Encerrar": decide, NESTE encerramento, se o cliente recebe a mensagem de
+ * finalização. O clique direto no botão continua igual (sem corpo → backend segue o toggle).
+ */
+test("Encerrar: seta escolhe com/sem mensagem e o clique direto continua igual", async ({ page }, testInfo) => {
+  const corpos = [];
+  await installAuditSession(page);
+
+  await page.route(`${API}/**`, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+
+    if (path.startsWith("/socket.io")) return route.abort();
+    if (path === "/usuarios/me") return route.fulfill({ json: { id: 1, perfil: "admin", role: "admin" } });
+    if (path === "/usuarios/me/permissoes") return route.fulfill({ json: { permissoes: [] } });
+    if (path === "/config/empresa") return route.fulfill({ json: { id: 1, nome: "ZapERP Auditoria" } });
+    if (path === "/chats/whatsapp-instances") return route.fulfill({ json: { instances: [], active_count: 0 } });
+    if (path === "/chats/finalizacao-config") return route.fulfill({ json: { envio_automatico: false } });
+    if (path === "/tags" || path === "/dashboard/departamentos") return route.fulfill({ json: [] });
+    if (path === "/chats/counts") return route.fulfill({ json: { todas: 2, minha_fila: 2, em_atendimento: 2 } });
+    if (path === "/chats" && method === "GET") return route.fulfill({ json: chats });
+
+    const detalhe = path.match(/^\/chats\/(\d+)$/);
+    if (detalhe && method === "GET") return route.fulfill({ json: conversationPayload(detalhe[1]) });
+
+    const encerrar = path.match(/^\/chats\/(\d+)\/encerrar$/);
+    if (encerrar && method === "POST") {
+      corpos.push(request.postData() || "");
+      // Responde a conversa AINDA aberta: o patch da resposta desfaz o otimista e o Encerrar
+      // volta, para o teste seguir. (Um 409 aqui gerava toast, que no celular cobre o header.)
+      return route.fulfill({ json: { conversa: { ...chats[0] } } });
+    }
+    return route.fulfill({ json: {} });
+  });
+
+  await page.goto("/atendimento");
+  const linha = page.locator(".chat-list-row").filter({ hasText: "Contato Auditoria" });
+  await expect(linha).toBeVisible({ timeout: 30_000 });
+  const noTelemovel = testInfo.project.name.includes("mobile");
+  if (noTelemovel) await linha.tap();
+  else await linha.click();
+  await expect(page.locator(".wa-input")).toBeVisible();
+
+  const split = page.locator(".wa-encerrarSplit").first();
+  const seta = page.getByRole("button", { name: "Opções de encerramento" }).first();
+  await expect(seta).toBeVisible();
+
+  // A seta mora DENTRO da cápsula do Encerrar (não cria um botão a mais na barra).
+  const box = await page.getByRole("button", { name: /Encerrar conversa/i }).first().boundingBox();
+  const boxSeta = await seta.boundingBox();
+  expect(boxSeta.x).toBeGreaterThan(box.x);
+  expect(boxSeta.x + boxSeta.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+
+  if (process.env.SHOT_DIR) await split.screenshot({ path: `${process.env.SHOT_DIR}/split-${testInfo.project.name}.png` });
+
+  // 1) seta → menu → "sem mensagem"
+  await seta.click();
+  const menu = page.getByRole("menu", { name: "Como encerrar a conversa" });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByText("Padrão")).toHaveCount(1);
+  await expect(menu.getByRole("menuitem", { name: /Encerrar sem mensagem/ })).toContainText("Padrão");
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/menu-${testInfo.project.name}.png` });
+  await menu.getByRole("menuitem", { name: /Encerrar sem mensagem/ }).click();
+  await expect(menu).toHaveCount(0);
+  await expect.poll(() => corpos.length).toBe(1);
+  expect(JSON.parse(corpos[0])).toEqual({ enviar_mensagem_finalizacao: false });
+
+  // 2) seta → "com mensagem" (teclado: Enter abre, seta ↓ e Enter escolhe)
+  await expect(seta).toBeVisible();
+  await seta.focus();
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await seta.click();
+  await menu.getByRole("menuitem", { name: /Encerrar e enviar mensagem/ }).click();
+  await expect.poll(() => corpos.length).toBe(2);
+  expect(JSON.parse(corpos[1])).toEqual({ enviar_mensagem_finalizacao: true });
+
+  // 3) clique direto no corpo do botão: sem escolha no corpo (comportamento de sempre)
+  const encerrarBtn = page.getByRole("button", { name: /Encerrar conversa/i }).first();
+  await expect(encerrarBtn).toBeEnabled();
+  await encerrarBtn.click();
+  await expect.poll(() => corpos.length).toBe(3);
+  expect(corpos[2] === "" || corpos[2] === "{}").toBe(true);
+});

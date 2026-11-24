@@ -1,3 +1,4 @@
+import { moverParaMinhaFilaSeEnvioVeioDaBusca } from "../conversaOptimisticMessage";
 import { enviarEnquete } from "../conversaService";
 
 /**
@@ -30,6 +31,7 @@ export async function handleSendPoll(ctx) {
       });
     }
     setPollOpen(false);
+    moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
     showToast?.({
       type: "success",
       title: "Enquete enviada",

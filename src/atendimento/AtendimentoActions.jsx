@@ -28,6 +28,7 @@ import {
 import AguardarPagamentoModal from "./AguardarPagamentoModal";
 import AguardarClienteModal from "./AguardarClienteModal";
 import AguardandoClienteCountdown from "./AguardandoClienteCountdown";
+import EncerrarSplitButton from "./EncerrarSplitButton";
 import "./aguardarPagamento.css";
 
 /** Erro de timeout/rede do axios (sem resposta do servidor). */
@@ -603,11 +604,20 @@ export default function AtendimentoActions({
     }, "Erro ao assumir");
   }
 
-  async function handleEncerrar() {
+  /**
+   * @param {boolean} [enviarMensagem] — escolha da seta do botão: true = com mensagem de
+   * finalização, false = sem. Qualquer outra coisa (inclusive o evento do clique direto no
+   * botão) = padrão da empresa, exatamente como sempre foi.
+   */
+  async function handleEncerrar(enviarMensagem) {
+    const escolha = typeof enviarMensagem === "boolean" ? enviarMensagem : undefined;
     await runAcaoOtimista("encerrar", async () => {
       if (typeof encerrarConversa !== "function") return;
       logActionScroll("encerrar", "antes");
-      await encerrarConversa(conversa.id);
+      await encerrarConversa(
+        conversa.id,
+        escolha === undefined ? undefined : { enviarMensagemFinalizacao: escolha }
+      );
       logActionScroll("encerrar", "depois");
       // Sem toast de sucesso: o painel de encerrado já confirma. Toast cobria o header no mobile.
     }, "Erro ao encerrar");
@@ -974,11 +984,15 @@ export default function AtendimentoActions({
     const icon = <AtendimentoActionIcon id={a.id} />;
     const reabrirHero = compactToolbar && a.id === "reabrir";
     const assumirHero = compactToolbar && a.id === "assumir";
-    return (
+    // Encerrar ganha uma seta discreta (com/sem mensagem de finalização). O botão em si é o
+    // mesmo de sempre — mesmas classes, mesmo clique — só com um espaçador no fim onde a seta
+    // se apoia. Grupos nunca chegam aqui (podeEncerrar já exclui).
+    const isEncerrarSplit = a.id === "encerrar";
+    const button = (
       <button
         key={a.id}
         type="button"
-        className={`${a.className}${reabrirHero ? " wa-atendBtn--assumir-hero wa-atendBtn--reabrir-hero" : ""}${assumirHero ? " wa-atendBtn--assumir-hero" : ""} zap-action-btn`.trim()}
+        className={`${a.className}${reabrirHero ? " wa-atendBtn--assumir-hero wa-atendBtn--reabrir-hero" : ""}${assumirHero ? " wa-atendBtn--assumir-hero" : ""}${isEncerrarSplit ? " wa-encerrarSplit-main" : ""} zap-action-btn`.trim()}
         onClick={a.onClick}
         disabled={busy}
         title={a.title}
@@ -991,7 +1005,19 @@ export default function AtendimentoActions({
         ) : null}
         <span className="wa-atendLabel--long">{a.labelLong}</span>
         <span className="wa-atendLabel--short">{a.labelShort}</span>
+        {isEncerrarSplit ? <span className="wa-encerrarSplit-spacer" aria-hidden="true" /> : null}
       </button>
+    );
+    if (!isEncerrarSplit) return button;
+    return (
+      <EncerrarSplitButton
+        key={a.id}
+        mainButton={button}
+        busy={busy}
+        onChoose={(enviar) => handleEncerrar(enviar)}
+        companyKey={user?.company_id ?? null}
+        conversaId={conversa?.id ?? null}
+      />
     );
   }
 

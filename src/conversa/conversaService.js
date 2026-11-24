@@ -281,8 +281,14 @@ export async function assumirChat(conversaId) {
   return data;
 }
 
-export async function encerrarChat(conversaId) {
-  const { data } = await api.post(`/chats/${conversaId}/encerrar`);
+/**
+ * @param {{ enviarMensagemFinalizacao?: boolean }} [opts] — só vai no corpo quando é booleano;
+ * sem ele o backend segue o toggle "Mensagem ao finalizar atendimento" da empresa.
+ */
+export async function encerrarChat(conversaId, opts) {
+  const escolha = opts?.enviarMensagemFinalizacao;
+  const body = typeof escolha === "boolean" ? { enviar_mensagem_finalizacao: escolha } : undefined;
+  const { data } = await api.post(`/chats/${conversaId}/encerrar`, body);
   return data;
 }
 

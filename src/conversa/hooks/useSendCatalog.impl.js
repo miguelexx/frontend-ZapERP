@@ -1,3 +1,4 @@
+import { moverParaMinhaFilaSeEnvioVeioDaBusca } from "../conversaOptimisticMessage";
 import {
   enviarCatalogoConversa,
   enviarProdutoConversa,
@@ -61,6 +62,7 @@ export async function sendProducts(ctx, list, onItemSent) {
   }
   setSending(false);
   setSendProgress(null);
+  if (enviados > 0) moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
 
   if (falhou === 0) {
     showToast?.({
@@ -91,6 +93,7 @@ export async function sendCatalogLink(ctx) {
   setSendingCatalog(true);
   try {
     await enviarCatalogoConversa(conversaId, {});
+    moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
     showToast?.({
       type: "success",
       title: "Catálogo enviado",

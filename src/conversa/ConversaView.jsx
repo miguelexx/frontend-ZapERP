@@ -53,7 +53,12 @@ import {
   bumpChatListWithOptimisticMessage,
   applyModoSimplesClienteOnOutgoingSend,
   shouldAutoAssumirOnOutgoingSend,
+  buildOutgoingStatusOptimisticPatch,
   shouldMoveSearchedConversationToMinhaFila,
+  isConversaJaVinculadaAoUsuario,
+  isChatListSearchActive,
+  resolveConversaParaMinhaFila,
+  requestMinhaFilaAposEnvioDaBusca,
   normalizeTextSendApiToMessage,
 } from "./conversaOptimisticMessage";
 import {
@@ -1204,7 +1209,15 @@ function ConversaViewBody() {
     }
   }, []);
 
+  /** Conversa reaberta por `garantirConversaAbertaParaEnvio` e ainda sem status otimista do envio. */
+  const reabertaParaEnvioRef = useRef(null);
   const applyOutgoingStatusOptimistic = useCallback(() => {
+    // Reaberta por este envio: o reabrir já previu "aguardando cliente". Se o envio falhar, o
+    // desfazer volta ao estado REAL da reabertura (sem aguardando), não à previsão.
+    const reabertaPorEsteEnvio =
+      reabertaParaEnvioRef.current != null &&
+      String(reabertaParaEnvioRef.current) === String(conversaId);
+    reabertaParaEnvioRef.current = null;
     if (!conversaId || isGroup) return null;
 
     const convStore = useConversaStore.getState();
@@ -1215,35 +1228,20 @@ function ConversaViewBody() {
         : conversa;
     const row = (chatStore.chats || []).find((c) => String(c?.id) === String(conversaId));
     const source = openConv || row || fromChat;
-    const statusNow = getStatusAtendimentoEffective(source);
+    const patch = buildOutgoingStatusOptimisticPatch(source, user, { conversaId, isGroup });
+    if (!patch) return null;
     const autoAssumir = shouldAutoAssumirOnOutgoingSend(source, user, { isGroup });
-
-    // aguardando_cliente_desde NÃO entra no patch: o backend só marca quando
-    // outboundQualificaParaAguardandoCliente() permite (ex.: não marca para
-    // mensagem de ausência).
-    if (!autoAssumir && statusNow !== "em_atendimento") return null;
-
-    const patch = {
-      id: conversaId,
-      status_atendimento: "em_atendimento",
-      status_atendimento_real: "em_atendimento",
-      exibir_badge_aberta: false,
-      tem_novas_mensagens_em_atendimento: false,
-      ui_status_optimistic_at: Date.now(),
-      ...(autoAssumir && user?.id != null
-        ? { atendente_id: user.id, atendente_nome: user?.nome ?? null }
-        : {}),
-    };
     const revertOpen = openConv
       ? {
           id: conversaId,
           status_atendimento: openConv.status_atendimento,
           status_atendimento_real: openConv.status_atendimento_real,
-          aguardando_cliente_desde: openConv.aguardando_cliente_desde,
+          aguardando_cliente_desde: reabertaPorEsteEnvio ? null : openConv.aguardando_cliente_desde,
           exibir_badge_aberta: openConv.exibir_badge_aberta,
           tem_novas_mensagens_em_atendimento: openConv.tem_novas_mensagens_em_atendimento,
           atendente_id: openConv.atendente_id,
           atendente_nome: openConv.atendente_nome,
+          aguardando_resposta_campanha: openConv.aguardando_resposta_campanha,
           ui_status_optimistic_at: openConv.ui_status_optimistic_at ?? null,
         }
       : null;
@@ -1252,11 +1250,12 @@ function ConversaViewBody() {
           id: conversaId,
           status_atendimento: row.status_atendimento,
           status_atendimento_real: row.status_atendimento_real,
-          aguardando_cliente_desde: row.aguardando_cliente_desde,
+          aguardando_cliente_desde: reabertaPorEsteEnvio ? null : row.aguardando_cliente_desde,
           exibir_badge_aberta: row.exibir_badge_aberta,
           tem_novas_mensagens_em_atendimento: row.tem_novas_mensagens_em_atendimento,
           atendente_id: row.atendente_id,
           atendente_nome: row.atendente_nome,
+          aguardando_resposta_campanha: row.aguardando_resposta_campanha,
           ui_status_optimistic_at: row.ui_status_optimistic_at ?? null,
         }
       : null;
@@ -2086,7 +2085,8 @@ function ConversaViewBody() {
     const alvo = atual && String(atual.id) === String(conversaId) ? atual : conversa;
     if (!isClosedAttendance(alvo)) return true;
     try {
-      await reabrirConversa(conversaId);
+      await reabrirConversa(conversaId, { paraEnviar: true });
+      reabertaParaEnvioRef.current = conversaId;
       return true;
     } catch (e) {
       showToast({
@@ -2099,24 +2099,21 @@ function ConversaViewBody() {
   }, [conversaId, conversa, reabrirConversa, showToast]);
 
   /**
-   * Quando o contato foi aberto pela busca global e o primeiro envio vai assumi-lo/reabri-lo,
-   * devolve os marcos seguros para concluir a navegação. Conversa encerrada pode mudar de
-   * tela assim que o reabrir confirma; conversa livre aguarda o envio confirmar o auto-assumir.
+   * Contato aberto pela busca + envio: sai da pesquisa e mostra a Minha fila com a conversa
+   * no topo (fluxo do WhatsApp). Marcos seguros por caso:
+   * - já é minha (responsável/co-atendente/grupo fixado): troca no próprio clique — o envio
+   *   não muda o dono, então não há o que esperar;
+   * - encerrada: troca quando o reabrir confirma;
+   * - livre: troca quando o servidor aceita o envio (o auto-assumir já gravou).
+   * Envio que falha antes do marco mantém a busca (a conversa não passou a ser minha).
    */
   const beginSearchResultSendTransition = useCallback(() => {
-    const chatState = useChatStore.getState();
-    const searchActive =
-      chatState.chatListSearchActive === true || chatState.chatListSearchDebounced === true;
-    const convState = useConversaStore.getState();
-    const openConv =
-      convState.conversa && String(convState.conversa.id) === String(conversaId)
-        ? convState.conversa
-        : conversa;
-    const row = (chatState.chats || []).find((item) => String(item?.id) === String(conversaId));
-    const source = openConv || row || fromChat;
+    if (!isChatListSearchActive()) return null;
+    const source = resolveConversaParaMinhaFila(conversaId, fromChat || conversa || null);
+    const isGroupSource = isGroupConversation(source);
     const shouldMove = shouldMoveSearchedConversationToMinhaFila(source, user, {
-      searchActive,
-      isGroup: isGroupConversation(source),
+      searchActive: true,
+      isGroup: isGroupSource,
     });
     if (!shouldMove) return null;
 
@@ -2124,11 +2121,15 @@ function ConversaViewBody() {
     const complete = () => {
       if (completed) return;
       completed = true;
-      // Uma resposta HTTP atrasada não deve trocar o filtro se o atendente já abriu outro chat.
-      if (String(useConversaStore.getState().selectedId ?? "") !== String(conversaId)) return;
-      const currentChatStore = useChatStore.getState();
-      currentChatStore.requestChatListTab?.("minha_fila", { clearSearch: true });
+      requestMinhaFilaAposEnvioDaBusca(conversaId);
     };
+    const jaNaMinhaFila =
+      (isGroupSource && source?.fixada === true) ||
+      (!isGroupSource && isConversaJaVinculadaAoUsuario(source, user));
+    if (jaNaMinhaFila) {
+      // Depois do trecho síncrono do envio (bolha otimista já na thread e no card).
+      queueMicrotask(complete);
+    }
     return {
       afterConversationReady: isClosedAttendance(source) ? complete : null,
       afterSendAccepted: complete,
@@ -2264,7 +2265,7 @@ function ConversaViewBody() {
       ...(isManualRetry ? { tempId: retryCandidate.tempId } : {}),
     });
     const tempId = optimisticMsg.tempId;
-    const revertOutgoingStatus = applyOutgoingStatusOptimistic();
+    let revertOutgoingStatus = applyOutgoingStatusOptimistic();
     const revertModoSimples = appendOutgoingOptimisticMessage(optimisticMsg);
     setReplyTo(null);
 
@@ -2342,6 +2343,12 @@ function ConversaViewBody() {
           return;
         }
         searchResultSendTransition?.afterConversationReady?.();
+        // Encerrada: no clique o status otimista não se aplicava (conversa ainda fechada).
+        // Reaberta agora, aplica — senão o card mostrava "Em atendimento" até o realtime
+        // trocar para "Aguardando cliente".
+        if (precisaReabrir && !revertOutgoingStatus) {
+          revertOutgoingStatus = applyOutgoingStatusOptimistic();
+        }
 
         // Sem internet: bolha ja esta na tela; persiste e espera reconexao.
         // Nao chama a API (evitaria timeout longo) e nao marca erro.

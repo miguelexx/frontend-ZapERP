@@ -7,7 +7,14 @@ import {
   pickOptimisticUsuarioNome,
   reconcileOptimisticChatListPreview,
   shouldMoveSearchedConversationToMinhaFila,
+  isConversaJaVinculadaAoUsuario,
+  moverParaMinhaFilaSeEnvioVeioDaBusca,
+  requestMinhaFilaAposEnvioDaBusca,
+  shouldAutoAssumirOnOutgoingSend,
+  buildOutgoingStatusOptimisticPatch,
 } from "../src/conversa/conversaOptimisticMessage.js";
+import { useConversaStore } from "../src/conversa/conversaStore.js";
+import { useAuthStore } from "../src/auth/authStore.js";
 import { sortMensagensChronological } from "../src/conversa/conversaOutboundMediaMerge.js";
 import {
   estimatedServerNowMs,
@@ -170,6 +177,178 @@ assert(
   ),
   "envio fora da busca não deve trocar o filtro atual"
 );
+
+// 5b) Busca → envio (24/11/2026): conversa que JÁ é minha também sai da busca para a Minha fila.
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "em_atendimento", atendente_id: 7 },
+    user,
+    { searchActive: true }
+  ),
+  "conversa em atendimento comigo deve ir para Minha fila após o envio"
+);
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "aguardando_cliente", atendente_id: "7" },
+    user,
+    { searchActive: true }
+  ),
+  "aguardando cliente comigo (id string) deve ir para Minha fila"
+);
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "em_atendimento", atendente_id: 99, participante_ativo: true },
+    user,
+    { searchActive: true }
+  ),
+  "co-atendente ativo deve ir para Minha fila"
+);
+assert(
+  !shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "aberta", atendente_id: 99 },
+    user,
+    { searchActive: true }
+  ),
+  "aberta de outro atendente não entra na Minha fila"
+);
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, tipo: "grupo", is_group: true, fixada: true },
+    user,
+    { searchActive: true, isGroup: true }
+  ),
+  "grupo fixado por mim está na Minha fila"
+);
+assert(
+  !shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, tipo: "grupo", is_group: true, fixada: false },
+    user,
+    { searchActive: true, isGroup: true }
+  ),
+  "grupo não fixado não entra na Minha fila"
+);
+assert(
+  !shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "fechada", mensagens_bloqueadas: false },
+    user,
+    { searchActive: true, allowReopen: false }
+  ),
+  "envio que não reabre deixa a encerrada fora da Minha fila"
+);
+assert(
+  !shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "aberta", atendente_id: null },
+    { ...user, atendimento_modo_simples: true },
+    { searchActive: true }
+  ),
+  "modo simples não tem Minha fila"
+);
+assert(
+  !isConversaJaVinculadaAoUsuario({ status_atendimento: "aberta", atendente_id: null }, user),
+  "aberta livre ainda não é minha (depende do envio)"
+);
+assert(
+  !isConversaJaVinculadaAoUsuario(
+    { status_atendimento: "em_atendimento", atendente_id: 7, aguardando_resposta_campanha: true },
+    user
+  ),
+  "aguardando resposta de campanha fica fora da Minha fila"
+);
+
+// 5b-2) "Mensagem disparada" sem responsável é assumida pelo envio (backend) — o otimista
+//       e a busca → Minha fila precisam enxergar isso.
+assert(
+  shouldAutoAssumirOnOutgoingSend({ status_atendimento: "mensagem_disparada", atendente_id: null }, user),
+  "mensagem_disparada sem responsável é auto-assumida no envio"
+);
+assert(
+  shouldMoveSearchedConversationToMinhaFila(
+    { id: CONV, status_atendimento: "mensagem_disparada", atendente_id: null },
+    user,
+    { searchActive: true }
+  ),
+  "mensagem_disparada encontrada na busca vai para a Minha fila após o envio"
+);
+assert(
+  !shouldAutoAssumirOnOutgoingSend({ status_atendimento: "pagamento_pendente", atendente_id: 7 }, user),
+  "pagamento pendente não é rebaixado pelo envio"
+);
+
+// 5e) Etiqueta: o envio já nasce "Aguardando cliente" (sem passar por "Em atendimento").
+{
+  const NOW = Date.parse("2026-11-24T15:00:00.000Z");
+  const livre = buildOutgoingStatusOptimisticPatch(
+    { id: CONV, status_atendimento: "aberta", atendente_id: null },
+    user,
+    { nowMs: NOW }
+  );
+  assert(livre?.status_atendimento === "em_atendimento", "livre vira em_atendimento");
+  assert(String(livre?.atendente_id) === "7", "livre é assumida por mim");
+  assert(livre?.aguardando_cliente_desde === new Date(NOW).toISOString(), "livre já nasce aguardando cliente");
+
+  const minha = buildOutgoingStatusOptimisticPatch(
+    { id: CONV, status_atendimento: "em_atendimento", atendente_id: 7, aguardando_cliente_desde: null },
+    user,
+    { nowMs: NOW }
+  );
+  assert(minha?.aguardando_cliente_desde, "envio em conversa minha marca aguardando cliente na hora");
+  assert(!("atendente_id" in minha), "não reatribui conversa já minha");
+
+  const simples = buildOutgoingStatusOptimisticPatch(
+    { id: CONV, status_atendimento: "aberta", atendente_id: null },
+    { ...user, atendimento_modo_simples: true },
+    { nowMs: NOW }
+  );
+  assert(simples && !("aguardando_cliente_desde" in simples), "modo simples não usa aguardando_cliente_desde");
+
+  for (const st of ["aguardando_cliente", "pagamento_pendente", "em_atraso", "fechada"]) {
+    assert(
+      buildOutgoingStatusOptimisticPatch({ id: CONV, status_atendimento: st, atendente_id: 7 }, user) === null,
+      `${st} não muda de status no envio`
+    );
+  }
+  assert(
+    buildOutgoingStatusOptimisticPatch({ id: CONV, tipo: "grupo", is_group: true, status_atendimento: "aberta" }, user) === null,
+    "grupo não tem status de atendimento"
+  );
+
+  const campanha = buildOutgoingStatusOptimisticPatch(
+    { id: CONV, status_atendimento: "aberta", atendente_id: null, aguardando_resposta_campanha: true },
+    user
+  );
+  assert(campanha?.aguardando_resposta_campanha === false, "assumir encerra a espera de campanha");
+}
+
+// 5c) O pedido só vale para a conversa que continua aberta e leva o reset de escopo.
+useConversaStore.setState({ selectedId: 555, conversa: null });
+useChatStore.setState({ chatListTabRequestNonce: 0, chatListTabRequestResetScope: false });
+assert(!requestMinhaFilaAposEnvioDaBusca(CONV), "resposta atrasada de outra conversa não troca a lista");
+assert(useChatStore.getState().chatListTabRequestNonce === 0, "nenhum pedido emitido para conversa fechada");
+useConversaStore.setState({ selectedId: CONV });
+assert(requestMinhaFilaAposEnvioDaBusca(CONV), "conversa aberta emite o pedido");
+assert(useChatStore.getState().chatListTabRequestResetScope === true, "pedido leva resetScope");
+assert(useChatStore.getState().chatListTabRequestClearSearch === true, "pedido limpa a busca");
+
+// 5d) Envios sem bolha otimista (contato/localização/enquete/catálogo/Pix) avaliam o estado atual.
+useAuthStore.setState({ user });
+useChatStore.setState({
+  chats: [{ id: CONV, status_atendimento: "em_atendimento", atendente_id: 7 }],
+  chatListSearchActive: true,
+  chatListSearchDebounced: true,
+  chatListTabRequestNonce: 0,
+});
+assert(moverParaMinhaFilaSeEnvioVeioDaBusca(CONV), "contato enviado a conversa minha vinda da busca troca a lista");
+useChatStore.setState({
+  chats: [{ id: CONV, status_atendimento: "em_atendimento", atendente_id: 99 }],
+  chatListSearchActive: true,
+  chatListSearchDebounced: true,
+  chatListTabRequestNonce: 0,
+});
+assert(!moverParaMinhaFilaSeEnvioVeioDaBusca(CONV), "conversa de outro atendente fica na busca");
+useChatStore.setState({ chatListSearchActive: false, chatListSearchDebounced: false });
+assert(!moverParaMinhaFilaSeEnvioVeioDaBusca(CONV), "sem busca ativa nada muda");
+useConversaStore.setState({ selectedId: null });
+useChatStore.setState({ chats: [] });
 
 // 6) O pedido publica a visão de destino no mesmo tick; o hook React apenas espelha na UI.
 useChatStore.setState({
