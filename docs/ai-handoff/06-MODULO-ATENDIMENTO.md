@@ -48,6 +48,13 @@ Tablet: composer/header compactos ~741–1024px. Não use `100vh` cego; o shell 
 | `AtendimentoEmptyState.jsx` | Desktop vazio; evento de foco na busca |
 | `AtendentesModal.jsx` + `useConversaParticipantes.js` | participantes + sockets |
 
+**Modal de Atendentes (co-atendimento, revisto 24/11/2026).** Regras puras em `atendentesRegras.js` (testes: `scripts/test-atendentes-regras.mjs`), espelhando `attendanceController` do backend:
+- incluir terceiros: admin/supervisor, o responsável ou um co-atendente ativo; os demais só veem **"Participar"** (só a si mesmos — o backend dá 403 para terceiros);
+- remover: admin/supervisor, responsável, quem incluiu a pessoa, ou ela própria ("Sair" fecha o modal); remoção em 2 toques (expira em 5s);
+- sem responsável → aviso "Assuma a conversa"; encerrada → somente leitura; limite de 3 co-atendentes visível (`x/3`, "N vagas").
+- ESC em cascata num listener de **captura** no `document` com `preventDefault`: sem isso o `useGlobalHotkeys` (window) também recebia o ESC e **saía da conversa** junto com o modal.
+- `useConversaParticipantes` carimba a lista com o `conversaId`: não mostra atendentes da conversa anterior durante a troca e **não zera a lista em erro de rede** (antes o co-atendente perdia o composer num soluço da API). Realtime: `conversa_participantes_atualizados` (backend emite para todos que veem a conversa).
+
 Permissões de ação: `canAssumir` / `canTransferir` / `canEncerrar` / `canReabrir` / `canPuxarFila` (role), não o catálogo pontuado.
 
 Painel Histórico (`useConversationTimeline` + `GET /chats/:id/atendimentos`): reabertura automática por inbound grava `reabertura_automatica_inbound`. Se a thread já estiver aberta, `conversa_reaberta` recarrega a timeline — não abre conversa sozinha.

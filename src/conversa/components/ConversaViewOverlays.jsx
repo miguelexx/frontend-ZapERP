@@ -50,6 +50,11 @@ function ConversaViewOverlays({
   handleRemoverSetor,
   atendentesModalOpen,
   atendentesParticipantes,
+  atendentesCarregados,
+  atendentesErro,
+  atendentesEncerrada,
+  meuUsuarioId,
+  meuPerfil,
   podeAdicionarAtendente,
   setAtendentesModalOpen,
   reloadAtendentes,
@@ -211,6 +216,11 @@ function ConversaViewOverlays({
         <AtendentesModal
           conversaId={conversaId}
           participantes={atendentesParticipantes}
+          participantesCarregados={atendentesCarregados}
+          participantesErro={atendentesErro}
+          encerrada={atendentesEncerrada}
+          meuUsuarioId={meuUsuarioId}
+          meuPerfil={meuPerfil}
           podeAdicionar={podeAdicionarAtendente}
           onClose={() => setAtendentesModalOpen(false)}
           onParticipanteChange={reloadAtendentes}

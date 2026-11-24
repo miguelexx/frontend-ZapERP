@@ -22,6 +22,8 @@ export function useConversationParticipants({ conversa }) {
     participantes: atendentesParticipantes,
     total: totalAtendentes,
     reload: reloadAtendentes,
+    carregado: atendentesCarregados,
+    erro: atendentesErro,
   } = useConversaParticipantes(
     isGroup ? null : conversaId,
     conversa?.atendente_id ?? null
@@ -39,6 +41,8 @@ export function useConversationParticipants({ conversa }) {
     atendentesParticipantes,
     totalAtendentes,
     reloadAtendentes,
+    atendentesCarregados,
+    atendentesErro,
     atendentesModalOpen,
     setAtendentesModalOpen,
     handleOpenAdicionarAtendente,

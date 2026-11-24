@@ -2,21 +2,29 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listarAtendentesConversa } from "../conversa/conversaService";
 import { getSocket } from "../socket/socket";
 
+const VAZIO = Object.freeze([]);
+
 /**
  * Carrega e mantém a lista de participantes de uma conversa.
  * Re-busca quando: conversaId muda, atendenteId muda (cobre o caso "Assumir"),
  * ou chega evento de socket de participação.
+ *
+ * A lista fica "carimbada" com o conversaId a que pertence:
+ *  - ao trocar de conversa, nunca mostra (nem conta para `podeEnviar`) os
+ *    atendentes da conversa anterior enquanto a nova carrega;
+ *  - uma falha de rede NÃO zera a lista já carregada — antes o co-atendente
+ *    perdia o composer e o contador do header caía para 0 num soluço da API.
  */
 export function useConversaParticipantes(conversaId, atendenteId = null) {
-  const [participantes, setParticipantes] = useState([]);
+  const [estado, setEstado] = useState({ cid: null, rows: VAZIO, erro: false });
   const [loading, setLoading] = useState(false);
-  const [carregado, setCarregado] = useState(false);
   const abortRef = useRef(null);
 
   const load = useCallback(async () => {
     if (!conversaId) {
-      setParticipantes([]);
-      setCarregado(false);
+      abortRef.current?.abort();
+      setEstado({ cid: null, rows: VAZIO, erro: false });
+      setLoading(false);
       return;
     }
     abortRef.current?.abort();
@@ -28,13 +36,15 @@ export function useConversaParticipantes(conversaId, atendenteId = null) {
       // signal: sem ele o abort só descartava a resposta — a request seguia na rede.
       const rows = await listarAtendentesConversa(conversaId, { signal: ctrl.signal });
       if (!ctrl.signal.aborted) {
-        setParticipantes(Array.isArray(rows) ? rows : []);
-        setCarregado(true);
+        setEstado({ cid: conversaId, rows: Array.isArray(rows) ? rows : VAZIO, erro: false });
       }
     } catch (_) {
       if (!ctrl.signal.aborted) {
-        setParticipantes([]);
-        setCarregado(true);
+        setEstado((prev) =>
+          prev.cid === conversaId
+            ? { ...prev, erro: true }
+            : { cid: conversaId, rows: VAZIO, erro: true }
+        );
       }
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
@@ -71,9 +81,14 @@ export function useConversaParticipantes(conversaId, atendenteId = null) {
     };
   }, [conversaId, load]);
 
+  const daConversaAtual = estado.cid != null && String(estado.cid) === String(conversaId);
+  const participantes = daConversaAtual ? estado.rows : VAZIO;
+  const carregado = daConversaAtual;
+  const erro = daConversaAtual && estado.erro;
+
   const principal = participantes.find((p) => p.tipo === "principal") ?? null;
   const coAtendentes = participantes.filter((p) => p.tipo === "participante");
   const total = participantes.length;
 
-  return { participantes, principal, coAtendentes, total, loading, carregado, reload: load };
+  return { participantes, principal, coAtendentes, total, loading, carregado, erro, reload: load };
 }

@@ -378,6 +378,8 @@ function ConversaViewBody() {
     atendentesParticipantes,
     totalAtendentes,
     reloadAtendentes,
+    atendentesCarregados,
+    atendentesErro,
     atendentesModalOpen,
     setAtendentesModalOpen,
     handleOpenAdicionarAtendente,
@@ -3705,6 +3707,11 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           handleRemoverSetor={handleRemoverSetor}
           atendentesModalOpen={atendentesModalOpen}
           atendentesParticipantes={atendentesParticipantes}
+          atendentesCarregados={atendentesCarregados}
+          atendentesErro={atendentesErro}
+          atendentesEncerrada={isClosedAttendance(conversa)}
+          meuUsuarioId={myUserId}
+          meuPerfil={userRole}
           podeAdicionarAtendente={podeAdicionarAtendente}
           setAtendentesModalOpen={setAtendentesModalOpen}
           reloadAtendentes={reloadAtendentes}
