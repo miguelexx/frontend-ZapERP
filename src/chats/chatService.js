@@ -558,10 +558,14 @@ export async function removerTag(id, tag_id) {
 // GRUPOS / COMUNIDADES
 // ===============================
 
-export async function criarGrupo(nome, participantes = []) {
+export async function criarGrupo(nome, participantes = [], whatsappInstanceId = null) {
   const body = { nome };
   const list = Array.isArray(participantes) ? participantes.filter(Boolean) : [];
   if (list.length) body.participantes = list;
+  // Empresa com 2+ números: sem isto o backend não sabe em qual número criar o grupo.
+  if (whatsappInstanceId != null && String(whatsappInstanceId).trim() !== "") {
+    body.whatsapp_instance_id = Number(whatsappInstanceId);
+  }
   // skipAuthLogout: um 401 aqui = canal Whapi desconectado, não sessão expirada — não deslogar.
   const { data } = await api.post("/chats/grupos", body, { skipAuthLogout: true });
   return data;
