@@ -423,7 +423,7 @@ export default function ChatList() {
         cachedList = cachedList.filter((c) => !isClosedAttendance(c));
       }
       if (!searchActive && tab === "minha_fila" && !getAdminAtendenteFilterScope({ adminAtendenteFilterId })) {
-        cachedList = withOpenConversationInMinhaFila(cachedList);
+        cachedList = withOpenConversationInMinhaFila(withPinnedGroupsInMinhaFila(cachedList));
       }
       setChats(cachedList);
       if (!searchActive && tab === "minha_fila") setMinhaFilaList(cachedList);
@@ -445,6 +445,36 @@ export default function ChatList() {
       if (!openRow || openRow.sem_conversa) return list;
       if (!conversaPertenceAMinhaFila(openRow, useAuthStore.getState().user?.id)) return list;
       return sortChatRowsByOrder(dedupeChatRowsByStableKey([openRow, ...list]), order);
+    };
+
+    /*
+     * Grupo fixado pelo atendente pertence à Minha fila. Fixar/desafixar na aba anterior muda
+     * a linha do store, mas o cache de sessão da Minha fila é de antes: sem isto o grupo recém-
+     * fixado só aparecia quando o GET respondia. As linhas que ainda estão no store (aba
+     * anterior, com `fixada` ao vivo) mandam no `fixada` dos grupos; o GET confirma em seguida.
+     */
+    const withPinnedGroupsInMinhaFila = (list) => {
+      const liveGroups = new Map();
+      for (const c of useChatStore.getState().chats || []) {
+        if (c?.id != null && !c.sem_conversa && isGroupConversation(c)) liveGroups.set(String(c.id), c);
+      }
+      if (liveGroups.size === 0) return list;
+      let changed = false;
+      const seen = new Set();
+      const next = list.map((c) => {
+        const live = isGroupConversation(c) ? liveGroups.get(String(c?.id)) : null;
+        if (!live) return c;
+        seen.add(String(c.id));
+        if ((live.fixada === true) === (c.fixada === true)) return c;
+        changed = true;
+        return { ...c, fixada: live.fixada === true, fixada_em: live.fixada_em ?? null };
+      });
+      for (const [id, live] of liveGroups) {
+        if (seen.has(id) || live.fixada !== true) continue;
+        next.push(live);
+        changed = true;
+      }
+      return changed ? sortChatRowsByOrder(dedupeChatRowsByStableKey(next), order) : list;
     };
 
     if (!filterRequestKeyRef.current) {

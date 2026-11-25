@@ -377,6 +377,11 @@ function ChatListBody({
             });
           const data = await togglePinConversation(chatId, nextPinned);
           useChatStore.getState().updateChat({ id: chatId, ...mergePrefsFromPatchResponse(data) });
+          // Grupo fixado entra/sai da Minha fila: tira a linha dos caches das abas (sem isso a
+          // Minha fila em cache mostrava o estado antigo até o GET) e reconcilia lista + chip já.
+          if (isGroupConversation(openMenuChat)) {
+            useChatStore.getState().requestChatListResync({ force: true, chatId });
+          }
           showToast({
             type: "success",
             title: nextPinned ? "Conversa fixada" : "Conversa desafixada",
