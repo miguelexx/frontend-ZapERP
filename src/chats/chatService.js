@@ -382,34 +382,18 @@ export async function fetchMinhaFilaChatsCompleto(params = {}, options = {}) {
 }
 
 /**
- * Minha fila em duas fases: retorna a 1ª página imediatamente via `onFirstPage`,
- * depois completa o fetch de todas as páginas restantes e retorna o array completo.
- * Se a fila cabe em uma página, `onFirstPage` não é chamado (retorno direto).
- */
-/**
- * Calcula o máximo de páginas necessárias com base no count do badge.
- * Evita buscar 50 páginas quando o badge já diz que a fila é pequena.
+ * Minha fila em duas fases: entrega a 1ª página via `onFirstPage` (só quando HÁ mais
+ * páginas) e depois busca as restantes até o servidor dizer `has_more: false`.
  *
- * A 1ª página pode ter limite PRÓPRIO (menor, para o boot pintar antes — ver
- * `primeiraPaginaLimit`), então a conta não é um simples `ceil(badge / limite)`:
- * seria o mesmo que dizer que 250 conversas cabem numa página de 40 e TRUNCAR a fila.
- * A aba força `hasMore: false` (contrato "lista completa, sem Carregar mais"), logo
- * uma página a menos aqui = conversas inalcançáveis na UI.
- *
- * Com `primeiraPaginaLimit === paginaLimit` o resultado é idêntico ao da conta antiga.
+ * O contador do chip (`badgeCount`) NÃO decide quantas páginas buscar. O backend pagina
+ * no SQL e só depois aplica a regra da aba em JS, então uma página de 250 linhas cruas
+ * pode voltar com 1 conversa visível e `has_more: true` (abertas sem movimento ou de
+ * outro atendente ocupam o topo por `ultima_atividade`). A conta antiga "badge 11 ≤ 250
+ * → 1 página" parava aí e a aba — que não tem "Carregar mais" — mostrava 1 card com o
+ * chip dizendo 11; o resync seguinte (`incomingIsComplete`) ainda apagava da tela os
+ * cards que estavam certos. Só o `has_more` do servidor encerra o laço, com o teto
+ * `MINHA_FILA_MAX_AUTO_PAGES` contra loop infinito.
  */
-function getMinhaFilaMaxPages(badgeCount, primeiraPaginaLimit, paginaLimit) {
-  if (badgeCount == null || !Number.isFinite(badgeCount) || badgeCount <= 0) {
-    return MINHA_FILA_MAX_AUTO_PAGES;
-  }
-  if (badgeCount <= primeiraPaginaLimit) return 1;
-  const restante = badgeCount - primeiraPaginaLimit;
-  return Math.max(
-    2,
-    Math.min(MINHA_FILA_MAX_AUTO_PAGES, 1 + Math.ceil(restante / paginaLimit))
-  );
-}
-
 /**
  * @param {Record<string, unknown>} params
  * @param {{ signal?: AbortSignal, silent?: boolean, primeiraPaginaLimit?: number }} [options]
@@ -417,9 +401,9 @@ function getMinhaFilaMaxPages(badgeCount, primeiraPaginaLimit, paginaLimit) {
  *   `prefetchDefaultChatList`), onde 250 linhas gordas atrasam o primeiro pixel da lista
  *   para mostrar ~8. As páginas seguintes continuam em 250, em segundo plano.
  * @param {(primeiraPagina: any[]) => void} [onFirstPage]
- * @param {number} [badgeCount]
+ * @param {number} [_badgeCount] ignorado de propósito (ver acima); mantido pela assinatura.
  */
-export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, onFirstPage, badgeCount) {
+export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, onFirstPage, _badgeCount) {
   if (String(params.palavra || "").trim()) {
     const { minha_fila: _minhaFila, ...searchParams } = params;
     return fetchChats(searchParams, options);
@@ -427,11 +411,6 @@ export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, 
   const primeiraPaginaLimit = Math.min(
     CHAT_LIST_MINHA_FILA_PAGE_LIMIT,
     Math.max(1, Number(options.primeiraPaginaLimit) || CHAT_LIST_MINHA_FILA_PAGE_LIMIT)
-  );
-  const maxPages = getMinhaFilaMaxPages(
-    badgeCount,
-    primeiraPaginaLimit,
-    CHAT_LIST_MINHA_FILA_PAGE_LIMIT
   );
   const base = { ...params, minha_fila: "1", limit: CHAT_LIST_MINHA_FILA_PAGE_LIMIT };
   delete base.cursor;
@@ -453,30 +432,19 @@ export async function fetchMinhaFilaChatsProgressivo(params = {}, options = {}, 
     });
   }
 
-  // Se o badge indica que cabe numa página, parar aqui
-  if (maxPages <= 1) {
-    return attachChatsPageMeta(firstList, {
-      hasMore: false,
-      nextCursor: null,
-      nextCursorId: null,
-      totalCount: firstMeta.totalCount ?? firstList.length,
-      pagesLoaded: 1,
-    });
-  }
-
   // Temos mais páginas — entrega a 1ª imediatamente para UI
   if (typeof onFirstPage === "function") {
     onFirstPage(firstList);
   }
 
-  // Páginas restantes (limitado pelo badge count)
+  // Páginas restantes: até `has_more` acabar (nunca pelo contador do chip).
   let merged = [...firstList];
   let cursor = firstMeta.nextCursor;
   let cursorId = firstMeta.nextCursorId;
   let totalCount = firstMeta.totalCount;
   let pagesLoaded = 1;
 
-  for (let page = 1; page < maxPages; page += 1) {
+  for (let page = 1; page < MINHA_FILA_MAX_AUTO_PAGES; page += 1) {
     const data = await fetchChats(
       { ...base, cursor, cursorId },
       options

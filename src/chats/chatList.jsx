@@ -854,6 +854,14 @@ export default function ChatList() {
       );
       const applyMinhaFilaFirstPage = (firstPage) => {
         if (requestId !== loadRequestIdRef.current) return;
+        /*
+         * A 1ª página é PARCIAL: serve só para pintar uma lista vazia mais cedo. Com a Minha
+         * fila já na tela (cache de sessão no F5, ou resync em segundo plano), trocá-la pela
+         * 1ª página encolhia a lista (11 cards → 1, porque o backend devolve páginas esparsas)
+         * até a lista completa chegar e devolver os outros. A lista completa repinta por cima.
+         */
+        const visivel = minhaFilaListRef.current;
+        if (Array.isArray(visivel) && visivel.length > 0) return;
         let partial = filterOptimisticRemovedMinhaFila(firstPage);
         partial = sortChatRowsByOrder(dedupeChatRowsByStableKey(partial), order);
         setMinhaFilaList(partial);

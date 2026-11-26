@@ -196,10 +196,14 @@ Teste: `scripts/test-preload-conversa-view.mjs` (18 asserts, no `test:node`). Va
 **⚠️ A armadilha deste item, se alguém for mexer:** a aba "Minha fila" não tem "Carregar
 mais" (força `hasMore: false`). Duas coisas nunca podem acontecer:
 1. a página parcial virar o resultado final — some com conversas de vez;
-2. `getMinhaFilaMaxPages` calcular páginas com `ceil(badge / 250)` tendo 1ª página de 40
-   — com badge 250 daria **1 página = 210 conversas perdidas**. A conta agora é
-   `1 + ceil((badge - primeiraPagina) / 250)`, idêntica à antiga quando os dois limites
-   são iguais.
+2. o contador do chip decidir quantas páginas buscar. **Removido em 26/11/2026**
+   (`getMinhaFilaMaxPages` não existe mais): o backend pagina no SQL e só depois filtra
+   a aba em JS, então uma página de 250 linhas cruas pode trazer 1 conversa visível com
+   `has_more: true`. "Badge 11 ≤ 250 → 1 página" deixava a aba com 1 card e o chip em 11
+   — e o resync seguinte (`incomingIsComplete`) apagava da tela os cards certos. Agora só
+   o `has_more` encerra o laço (teto `MINHA_FILA_MAX_AUTO_PAGES`). Pelo mesmo motivo,
+   `applyMinhaFilaFirstPage` (chatList.jsx) só pinta a 1ª página numa lista **vazia** —
+   nunca troca uma Minha fila já na tela por uma página parcial (era o 11 → 1 → 11).
 Só a lista **completa** vai para o cache de sessão — gravar a parcial faria o boot
 seguinte hidratar uma fila truncada e sair cedo por `fromCache`.
 

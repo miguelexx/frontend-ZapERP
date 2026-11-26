@@ -17,7 +17,8 @@
  *   2. o resultado final continua a ser a lista COMPLETA (nunca a 1a pagina);
  *   3. com 1a pagina menor + badge, o numero de paginas NAO trunca a fila
  *      (a conta antiga `ceil(badge/250)` daria 1 pagina para 250 conversas = -210);
- *   4. sem `primeiraPaginaLimit`, a conta de paginas e' identica a' antiga;
+ *   4. o badge nunca corta paginas: so' o `has_more` do servidor encerra o laco
+ *      (paginas esparsas da Minha fila — bug do "1 card com chip 11", 26/11/2026);
  *   5. a 1a pagina chega ANTES da lista completa (e' o ganho todo);
  *   6. so' a lista COMPLETA vai para o cache de sessao — gravar a parcial faria o
  *      proximo boot hidratar uma fila truncada e sair cedo por `fromCache`.
@@ -157,26 +158,52 @@ try {
   }
 
   // -------------------------------------------------------------------------
-  // 4: sem primeiraPaginaLimit, a conta de paginas e' a mesma de antes
+  // 4: o badge NUNCA decide quantas paginas buscar — so' o has_more do servidor.
+  //    O backend pagina no SQL e filtra a aba depois: a 1a pagina pode trazer 1 conversa
+  //    com has_more. Bug de 26/11/2026: badge 11 <= 250 => "1 pagina" => aba com 1 card.
   // -------------------------------------------------------------------------
-  for (const [badge, paginasEsperadas] of [
-    [250, 1],
-    [251, 2],
-    [500, 2],
-    [501, 3],
-  ]) {
-    // Fila "infinita": o laco so' para pelo teto de paginas, revelando o maxPages.
+  {
+    // Paginas esparsas: 1 conversa visivel na 1a, 10 na 2a, fim.
+    const paginas = [[1], [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]];
+    const limites = [];
+    api.get = async (url) => {
+      const u = new URL(url, "http://local.test");
+      limites.push(Number(u.searchParams.get("limit")));
+      const idx = limites.length - 1;
+      const conversas = (paginas[idx] || []).map((id) => ({ id }));
+      const has_more = idx < paginas.length - 1;
+      return {
+        data: {
+          conversas,
+          has_more,
+          next_cursor: has_more ? `cursor-${idx}` : null,
+          next_cursor_id: has_more ? String(idx) : null,
+          total_count: 11,
+        },
+      };
+    };
+    const primeiras = [];
+    const lista = await service.fetchMinhaFilaChatsProgressivo(
+      { minha_fila: "1" },
+      {},
+      (p) => primeiras.push(p),
+      11 // badge pequeno: a conta antiga parava na 1a pagina
+    );
+    assert.equal(lista.length, 11, "pagina esparsa + badge 11: a fila tem de vir inteira (11), nao 1");
+    assert.equal(limites.length, 2, "segue o has_more ate' acabar");
+    assert.equal(primeiras.length, 1, "a 1a pagina continua a ser entregue para pintar cedo");
+  }
+  for (const badge of [1, 250, 251, 500]) {
+    const { limites } = montarApi(700);
+    const lista = await service.fetchMinhaFilaChatsProgressivo({ minha_fila: "1" }, {}, () => {}, badge);
+    assert.equal(lista.length, 700, `badge ${badge} nao pode truncar uma fila de 700`);
+    assert.deepEqual(limites, [250, 250, 250], "sem primeiraPaginaLimit todas as paginas em 250");
+  }
+  {
+    // Fila "infinita": o laco para no teto absoluto, nunca em loop.
     const { limites } = montarApi(1_000_000);
-    await service.fetchMinhaFilaChatsProgressivo({ minha_fila: "1" }, {}, () => {}, badge);
-    assert.equal(
-      limites.length,
-      paginasEsperadas,
-      `badge ${badge} sem 1a pagina menor: ${paginasEsperadas} pagina(s), como na conta antiga`
-    );
-    assert.ok(
-      limites.every((l) => l === 250),
-      "sem primeiraPaginaLimit todas as paginas continuam em 250"
-    );
+    await service.fetchMinhaFilaChatsProgressivo({ minha_fila: "1" }, {}, () => {}, 5);
+    assert.equal(limites.length, 50, "teto MINHA_FILA_MAX_AUTO_PAGES segura o laco");
   }
 
   // Sem badge (o caso do boot): nao pode parar cedo.
