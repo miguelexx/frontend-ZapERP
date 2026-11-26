@@ -2,6 +2,7 @@ import "./sidebarCliente.css";
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { vincularClienteConversa, atualizarNomeContatoConversa, apagarConversaCompleta } from "./conversaService";
+import { resultadoExclusaoNoWhatsapp } from "../chats/conversationActionsService";
 import { useConversaStore } from "./conversaStore";
 import { useChatStore } from "../chats/chatsStore";
 import { useAuthStore } from "../auth/authStore";
@@ -511,7 +512,8 @@ export default function SidebarCliente({
 
     setDeletingContact(true);
     try {
-      await apagarConversaCompleta(convId);
+      const resp = await apagarConversaCompleta(convId);
+      const noWhatsapp = resultadoExclusaoNoWhatsapp(resp);
       useChatStore.getState().removeChat(convId);
       try {
         removeChatIdFromFilterRowCaches(undefined, convId);
@@ -523,11 +525,11 @@ export default function SidebarCliente({
         tags: [],
       });
       onClose?.();
-      showToast?.({
-        type: "success",
-        title: "Contato excluído",
-        message: "Conversa, mensagens e cadastro foram removidos.",
-      });
+      showToast?.(
+        noWhatsapp.ok
+          ? { type: "success", title: "Contato excluído", message: "Conversa, mensagens e cadastro foram removidos, também no WhatsApp do celular." }
+          : { type: "warning", title: "Contato excluído do sistema", message: noWhatsapp.aviso }
+      );
     } catch (err) {
       const msg =
         err?.response?.data?.error ||

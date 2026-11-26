@@ -94,7 +94,7 @@ import { useChatListResync } from "./hooks/useChatListResync";
 import { useChatListPagination } from "./hooks/useChatListPagination";
 import { markPushEntryReady } from "../push/deferredPushSync";
 import { getClientesPendentesSupervisao, getResumoSupervisao } from "../api/supervisaoService";
-import { clearConversation, deleteConversation } from "./conversationActionsService";
+import { clearConversation, deleteConversation, resultadoExclusaoNoWhatsapp } from "./conversationActionsService";
 import {
   isAppAdmin,
   countDistinctConversas,
@@ -1973,7 +1973,8 @@ export default function ChatList() {
     const { chatId, isOpenConversation } = confirmDelete;
     setConfirmDelete(null);
     try {
-      await deleteConversation(chatId);
+      const resp = await deleteConversation(chatId);
+      const noWhatsapp = resultadoExclusaoNoWhatsapp(resp);
       useChatStore.getState().removeChat(chatId);
       if (isOpenConversation) {
         useConversaStore.setState({
@@ -1983,11 +1984,11 @@ export default function ChatList() {
           tags: [],
         });
       }
-      showToast({
-        type: "success",
-        title: "Conversa apagada",
-        message: "A conversa foi removida da lista.",
-      });
+      showToast(
+        noWhatsapp.ok
+          ? { type: "success", title: "Conversa apagada", message: "Apagada no sistema e no WhatsApp do celular." }
+          : { type: "warning", title: "Apagada só no sistema", message: noWhatsapp.aviso }
+      );
       loadRef.current?.();
     } catch (e) {
       const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível apagar a conversa.";
