@@ -14,6 +14,7 @@ import {
   IconSettings,
   IconTemplate,
   IconMoon,
+  IconPlugConnected,
   IconSun,
   IconUsers,
   IconTicket,
@@ -23,7 +24,7 @@ import { useAuthStore } from "../auth/authStore";
 import { applyModoSimplesAttr } from "../auth/modoSimplesUi";
 import useNavReveal from "./useNavReveal";
 import { usePermissoesStore } from "../auth/permissoesStore";
-import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
+import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo, canAcessarOrcamento } from "../auth/permissions";
 import GlobalNotifications from "../notifications/GlobalNotifications";
 import PushPermissionPrompt from "../push/PushPermissionPrompt";
 import {
@@ -91,6 +92,8 @@ export default function MainLayout() {
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
   const canAccessDisparo = canAcessarDisparo(user);
+  // Integrações: admin/supervisor sempre (vê o estado da conexão); demais só com o orçamento ligado.
+  const canAccessIntegracoes = isSupervisorOrAdmin(user) || canAcessarOrcamento(user);
   const [darkMode, setDarkMode] = useState(() => getStoredTheme() === "dark");
 
   // Modo simples → pele WhatsApp (chatList.whatsapp.css). O atributo fica no <html>
@@ -189,6 +192,13 @@ export default function MainLayout() {
           show: canAccessConfig,
         },
         {
+          to: "/integracoes",
+          label: "Integrações",
+          title: "Integrações — Icthus (ERP) e orçamentos",
+          icon: IconPlugConnected,
+          show: canAccessIntegracoes,
+        },
+        {
           to: "/whatsapp-business",
           label: "Business",
           title: "WhatsApp Business — Perfil e Labels",
@@ -213,6 +223,7 @@ export default function MainLayout() {
       canAccessDashboard_,
       canAccessDisparo,
       canAccessHelpDesk,
+      canAccessIntegracoes,
       canAccessRespostasSalvas,
       canAccessSupervisao,
       canAccessUsers,

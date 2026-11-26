@@ -53,6 +53,17 @@ function countPendingVisibleMedia(container) {
     if (r.bottom <= viewport.top || r.top >= viewport.bottom || r.height === 0) continue;
     pending += 1;
   }
+  /* Vídeo visível sem metadados ainda (25/11/2026): a moldura só toma a forma real no
+     `loadedmetadata` — retrato de celular cresce 206px. Mesma espera (com o mesmo teto). */
+  const videos = container.querySelectorAll("video");
+  for (let i = 0; i < videos.length; i += 1) {
+    const video = videos[i];
+    if (video.readyState >= 1 || video.error) continue;
+    if (!video.currentSrc && !video.getAttribute("src")) continue;
+    const r = video.getBoundingClientRect();
+    if (r.bottom <= viewport.top || r.top >= viewport.bottom || r.height === 0) continue;
+    pending += 1;
+  }
   return pending;
 }
 
@@ -65,7 +76,7 @@ function nowMs() {
 /**
  * Teto da espera por mídia visível na abertura (a máscara não pode prender a thread).
  * Era 650ms — a maior parte do "demora 1s para entrar" medido (19/11/2026). Agora a foto que
- * decodifica depois da revelação desliza (janela `data-media-glide`) ou, fora da tela, troca
+ * decodifica depois da revelação desliza (`data-ar-glide`, ver mediaAspectRatio.js) ou, fora da tela, troca
  * invisível com a âncora; e a forma já vista vem do cache persistido. Esperar muito não compensa.
  */
 const OPEN_MEDIA_WAIT_MAX_MS = 120;
@@ -185,10 +196,10 @@ function prefersReducedMotion() {
  * - `canContinue()` falso (wheel/touch do utilizador) aborta na hora.
  * - prefers-reduced-motion → salto direto.
  *
- * Devolve uma função que cancela a animação.
+ * Devolve uma função que cancela a animação (ou `null` se já terminou na própria chamada).
  */
 export function smoothScrollThreadToBottom(container, { canContinue, onDone, maxMs = 650 } = {}) {
-  if (!container) return () => {};
+  if (!container) return null;
   const maxTop = () => Math.max(0, (container.scrollHeight || 0) - (container.clientHeight || 0));
   let finished = false;
   let raf = 0;
@@ -210,7 +221,11 @@ export function smoothScrollThreadToBottom(container, { canContinue, onDone, max
       /* ignore */
     }
     finish(true);
-    return () => {};
+    /* `null`, não uma função vazia (25/11/2026): o chamador guarda o retorno como "deslize em
+       curso" (smoothScrollCancelRef). Com "reduzir movimento" o deslize acaba aqui mesmo; uma
+       função vazia guardada ficava "em curso" para sempre e o snapIfStickBottom deixava de
+       manter a conversa no fim até trocar de conversa. */
+    return null;
   }
 
   const viewport = container.clientHeight || 600;
@@ -276,7 +291,7 @@ export function smoothScrollThreadToBottom(container, { canContinue, onDone, max
  * `maxStepPx`, mesmo que o frame demore; o alvo é recalculado a cada frame (conteúdo que cresce).
  */
 export function glideThreadToBottom(container, { canContinue, onDone, maxStepPx = 18, maxMs = 1300 } = {}) {
-  if (!container) return () => {};
+  if (!container) return null;
   const maxTop = () => Math.max(0, (container.scrollHeight || 0) - (container.clientHeight || 0));
   let finished = false;
   let raf = 0;
@@ -297,7 +312,11 @@ export function glideThreadToBottom(container, { canContinue, onDone, maxStepPx 
       /* ignore */
     }
     finish(true);
-    return () => {};
+    /* `null`, não uma função vazia (25/11/2026): o chamador guarda o retorno como "deslize em
+       curso" (smoothScrollCancelRef). Com "reduzir movimento" o deslize acaba aqui mesmo; uma
+       função vazia guardada ficava "em curso" para sempre e o snapIfStickBottom deixava de
+       manter a conversa no fim até trocar de conversa. */
+    return null;
   }
   const startedAt = nowMs();
   let last = startedAt;
@@ -315,7 +334,13 @@ export function glideThreadToBottom(container, { canContinue, onDone, maxStepPx 
       finish(true);
       return;
     }
-    if (t - startedAt >= maxMs) {
+    /*
+     * Passado o prazo, não salta seco de imediato (25/11/2026): fotos que crescem durante o
+     * deslize afastam o fundo e sobravam 200–260px para um snap seco no fim. Continua com passo
+     * um pouco maior (22px) por mais um prazo; só então o snap seco de segurança.
+     */
+    const elapsed = t - startedAt;
+    if (elapsed >= maxMs * 2) {
       try {
         container.scrollTop = container.scrollHeight;
       } catch {
@@ -327,7 +352,8 @@ export function glideThreadToBottom(container, { canContinue, onDone, maxStepPx 
     /* Aproximação suave (~14% do que falta por frame a 60fps), limitada a maxStepPx por frame. */
     const alpha = 1 - Math.pow(1 - 0.14, dt / 16.67);
     let delta = remaining * alpha;
-    const cap = maxStepPx;
+    const baseCap = typeof maxStepPx === "function" ? Number(maxStepPx()) || 18 : maxStepPx;
+    const cap = elapsed >= maxMs ? Math.max(baseCap, 22) : baseCap;
     if (Math.abs(delta) > cap) delta = Math.sign(delta) * cap;
     if (Math.abs(delta) < 1) delta = Math.sign(remaining) * Math.min(1, Math.abs(remaining));
     try {
@@ -462,11 +488,15 @@ export function useAutoScroll({
         (myUserId != null && lastMsg?.autor_usuario_id != null && String(lastMsg.autor_usuario_id) === String(myUserId));
       const pendingOwn = fromMe && isPendingOutgoingTemp(lastMsg);
       /*
-       * Mensagem de OUTRA pessoa nos primeiros segundos após abrir (janela `data-media-glide`):
-       * quem leva até ela é o deslize do snapIfStickBottom (ConversaView), disparado pela
-       * remedição. Snap seco aqui chegaria antes (lista estática do celular) e cortaria o deslize.
+       * Mensagem que NÃO é o envio que você acabou de fazer, nos primeiros segundos após abrir
+       * (janela `data-media-glide`): quem leva até ela é o deslize do snapIfStickBottom
+       * (ConversaView), disparado pela remedição. Snap seco aqui chegaria antes (lista estática
+       * do celular) e cortaria o deslize. Inclui mensagens "out" antigas que chegam com a lista
+       * do servidor depois da abertura pelo cache (enviadas pelo celular/outro atendente): eram
+       * tratadas como envio próprio e davam um snap seco de ~100px (25/11/2026). O envio próprio
+       * (bolha otimista pendente) continua instantâneo.
        */
-      if (!fromMe && container?.getAttribute?.("data-media-glide") === "1") {
+      if (!pendingOwn && container?.getAttribute?.("data-media-glide") === "1") {
         prevLastKeyRef.current = lastMsgKey;
         return;
       }
@@ -607,20 +637,34 @@ export function useAutoScroll({
         snapThreadToBottom(c, virtualListRef, { min: true, followUpFrame: false, ...guard });
       };
       snapHard();
-      const startedAt = nowMs();
+      /*
+       * O teto conta a partir do 1.º frame, não do layout effect (25/11/2026). Montar o
+       * ConversaView com mensagens em cache leva 120ms+ de commit/estilo num celular; com o
+       * relógio já corrido, a máscara caía no PRIMEIRO frame, antes de as linhas do fim serem
+       * medidas (revelação com a lista ainda nas estimativas). Mínimo de 2 frames, como no
+       * desktop (SETTLE_FRAMES).
+       */
+      let startedAt = 0;
+      let frames = 0;
       let quiet = 0;
       let lastHeight = -1;
-      /* Revela só quando a mídia visível decodificou e a altura parou (teto 650ms). */
+      /* Revela só quando a mídia visível decodificou e a altura parou (teto OPEN_MEDIA_WAIT_MAX_MS). */
       const waitSettled = () => {
         firstFrameRan = true;
         if (cancelled) return;
+        if (!startedAt) startedAt = nowMs();
+        frames += 1;
         snapHard();
         const c = messagesContainerRef?.current;
         const h = c ? c.scrollHeight : 0;
         const pending = countPendingVisibleMedia(c);
         quiet = pending === 0 && h === lastHeight ? quiet + 1 : 0;
         lastHeight = h;
-        if (quiet >= OPEN_QUIET_FRAMES || nowMs() - startedAt >= OPEN_MEDIA_WAIT_MAX_MS || isUserScrollLocked()) {
+        const minFramesDone = frames >= 2;
+        if (
+          isUserScrollLocked() ||
+          (minFramesDone && (quiet >= OPEN_QUIET_FRAMES || nowMs() - startedAt >= OPEN_MEDIA_WAIT_MAX_MS))
+        ) {
           finishOpenSnap();
           return;
         }
@@ -646,7 +690,8 @@ export function useAutoScroll({
     /* Era 6: a estimativa das linhas já é boa e o resto é absorvido pela âncora. */
     const SETTLE_FRAMES = 2;
     let settleFrame = 0;
-    const startedAt = nowMs();
+    /* Teto contado a partir do 1.º frame (ver o ramo mobile acima). */
+    let startedAt = 0;
     let quiet = 0;
     let lastHeight = -1;
 
@@ -663,6 +708,7 @@ export function useAutoScroll({
         finishOpenSnap();
         return;
       }
+      if (!startedAt) startedAt = nowMs();
       settleFrame += 1;
       snap();
       const c = messagesContainerRef?.current;

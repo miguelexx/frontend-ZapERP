@@ -172,6 +172,13 @@ const OPEN_FRESH_WAIT_MAX_MS = 0;
    o que já tinha e, se o servidor trouxer mensagens novas, elas entram deslizando (snapIfStickBottom, janela de
    deslize) — como mensagem chegando em tempo real, sem "pulo" (19/11/2026). */
 
+/** Identidade do conteúdo da thread para o snapIfStickBottom: total + última mensagem. */
+function threadContentKey(list) {
+  const arr = Array.isArray(list) ? list : [];
+  const last = arr.length ? arr[arr.length - 1] : null;
+  return last ? `${arr.length}:${String(last.tempId ?? last.id ?? last.whatsapp_id ?? "")}` : "0:";
+}
+
 function ConversaViewBody() {
   const {
     conversa,
@@ -747,6 +754,20 @@ function ConversaViewBody() {
     const timer = window.setTimeout(() => setFreshWaitExpiredKey(key), OPEN_FRESH_WAIT_MAX_MS);
     return () => window.clearTimeout(timer);
   }, [awaitingFresh, openingThreadKey]);
+  /*
+   * Revelação: o conteúdo que fica à vista passa a ser a referência do snapIfStickBottom
+   * (25/11/2026). Cobre a abertura em que nenhuma remedição chamou o snap sob a máscara: sem
+   * isto a chave ficava nula e a 1.ª mudança de altura pós-revelação parecia "mensagem nova".
+   * Só a chave — a altura antiga fica, para a próxima remedição real ainda reancorar.
+   */
+  useLayoutEffect(() => {
+    if (threadOpening) return;
+    const list = useConversaStore.getState().mensagens || [];
+    lastResizeSnapMetaRef.current = {
+      ...lastResizeSnapMetaRef.current,
+      contentKey: threadContentKey(list),
+    };
+  }, [threadOpening]);
 
   /*
    * Reset no MESMO render da troca de conversa. O useLayoutEffect rodava depois do paint:
@@ -951,16 +972,21 @@ function ConversaViewBody() {
      * caso a conversa abria com a última mensagem escondida abaixo da dobra e ninguém
      * reancorava. 24px tolera a remedição de 1 linha sem acordar este caminho à toa.
      */
-    if (threadOpeningRef.current) {
-      const folga = (c.scrollHeight || 0) - (c.scrollTop || 0) - (c.clientHeight || 0);
-      if (folga <= 24) return;
-    }
-    if (!shouldStickToBottomRef.current) return;
     const list = useConversaStore.getState().mensagens || [];
     const last = list.length ? list[list.length - 1] : null;
-    const contentKey = last
-      ? `${list.length}:${String(last.tempId ?? last.id ?? last.whatsapp_id ?? "")}`
-      : "0:";
+    const contentKey = threadContentKey(list);
+    if (threadOpeningRef.current) {
+      const folga = (c.scrollHeight || 0) - (c.scrollTop || 0) - (c.clientHeight || 0);
+      if (folga <= 24) {
+        /* Regista o conteúdo que está a ser aberto (só a chave, não a altura). Sem isto a 1.ª
+           remedição depois da revelação via `keyChanged` e ia para o deslize de "mensagem nova"
+           (≤18px/frame): uma foto/figurinha fora da tela que crescesse empurrava a thread
+           40–101px e a última mensagem ficava escondida até o deslize alcançar (25/11/2026). */
+        lastResizeSnapMetaRef.current = { ...lastResizeSnapMetaRef.current, contentKey };
+        return;
+      }
+    }
+    if (!shouldStickToBottomRef.current) return;
     const scrollHeight = c.scrollHeight || 0;
     const prev = lastResizeSnapMetaRef.current;
     const keyChanged = prev.contentKey !== contentKey;
@@ -998,12 +1024,20 @@ function ConversaViewBody() {
     if (
       keyChanged &&
       distanceToBottom > 1 &&
+      /* O deslize é para mensagens novas abaixo da dobra (a lista do servidor pode trazer
+         várias). Longe demais (scroller ligado tarde, âncora perdida) ele "rastejava" do topo
+         18px/frame antes do snap seco — aí vale o snap direto. */
+      distanceToBottom <= Math.max(1200, (c.clientHeight || 0) * 2) &&
       c.getAttribute("data-media-glide") === "1" &&
       !(last && isPendingOutgoingTemp(last))
     ) {
       smoothScrollCancelRef.current?.();
       smoothScrollCancelRef.current = glideThreadToBottom(c, {
         canContinue: () => !userScrollLockRef.current,
+        /* Com moldura de foto deslizando ao mesmo tempo, o passo do deslize soma com o dela
+           (foto que encolhe ~13–16px/frame + 18 = 26–34px/frame medidos): enquanto houver
+           moldura em transição (pico ≤ ~9px/frame, ver mediaAspectRatio) o passo cai para 8px. */
+        maxStepPx: () => (mediaGlideCountRef.current > 0 ? 8 : 18),
         onDone: (completed) => {
           smoothScrollCancelRef.current = null;
           if (!completed || userScrollLockRef.current) return;
@@ -1089,6 +1123,73 @@ function ConversaViewBody() {
     } catch {
       /* ignore */
     }
+  });
+
+  /*
+   * Bordas do scroller que mexem com a conversa à vista (25/11/2026, desktop). Uma linha do
+   * cabeçalho que chega DEPOIS da revelação — etiquetas do WhatsApp (34px, vêm do Whapi), o
+   * "digitando…"/presença (21px, a cada vez que o cliente digita) — desce a borda de cima do
+   * scroller sem mudar o scrollTop: todas as bolhas desciam num frame e a última mensagem ficava
+   * escondida abaixo da dobra, sem ninguém reancorar (o snapIfStickBottom só vê mudança de
+   * CONTEÚDO). O RO roda depois do layout e antes do paint: compensar aqui não deixa frame
+   * visível. Borda de cima mexeu → scrollTop acompanha (cada bolha fica no mesmo pixel, no fim
+   * ou lendo o histórico). Só a de baixo encolheu (composer, janela) com a conversa colada →
+   * volta ao fundo. Fora: abertura (máscara), modo seleção (âncora própria), deslize "ir para
+   * recentes" e o celular (cabeçalho fixo + teclado têm o seu próprio sistema, zona de perigo).
+   */
+  const selectModeRef = useRef(selectMode);
+  selectModeRef.current = selectMode;
+  /* O scroller pode montar depois (tela de carregamento sem ele): religa quando o elemento muda. */
+  const scrollerEdgeObserverRef = useRef(null);
+  useEffect(
+    () => () => {
+      scrollerEdgeObserverRef.current?.ro.disconnect();
+      scrollerEdgeObserverRef.current = null;
+    },
+    []
+  );
+  useLayoutEffect(() => {
+    const c = headerCompact ? null : messagesContainerRef.current;
+    const current = scrollerEdgeObserverRef.current;
+    if (current?.el === c) return;
+    current?.ro.disconnect();
+    scrollerEdgeObserverRef.current = null;
+    if (!c || typeof ResizeObserver === "undefined") return;
+    let prevTop = c.getBoundingClientRect().top;
+    let prevH = c.clientHeight;
+    let prevSelectMode = selectModeRef.current;
+    const ro = new ResizeObserver(() => {
+      const top = c.getBoundingClientRect().top;
+      const h = c.clientHeight;
+      const dTop = Math.round(top - prevTop);
+      const dH = h - prevH;
+      const selectModeChanged = prevSelectMode !== selectModeRef.current;
+      prevTop = top;
+      prevH = h;
+      prevSelectMode = selectModeRef.current;
+      if (!dTop && !dH) return;
+      if (threadOpeningRef.current || selectModeChanged || selectModeAnchorRef.current) return;
+      if (smoothScrollCancelRef.current || jumpHoldRef.current) return;
+      try {
+        if (Math.abs(dTop) >= 1) {
+          const st = c.scrollTop;
+          const atMax = c.scrollHeight - st - h < 1;
+          if (dTop > 0) c.scrollTop = st + dTop;
+          /* Borda subiu no fim: o browser já prendeu o scroll ao novo máximo e as bolhas
+             ficaram no lugar — compensar de novo as moveria. */
+          else if (!atMax) c.scrollTop = Math.max(0, st + dTop);
+          return;
+        }
+        if (dH < 0 && shouldStickToBottomRef.current && !userScrollLockRef.current) {
+          const gap = c.scrollHeight - c.scrollTop - h;
+          if (gap > 1 && gap <= -dH + 2) c.scrollTop = c.scrollHeight;
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+    ro.observe(c);
+    scrollerEdgeObserverRef.current = { el: c, ro };
   });
 
   /** Evita animação zapAnimateIn na bolha otimista (parece “pulo” ao enviar). */
@@ -1815,6 +1916,11 @@ function ConversaViewBody() {
    * Se estiver a ler histórico, não faz nada (não o puxa para baixo).
    */
   const handleRecordingStateChange = useCallback((recording) => {
+    /* Só quando a gravação de fato começa/para (25/11/2026). O hook da gravação avisa também ao
+       montar o composer (`false` → `false`): no celular o composer remonta a cada abertura e os
+       3 snaps secos (rAF, 120ms, 280ms) cortavam o deslize de "mensagem nova" — 30px de salto
+       logo depois de a conversa aparecer. */
+    if (!!recording === recordingActiveRef.current) return;
     recordingActiveRef.current = !!recording;
     if (recordingSnapCleanupRef.current) {
       recordingSnapCleanupRef.current();
@@ -3237,16 +3343,22 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
       return undefined;
     }
     /*
-     * A janela abre UMA vez por revelação. Antes `loadingMore` estava nas deps: ao terminar de
-     * carregar o histórico a janela reabria e as fotos do lote antigo deslizavam enquanto o
-     * atendente lia — 364px de deriva medidos (thread-scroll-stability, 19/11/2026).
+     * A janela de MENSAGEM (`data-media-glide`, 3,5s: mensagem nova no fim desliza, a de outra
+     * pessoa não força snap) abre UMA vez por revelação. Antes `loadingMore` estava nas deps: ao
+     * terminar de carregar o histórico a janela reabria e as fotos do lote antigo deslizavam
+     * enquanto o atendente lia — 364px de deriva medidos (thread-scroll-stability, 19/11/2026).
+     * O deslize da MOLDURA de foto/vídeo deixou de depender desta janela (25/11/2026): ver
+     * `data-frame-glide` abaixo e `markGlideEligibility` (mediaAspectRatio.js).
      */
-    if (mediaGlideOpenedForKeyRef.current === openingThreadKey) return undefined;
-    mediaGlideOpenedForKeyRef.current = openingThreadKey;
-    el.setAttribute("data-media-glide", "1");
-    const timer = window.setTimeout(() => el.removeAttribute("data-media-glide"), 3500);
-    /* Conta as molduras a deslizar: só durante elas a remedição pequena reancora o fundo; no
-       fim, um acerto final com o fundo ainda colado (os últimos pixels da curva). */
+    let timer = 0;
+    if (mediaGlideOpenedForKeyRef.current !== openingThreadKey) {
+      mediaGlideOpenedForKeyRef.current = openingThreadKey;
+      el.setAttribute("data-media-glide", "1");
+      timer = window.setTimeout(() => el.removeAttribute("data-media-glide"), 3500);
+    }
+    /* Conta as molduras a deslizar (durante TODA a revelação, não só nos 3,5s): só durante elas a
+       remedição pequena reancora o fundo; no fim, um acerto final com o fundo ainda colado (os
+       últimos pixels da curva). */
     const isGlide = (e) => e?.propertyName === "--wa-media-ar-anim";
     const onRun = (e) => {
       if (isGlide(e)) mediaGlideCountRef.current += 1;
@@ -3256,6 +3368,9 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
       mediaGlideCountRef.current = Math.max(0, mediaGlideCountRef.current - 1);
       if (mediaGlideCountRef.current > 0) return;
       if (userScrollLockRef.current || !shouldStickToBottomRef.current) return;
+      /* Deslize de "mensagem nova" em curso: ele termina no fundo (e acerta com um snap mínimo).
+         Um snap seco aqui o cortava no meio — 261px de salto medidos (25/11/2026). */
+      if (smoothScrollCancelRef.current) return;
       const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
       if (gap > 1) {
         snapThreadToBottom(el, virtualThreadRef, {
@@ -3281,6 +3396,25 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   useEffect(() => {
     if (loadingMore) messagesContainerRef.current?.removeAttribute("data-media-glide");
   }, [loadingMore]);
+
+  /*
+   * Moldura de foto/vídeo pode deslizar enquanto a conversa está REVELADA (25/11/2026): fora da
+   * máscara (nada anima sob ela), fora do carregamento e da paginação de histórico. A decisão por
+   * moldura (visível + conversa colada ao fim) fica no `markGlideEligibility`. Antes era a
+   * janela de 3,5s: foto que decodificava depois disso trocava de forma num frame (149–332px).
+   * Layout effect: o atributo já vale no commit da revelação — com useEffect, uma foto que
+   * decodificasse entre a revelação e o efeito passivo trocava de forma num frame.
+   */
+  useLayoutEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return undefined;
+    if (threadOpening || loading || loadingMore) {
+      el.removeAttribute("data-frame-glide");
+      return undefined;
+    }
+    el.setAttribute("data-frame-glide", "1");
+    return () => el.removeAttribute("data-frame-glide");
+  }, [threadOpening, loading, loadingMore]);
 
   useEffect(() => {
     if (!import.meta?.env?.DEV) return;
@@ -3592,7 +3726,22 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   const mensagensBloqueadasHint = Boolean(conversa?.mensagens_bloqueadas);
   const atendimentoEncerradoHint = !modoSimplesAtivo && !isGroup && isClosedAttendance(conversa);
   const atendenteNomeHint = conversa?.atendente_nome ?? "";
-  const maskThreadOpening = threadOpening && !loading;
+  /* Durante o carregamento a máscara também vale se a lista já tem linhas (envio feito logo ao
+     abrir, mensagem por socket, outbox): antes elas apareciam a 100%, sumiam quando a lista
+     chegava e voltavam no fade — um pisca. O véu cobre a espera (25/11/2026). */
+  const maskThreadOpening =
+    threadOpening && (!loading || (Array.isArray(mensagens) && mensagens.length > 0));
+  /* Co-atendente enquanto a lista de participantes carrega: ainda não se sabe se pode enviar.
+     O composer não mostra a dica "Assuma…" nesse intervalo (evita aparecer e sumir). */
+  const podeEnviarPendente =
+    !podeEnviar &&
+    !atendentesCarregados &&
+    conversa?.atendente_id != null &&
+    conversa?.atendente_id !== "" &&
+    String(conversa.atendente_id) !== String(user?.id ?? "") &&
+    !isGroupConversation(conversa) &&
+    !isClosedAttendance(conversa) &&
+    !conversa?.mensagens_bloqueadas;
 
   /* Só tela cheia sem shell; com header da lista o thread mostra “Carregando mensagens…” inline. */
   if (!headerCompact && loading && !conversa) {
@@ -3997,6 +4146,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           loading={loading}
           sending={sending || editSaving}
           podeEnviar={podeEnviar}
+          podeEnviarPendente={podeEnviarPendente}
           autoAssumirHint={!modoSimplesAtivo && conversaElegivelAutoAssumir}
           mensagensBloqueadasHint={mensagensBloqueadasHint}
           atendimentoEncerradoHint={atendimentoEncerradoHint}

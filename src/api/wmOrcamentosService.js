@@ -365,7 +365,42 @@ export async function obterOrcamento(operacaoId) {
   return data;
 }
 
+/* ------------------------------------------------------------------ *
+ * Página de Integrações — só leitura do nosso banco, não fala com a WM
+ * ------------------------------------------------------------------ */
+
+/**
+ * `GET /api/orcamentos/integracao` — cartão da integração Icthus (vínculo sem segredo:
+ * só `telefone_ultimos4`), último orçamento e as permissões do usuário na aba Orçamentos.
+ */
+export async function obterIntegracaoOrcamento({ signal } = {}) {
+  const url = `${BASE}/integracao`;
+  const { data } = await api.get(url, configFor(url, signal ? { signal } : {}));
+  return data;
+}
+
+/**
+ * `GET /api/orcamentos/historico` — orçamentos registrados + indicadores do período.
+ * Sem `orcamentos.ver_historico_empresa` o backend força o escopo ao próprio usuário.
+ *
+ * @param {{estado?: string, periodo?: string, busca?: string, pagina?: number,
+ *          apenas_meus?: boolean, signal?: AbortSignal}} params
+ */
+export async function listarHistoricoOrcamentos({ estado, periodo, busca, pagina, apenas_meus, signal } = {}) {
+  const url = `${BASE}/historico`;
+  const params = {};
+  if (estado) params.estado = estado;
+  if (periodo) params.periodo = String(periodo);
+  if (busca && String(busca).trim()) params.busca = String(busca).trim();
+  if (Number.isInteger(pagina) && pagina > 1) params.pagina = pagina;
+  if (apenas_meus) params.apenas_meus = "1";
+  const { data } = await api.get(url, configFor(url, { params, ...(signal ? { signal } : {}) }));
+  return data;
+}
+
 export default {
+  obterIntegracaoOrcamento,
+  listarHistoricoOrcamentos,
   consultarStatusErp,
   consultarProdutosOrcamento,
   consultarClientesOrcamento,

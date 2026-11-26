@@ -20,6 +20,51 @@ function safeReplySig(replyMeta) {
   ].join("\u0002");
 }
 
+/*
+ * Metas estruturadas que mudam a ALTURA da bolha (25/11/2026): o cartão de contato e os metas do
+ * reply_meta (cartão de link, pedido, produto, catálogo, anúncio, Pix, triagem) ficavam fora da
+ * assinatura — um patch só nesses campos deixava a linha memoizada velha até um re-render
+ * qualquer, e ela "pulava" num momento aleatório. Campos compactos, nunca JSON do objeto todo
+ * (a miniatura do cartão de link pode ser um data: URI de vários KB, e isto roda por linha).
+ */
+function contactMetaSig(cm) {
+  if (!cm || typeof cm !== "object") return "";
+  const list = Array.isArray(cm) ? cm : Array.isArray(cm.contacts) ? cm.contacts : [cm];
+  const first = list[0] && typeof list[0] === "object" ? list[0] : {};
+  const phones = Array.isArray(first.phones) ? first.phones : [];
+  const phone0 = phones[0] && typeof phones[0] === "object" ? phones[0].phone ?? phones[0].number : phones[0];
+  return [
+    list.length,
+    safeStr(first.name ?? first.nome ?? first.displayName ?? first.formatted_name).slice(0, 80),
+    safeStr(first.phone ?? first.telefone ?? first.wa_id ?? phone0).slice(0, 40),
+    safeStr(first.vcard ?? cm.vcard).length,
+  ].join("\u0003");
+}
+
+function structuredReplyMetaSig(rm) {
+  if (!rm || typeof rm !== "object") return "";
+  const lp = rm.link_preview && typeof rm.link_preview === "object" ? rm.link_preview : null;
+  const preview = safeStr(lp?.preview);
+  const pick = (obj, ...keys) => {
+    if (!obj || typeof obj !== "object") return "";
+    for (const k of keys) if (obj[k] != null && obj[k] !== "") return safeStr(obj[k]).slice(0, 200);
+    return "1";
+  };
+  return [
+    lp
+      ? [safeStr(lp.url).slice(0, 200), safeStr(lp.title).slice(0, 120), safeStr(lp.description).length, preview.length, preview.slice(0, 32)].join("\u0003")
+      : "",
+    rm.order ? `${pick(rm.order, "id", "order_id")}:${pick(rm.order, "total", "total_price", "status")}` : "",
+    rm.product ? pick(rm.product, "id", "product_id", "name") : "",
+    rm.catalog ? pick(rm.catalog, "id", "title", "name") : "",
+    rm.ad ? pick(rm.ad, "source_url", "sourceUrl", "title") : "",
+    rm.pix ? `${pick(rm.pix, "key", "chave")}:${pick(rm.pix, "type", "tipo")}` : "",
+    rm.whapi_triage && typeof rm.whapi_triage === "object"
+      ? `${pick(rm.whapi_triage, "id", "step", "etapa")}:${Object.keys(rm.whapi_triage).length}`
+      : "",
+  ].join("\u0002");
+}
+
 /** Campos que afetam render visual da bolha (sem comparar objeto msg inteiro por referência). */
 export function messageRowVisualSignature(item) {
   if (!item || item.__type !== "msg") return "";
@@ -76,6 +121,8 @@ export function messageRowVisualSignature(item) {
     item.reply_meta?.poll ? JSON.stringify(item.reply_meta.poll) : "",
     safeStr(item.location_live),
     item.location_meta ? JSON.stringify(item.location_meta) : "",
+    contactMetaSig(item.contact_meta),
+    structuredReplyMetaSig(item.reply_meta),
   ].join("\u0001");
 }
 

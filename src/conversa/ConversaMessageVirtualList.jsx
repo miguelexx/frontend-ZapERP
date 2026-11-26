@@ -32,7 +32,8 @@ function estimateThreadRowSize(item, mobileThread) {
   if (item.__botCompact) return mobileThread ? 40 : 38;
   if (isInternalMovementEstimate(item)) return mobileThread ? 116 : 98;
   const tipo = String(item.tipo || "").toLowerCase();
-  if (tipo === "sticker") return mobileThread ? 132 : 140;
+  /* Caixa fixa da figurinha (120/160px) + 2px de respiro em cima e embaixo. */
+  if (tipo === "sticker") return mobileThread ? 124 : 164;
   /* Imagem usa uma moldura quadrada estável e vídeo usa 16:9. A estimativa fica perto da
      caixa real para reduzir o trabalho de correção quando a linha entra no overscan. */
   if (["imagem", "image"].includes(tipo)) return mobileThread ? 356 : 372;
@@ -46,6 +47,24 @@ function estimateThreadRowSize(item, mobileThread) {
   const text = String(item.texto ?? item.conteudo ?? item.message ?? item.body ?? "");
   const lines = Math.max(1, Math.ceil(text.length / (mobileThread ? 38 : 44)));
   return Math.min(mobileThread ? 320 : 360, (mobileThread ? 52 : 48) + lines * (mobileThread ? 18 : 20));
+}
+
+/*
+ * Scroller da thread (.wa-messages) a partir do ref do pai OU da própria raiz da lista
+ * (25/11/2026). No celular o ConversaView remonta a cada toque na lista, e com mensagens em
+ * cache o scroller e esta lista montam no MESMO commit: o React liga o ref do pai DEPOIS dos
+ * layout effects dos filhos. O virtualizer não achava o scroller no 1.º `_willUpdate`, ligava-se
+ * num commit qualquer mais tarde (às vezes o da revelação) e fazia `scrollTo(0)` POR CIMA do
+ * snap de abertura — a conversa aparecia no topo, descia 18px/frame e saltava 64–149px. A margem
+ * (offsetTop da raiz) também ficava em 0 até a contagem mudar: a 1.ª mensagem enviada/recebida
+ * derrubava a thread 137px e devolvia. O ref da raiz (filho) já está ligado nos layout effects
+ * deste componente, e a raiz é filha direta do scroller (o ConversaThread devolve fragmento).
+ */
+function resolveThreadScroller(scrollRef, rootEl) {
+  const fromRef = scrollRef?.current;
+  if (fromRef) return fromRef;
+  const parent = rootEl?.parentElement;
+  return parent && parent.classList?.contains("wa-messages") ? parent : null;
 }
 
 function getVirtualRowKey(item, index, conversaId) {
@@ -90,7 +109,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
 
   const virtualizer = useVirtualizer({
     count,
-    getScrollElement: () => scrollRef?.current ?? null,
+    getScrollElement: () => resolveThreadScroller(scrollRef, innerRootRef.current),
     estimateSize,
     overscan,
     scrollMargin,
@@ -127,7 +146,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
 
   useLayoutEffect(() => {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
-      const scrollEl = scrollRef?.current;
+      const scrollEl = resolveThreadScroller(scrollRef, innerRootRef.current);
       if (!scrollEl) return false;
       const margin = scrollMarginRef.current;
       const scrollTop = scrollEl.scrollTop;
@@ -167,15 +186,14 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
   }, [virtualizer, scrollRef]);
 
   useLayoutEffect(() => {
-    const scrollEl = scrollRef?.current;
     const root = innerRootRef.current;
+    const scrollEl = resolveThreadScroller(scrollRef, root);
     if (!scrollEl || !root) return undefined;
 
     let marginTimer = 0;
     const applyMargin = (next) => {
       const prev = scrollMarginRef.current;
       if (prev === next) return;
-      const scrollEl = scrollRef?.current;
       if (scrollEl && !isScrollingRef.current) {
         const delta = next - prev;
         if (delta !== 0) {
@@ -202,13 +220,17 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
 
     applyMarginFnRef.current = applyMargin;
 
-    const syncMargin = () => {
+    const syncMargin = (immediate = false) => {
       const next = Math.max(0, Math.round(root.offsetTop));
       if (isScrollingRef.current) {
         pendingScrollMarginRef.current = next;
         return;
       }
-      if (mobileThread) {
+      /* Celular: só as mudanças POSTERIORES esperam 48ms (teclado/visualViewport redimensionam
+         o scroller várias vezes seguidas). A 1.ª medição de cada montagem é aplicada já neste
+         commit — antes ficava 0 durante o debounce e o restoreAfterPrepend/âncoras liam a
+         margem errada (thread a deslocar 137px depois da revelação). */
+      if (mobileThread && !immediate) {
         window.clearTimeout(marginTimer);
         marginTimer = window.setTimeout(() => applyMargin(next), 48);
         return;
@@ -216,8 +238,8 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
       applyMargin(next);
     };
 
-    syncMargin();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncMargin) : null;
+    syncMargin(true);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => syncMargin()) : null;
     ro?.observe(scrollEl);
     return () => {
       window.clearTimeout(marginTimer);
@@ -335,7 +357,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
   );
 
   useEffect(() => {
-    const scrollEl = scrollRef?.current;
+    const scrollEl = resolveThreadScroller(scrollRef, innerRootRef.current);
     if (!scrollEl) return undefined;
 
     let scrollEndTimer = 0;
@@ -405,7 +427,7 @@ export const ConversaMessageVirtualList = forwardRef(function ConversaMessageVir
        * frame. Consolidá-las evita snaps/reflows repetidos disputando o scroll.
       */
       contentResizePendingRef.current = true;
-      const scrollEl = scrollRef?.current;
+      const scrollEl = resolveThreadScroller(scrollRef, innerRootRef.current);
       const distanceToBottom = scrollEl
         ? Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight - scrollEl.scrollTop)
         : Number.POSITIVE_INFINITY;

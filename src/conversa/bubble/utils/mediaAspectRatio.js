@@ -128,27 +128,171 @@ export function rememberAspectRatio(key, ratio) {
  */
 export function applyAspectRatioVar(el, ratio) {
   if (!el || !(ratio > 0)) return;
-  markGlideEligibility(el);
+  const posicao = markGlideEligibility(el, ratio);
+  /*
+   * Lista ESTÁTICA (celular, conversa curta): não há virtualizer para compensar linha acima da
+   * tela que muda de altura, e o scroller tem `overflow-anchor: none`. Uma foto acima da dobra
+   * que decodificava empurrava tudo o que o atendente via 100–130px para baixo — e, com o
+   * deslize de "mensagem nova" em curso, ninguém reancorava até ele alcançar (25/11/2026).
+   * Mede a linha antes/depois e devolve a diferença ao scrollTop no mesmo frame.
+   */
+  if (posicao === "acima") {
+    const row = el.closest && el.closest(".wa-messages-static-row");
+    const scroller = row && row.closest(".wa-messages");
+    /* Só com a conversa no fim ou na janela pós-abertura (deslize de mensagem nova): lendo o
+       histórico com o dedo, escrever scrollTop no meio do momentum o pararia no iOS. */
+    const noFim =
+      scroller &&
+      (scroller.getAttribute("data-media-glide") === "1" ||
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= GLIDE_STICK_GAP_PX);
+    if (row && scroller && noFim) {
+      const antes = row.offsetHeight;
+      /* Alvo ABSOLUTO a partir do scrollTop de antes: se a linha encolher com a conversa no
+         fim, o browser já prende o scroll ao novo máximo ao relayoutar — somar de novo ao valor
+         já preso movia tudo outra vez (166px medidos). */
+      const stAntes = scroller.scrollTop;
+      el.style.setProperty("--wa-media-ar", String(ratio));
+      const delta = row.offsetHeight - antes;
+      if (delta) {
+        const alvo = Math.max(0, stAntes + delta);
+        try {
+          if (Math.abs(scroller.scrollTop - alvo) >= 1) scroller.scrollTop = alvo;
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
+  }
   el.style.setProperty("--wa-media-ar", String(ratio));
 }
 
+/** Duração mínima do deslize da moldura (a do CSS) e teto. */
+const GLIDE_MS = 560;
+const GLIDE_MAX_MS = 1400;
 /*
- * Só desliza (transição da moldura, janela `data-media-glide`) a foto que o atendente ESTÁ VENDO
- * (19/11/2026). Foto fora da tela que decodifica depois da abertura troca de forma na hora: a
- * âncora do fim absorve isso num frame só, invisível; animada, eram 400ms de remedições a
- * empurrar a tela 1–2px por frame sem benefício nenhum. Atributo imperativo (o React não o
- * gere): tem de estar posto ANTES da troca da proporção, no mesmo recálculo de estilo.
+ * Velocidade de pico da curva cubic-bezier(0.4, 0, 0.2, 1) = 2,735× a média (calculado). Para a
+ * moldura nunca andar mais do que ~9px por frame no pico, a duração cresce com o trecho mais
+ * íngreme da mudança de altura (ver measureFrameHeightSlope); mínimo 560ms, teto 1400ms.
  */
-function markGlideEligibility(el) {
+const GLIDE_MS_PER_PX = (2.735 * 16.67) / 9;
+/** A próxima moldura da fila começa quando a anterior já passou do pico (72% da duração). */
+const GLIDE_STAGGER_FRACTION = 0.72;
+const GLIDE_MAX_DELAY_MS = 1600;
+/** "No fim da conversa": mesma folga com que o ConversaView volta a colar a âncora (120px) + margem. */
+const GLIDE_STICK_GAP_PX = 160;
+let glideChainEndsAt = 0;
+
+function nowMs() {
+  return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+}
+
+/*
+ * Quem desliza (transição da moldura) e quando (25/11/2026).
+ *
+ * Desliza só a moldura que o atendente ESTÁ VENDO com a conversa no fim (19/11/2026: foto fora da
+ * tela troca de forma na hora — a âncora do fim absorve isso num frame só; animada, eram 400ms de
+ * remedições a empurrar a tela). A elegibilidade era uma janela de TEMPO (3,5s após a revelação):
+ * foto que chegava depois — proxy lento, print grande — trocava de forma num frame (149px no
+ * desktop, 332px no celular). Agora é ESTADO: o scroller tem `data-frame-glide` enquanto a conversa
+ * está revelada (fora da máscara e do carregamento de histórico) e a moldura só desliza se estiver
+ * visível e com a conversa colada ao fim. Lendo o histórico continua instantânea, como sempre.
+ *
+ * Molduras que decodificam juntas (álbum) eram curvas independentes e a thread seguia a SOMA:
+ * 28–49px por frame. Cada moldura que vai mesmo mudar de forma entra numa fila: começa quando a
+ * anterior já passou do pico (a cauda de uma cruza o arranque da outra), via `--wa-ar-glide-delay`,
+ * com duração proporcional à mudança de altura (`--wa-ar-glide-dur`). Atributos imperativos (o React não os gere): têm de estar postos ANTES
+ * da troca da proporção, no mesmo recálculo de estilo.
+ */
+function markGlideEligibility(el, ratio) {
   try {
     const scroller = el.closest && el.closest(".wa-messages");
-    if (!scroller) return;
+    if (!scroller) return null;
     const r = el.getBoundingClientRect();
     const v = scroller.getBoundingClientRect();
     const visivel = r.bottom > v.top && r.top < v.bottom;
-    if (visivel) el.removeAttribute("data-ar-instant");
-    else el.setAttribute("data-ar-instant", "1");
+    const posicao = visivel ? "visivel" : r.bottom <= v.top ? "acima" : "abaixo";
+    const janela = scroller.getAttribute("data-frame-glide") === "1";
+    const folga = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    /* Logo após abrir (`data-media-glide`, que sai ao rolar para cima) a thread pode estar a
+       DESLIZAR até mensagens novas do servidor, ainda longe do fim: uma foto visível nesse
+       caminho também desliza — trocada na hora, empurrava o que vinha abaixo 166px. */
+    const colado = folga <= GLIDE_STICK_GAP_PX || scroller.getAttribute("data-media-glide") === "1";
+    if (!(visivel && janela && colado)) {
+      el.setAttribute("data-ar-instant", "1");
+      el.removeAttribute("data-ar-glide");
+      el.style.removeProperty("--wa-ar-glide-delay");
+      el.style.removeProperty("--wa-ar-glide-dur");
+      return posicao;
+    }
+    el.removeAttribute("data-ar-instant");
+    el.setAttribute("data-ar-glide", "1");
+    /* Proporção igual à atual (já veio do cache): não há transição — não ocupa a fila. */
+    let atual = Number.NaN;
+    try {
+      atual = parseFloat(getComputedStyle(el).getPropertyValue("--wa-media-ar-anim"));
+    } catch {
+      /* sem estilo computado */
+    }
+    if (Number.isFinite(atual) && Math.abs(atual - ratio) < 0.005) {
+      el.style.removeProperty("--wa-ar-glide-delay");
+      return "visivel";
+    }
+    const duracao = Math.round(
+      Math.min(GLIDE_MAX_MS, Math.max(GLIDE_MS, measureFrameHeightSlope(el, Number.isFinite(atual) ? atual : ratio, ratio) * GLIDE_MS_PER_PX))
+    );
+    const agora = nowMs();
+    const inicio = Math.min(agora + GLIDE_MAX_DELAY_MS, Math.max(agora, glideChainEndsAt));
+    const atraso = Math.round(inicio - agora);
+    glideChainEndsAt = inicio + duracao * GLIDE_STAGGER_FRACTION;
+    el.style.setProperty("--wa-ar-glide-dur", `${duracao}ms`);
+    if (atraso > 0) el.style.setProperty("--wa-ar-glide-delay", `${atraso}ms`);
+    else el.style.removeProperty("--wa-ar-glide-delay");
+    return "visivel";
   } catch {
     /* sem layout (teste/SSR): segue sem marcar */
+    return null;
   }
 }
+
+/*
+ * Quanto a moldura muda de altura no trecho MAIS ÍNGREME do caminho da proporção atual até a nova
+ * (px por unidade de progresso). A altura não acompanha a proporção em linha reta: no retrato ela
+ * satura no teto (max-h) a ~65% do caminho, e na foto deitada (altura = largura / proporção) o
+ * começo é 3× mais íngreme que o fim — dimensionar pela variação total deixava picos de 19–29px
+ * por frame. Amostra 6 pontos aplicando a proporção SEM transição (inline !important vence até o
+ * reset de "reduzir movimento"), volta à antiga e assenta o estilo: a transição real começa da
+ * altura antiga quando o chamador aplicar a nova. Só corre para moldura visível que vai deslizar.
+ */
+function measureFrameHeightSlope(el, from, to) {
+  try {
+    const arAntes = el.style.getPropertyValue("--wa-media-ar");
+    const trAntes = el.style.getPropertyValue("transition");
+    const trPrioridade = el.style.getPropertyPriority("transition");
+    el.style.setProperty("transition", "none", "important");
+    const passos = 5;
+    let anterior = null;
+    let maior = 0;
+    for (let i = 0; i <= passos; i += 1) {
+      el.style.setProperty("--wa-media-ar", String(from + ((to - from) * i) / passos));
+      const h = el.offsetHeight;
+      if (anterior != null) maior = Math.max(maior, Math.abs(h - anterior) * passos);
+      anterior = h;
+    }
+    if (arAntes) el.style.setProperty("--wa-media-ar", arAntes);
+    else el.style.removeProperty("--wa-media-ar");
+    void el.offsetHeight;
+    if (trAntes) el.style.setProperty("transition", trAntes, trPrioridade);
+    else el.style.removeProperty("transition");
+    return maior;
+  } catch {
+    return 0;
+  }
+}
+
+/** Só para testes: zera a fila de deslizes. */
+export function __resetGlideQueueForTests() {
+  glideChainEndsAt = 0;
+}
+
+export { GLIDE_MS as MEDIA_FRAME_GLIDE_MS };

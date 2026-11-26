@@ -10,6 +10,9 @@ import {
 } from "../utils/mediaAspectRatio";
 import MessageCaption from "./MessageCaption";
 
+/** Sem onLoad nem onError neste prazo, o download é tratado como travado (ver vigia abaixo). */
+const IMAGE_STALL_MS = 15000;
+
 /** Sobe do <img> até a moldura (botão) que recorta a foto — é nela que mora a proporção. */
 function frameOf(el) {
   return el?.closest?.(".wa-bubble-imgLink") || el?.parentElement || null;
@@ -37,6 +40,8 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
   const [loaded, setLoaded] = useState(false);
   const [reprocessando, setReprocessando] = useState(false);
   const [reprocessDefinitivo, setReprocessDefinitivo] = useState(false);
+  /* Download travado sem mais fontes para tentar: mostra "tentar de novo" por cima da moldura. */
+  const [stalled, setStalled] = useState(false);
   const imgRef = useRef(null);
   const retryTimerRef = useRef(null);
   const reprocessAutoTriedRef = useRef(false);
@@ -77,6 +82,31 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
     },
     []
   );
+
+  /*
+   * Vigia de download travado (25/11/2026). O <img> só saía do "carregando" por onLoad/onError;
+   * um pedido que nunca responde (proxy/CDN do provedor parado) não dispara nenhum dos dois e a
+   * bolha ficava para sempre como uma caixa clara vazia só com a hora. Passado STALL_MS sem
+   * carregar: se houver outra fonte (proxy → URL direta), passa para ela; senão mantém o pedido
+   * vivo (foto grande em 3G pode mesmo demorar) e oferece "tentar de novo". A moldura não muda
+   * de tamanho em nenhum dos casos.
+   */
+  const currentSrc = candidates[idx] || "";
+  useEffect(() => {
+    setStalled(false);
+    if (loaded || exhausted || !currentSrc) return undefined;
+    const timer = window.setTimeout(() => {
+      const el = imgRef.current;
+      if (el && el.complete && el.naturalWidth > 0) return;
+      if (idx + 1 < candidates.length) {
+        setIdx((i) => (i === idx ? i + 1 : i));
+        return;
+      }
+      setStalled(true);
+    }, IMAGE_STALL_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSrc, retryRound, loaded, exhausted]);
 
   const dispararReprocesso = () => {
     if (reprocessInFlightRef.current) return;
@@ -156,7 +186,17 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
     );
   }
 
+  const tentarDeNovo = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    setStalled(false);
+    setIdx(0);
+    setExhausted(false);
+    setRetryRound((round) => round + 1);
+  };
+
   return (
+    <>
     <img
       key={`${src}:${retryRound}`}
       ref={imgRef}
@@ -169,6 +209,7 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
       referrerPolicy="no-referrer"
       onLoad={(e) => {
         setLoaded(true);
+        setStalled(false);
         const el = e.currentTarget;
         if (el?.naturalWidth > 0 && el?.naturalHeight > 0) {
           /* Fixa a proporção real para reloads/cache da mesma bolha (menos CLS). */
@@ -196,6 +237,26 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
         }
       }}
     />
+    {stalled && !loaded ? (
+      /* Absoluto dentro da moldura (contain: layout) — não muda a altura da bolha. <span
+         role="button">: está dentro do <button> da moldura (botão aninhado é HTML inválido). */
+      <span
+        role="button"
+        tabIndex={0}
+        className="wa-bubble-imgStalled"
+        title="A imagem está demorando. Clique para tentar de novo."
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onClick={tentarDeNovo}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          tentarDeNovo(e);
+        }}
+      >
+        Demorando — tentar de novo
+      </span>
+    ) : null}
+    </>
   );
 }
 
@@ -220,8 +281,11 @@ export default function ImageMessage({
   // em vez de abrir quadrada e "pular" quando o arquivo decodifica.
   const [ratio, setRatio] = useState(() => recallAspectRatio(ratioKey));
 
+  /* `|| prev` (como no vídeo, 16/11): a chave pode mudar sem remontar a bolha (client_temp_id
+     chegando com a lista do servidor). Sem cache na chave nova o ratio ia a 0, o React tirava
+     `--wa-media-ar` da moldura e a foto voltava a quadrada — sem onLoad novo para corrigir. */
   useEffect(() => {
-    setRatio(recallAspectRatio(ratioKey));
+    setRatio((prev) => recallAspectRatio(ratioKey) || prev);
   }, [ratioKey]);
 
   return (

@@ -3,7 +3,7 @@ import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "../auth/authStore";
 import { usePermissoesStore } from "../auth/permissoesStore";
-import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo } from "../auth/permissions";
+import { can, canGerenciarRespostasSalvas, isSupervisorOrAdmin, canAcessarDisparo, canAcessarOrcamento } from "../auth/permissions";
 import ProtectedRoute from "./ProtectedRoute";
 import { preloadChunksAtendimento } from "./preloadAtendimento";
 
@@ -23,6 +23,7 @@ const NovoGrupo = lazy(() => import("../pages/NovoGrupo"));
 const Comunidades = lazy(() => import("../pages/Comunidades"));
 const ConnectWhatsApp = lazy(() => import("../pages/ConnectWhatsApp"));
 const Permissoes = lazy(() => import("../pages/Permissoes"));
+const Integracoes = lazy(() => import("../pages/Integracoes"));
 const Mensagens = lazy(() => import("../pages/Mensagens"));
 const Atalhos = lazy(() => import("../pages/Atalhos"));
 const InternalChat = lazy(() => import("../pages/InternalChat"));
@@ -99,6 +100,7 @@ export default function AppRoutes() {
   const canAccessSupervisao = isSupervisorOrAdmin(user);
   const canAccessHelpDesk = Number(user?.company_id) === 1;
   const canAccessDisparo = canAcessarDisparo(user);
+  const canAccessIntegracoes = isSupervisorOrAdmin(user) || canAcessarOrcamento(user);
   const canAccessComunidades = ["admin", "administrador"].includes(String(user?.perfil || "").toLowerCase());
 
   if (!token) {
@@ -172,6 +174,16 @@ export default function AppRoutes() {
           <Route
             path="/ranking"
             element={<Navigate to={canAccessChatbot_ ? "/ia?tab=ranking" : "/atendimento"} replace />}
+          />
+          <Route
+            path="/integracoes"
+            element={
+              <ProtectedRoute canAccess={canAccessIntegracoes} redirectTo="/atendimento">
+                <LazyPage>
+                  <Integracoes />
+                </LazyPage>
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/helpdesk"

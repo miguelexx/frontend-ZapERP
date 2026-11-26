@@ -49,6 +49,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     loading,
     sending,
     podeEnviar,
+    podeEnviarPendente = false,
     autoAssumirHint,
     mensagensBloqueadasHint,
     atendimentoEncerradoHint,
@@ -489,7 +490,22 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     prevTextLenRef.current = len;
     if (prevLen <= 0 || len !== 0) return;
     onTextMetrics?.({ length: len, height, threadKey, loading, cleared: true });
-  }, [texto, conversaId, scrollThreadId, loading, onTextMetrics, replyBarPreview, editMode]);
+    /* As entradas da dica do rodapé (~20px em fluxo): ao aparecer/sumir, a altura do composer
+       muda sem texto novo — sem estas deps a âncora do fim não era avisada (25/11/2026). */
+  }, [
+    texto,
+    conversaId,
+    scrollThreadId,
+    loading,
+    onTextMetrics,
+    replyBarPreview,
+    editMode,
+    podeEnviar,
+    podeEnviarPendente,
+    autoAssumirHint,
+    atendimentoEncerradoHint,
+    mensagensBloqueadasHint,
+  ]);
 
   useEffect(() => {
     resetAutocorrectTracking();
@@ -692,7 +708,9 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         ? "Histórico oculto: este atendimento foi assumido por outro usuário. Você não pode ver nem enviar mensagens."
         : "Assuma esta conversa para responder.";
 
-  const footerHint = autoAssumirHint
+  /* `podeEnviarPendente`: co-atendente com a lista de participantes ainda a carregar — a dica
+     aparecia e sumia logo a seguir (o rodapé cresce/encolhe ~20px e a thread mexe). */
+  const footerHint = autoAssumirHint || podeEnviarPendente
     ? null
     : !podeEnviar
       ? atendimentoEncerradoHint

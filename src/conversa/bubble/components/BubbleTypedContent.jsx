@@ -199,7 +199,7 @@ export default function BubbleTypedContent({
   if (hasLinkPreview) {
     return (
       <>
-        <LinkPreviewMessage meta={linkPreviewMeta} />
+        <LinkPreviewMessage meta={linkPreviewMeta} msg={msg} />
         {hasText ? (
           <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />
         ) : null}

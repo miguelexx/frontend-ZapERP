@@ -156,7 +156,15 @@ function ConversaThread({
   } else if (threadRowCount === 0) {
     renderVirtualList = listModeRef.current.key === listModeKey && listModeRef.current.virtual;
   } else if (listModeRef.current.key !== listModeKey) {
-    renderVirtualList = threadRowCount > MOBILE_VIRTUALIZE_THRESHOLD;
+    /*
+     * Conversa que ainda tem histórico para paginar já nasce virtual (25/11/2026). A 1.ª página
+     * do celular tem 16 mensagens e a do histórico 100: o 1.º "carregar mais" sempre passava de
+     * MOBILE_STATIC_KEEP_MAX e trocava de componente NO MEIO da leitura — um frame em branco, a
+     * leitura deslocada 80–240px e as fotos recarregando. Estática fica para a conversa curta e
+     * completa, que nunca cresce por paginação.
+     */
+    renderVirtualList =
+      threadRowCount > MOBILE_VIRTUALIZE_THRESHOLD || Boolean(hasMore && cursor);
     listModeRef.current = { key: listModeKey, virtual: renderVirtualList };
   } else {
     renderVirtualList =
@@ -220,6 +228,12 @@ function ConversaThread({
 
       const messageKey = getMessageListReactKey(item, messageKeyConversaId);
       const messageVisualSig = messageRowVisualSignature(item);
+      /* A reação local é guardada por `msg.id` (useConversationReactions) e a linha usa a chave
+         React (tempId primeiro): na mensagem que você acabou de enviar o selo nunca aparecia.
+         Procura pelas duas (25/11/2026). */
+      const localReaction =
+        safeLocalReactions[String(messageKey)] ||
+        (item.id != null ? safeLocalReactions[String(item.id)] : undefined);
 
       return (
         <ThreadRow
@@ -238,11 +252,14 @@ function ConversaThread({
           isSelected={safeSelectedSet.has(String(messageKey))}
           isPinned={safePinnedSet.has(String(messageKey))}
           isStarred={safeStarredSet.has(String(messageKey))}
-          reactionForMessage={safeLocalReactions[String(messageKey)] || item.__reaction}
+          reactionForMessage={localReaction || item.__reaction}
           /* Reação que veio do CLIENTE (inbound): não é "Sua reação" nem pode ser removida
              pelo atendente. */
-          reactionFromPeer={!safeLocalReactions[String(messageKey)] && Boolean(item.__reaction)}
-          reactionLoadingForMessage={Boolean(safeReactionLoading[String(messageKey)])}
+          reactionFromPeer={!localReaction && Boolean(item.__reaction)}
+          reactionLoadingForMessage={Boolean(
+            safeReactionLoading[String(messageKey)] ??
+              (item.id != null ? safeReactionLoading[String(item.id)] : undefined)
+          )}
           showMobileReactionPicker={Boolean(showSelectedReactionPicker && safeSelectedSet.has(String(messageKey)))}
           currentUserId={myUserId}
           whatsappInstanceProvider={whatsappInstanceProvider}

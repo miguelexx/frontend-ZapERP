@@ -293,8 +293,8 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
   recebia a msg2 antes da msg1 e a bolha levava ~950ms). Mídia (`useConversationOutboundMedia`)
   ainda chama `garantirConversaAbertaParaEnvio` antes da bolha — mesmo padrão, não alterado.
 - Grupos: `BubbleTypedContent` remonta quando `__showRemetente` alterna; onda do áudio mede
-  34 barras e depois N (fazer `update()` síncrono); cartão de link compacto não vai ao cache;
-  "apagar para todos" tira o `tempId` e remonta a bolha.
+  34 barras e depois N (fazer `update()` síncrono); "apagar para todos" tira o `tempId` e remonta
+  a bolha. (Cartão de link compacto passou a ir ao cache em 25/11/2026 — ver abaixo.)
 - **Painéis com `top` cravado — RESOLVIDO (18/11/2026).** Busca abria em 66px com o cabeçalho
   em 114px (desktop, 2 linhas) e 88px (celular): cobria a linha "Setor · Definir setor".
   `hooks/useHeaderHeightVar.js` publica a altura real em `--wa-header-h` no `.wa-shell`
@@ -339,7 +339,9 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
   1. `mediaAspectRatio` persiste o cache (`localStorage` `zap_media_ar_v1`, só chaves `m:<id>` —
      chave `u:<url>` pode levar token) e o `prefetchThreadImages` grava a forma ao decodificar.
      Reabertura depois do F5: 0px.
-  2. Moldura de foto usa `--wa-media-ar-anim` (registrada com `@property`, separada da
+  2. (A elegibilidade por JANELA de 3,5s foi substituída em 25/11/2026 por `data-frame-glide` +
+     `data-ar-glide` — ver "4.ª rodada" abaixo.) Moldura de foto usa `--wa-media-ar-anim`
+     (registrada com `@property`, separada da
      `--wa-media-ar` para não matar os fallbacks de vídeo/cartão de link) e só TRANSICIONA
      (400ms ease-in-out) dentro da janela `data-media-glide` do `.wa-messages`: 3,5s depois da
      revelação, sem histórico a carregar, até o atendente rolar para cima. Sob a máscara, no
@@ -391,6 +393,70 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
   ao scroller, 90 conversas com tags/selos/nomes longos, desktop e celular, modo normal e simples:
   0 deslocamentos. O "salto" de 49px que aparece medindo pela viewport no celular é o recolher
   intencional da barra de filtros ao rolar.
+- **Abertura/leitura sem salto, 4.ª rodada (25/11/2026).** Auditoria com mídia REAL (PNG/WebM de
+  verdade, proxy lento, pedido que nunca responde, API 0/400/1300ms, 1807×925 e Pixel 5) achou o
+  que os mocks antigos (só SVG dentro dos 3,5s) escondiam. Regras novas:
+  1. **Scroller da lista virtual** — `resolveThreadScroller` (ConversaMessageVirtualList): o ref do
+     pai OU o `parentElement` da raiz da lista (o ConversaThread devolve fragmento). No celular o
+     ConversaView remonta a cada toque e o ref do pai liga DEPOIS dos layout effects do filho: o
+     TanStack ligava-se tarde e fazia `scrollTo(0)` por cima do snap (topo da conversa, rastejar,
+     salto 64–149px) e a `scrollMargin` ficava 0 até a contagem mudar (1.ª mensagem derrubava a
+     thread 137px). A 1.ª medição de margem de cada montagem é síncrona (o debounce de 48ms do
+     celular vale só para mudanças posteriores). Não trocar a raiz por um wrapper sem ajustar isto.
+  2. **Chave do conteúdo revelado** — `threadContentKey` é gravada ao revelar (layout effect em
+     `threadOpening=false` e no ramo mascarado do `snapIfStickBottom`). Sem isto a 1.ª remedição
+     pós-revelação parecia "mensagem nova" e ia para o deslize (thread descia 40–101px).
+  3. **Deslize da MOLDURA ≠ janela de mensagem.** `data-media-glide` (3,5s) continua só para
+     mensagem nova. A moldura de foto/vídeo/miniatura de link desliza se `markGlideEligibility`
+     (mediaAspectRatio) marcar `data-ar-glide`: visível + `data-frame-glide` no scroller (posto em
+     layout effect enquanto revelada, fora de loading/paginação) + folga ≤160px OU dentro da janela.
+     Senão `data-ar-instant`. Fila: a próxima moldura começa em 72% da anterior
+     (`--wa-ar-glide-delay`); duração `--wa-ar-glide-dur` = trecho mais íngreme da altura (amostrado
+     com `transition: none !important` e restaurado) × 5,07ms/px, entre 560 e 1400ms — pico ≈9px/frame.
+     A altura NÃO acompanha a proporção em linha reta (retrato satura no max-h; deitada é 3× mais
+     íngreme no início). Vídeo e `.wa-linkPrev-img` declaram `--wa-media-ar-anim` no próprio elemento
+     (registrada com `inherits:false`); `--wa-media-ar` segue NÃO registrada.
+  4. **Reduzir movimento** (Windows sem efeitos de animação / "melhor desempenho"): os resets
+     globais `!important` (zap-animations.css, app.css) matavam o deslize e a moldura saltava
+     80–332px. Override `!important` só para `[data-ar-glide]`. Os helpers `glideThreadToBottom` /
+     `smoothScrollThreadToBottom` devolvem `null` quando terminam na própria chamada — uma função
+     vazia guardada em `smoothScrollCancelRef` deixava a âncora do fim morta até trocar de conversa.
+  5. **Lista estática (celular):** moldura ACIMA da tela que muda de forma compensa o `scrollTop`
+     com alvo ABSOLUTO (`scrollTop_antes + delta`; somar ao valor já preso pelo clamp moveu 166px),
+     só com a conversa no fim/janela (no meio do momentum do iOS não escreve).
+  6. **Deslize de mensagem nova:** passo cai para 8px enquanto houver moldura em transição (somavam
+     26–34px/frame); passado `maxMs` continua com 22px até 2×`maxMs` antes do snap seco; só desliza
+     até `max(1200, 2×clientHeight)`; o `transitionend` da moldura não faz snap seco por cima dele;
+     no useAutoScroll, dentro da janela, só o ENVIO PRÓPRIO pendente faz snap (mensagem "out" antiga
+     que chega com a lista do servidor dava ~100px).
+  7. **Cabeçalho que muda de altura com a conversa à vista (desktop):** RO no scroller compensa o
+     `scrollTop` pela borda de cima (etiquetas do WhatsApp 34px, "digitando…" 21px); borda de baixo
+     encolheu com a conversa colada → volta ao fundo. Fora: abertura, modo seleção, deslize em curso
+     e celular (cabeçalho fixo + teclado — não usar `rect.top` lá). As etiquetas nascem do espelho
+     persistido (`useWhatsappLabelsStore`) enquanto o Whapi responde.
+  8. **Outros:** figurinha com caixa fixa 160/120px na moldura; vídeo sem metadados visível conta
+     no `countPendingVisibleMedia`; teto da espera de abertura conta do 1.º frame (mínimo 2 frames
+     no celular); conversa com histórico a paginar já nasce virtual no celular (`hasMore && cursor`
+     — a troca estática→virtual no 1.º "carregar mais" dava frame em branco e 80–240px);
+     `.wa-historyLoading` absoluto (em fluxo empurrava a leitura ~20px); máscara também durante o
+     loading se a lista já tem linhas; `handleRecordingStateChange` ignora estado repetido (o
+     composer avisa `false` ao montar e 3 snaps secos cortavam o deslize); dica do rodapé não pisca
+     para co-atendente enquanto os participantes carregam (`podeEnviarPendente`, também no
+     `composerPropsAreEqual`); foto pendente tem anel de carregamento (600ms) e vigia de 15s
+     (troca de fonte ou "Demorando — tentar de novo", sem matar o download); `ImageMessage` mantém a
+     proporção anterior quando a chave muda; cartão de link guarda compacto/proporção em
+     `m:lp:<id>` (compacto = sentinela 9); reação local procurada por `messageKey` e por `item.id`;
+     assinatura da linha inclui metas compactos de contato/cartão/pedido/Pix/triagem.
+  Medido (build de produção + mocks): desktop 1807×925 vídeo retrato 206px→deslize, figurinha
+  64→0, foto aos 4,5s 149px→deslize, álbum 27–49px/frame→sem salto, cartão de link por URL
+  149px→deslize; celular: reabertura pelo cache 119–137px→0, `thread-open-premium/stability`
+  passam nos dois projetos (antes falhavam os 4 do celular). **PENDENTE DE VALIDAÇÃO:** aparelho
+  real (iOS/Android, teclado); cartão de link COMPACTO por URL ainda muda na 1.ª vez (produção
+  manda miniatura `data:`, decide sob a máscara); com "reduzir movimento" no desktop pode haver 1
+  frame de correção de ~80px ao revelar (moldura acima da tela + atraso de medição do virtualizer;
+  os snaps de segurança corrigem); no celular, cenário pesado (lista do servidor com várias fotos
+  após cache) ~1 em 36 aberturas com passo de 25–30px. Causa-raiz que resolveria tudo isto:
+  largura/altura da mídia na mensagem (backend), ainda não feito.
 - **Testes e2e: a 5173 pode estar ocupada por um dev server apontado para a API de PRODUÇÃO**
   (`reuseExistingServer: true` reaproveita-o; os mocks só interceptam `localhost:5000` e o token
   falso toma 401 → loop em `/login`). Rode com um servidor próprio noutra porta e

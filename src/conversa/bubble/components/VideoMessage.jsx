@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatMmSs } from "../../utils/conversaViewHelpers";
 import { IconPlay } from "../../conversaViewIcons";
 import {
+  applyAspectRatioVar,
   clampAspectRatio,
   mediaRatioKey,
   recallAspectRatio,
@@ -45,10 +46,14 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
     const r = clampAspectRatio(el?.videoWidth, el?.videoHeight);
     if (r > 0) {
       rememberAspectRatio(ratioKey, r);
+      /* Mesma moldura animável da foto (25/11/2026): marca deslize/instantâneo e aplica a
+         proporção no mesmo recálculo de estilo, sem esperar o re-render. O próprio envio
+         (blob otimista) continua instantâneo — o snap do envio já o acompanha. */
+      if (!optimistic) applyAspectRatioVar(el?.closest?.(".wa-bubble-videoLink"), r);
       setRatio((atual) => (atual === r ? atual : r));
     }
     setReady(true);
-  }, [ratioKey]);
+  }, [ratioKey, optimistic]);
 
   return (
     <button

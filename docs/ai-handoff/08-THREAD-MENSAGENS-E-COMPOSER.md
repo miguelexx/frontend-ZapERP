@@ -1195,3 +1195,21 @@ primeiro layout, por isso não foi mexida.
 - Hora da mídia SEM legenda: o chip saiu do canto SUPERIOR direito para o INFERIOR direito.
   No topo tapava o assunto da foto e disputava o canto com a setinha do menu
   (`.wa-msgMenuBtn--top`, também em top/right). Figurinha continua com o chip no topo.
+
+### 2026-11-25 — Abertura/leitura sem salto com mídia real (4.ª rodada)
+
+Resumo das regras (detalhe e medições em
+[14-CONVENCOES-E-INVARIANTES.md](14-CONVENCOES-E-INVARIANTES.md), "4.ª rodada"):
+
+- `ConversaMessageVirtualList` resolve o scroller pelo ref do pai **ou** pelo `parentElement` da
+  raiz (`resolveThreadScroller`); a 1.ª `scrollMargin` de cada montagem é síncrona.
+- Deslize da moldura de mídia (foto, vídeo, miniatura de link) é por ESTADO (`data-frame-glide` no
+  scroller + `data-ar-glide` por moldura), com fila e duração proporcional ao trecho mais íngreme
+  da altura; a janela `data-media-glide` (3,5s) ficou só para mensagem nova.
+- Figurinha tem caixa fixa (160px desktop / 120px celular); estimativa da linha 164/124.
+- Foto pendente: anel de carregamento após 600ms e vigia de 15s (`IMAGE_STALL_MS`): passa para a
+  próxima fonte ou mostra "Demorando — tentar de novo" sem cancelar o download em curso.
+- Desktop: RO no `.wa-messages` compensa linhas do cabeçalho que entram/saem com a conversa à
+  vista (etiquetas, "digitando…"). Celular fica de fora (teclado/visualViewport).
+- `glideThreadToBottom`/`smoothScrollThreadToBottom` devolvem `null` quando terminam na hora
+  (reduzir movimento); `maxStepPx` aceita função.

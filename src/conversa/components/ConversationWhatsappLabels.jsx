@@ -5,7 +5,7 @@ import {
   listarLabelsWhatsapp, listarAssociacoesLabelWhatsapp,
   associarLabelWhatsapp, desassociarLabelWhatsapp, WHAPI_LABEL_COLORS,
 } from "../../api/whapiBusinessService";
-import { useWhatsappLabelsStore } from "../../chats/whatsappLabelsStore";
+import { selectConversationLabels, useWhatsappLabelsStore } from "../../chats/whatsappLabelsStore";
 import "./conversationWhatsappLabels.css";
 
 // Keep phone and LID namespaces separate: the same digits may identify different people.
@@ -28,6 +28,11 @@ function colorFor(label) {
 
 export default function ConversationWhatsappLabels({ conversaId, instanceId, chat, open, onClose, onOpen }) {
   const setConversationLabels = useWhatsappLabelsStore((s) => s.setConversationLabels);
+  /* Espelho já conhecido (o mesmo do card da lista, persistido): desenha a linha de etiquetas
+     JÁ na abertura, enquanto o Whapi responde (25/11/2026). Antes a linha só nascia depois de
+     1 + N/4 pedidos ao provedor — com a conversa já à vista, o cabeçalho crescia 34–38px e a
+     thread inteira descia. A resposta autoritativa substitui o espelho quando chega. */
+  const cachedApplied = useWhatsappLabelsStore(selectConversationLabels(conversaId));
   const [labels, setLabels] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,11 +153,14 @@ export default function ConversationWhatsappLabels({ conversaId, instanceId, cha
   }
 
   const applied = labels.filter((label) => selected.includes(String(label.id)));
+  const shownApplied = loading || error
+    ? (Array.isArray(cachedApplied) ? cachedApplied : [])
+    : applied;
   const filtered = labels.filter((label) => label.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
   return <>
-    {applied.length > 0 && <div className="wa-whatsappLabels" aria-label="Etiquetas desta conversa" aria-live="polite">
+    {shownApplied.length > 0 && <div className="wa-whatsappLabels" aria-label="Etiquetas desta conversa" aria-live="polite">
       <IconTag size={14} aria-hidden="true" />
-      {applied.map((label) => <button type="button" className="wa-whatsappLabel" key={label.id} onClick={onOpen} title={label.name}>
+      {shownApplied.map((label) => <button type="button" className="wa-whatsappLabel" key={label.id} onClick={onOpen} title={label.name}>
         <i style={{ background: colorFor(label) }} />{label.name}
       </button>)}
     </div>}

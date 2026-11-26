@@ -5,6 +5,7 @@ export function composerPropsAreEqual(prev, next) {
   if (prev.loading !== next.loading) return false;
   if (prev.sending !== next.sending) return false;
   if (prev.podeEnviar !== next.podeEnviar) return false;
+  if (Boolean(prev.podeEnviarPendente) !== Boolean(next.podeEnviarPendente)) return false;
   if (prev.autoAssumirHint !== next.autoAssumirHint) return false;
   if (prev.headerCompact !== next.headerCompact) return false;
   if (prev.composerEnterInsertsNewline !== next.composerEnterInsertsNewline) return false;
