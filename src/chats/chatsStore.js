@@ -473,8 +473,14 @@ export const useChatStore = create((set, get) => ({
      conversa_atualizada: merge defensivo — nunca sobrescrever com undefined ou string vazio
      ultima_mensagem: usa payload.ultima_mensagem para preview (sem refetch)
   ========================================= */
-  /** @returns {boolean} false se nada mudou na lista; true se aplicou patch */
-  updateChat: (partial) => {
+  /**
+   * @param {object} partial
+   * @param {{ authoritativeStatus?: boolean }} [opts] authoritativeStatus: o patch é um evento
+   *   AUTORITATIVO do servidor (conversa_encerrada / reaberta / transferida / atribuída). Ele vence
+   *   o "status otimista" local — ver o comentário em applyNewerOptimisticMembershipTo abaixo.
+   * @returns {boolean} false se nada mudou na lista; true se aplicou patch
+   */
+  updateChat: (partial, opts = {}) => {
     if (!partial?.id) return false
 
     const chats = get().chats || []
@@ -616,7 +622,15 @@ export const useChatStore = create((set, get) => ({
       merged.departamentos = null
     }
 
-    applyNewerOptimisticMembershipTo(merged, partial, cur)
+    // O carimbo `ui_status_optimistic_at` de uma ação LOCAL (assumir, enviar mensagem, aguardar…)
+    // não expira e protege o status contra GET/evento atrasado. Um evento AUTORITATIVO do servidor
+    // não traz carimbo, então perdia para ele: quem tinha enviado mensagem na conversa neste
+    // aparelho e a via ser encerrada em OUTRO aparelho (o mesmo usuário no celular/computador, ou
+    // outra pessoa) recebia o conversa_encerrada e o card voltava a "Em atendimento" — o
+    // encerramento "não valia para todos". Evento autoritativo aplica o status do servidor.
+    if (opts?.authoritativeStatus !== true) {
+      applyNewerOptimisticMembershipTo(merged, partial, cur)
+    }
 
     // Merge sem mudança visível: nada a aplicar. (O probe antigo ordenava a lista inteira
     // só para concluir o mesmo "return false" — content igual ⇒ nenhum caminho abaixo altera o estado.)

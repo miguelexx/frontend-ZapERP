@@ -80,6 +80,7 @@ Antes de adicionar listener: busque o nome no backend. Não registre listener de
 - Não emitir `join_conversa` para id que não é da empresa.
 - Não tratar `nova_mensagem` outbound como unread.
 - Nome `zapi_*` no fio = legado; o provider é UltraMSG.
+- Eventos AUTORITATIVOS de atendimento (`conversa_encerrada` / `conversa_reaberta` / `conversa_transferida` / `conversa_atribuida`, tratados por `patchEverywhere`) chamam `chatStore.updateChat(p, { authoritativeStatus: true })`. O carimbo `ui_status_optimistic_at` de ação local (assumir, enviar mensagem, aguardar…) **não expira**, e o payload do servidor não traz carimbo: sem a flag, `applyNewerOptimisticMembershipTo` devolvia o status local e o aparelho onde se tinha enviado mensagem ignorava o encerramento feito em outro aparelho (card preso em "Em atendimento" até F5 — corrigido 26/11/2026). Eventos genéricos (`conversa_atualizada`, GET do `atualizar_conversa`, resync) continuam sem a flag. Teste: `scripts/test-optimistic-send-glitch.mjs` §8.
 
 ## Estado da ligação visível ao atendente (13/11/2026)
 

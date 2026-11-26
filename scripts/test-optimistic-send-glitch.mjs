@@ -428,4 +428,44 @@ const offset = getServerClockSkewMs();
 assert(offset >= 2900 && offset <= 3100, `mediana deve ignorar o outlier, obteve ${offset}`);
 resetServerClockSkew();
 
+// 8) Encerrada em OUTRO aparelho (26/11/2026): quem enviou mensagem neste aparelho tem o carimbo
+// otimista local no card. O conversa_encerrada (autoritativo, sem carimbo) tem de vencer — antes o
+// card voltava a "Em atendimento" e o encerramento não valia para todos.
+{
+  const linhaAberta = {
+    id: 8801,
+    contato_nome: "Cliente 8801",
+    status_atendimento: "em_atendimento",
+    status_atendimento_real: "em_atendimento",
+    atendente_id: 5,
+    ultima_atividade: new Date().toISOString(),
+  };
+  const eventoEncerrada = {
+    ...linhaAberta,
+    status_atendimento: "fechada",
+    status_atendimento_real: "fechada",
+    departamento_id: null,
+  };
+  const prev = useChatStore.getState().chats;
+  useChatStore.setState({ chats: [{ ...linhaAberta, ui_status_optimistic_at: Date.now() - 10 * 60 * 1000 }] });
+  useChatStore.getState().updateChat(eventoEncerrada, { authoritativeStatus: true });
+  assert.equal(
+    useChatStore.getState().chats[0].status_atendimento,
+    "fechada",
+    "conversa_encerrada de outro aparelho deve vencer o carimbo otimista local"
+  );
+  // Evento genérico atrasado (sem flag) continua sem poder reabrir.
+  useChatStore.getState().updateChat({ ...linhaAberta });
+  assert.equal(
+    useChatStore.getState().chats[0].status_atendimento,
+    "fechada",
+    "evento genérico atrasado não pode reabrir depois do encerramento"
+  );
+  // Sem a flag o guard anti-GET-atrasado segue igual ao de antes.
+  useChatStore.setState({ chats: [{ ...linhaAberta, ui_status_optimistic_at: Date.now() }] });
+  useChatStore.getState().updateChat(eventoEncerrada);
+  assert.equal(useChatStore.getState().chats[0].status_atendimento, "em_atendimento", "guard local inalterado sem a flag");
+  useChatStore.setState({ chats: prev });
+}
+
 console.log("OK - bolha otimista, sincronização do card e relógio do servidor passaram.");

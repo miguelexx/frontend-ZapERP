@@ -1849,7 +1849,10 @@ export function initSocket(token) {
     const closed = isClosedAttendance(p)
     let listRowChanged = false
     if (idx >= 0) {
-      listRowChanged = chatStore.updateChat(p)
+      // authoritativeStatus: o status do servidor vence o carimbo otimista local (que não expira).
+      // Sem isto, o aparelho em que se enviou mensagem/assumiu a conversa ignorava o encerramento
+      // feito em outro aparelho e o card ficava "Em atendimento" até o F5.
+      listRowChanged = chatStore.updateChat(p, { authoritativeStatus: true })
       if (dropChatFromViewerListIfNeeded(chatStore, { ...(chats[idx] || {}), ...p, id: p.id }, p.id)) {
         listRowChanged = true
       }
