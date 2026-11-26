@@ -128,6 +128,11 @@ export function rememberAspectRatio(key, ratio) {
  */
 export function applyAspectRatioVar(el, ratio) {
   if (!el || !(ratio > 0)) return;
+  /* A mesma proporção já aplicada (candidatas mudando depois do envio, React repondo o mesmo
+     valor): nada a fazer. Repassar pela elegibilidade cancelava um deslize em curso — a moldura
+     saltava o resto do caminho num frame (revisão 25/11/2026). */
+  const aplicada = parseFloat(el.style.getPropertyValue("--wa-media-ar"));
+  if (Number.isFinite(aplicada) && Math.abs(aplicada - ratio) < 0.0005) return;
   const posicao = markGlideEligibility(el, ratio);
   /*
    * Lista ESTÁTICA (celular, conversa curta): não há virtualizer para compensar linha acima da
@@ -201,8 +206,8 @@ function nowMs() {
  * Molduras que decodificam juntas (álbum) eram curvas independentes e a thread seguia a SOMA:
  * 28–49px por frame. Cada moldura que vai mesmo mudar de forma entra numa fila: começa quando a
  * anterior já passou do pico (a cauda de uma cruza o arranque da outra), via `--wa-ar-glide-delay`,
- * com duração proporcional à mudança de altura (`--wa-ar-glide-dur`). Atributos imperativos (o React não os gere): têm de estar postos ANTES
- * da troca da proporção, no mesmo recálculo de estilo.
+ * com duração proporcional à mudança de altura (`--wa-ar-glide-dur`). Atributos imperativos (o
+ * React não os gere): têm de estar postos ANTES da troca da proporção, no mesmo recálculo de estilo.
  */
 function markGlideEligibility(el, ratio) {
   try {
@@ -227,6 +232,9 @@ function markGlideEligibility(el, ratio) {
     }
     el.removeAttribute("data-ar-instant");
     el.setAttribute("data-ar-glide", "1");
+    /* Deslize desta moldura ainda em curso e a proporção alvo mudou: o browser redireciona a
+       transição a partir do valor atual — não medir (cancelaria a transição) nem reentrar na fila. */
+    if (frameGlideRunning(el)) return "visivel";
     /* Proporção igual à atual (já veio do cache): não há transição — não ocupa a fila. */
     let atual = Number.NaN;
     try {
@@ -264,7 +272,21 @@ function markGlideEligibility(el, ratio) {
  * reset de "reduzir movimento"), volta à antiga e assenta o estilo: a transição real começa da
  * altura antiga quando o chamador aplicar a nova. Só corre para moldura visível que vai deslizar.
  */
+function frameGlideRunning(el) {
+  try {
+    const anims = typeof el.getAnimations === "function" ? el.getAnimations() : [];
+    return anims.some((a) => a.transitionProperty === "--wa-media-ar-anim" && a.playState !== "finished");
+  } catch {
+    return false;
+  }
+}
+
 function measureFrameHeightSlope(el, from, to) {
+  /* Cada amostra força layout de verdade: com a moldura mais baixa o browser PRENDE o scrollTop do
+     scroller ao novo máximo e não o devolve quando a altura volta. Sem repor, o frame seguinte
+     pintava a conversa até ~150px abaixo (celular, lista estática) — revisão 25/11/2026. */
+  const scroller = el.closest && el.closest(".wa-messages");
+  const stAntes = scroller ? scroller.scrollTop : 0;
   try {
     const arAntes = el.style.getPropertyValue("--wa-media-ar");
     const trAntes = el.style.getPropertyValue("transition");
@@ -287,6 +309,14 @@ function measureFrameHeightSlope(el, from, to) {
     return maior;
   } catch {
     return 0;
+  } finally {
+    if (scroller && Math.abs(scroller.scrollTop - stAntes) >= 1) {
+      try {
+        scroller.scrollTop = stAntes;
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 

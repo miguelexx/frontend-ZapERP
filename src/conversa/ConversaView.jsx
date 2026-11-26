@@ -500,8 +500,16 @@ function ConversaViewBody() {
   const shouldStickToBottomRef = useRef(true);
   /** Meta do último snap via ResizeObserver — evita reancorar em ticks de status. */
   const lastResizeSnapMetaRef = useRef({ contentKey: null, scrollHeight: 0 });
-  /** Molduras de foto em transição agora (`--wa-media-ar-anim`, janela de deslize). */
-  const mediaGlideCountRef = useRef(0);
+  /* Molduras de foto/vídeo/link em transição agora (`--wa-media-ar-anim`). Conjunto de elementos,
+     não contador (revisão 25/11/2026): uma linha que desmonta no meio do deslize nunca entregava
+     o transitionend ao scroller e o contador ficava > 0 até trocar de conversa. Elementos
+     desconectados saem na leitura. */
+  const mediaGlideTargetsRef = useRef(new Set());
+  const isMediaGlideActive = useCallback(() => {
+    const set = mediaGlideTargetsRef.current;
+    for (const t of set) if (!t.isConnected) set.delete(t);
+    return set.size > 0;
+  }, []);
   const messagesLastScrollTopRef = useRef(0);
   /** Botão "ir para recentes": visível quando o utilizador está lendo histórico (longe do fim). */
   const [showScrollToRecent, setShowScrollToRecent] = useState(false);
@@ -605,6 +613,9 @@ function ConversaViewBody() {
 
     composerTextareaHeightRef.current = { threadKey: nextThreadKey, height: nextHeight };
     if (userScrollLockRef.current || !shouldStickToBottomRef.current) return;
+    /* Deslize programático em curso: ele recalcula o fundo a cada frame e termina com um snap
+       mínimo — um snap seco aqui o cortava (revisão 25/11/2026). */
+    if (smoothScrollCancelRef.current) return;
 
     const heightChanged = nextHeight !== previous.height;
     if (!heightChanged && !cleared) return;
@@ -1006,7 +1017,7 @@ function ConversaViewBody() {
     if (
       !keyChanged &&
       Math.abs(heightDelta) < 4 &&
-      (distanceToBottom <= 1 || mediaGlideCountRef.current === 0)
+      (distanceToBottom <= 1 || !isMediaGlideActive())
     ) {
       lastResizeSnapMetaRef.current = { contentKey, scrollHeight };
       return;
@@ -1037,7 +1048,7 @@ function ConversaViewBody() {
         /* Com moldura de foto deslizando ao mesmo tempo, o passo do deslize soma com o dela
            (foto que encolhe ~13–16px/frame + 18 = 26–34px/frame medidos): enquanto houver
            moldura em transição (pico ≤ ~9px/frame, ver mediaAspectRatio) o passo cai para 8px. */
-        maxStepPx: () => (mediaGlideCountRef.current > 0 ? 8 : 18),
+        maxStepPx: () => (isMediaGlideActive() ? 8 : 18),
         onDone: (completed) => {
           smoothScrollCancelRef.current = null;
           if (!completed || userScrollLockRef.current) return;
@@ -1137,8 +1148,6 @@ function ConversaViewBody() {
    * volta ao fundo. Fora: abertura (máscara), modo seleção (âncora própria), deslize "ir para
    * recentes" e o celular (cabeçalho fixo + teclado têm o seu próprio sistema, zona de perigo).
    */
-  const selectModeRef = useRef(selectMode);
-  selectModeRef.current = selectMode;
   /* O scroller pode montar depois (tela de carregamento sem ele): religa quando o elemento muda. */
   const scrollerEdgeObserverRef = useRef(null);
   useEffect(
@@ -1157,18 +1166,17 @@ function ConversaViewBody() {
     if (!c || typeof ResizeObserver === "undefined") return;
     let prevTop = c.getBoundingClientRect().top;
     let prevH = c.clientHeight;
-    let prevSelectMode = selectModeRef.current;
     const ro = new ResizeObserver(() => {
       const top = c.getBoundingClientRect().top;
       const h = c.clientHeight;
       const dTop = Math.round(top - prevTop);
       const dH = h - prevH;
-      const selectModeChanged = prevSelectMode !== selectModeRef.current;
       prevTop = top;
       prevH = h;
-      prevSelectMode = selectModeRef.current;
       if (!dTop && !dH) return;
-      if (threadOpeningRef.current || selectModeChanged || selectModeAnchorRef.current) return;
+      /* Modo seleção não redimensiona o scroller (barra absoluta, composer só invisível); o
+         commit da troca tem a âncora própria (`selectModeAnchorRef`). */
+      if (threadOpeningRef.current || selectModeAnchorRef.current) return;
       if (smoothScrollCancelRef.current || jumpHoldRef.current) return;
       try {
         if (Math.abs(dTop) >= 1) {
@@ -1206,6 +1214,12 @@ function ConversaViewBody() {
       if (!optimisticMsg) return null;
       if (!userScrollLockRef.current) {
         shouldStickToBottomRef.current = true;
+        /* Envio próprio é instantâneo: um deslize de "mensagem nova" em curso não pode segurar a
+           bolha abaixo da dobra (os snaps do envio respeitam o deslize) — corta-o antes. */
+        if (smoothScrollCancelRef.current) {
+          smoothScrollCancelRef.current();
+          smoothScrollCancelRef.current = null;
+        }
       }
       markOptimisticSeen(optimisticMsg);
       try {
@@ -3361,12 +3375,12 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
        últimos pixels da curva). */
     const isGlide = (e) => e?.propertyName === "--wa-media-ar-anim";
     const onRun = (e) => {
-      if (isGlide(e)) mediaGlideCountRef.current += 1;
+      if (isGlide(e)) mediaGlideTargetsRef.current.add(e.target);
     };
     const onEnd = (e) => {
       if (!isGlide(e)) return;
-      mediaGlideCountRef.current = Math.max(0, mediaGlideCountRef.current - 1);
-      if (mediaGlideCountRef.current > 0) return;
+      mediaGlideTargetsRef.current.delete(e.target);
+      if (isMediaGlideActive()) return;
       if (userScrollLockRef.current || !shouldStickToBottomRef.current) return;
       /* Deslize de "mensagem nova" em curso: ele termina no fundo (e acerta com um snap mínimo).
          Um snap seco aqui o cortava no meio — 261px de salto medidos (25/11/2026). */
@@ -3387,7 +3401,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
       el.removeEventListener("transitionrun", onRun);
       el.removeEventListener("transitionend", onEnd);
       el.removeEventListener("transitioncancel", onEnd);
-      mediaGlideCountRef.current = 0;
+      mediaGlideTargetsRef.current.clear();
       el.removeAttribute("data-media-glide");
     };
   }, [threadOpening, loading, openingThreadKey]);
@@ -3736,6 +3750,9 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
   const podeEnviarPendente =
     !podeEnviar &&
     !atendentesCarregados &&
+    /* Só quem pode mesmo ser co-atendente (a linha/GET traz `participante_ativo`): supervisor e
+       não participante veem a dica desde o 1.º paint, como antes (revisão 25/11/2026). */
+    conversa?.participante_ativo === true &&
     conversa?.atendente_id != null &&
     conversa?.atendente_id !== "" &&
     String(conversa.atendente_id) !== String(user?.id ?? "") &&

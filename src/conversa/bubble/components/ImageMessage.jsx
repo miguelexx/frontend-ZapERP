@@ -13,6 +13,19 @@ import MessageCaption from "./MessageCaption";
 /** Sem onLoad nem onError neste prazo, o download é tratado como travado (ver vigia abaixo). */
 const IMAGE_STALL_MS = 15000;
 
+/*
+ * URL de uma nova tentativa manual: acrescenta `_r=<n>` só a http(s) sem assinatura (URL
+ * pré-assinada quebraria com um parâmetro a mais; blob:/data: não fazem pedido de rede). O
+ * /media/proxy só lê url/filename/disposition — o parâmetro extra é ignorado lá.
+ */
+function withManualRetryParam(src, n) {
+  if (!n || !src) return src;
+  const rede = /^(https?:)?\/\//i.test(src) || src.startsWith("/");
+  if (!rede) return src;
+  if (/[?&](X-Amz-Signature|X-Amz-Credential|Signature|sig|Expires|token)=/i.test(src)) return src;
+  return `${src}${src.includes("?") ? "&" : "?"}_r=${n}`;
+}
+
 /** Sobe do <img> até a moldura (botão) que recorta a foto — é nela que mora a proporção. */
 function frameOf(el) {
   return el?.closest?.(".wa-bubble-imgLink") || el?.parentElement || null;
@@ -42,6 +55,9 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
   const [reprocessDefinitivo, setReprocessDefinitivo] = useState(false);
   /* Download travado sem mais fontes para tentar: mostra "tentar de novo" por cima da moldura. */
   const [stalled, setStalled] = useState(false);
+  /* Toques em "tentar de novo": viram um parâmetro na URL para o pedido ser NOVO — com a mesma
+     URL o navegador junta o <img> novo ao pedido pendurado do antigo (revisão 25/11/2026). */
+  const [manualRetry, setManualRetry] = useState(0);
   const imgRef = useRef(null);
   const retryTimerRef = useRef(null);
   const reprocessAutoTriedRef = useRef(false);
@@ -51,6 +67,7 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
     setIdx(0);
     setExhausted(false);
     setRetryRound(0);
+    setManualRetry(0);
     // Lista de fontes mudou (ex.: URL recuperada pelo reprocesso entrou na store):
     // libera uma nova tentativa automática para o novo conjunto.
     reprocessAutoTriedRef.current = false;
@@ -106,7 +123,7 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
     }, IMAGE_STALL_MS);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSrc, retryRound, loaded, exhausted]);
+  }, [currentSrc, retryRound, manualRetry, loaded, exhausted]);
 
   const dispararReprocesso = () => {
     if (reprocessInFlightRef.current) return;
@@ -190,17 +207,20 @@ export function BubbleImage({ msg, alt, className, out, onAspectRatio }) {
     e?.preventDefault?.();
     e?.stopPropagation?.();
     setStalled(false);
-    setIdx(0);
     setExhausted(false);
-    setRetryRound((round) => round + 1);
+    /* Com mais de uma fonte, passa para a seguinte em vez de voltar à que travou. */
+    setIdx((i) => (candidates.length > 1 ? (i + 1) % candidates.length : 0));
+    setManualRetry((n) => n + 1);
   };
+
+  const displaySrc = withManualRetryParam(src, manualRetry);
 
   return (
     <>
     <img
-      key={`${src}:${retryRound}`}
+      key={`${displaySrc}:${retryRound}`}
       ref={imgRef}
-      src={src}
+      src={displaySrc}
       alt={alt}
       className={`${className || ""} ${loaded ? "is-loaded" : "is-loading"}`.trim()}
       loading="eager"

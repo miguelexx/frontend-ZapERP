@@ -350,7 +350,8 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
      (`data-ar-instant`, posto em `applyAspectRatioVar`). Resultado: ≤18–20px por frame em vez
      de um salto; fundo termina colado (vão 0).
   3. `snapIfStickBottom` só reancora remedição < 4px enquanto houver moldura a deslizar
-     (`mediaGlideCountRef`, eventos `transitionrun/end`), com acerto final no `transitionend`.
+     (`mediaGlideTargetsRef` — conjunto de elementos desde 25/11/2026, eventos `transitionrun/end`),
+     com acerto final no `transitionend`.
   As sondas de abertura (`thread-open-*.spec.js`) só contam a partir da máscara da NOVA conversa:
   antes disso a tela ainda é a conversa anterior.
 - **Supervisor não vê o card "Movimentação interna" (19/11/2026, só visual).** O backend ainda
@@ -447,6 +448,17 @@ Medido com Playwright + perfil do Chrome num build de produção. Não reintrodu
      proporção anterior quando a chave muda; cartão de link guarda compacto/proporção em
      `m:lp:<id>` (compacto = sentinela 9); reação local procurada por `messageKey` e por `item.id`;
      assinatura da linha inclui metas compactos de contato/cartão/pedido/Pix/triagem.
+  9. **Correções da revisão independente (mesmo dia):** `measureFrameHeightSlope` repõe o
+     `scrollTop` do scroller depois das amostras (cada layout forçado com a moldura mais baixa
+     prendia o scroll ao novo máximo: quique de até ~150px na lista estática); `applyAspectRatioVar`
+     com a MESMA proporção já aplicada não faz nada (repassar cancelava o deslize em curso) e,
+     com deslize em curso para outro alvo, não mede nem reentra na fila; "tentar de novo" da foto
+     acrescenta `_r=<n>` (URL igual juntava-se ao pedido pendurado; não vale para URL assinada) e
+     passa para a próxima fonte; `podeEnviarPendente` só com `participante_ativo === true`;
+     `handleComposerTextMetrics` não faz snap seco com deslize em curso; envio próprio corta o
+     deslize de "mensagem nova"; molduras em transição viram conjunto de elementos
+     (`isMediaGlideActive` descarta desconectados); o RO de bordas não ignora mais o 1.º evento
+     depois de entrar/sair do modo seleção.
   Medido (build de produção + mocks): desktop 1807×925 vídeo retrato 206px→deslize, figurinha
   64→0, foto aos 4,5s 149px→deslize, álbum 27–49px/frame→sem salto, cartão de link por URL
   149px→deslize; celular: reabertura pelo cache 119–137px→0, `thread-open-premium/stability`
