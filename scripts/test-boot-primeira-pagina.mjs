@@ -193,6 +193,26 @@ try {
     assert.equal(limites.length, 2, "segue o has_more ate' acabar");
     assert.equal(primeiras.length, 1, "a 1a pagina continua a ser entregue para pintar cedo");
   }
+  {
+    // 1a pagina VAZIA com has_more (tela "Nenhuma conversa encontrada" com chip 7).
+    const paginas = [[], [1, 2, 3, 4, 5, 6, 7]];
+    let chamadas = 0;
+    api.get = async () => {
+      const idx = chamadas++;
+      const has_more = idx < paginas.length - 1;
+      return {
+        data: {
+          conversas: (paginas[idx] || []).map((id) => ({ id })),
+          has_more,
+          next_cursor: has_more ? `cursor-${idx}` : null,
+          next_cursor_id: has_more ? String(idx) : null,
+          total_count: 7,
+        },
+      };
+    };
+    const lista = await service.fetchMinhaFilaChatsProgressivo({ minha_fila: "1" }, {}, () => {}, 7);
+    assert.equal(lista.length, 7, "1a pagina vazia + badge 7: a fila tem de vir inteira (7), nao vazia");
+  }
   for (const badge of [1, 250, 251, 500]) {
     const { limites } = montarApi(700);
     const lista = await service.fetchMinhaFilaChatsProgressivo({ minha_fila: "1" }, {}, () => {}, badge);
