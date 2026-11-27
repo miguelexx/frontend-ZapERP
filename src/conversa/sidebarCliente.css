@@ -98,8 +98,10 @@
   max-width: 240px;
 }
 
+/* Sem padding-bottom (26/11/2026): o `sticky; bottom: 0` da barra de salvar respeita o padding
+   do scroller, e os 20px deixavam a barra flutuando com o conteúdo aparecendo por baixo. */
 .wa-sideCliente-body {
-  padding: 0 0 20px;
+  padding: 0;
   flex: 1;
   overflow: auto;
   display: flex;
@@ -128,6 +130,17 @@
 
 .wa-sideCliente-photoBtn.isZoomable {
   cursor: zoom-in;
+}
+
+/*
+ * A2-08 (27/11/2026): sem foto para ampliar o botão fica `disabled`, e o `button:disabled
+ * { opacity: .6 }` global (chatList.css) desbotava o avatar inteiro — a cor OKLCH 52% ficava
+ * verde-clara e as iniciais brancas caíam para ~2.4:1. O avatar não é um controle "desligado":
+ * é só a foto que não abre. Opacidade cheia, sem cursor de proibido.
+ */
+.wa-sideCliente-photoBtn:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .wa-sideCliente-photoBtn.isZoomable:hover .wa-sideCliente-photo,
@@ -203,6 +216,7 @@
   width: 100%;
   box-sizing: border-box;
   text-align: center;
+  font-family: inherit;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -542,20 +556,92 @@
   opacity:.85;
 }
 
+/* Rodapé de largura total, colado na borda (26/11/2026): continua `sticky; bottom: 0` (doc 06),
+   mas opaco e sem margem/raio — antes era um cartão translúcido 20px acima do fundo, com o
+   conteúdo visível por baixo dele. `margin-top: auto` o leva ao fundo quando o painel é curto. */
 .wa-sideCliente-saveBar{
   position: sticky;
   bottom: 0;
-  margin: 8px 12px 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 84%, transparent);
-  background: color-mix(in srgb, var(--wa-panel) 88%, transparent);
-  box-shadow: 0 -12px 28px -24px rgba(15, 23, 42, 0.46);
-  backdrop-filter: blur(14px);
+  z-index: 2;
+  margin: auto 0 0;
+  padding: 10px 16px max(10px, env(safe-area-inset-bottom, 0px));
+  border-radius: 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--wa-panel-border) 84%, transparent);
+  background: var(--wa-panel);
+  box-shadow: 0 -10px 24px -22px rgba(15, 23, 42, 0.5);
+  backdrop-filter: none;
   display:flex;
   align-items:center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* Zona destrutiva no fim do painel: linha de texto, não bloco vermelho. */
+.wa-sideCliente-dangerZone {
+  margin: 4px 12px 8px;
+  padding: 2px 0 4px;
+}
+
+.wa-sideCliente-dangerBtn.wa-sideCliente-dangerBtn--row {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 10px;
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.wa-sideCliente-dangerBtn.wa-sideCliente-dangerBtn--row:hover:not(:disabled) {
+  background: color-mix(in srgb, #dc2626 8%, transparent);
+  border-color: transparent;
+}
+
+.wa-sideCliente-dangerBtn.wa-sideCliente-dangerBtn--row:focus-visible {
+  outline: 2px solid color-mix(in srgb, #dc2626 70%, transparent);
+  outline-offset: 2px;
+}
+
+.wa-sideCliente-dangerHint {
+  margin: 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wa-text-muted);
+}
+
+[data-theme="dark"] .wa-sideCliente-dangerBtn.wa-sideCliente-dangerBtn--row {
+  background: transparent;
+  border-color: transparent;
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .wa-sideCliente-dangerBtn.wa-sideCliente-dangerBtn--row:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: transparent;
+}
+
+/* Foto ausente: a cor do contato (utils/avatarColor.js), iniciais brancas (≥ 4.9:1 em OKLCH 52%). */
+.wa-sideCliente-photo.wa-sideCliente-photo--tint,
+[data-theme="dark"] .wa-sideCliente-photo.wa-sideCliente-photo--tint {
+  /* O seletor escuro (A2-08, 27/11): `[data-theme="dark"] .wa-sideCliente-photo`, mais abaixo,
+     tem a mesma especificidade e vencia pela ordem — no modo escuro o avatar perdia a cor do
+     contato e virava um círculo cinza-azulado, diferente da lista e do cabeçalho. */
+  background: var(--wa-avatar-tint);
+  border-color: transparent;
+}
+
+/* Contato só com número: boneco neutro no lugar de "(1" (as iniciais agora são só letras). */
+.wa-sideCliente-avatarIcon {
+  width: 46%;
+  height: 46%;
+}
+
+.wa-sideCliente-photo.wa-sideCliente-photo--tint .wa-sideCliente-avatarFallback,
+[data-theme="dark"] .wa-sideCliente-photo.wa-sideCliente-photo--tint .wa-sideCliente-avatarFallback {
+  color: #fff !important;
 }
 
 .wa-sideCliente-saveLeft{
@@ -683,6 +769,8 @@
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--wa-panel-border) 90%, transparent);
   padding: 10px 12px;
+  /* Sem isto o textarea herda o monospace do navegador (26/11/2026). */
+  font-family: inherit;
   font-size: 13px;
   line-height: 1.45;
   color: var(--wa-text);
@@ -725,6 +813,7 @@
   border: 1px solid color-mix(in srgb, var(--wa-panel-border) 88%, transparent);
   background: var(--wa-input-bg);
   color: var(--wa-text);
+  font-family: inherit;
   font-size: 13px;
   outline: none;
 }

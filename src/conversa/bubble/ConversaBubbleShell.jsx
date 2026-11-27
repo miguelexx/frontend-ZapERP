@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Pin, Star } from "lucide-react";
 import {
   safeString,
   copyTextToClipboard,
@@ -21,12 +22,58 @@ import EditedLabel from "./components/EditedLabel";
 import QuotedReply from "./components/QuotedReply";
 import MessageMenu from "./components/MessageMenu";
 import MessageRetry from "./components/MessageRetry";
-import { LOCAL_MEDIA_LOSS_NOTICE, shouldShowLocalMediaNotice } from "../localMediaNotice";
+import { LOCAL_MEDIA_LOSS_NOTICE, shouldShowLocalMediaNotice, localMediaFailureText } from "../localMediaNotice";
 import BubbleTypedContent from "./components/BubbleTypedContent";
 import { ReactionPicker, ReactionButton, ReactionBadge } from "./components/MessageReactions";
 import { useOfflineAudioSource } from "./hooks/useOfflineAudioSource";
 import { useOnlineStatus } from "../../utils/useOnlineStatus";
 import { podeBaixarMidiaDaMensagem, salvarMidiaComFeedback } from "../mediaDownload";
+import { getAvatarColor } from "../../utils/avatarColor";
+
+/**
+ * Matiz (0–359) do nome do participante: o hash OKLCH do avatar (utils/avatarColor) espalhado
+ * pelo "passo de ouro" (×137, primo com 360). Sem o espalhamento, sementes vizinhas
+ * (5511988880001 / …002) davam matizes a 1° de distância — todos os nomes da mesma cor.
+ */
+function matizDaSemente(semente) {
+  const m = /\s(\d+(?:\.\d+)?)\)\s*$/.exec(getAvatarColor(semente));
+  const base = m ? Math.round(Number(m[1])) : 0;
+  return (base * 137) % 360;
+}
+
+/**
+ * Motivo da recusa de mídia local sem repetir a frase do aviso (27/11/2026). Alguns motivos já
+ * começam por "Não foi possível enviar" (fila offline: "…o arquivo salvo offline."; fallback do
+ * classificador: "Não foi possível enviar.") — com o "Tentar novamente", cujo aviso diz a mesma
+ * frase, a bolha mostrava a frase duas vezes. `resto` = o que sobra de motivo próprio:
+ * "…enviar: arquivo grande" → "Arquivo grande"; "…enviar o arquivo salvo offline." → "".
+ */
+const FRASE_FALHA_ENVIO = /^n[ãa]o foi poss[íi]vel enviar\b[\s:.,;—–-]*/i;
+function motivoDaFalhaLocal(msg) {
+  const motivo = String(msg?.erro_mensagem || "").trim();
+  const m = FRASE_FALHA_ENVIO.exec(motivo);
+  if (!m) return { motivo, repete: false, resto: motivo };
+  const resto = motivo.slice(m[0].length).trim();
+  const temMotivoProprio = /[:;—–-]/.test(m[0]) && resto;
+  return {
+    motivo,
+    repete: true,
+    resto: temMotivoProprio ? resto.charAt(0).toUpperCase() + resto.slice(1) : "",
+  };
+}
+
+/**
+ * Tira `access_token` só de URLs do proxy de mídia da própria API (`/media/proxy?...`), onde o
+ * JWT de sessão viaja na query. Qualquer outro link do texto fica exatamente como o usuário
+ * escreveu (ex.: `checkoutnow?token=EC-...` do PayPal).
+ */
+function semTokenDoProxyDeMidia(texto) {
+  return String(texto || "").replace(/\S*\/media\/proxy\S*/gi, (url) =>
+    url
+      .replace(/([?&])access_token=[^&#\s]*(&?)/gi, (_m, sep, amp) => (amp ? sep : ""))
+      .replace(/[?&]$/, "")
+  );
+}
 
 const Bubble = memo(function Bubble({
   msg,
@@ -143,7 +190,41 @@ const Bubble = memo(function Bubble({
     [out, currentUserId, msg?.autor_usuario_id, msg?.apagada_para_todos]
   );
   const remetente = showRemetente && !out && (msg?.remetente_nome || msg?.remetente_telefone);
+  /* Nome do participante do grupo com cor própria, como no WhatsApp (27/11/2026). Matiz da
+     MESMA semente/algoritmo do avatar (OKLCH); misturado à cor do texto do tema, sai escuro no
+     claro e claro no escuro — contraste ≥ 4,5:1 nos dois. Sem suporte a color-mix o navegador
+     descarta o valor e vale a cor do CSS. Semente = TELEFONE antes do nome, a mesma chave que
+     agrupa o bloco do remetente (buildMensagensComSeparadores): a mesma pessoa mantém a cor
+     quando uma mensagem chega sem nome (histórico importado) ou ela troca o nome de exibição. */
+  const remetenteSemente = remetente ? String(msg?.remetente_telefone || msg?.remetente_nome || "") : "";
+  /* Autor na prévia da folha (celular): mensagem de OUTRO atendente leva o nome dele (não
+     "Você"); em grupo vale o participante mesmo nas mensagens seguidas do bloco, onde
+     `remetente` fica vazio (só a 1.ª do bloco mostra o nome). */
+  const usuarioNome = safeString(msg?.usuario_nome);
+  const previewAuthor = out
+    ? usuarioNome && currentUserId != null && String(msg?.autor_usuario_id) !== String(currentUserId)
+      ? usuarioNome
+      : "Você"
+    : safeString(msg?.remetente_nome) || safeString(msg?.remetente_telefone) || peerName || "Contato";
+  const remetenteNomeStyle = useMemo(() => {
+    if (!remetenteSemente) return undefined;
+    const hue = matizDaSemente(remetenteSemente);
+    return { color: `color-mix(in oklch, oklch(58% 0.15 ${hue}) 65%, var(--wa-text, #111b21))` };
+  }, [remetenteSemente]);
   const retry = useMediaRetry(msg, classified, { onReenviarFalha, onReenviarAudio });
+  /* Recusa de mídia local (27/11/2026): com o "Tentar novamente" na bolha, o aviso dele já diz
+     "Não foi possível enviar" — esta linha fica só com o motivo, sem repetir a frase. Sem botão
+     de reenvio, continua a frase completa. */
+  const localFailureText = localMediaFailureText(msg);
+  const retryMostraAviso = retry.canShowRetry && !isAudioOrVoice && !temIdDoProvedor(msg);
+  const falhaLocal = localFailureText ? motivoDaFalhaLocal(msg) : null;
+  const localFailureLine = !falhaLocal
+    ? ""
+    : retryMostraAviso
+      ? falhaLocal.resto
+      : falhaLocal.repete
+        ? falhaLocal.motivo
+        : localFailureText;
   // Mídia recebida cuja cópia p/ /uploads não chegou pelo socket se cura sozinha (sem F5).
   useInboundMediaAutoHeal(msg, out, isImg || isSticker || isVideo || isAudioOrVoice || isFile);
   const showMenuButton = !selectMode;
@@ -151,6 +232,31 @@ const Bubble = memo(function Bubble({
   const [reactionOpen, setReactionOpen] = useState(false);
   const [reactionExpanded, setReactionExpanded] = useState(false);
   const showReactionPicker = !isCall && (reactionOpen || showMobileReactionPicker);
+
+  /*
+   * Seletor de reação do hover (desktop): fecha com ESC e com clique fora, como o menu. Antes o
+   * ESC caía no "fechar a conversa" inteira e o clique fora deixava o seletor aberto (26/11/2026).
+   * pointerdown em captura: o próprio ReactionPicker para a propagação do React.
+   */
+  useEffect(() => {
+    if (!reactionOpen) return undefined;
+    const onDown = (e) => {
+      if (bubbleRef.current?.contains(e.target)) return;
+      setReactionOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setReactionOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [reactionOpen]);
 
   // Barra de reações no topo do menu (igual WhatsApp Web) — vale para o menu da setinha, para
   // o clique-direito e para o bottom-sheet mobile. Só não aparece em ligação ou mensagem
@@ -325,13 +431,33 @@ const Bubble = memo(function Bubble({
     [canSelectMessage, selectMode, handleToggleSelect, onStartSelect, msg]
   );
 
+  /*
+   * O que "Copiar" copia (26/11/2026). Antes, mídia sem legenda copiava a URL da mídia — e a de
+   * fora do /uploads passa pelo /media/proxy com `access_token=<JWT>` na query: colar num chat
+   * entregava a SESSÃO do atendente. Agora só texto da mensagem/legenda; mídia sem legenda não
+   * oferece "Copiar" (o "Salvar como…" cobre o arquivo), como no WhatsApp Web.
+   */
+  const ehMidiaParaCopia = isImg || isSticker || isVideo || isAudioOrVoice || isFile;
+  const copyText = ehMidiaParaCopia
+    ? classified.showCaption ||
+      classified.showAudioText ||
+      (isFile && classified.hasText && classified.texto !== msg?.nome_arquivo)
+      ? safeString(classified.texto)
+      : ""
+    : safeString(classified.texto) || safeString(msg?.texto);
+  const canCopy = Boolean(String(copyText || "").trim());
   const doCopy = useCallback(async () => {
-    const text =
-      safeString(msg?.texto) ||
-      (mediaUrl ? `${msg?.nome_arquivo ? `${msg.nome_arquivo}\n` : ""}${mediaUrl}` : "");
+    // Copia o texto como está (27/11/2026): o filtro antigo tirava `token=` de QUALQUER link —
+    // link de pagamento/redefinição de senha ia quebrado. Só a URL do nosso /media/proxy (que
+    // leva o JWT de sessão em `access_token`) continua sem o token, por precaução.
+    const text = semTokenDoProxyDeMidia(copyText);
+    if (!text.trim()) {
+      onCopy?.(false);
+      return;
+    }
     const ok = await copyTextToClipboard(text);
     onCopy?.(ok);
-  }, [msg, mediaUrl, onCopy]);
+  }, [copyText, onCopy]);
 
   /*
    * "Salvar como…" da mídia. Sem isto não existe NENHUMA forma de salvar foto/vídeo/áudio/
@@ -385,6 +511,8 @@ const Bubble = memo(function Bubble({
   const typedProps = {
     classified,
     msg,
+    isPinned,
+    isStarred,
     mediaUrl,
     audioPlaybackCandidates,
     selectMode,
@@ -572,8 +700,8 @@ const Bubble = memo(function Bubble({
           ) : null}
           {remetente ? (
             <div className="wa-bubble-remetente">
-              <span className="wa-bubble-remetente-nome">
-                {remetente}:
+              <span className="wa-bubble-remetente-nome" style={remetenteNomeStyle}>
+                {remetente}
               </span>
               {/* includeAudioAndCall: a 1ª mensagem de cada bloco do remetente em GRUPO ficava
                   sem player de áudio (caía no fallback de texto) — o CSS .wa-bubble-audio
@@ -585,6 +713,8 @@ const Bubble = memo(function Bubble({
           )}
           {shouldShowLocalMediaNotice(msg) ? (
             <p className="wa-local-media-notice" role="note">{LOCAL_MEDIA_LOSS_NOTICE}</p>
+          ) : localFailureLine ? (
+            <p className="wa-local-media-notice wa-local-media-notice--erro" role="note">{localFailureLine}</p>
           ) : null}
           {retry.canShowRetry && !isAudioOrVoice ? (
             <MessageRetry
@@ -604,7 +734,7 @@ const Bubble = memo(function Bubble({
             aria-label="Selecionar mensagem"
           />
         ) : null}
-        {!isCall && !mobileMessageChrome ? (
+        {!isCall && !mobileMessageChrome && !selectMode ? (
           <ReactionButton
             reactionOpen={reactionOpen}
             reactionBusy={reactionBusy}
@@ -628,8 +758,12 @@ const Bubble = memo(function Bubble({
                 <MessageStatus msg={msg} isGroup={Boolean(isGroup)} />
               </>
             ) : null}
-            {isPinned ? <span className="wa-bubble-badge" title="Fixada">📌</span> : null}
-            {isStarred ? <span className="wa-bubble-badge" title="Favorita">★</span> : null}
+            {isPinned ? (
+              <Pin className="wa-bubble-badge" aria-label="Fixada" role="img" strokeWidth={2.2} />
+            ) : null}
+            {isStarred ? (
+              <Star className="wa-bubble-badge" aria-label="Favorita" role="img" fill="currentColor" strokeWidth={1.8} />
+            ) : null}
           </div>
         </div>
 
@@ -669,6 +803,9 @@ const Bubble = memo(function Bubble({
         canEdit={canEdit}
         canForward={!isInternalNoteEditTipo(msg)}
         canDownload={canDownload}
+        canCopy={canCopy}
+        previewMsg={menuUsesBottomSheet ? msg : null}
+        previewAuthor={previewAuthor}
         downloadBusy={downloadBusy}
         reactionExpanded={reactionExpanded}
         reactionBusy={reactionBusy}

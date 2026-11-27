@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FORWARD_SELECT_MAX } from "../conversaConstants";
-import { snippetFromMsg } from "../utils/conversaMessageDisplay";
+import { useMobileOverlayBack } from "../../atendimento/useMobileOverlayBack";
 import {
   captureMessagesScrollAnchor,
 } from "../scrollUtils";
@@ -67,7 +67,8 @@ export function useConversationSelection({
       const has = (cur || []).map(String).includes(id);
       const next = has ? (cur || []).filter((x) => String(x) !== id) : [...(cur || []), id];
       persistPins(next);
-      showToast({ type: "info", title: has ? "Desafixada" : "Fixada", message: snippetFromMsg(msg) });
+      /* Fixar/favoritar ficam só neste navegador (localStorage): o texto diz "para você". */
+      showToast({ type: "info", variant: "snack", title: has ? "Desafixada" : "Fixada para você" });
       return next;
     });
   }, [conversaId, persistPins, showToast]);
@@ -79,7 +80,7 @@ export function useConversationSelection({
       const has = (cur || []).map(String).includes(id);
       const next = has ? (cur || []).filter((x) => String(x) !== id) : [...(cur || []), id];
       persistStars(next);
-      showToast({ type: "info", title: has ? "Removida dos favoritos" : "Favoritada", message: snippetFromMsg(msg) });
+      showToast({ type: "info", variant: "snack", title: has ? "Removida dos favoritos" : "Favoritada para você" });
       return next;
     });
   }, [conversaId, persistStars, showToast]);
@@ -125,6 +126,19 @@ export function useConversationSelection({
     [forwardSelectIntent, showToast]
   );
 
+  /* Tira da seleção as que já não existem (apagadas em lote) — a barra mostra a contagem certa. */
+  const deselectIds = useCallback((ids) => {
+    const drop = new Set((ids || []).map(String));
+    if (!drop.size) return;
+    setSelectedMsgIds((cur) => {
+      const next = { ...(cur || {}) };
+      for (const k of drop) delete next[k];
+      return next;
+    });
+    selectionOrderRef.current = selectionOrderRef.current.filter((k) => !drop.has(String(k)));
+    setSelectionOrder(selectionOrderRef.current);
+  }, []);
+
   const exitSelectMode = useCallback(() => {
     selectModeAnchorRef.current = captureMessagesScrollAnchor(messagesContainerRef.current);
     selectionOrderRef.current = [];
@@ -133,6 +147,9 @@ export function useConversationSelection({
     setSelectMode(false);
     setForwardSelectIntent(false);
   }, [messagesContainerRef]);
+
+  /* "Voltar" do celular sai do modo seleção, não da conversa (26/11/2026). */
+  useMobileOverlayBack(selectMode, exitSelectMode, "selection");
 
   const pinnedSet = useMemo(() => new Set((pinnedIds || []).map(String)), [pinnedIds]);
   const starredSet = useMemo(() => new Set((starredIds || []).map(String)), [starredIds]);
@@ -163,6 +180,7 @@ export function useConversationSelection({
     toggleStar,
     startSelect,
     toggleSelected,
+    deselectIds,
     exitSelectMode,
   };
 }

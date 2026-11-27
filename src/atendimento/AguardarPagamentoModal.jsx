@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { moverSelecaoRadio, useDialogFocus } from "./useDialogFocus";
+import { useMobileOverlayBack } from "./useMobileOverlayBack";
+import { hojeNoFusoDaEmpresa } from "./prazoDataMinima";
 import "./aguardarPagamento.css";
 
 const OPCOES = [
@@ -55,39 +58,65 @@ function IconClose() {
   );
 }
 
-export default function AguardarPagamentoModal({ open, busy, onClose, onConfirm }) {
+export default function AguardarPagamentoModal({ open, busy, onClose, onConfirm, returnFocusRef }) {
   const [prazo, setPrazo] = useState("hoje");
   const [data, setData] = useState("");
+  /** Falha do último envio, mostrada DENTRO do modal (o toast ficava sob o véu — R7-04). */
+  const [erro, setErro] = useState(null);
+  const dialogRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     setPrazo("hoje");
     setData("");
+    setErro(null);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // CAPTURA + preventDefault: sem isto o ESC global fechava a conversa junto (ver AguardarClienteModal).
     const onKey = (e) => {
-      if (e.key === "Escape" && !busy) onClose?.();
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!busy) onClose?.();
     };
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       document.body.style.overflow = prev;
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
   }, [open, busy, onClose]);
 
-  const handleConfirm = useCallback(() => {
+  useDialogFocus({
+    open,
+    dialogRef,
+    returnFocusRef,
+    getInitialFocus: () => dialogRef.current?.querySelector('[role="radio"][aria-checked="true"]'),
+  });
+
+  // Celular: o "voltar" fecha só o modal, não a conversa (R4-05) — mesmo salvando: a entrada do
+  // histórico já foi consumida (ver AguardarClienteModal). O resultado chega em pílula/toast.
+  useMobileOverlayBack(open, () => onClose?.(), "aguardar");
+
+  const handleConfirm = useCallback(async () => {
     if (busy) return;
-    onConfirm?.({ prazo, data: prazo === "data" ? data : undefined });
+    setErro(null);
+    try {
+      await onConfirm?.({ prazo, data: prazo === "data" ? data : undefined });
+    } catch (e) {
+      setErro(e?.userMessage || e?.message || "Tente de novo em instantes.");
+    }
   }, [busy, onConfirm, prazo, data]);
 
   if (!open) return null;
 
-  const dataInvalida = prazo === "data" && !/^\d{4}-\d{2}-\d{2}$/.test(String(data || "").trim());
-  const minDate = new Date().toISOString().slice(0, 10);
+  // A3-11: "hoje" no fuso da EMPRESA, não o dia UTC (ver AguardarClienteModal).
+  const minDate = hojeNoFusoDaEmpresa();
+  const dataTxt = String(data || "").trim();
+  const dataInvalida = prazo === "data" && (!/^\d{4}-\d{2}-\d{2}$/.test(dataTxt) || dataTxt < minDate);
 
   return createPortal(
     <div
@@ -98,10 +127,12 @@ export default function AguardarPagamentoModal({ open, busy, onClose, onConfirm 
       }}
     >
       <div
+        ref={dialogRef}
         className="zap-pg-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="zap-pg-title"
+        tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="zap-pg-modal__glow" aria-hidden="true" />
@@ -136,7 +167,12 @@ export default function AguardarPagamentoModal({ open, busy, onClose, onConfirm 
 
         <div className="zap-pg-body">
           <p className="zap-pg-section-label">Prazo de acompanhamento</p>
-          <div className="zap-pg-grid" role="radiogroup" aria-label="Prazo do pagamento">
+          <div
+            className="zap-pg-grid"
+            role="radiogroup"
+            aria-label="Prazo do pagamento"
+            onKeyDown={(e) => moverSelecaoRadio(e, OPCOES, prazo, setPrazo)}
+          >
             {OPCOES.map((op) => {
               const selected = prazo === op.id;
               return (
@@ -145,6 +181,7 @@ export default function AguardarPagamentoModal({ open, busy, onClose, onConfirm 
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
                   className={`zap-pg-card${selected ? " is-selected" : ""}`}
                   disabled={busy}
                   onClick={() => setPrazo(op.id)}
@@ -179,6 +216,23 @@ export default function AguardarPagamentoModal({ open, busy, onClose, onConfirm 
             </div>
           ) : null}
         </div>
+
+        {erro ? (
+          <div className="zap-pg-error" role="alert">
+            <span className="zap-pg-error__text">
+              <strong>Não foi possível definir o prazo.</strong> {erro}
+            </span>
+            <button
+              type="button"
+              className="zap-pg-error__close"
+              onClick={() => setErro(null)}
+              aria-label="Dispensar aviso"
+              title="Dispensar"
+            >
+              <IconClose />
+            </button>
+          </div>
+        ) : null}
 
         <footer className="zap-pg-footer">
           <button type="button" className="zap-pg-btn zap-pg-btn--ghost" disabled={busy} onClick={() => onClose?.()}>

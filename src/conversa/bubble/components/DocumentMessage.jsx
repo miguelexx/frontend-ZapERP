@@ -19,6 +19,8 @@ import {
 } from "../utils/inboundMediaReprocess";
 import { useNotificationStore } from "../../../notifications/notificationStore";
 import { salvarMidiaComFeedback, saveBlobAs } from "../../mediaDownload";
+import { cancelUpload, isUploadCancelable, uploadBatchSize } from "../../uploadProgressStore";
+import UploadProgressRing, { uploadTempIdOf, useUploadProgress } from "./UploadProgressRing";
 
 function toast(payload) {
   try {
@@ -70,7 +72,15 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
 
   // Recebido e ainda fora de /uploads → precisa da rede de recuperação (reprocess).
   const needsRecovery = canReprocessInboundMedia(msg, out);
-  const [busy, setBusy] = useState(false);
+  /* Qual ação está em curso: "open" | "save" | null. Um booleano só mostrava "Abrindo… ·
+     Salvando…" ao mesmo tempo ao clicar em qualquer uma (26/11/2026). As duas continuam
+     travadas enquanto uma corre; só o rótulo da que corre muda. */
+  const [busyAction, setBusyAction] = useState(null);
+  const busy = busyAction != null;
+  /* Documento ainda subindo: anel no ícone e "Enviando… 42% · Cancelar" no lugar de
+     "Abrir · Salvar como..." (abrir/salvar um arquivo que nem chegou ao servidor não faz sentido). */
+  const uploadProgress = useUploadProgress(msg);
+  const uploadTempId = uploadTempIdOf(msg);
 
   const handleCardClick = (e) => {
     if (!selectMode) e.stopPropagation();
@@ -116,7 +126,7 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
         /* ignore */
       }
     }
-    setBusy(true);
+    setBusyAction("open");
     try {
       let blob = null;
       // 1) Caminho rápido: a URL atual (proxy) ainda pode estar viva.
@@ -156,7 +166,7 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
       }
       toast(err?.code === "expired" ? TOAST_EXPIRADO : TOAST_FALHA);
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }, [selectMode, busy, openHref, recuperarHrefs, nome]);
 
@@ -167,7 +177,7 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
    */
   const handleDownload = useCallback(async () => {
     if (selectMode || busy) return;
-    setBusy(true);
+    setBusyAction("save");
     try {
       await salvarMidiaComFeedback({
         msg,
@@ -182,13 +192,19 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
         },
       });
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }, [selectMode, busy, downloadHref, msg, mediaUrl, nome]);
 
-  const abrirLabel = busy ? "Abrindo…" : "Abrir";
-  const salvarLabel = busy ? "Salvando…" : "Salvar como...";
+  const abrirLabel = busyAction === "open" ? "Abrindo…" : "Abrir";
+  const salvarLabel = busyAction === "save" ? "Salvando…" : "Salvar como...";
   const showSave = Boolean(mediaUrl) || needsRecovery;
+  const uploading = uploadProgress != null;
+  const uploadPct = uploading && uploadProgress < 1 ? Math.round(uploadProgress * 100) : null;
+  const podeCancelarUpload = uploading && uploadPct != null && isUploadCancelable(uploadTempId);
+  /* Lote = um pedido só: cancelar um documento cancela todos (27/11/2026). O botão diz isso
+     na tela — antes era só "Cancelar" e o lote inteiro sumia sem aviso. */
+  const loteUpload = podeCancelarUpload ? uploadBatchSize(uploadTempId) : 0;
 
   return (
     <div className={`wa-bubble-fileCard ${out ? "wa-bubble-fileCard--out" : ""}`} onClick={handleCardClick}>
@@ -196,6 +212,18 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
       <div className="wa-bubble-fileTop">
         <div className={`wa-bubble-fileIconWrap wa-bubble-fileIconWrap--${ext.toLowerCase()}`} aria-hidden="true">
           <span className="wa-bubble-fileExt">{ext}</span>
+          {/* Absoluto no ícone (já `position: relative`): não muda o tamanho do card. O X fica
+              na linha de ações ("Cancelar"), alvo maior que o anel de 36px. */}
+          {uploading ? (
+            <span className="wa-uploadOverlay wa-uploadOverlay--doc">
+              <UploadProgressRing
+                tempId={uploadTempId}
+                progress={uploadProgress}
+                variant="doc"
+                showCancel={false}
+              />
+            </span>
+          ) : null}
         </div>
         <div className="wa-bubble-fileMain">
           <span className="wa-bubble-fileName">{nome}</span>
@@ -209,49 +237,76 @@ export default function DocumentMessage({ msg, mediaUrl, selectMode, isGroup, ou
       </div>
       <MessageCaption texto={caption} show={Boolean(caption)} />
       <div className="wa-bubble-fileActions">
-        {/*
-         * "Abrir" abre o arquivo INLINE em nova aba, para qualquer tipo. O navegador
-         * renderiza o que sabe (PDF, XML, imagens, texto) e baixa os que não sabe
-         * (zip, exe, Office) — download imposto pelo navegador, nenhum site evita.
-         *
-         * Sempre botão + busca autenticada (nunca `<a href>` com o token na URL).
-         * O href carregava o JWT de sessão inteiro na query — e esse JWT é de 30 dias,
-         * com o perfil do usuário dentro. Como "Abrir"/"Salvar como..." são exatamente
-         * os controles que o atendente copia e repassa ("segue o arquivo"), o link virava
-         * uma credencial compartilhável, além de entrar no histórico e na barra de
-         * endereços. `handleOpen` já baixava o binário autenticado e abria por blob:
-         * aqui só deixamos de ter os dois caminhos (auditoria 10/10/2026).
-         */}
-        <button
-          type="button"
-          className="wa-bubble-fileAction"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpen();
-          }}
-          disabled={selectMode || busy || (!openHref && !needsRecovery)}
-          aria-busy={busy ? "true" : undefined}
-        >
-          {abrirLabel}
-        </button>
-        {showSave ? (
+        {uploading ? (
           <>
-            <span className="wa-bubble-fileActionSep" aria-hidden="true">·</span>
-            {/* Mesmo motivo do "Abrir": `<a href>` expunha o token de sessão na URL. */}
+            <span className="wa-bubble-fileUploadStatus">
+              {uploadPct != null ? `Enviando… ${uploadPct}%` : "Enviando…"}
+            </span>
+            {podeCancelarUpload ? (
+              <>
+                <span className="wa-bubble-fileActionSep" aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  className="wa-bubble-fileAction"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    cancelUpload(uploadTempId);
+                  }}
+                  disabled={selectMode}
+                  title={loteUpload > 1 ? `Cancela o envio dos ${loteUpload} arquivos` : undefined}
+                >
+                  {loteUpload > 1 ? `Cancelar todos (${loteUpload})` : "Cancelar"}
+                </button>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {/*
+             * "Abrir" abre o arquivo INLINE em nova aba, para qualquer tipo. O navegador
+             * renderiza o que sabe (PDF, XML, imagens, texto) e baixa os que não sabe
+             * (zip, exe, Office) — download imposto pelo navegador, nenhum site evita.
+             *
+             * Sempre botão + busca autenticada (nunca `<a href>` com o token na URL).
+             * O href carregava o JWT de sessão inteiro na query — e esse JWT é de 30 dias,
+             * com o perfil do usuário dentro. Como "Abrir"/"Salvar como..." são exatamente
+             * os controles que o atendente copia e repassa ("segue o arquivo"), o link virava
+             * uma credencial compartilhável, além de entrar no histórico e na barra de
+             * endereços. `handleOpen` já baixava o binário autenticado e abria por blob:
+             * aqui só deixamos de ter os dois caminhos (auditoria 10/10/2026).
+             */}
             <button
               type="button"
               className="wa-bubble-fileAction"
               onClick={(e) => {
                 e.stopPropagation();
-                handleDownload();
+                handleOpen();
               }}
-              disabled={selectMode || busy}
-              aria-busy={busy ? "true" : undefined}
+              disabled={selectMode || busy || (!openHref && !needsRecovery)}
+              aria-busy={busyAction === "open" ? "true" : undefined}
             >
-              {salvarLabel}
+              {abrirLabel}
             </button>
+            {showSave ? (
+              <>
+                <span className="wa-bubble-fileActionSep" aria-hidden="true">·</span>
+                {/* Mesmo motivo do "Abrir": `<a href>` expunha o token de sessão na URL. */}
+                <button
+                  type="button"
+                  className="wa-bubble-fileAction"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload();
+                  }}
+                  disabled={selectMode || busy}
+                  aria-busy={busyAction === "save" ? "true" : undefined}
+                >
+                  {salvarLabel}
+                </button>
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
       </div>
     </div>
   );

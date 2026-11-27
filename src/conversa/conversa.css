@@ -2362,8 +2362,9 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
 /* Véu da abertura (ThreadOpeningVeil, 17/11/2026): bolhas-fantasma ancoradas no fundo
    cobrem o intervalo da máscara e saem em fade cruzado com a thread. Irmão absoluto do
    scroller (não entra no fluxo nem no scrollHeight). Entra com um pequeno atraso: abertura
-   rápida não chega a mostrar o véu; sai mais rápido do que a thread entra (220ms) para as
-   duas camadas não ficarem sobrepostas por muito tempo. */
+   rápida não chega a mostrar o véu. SAI em 40ms (26/11/2026): a thread entra em 130ms e o véu
+   (z-index acima do scroller) levava 160ms — 9 frames de fantasmas pintados POR CIMA das bolhas
+   reais ("dupla exposição") em toda abertura. Só é ativado sem lista em mãos (ConversaView). */
 .wa-openVeil {
   position: absolute;
   top: 0;
@@ -2376,8 +2377,8 @@ html:not([data-theme="dark"]) .wa-actions .wa-btn-orcamento:hover:not(:disabled)
   opacity: 0;
   visibility: hidden;
   transition:
-    opacity 160ms cubic-bezier(0.4, 0, 1, 1),
-    visibility 0s linear 160ms;
+    opacity 40ms linear,
+    visibility 0s linear 40ms;
 }
 
 .wa-openVeil.is-active {
@@ -3266,6 +3267,25 @@ html:not([data-theme="dark"]) .wa-bubble:hover {
   color: #1E6FE8;
 }
 
+/*
+ * Foto/vídeo SEM legenda: a hora e o tique ficam num chip escuro por cima da mídia — texto
+ * branco nos dois sentidos (26/11/2026). A regra do balão enviado acima (azul-escuro com
+ * !important) vencia e o "09:20 ✓" ficava ilegível; no vídeo recebido a hora era cinza.
+ */
+.wa-bubble:is(.wa-bubble-media.image-message, .wa-bubble-video):not(:has(.wa-bubble-caption)) .wa-bubble-meta,
+.wa-bubble:is(.wa-bubble-media.image-message, .wa-bubble-video):not(:has(.wa-bubble-caption)) .wa-bubble-meta :is(.wa-bubble-time, .wa-ticks:not(.isErr)) {
+  color: #fff !important;
+}
+
+/* R7-06 (27/11/2026): azul mais claro — sobre o chip escuro (.55) dá ≥ 3:1 mesmo com foto branca. */
+.wa-bubble:is(.wa-bubble-media.image-message, .wa-bubble-video):not(:has(.wa-bubble-caption)) .wa-bubble-meta .wa-ticks.isRead {
+  color: #a5e3ff !important;
+}
+
+.wa-bubble:is(.wa-bubble-media.image-message, .wa-bubble-video):not(:has(.wa-bubble-caption)) .wa-bubble-meta .wa-bubble-time {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
 /* ---- Balão RECEBIDO: horário legível conforme o tema ---- */
 [data-theme="dark"] .wa-bubble-in .wa-inlineMeta,
 [data-theme="dark"] .wa-bubble-in .wa-bubble-meta,
@@ -3446,19 +3466,27 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   padding:5px 36px 5px 8px;
 }
 
-/* Texto curto ("oi"): hora + ticks na mesma linha; texto longo: meta abaixo alinhada à direita */
+/*
+ * Hora + tiques DEPOIS DA ÚLTIMA LINHA, no canto direito — como no WhatsApp (A1-07, 27/11/2026).
+ *
+ * Antes era uma linha flex com `align-items: baseline`: num texto de várias linhas a hora
+ * alinhava pela PRIMEIRA linha ("Itens do pedido:  11:53 ✓✓") e, num parágrafo quebrado, caía
+ * numa linha própria à ESQUERDA. Agora é o "float no fim": a hora flutua à direita logo depois
+ * do texto — se cabe na última linha, fica nela; se não cabe, desce para uma linha nova, ainda
+ * à direita. Texto curto ("oi 10:00 ✓✓") continua numa linha só (o max-content soma o float).
+ * `flow-root` contém o float, então a altura da bolha é determinística (o virtualizer mede).
+ */
 .wa-bubble-textInline{
-  display:flex;
-  flex-direction:row;
-  flex-wrap:wrap;
-  align-items:baseline;
-  gap:4px 6px;
+  display:flow-root;
   min-width:0;
 }
 
 .wa-bubble-textInline > .wa-inlineMeta{
-  flex-shrink:0;
-  margin-left:2px;
+  float:right;
+  /* 6px de cima aproxima o pé da hora da base da linha (linha ~20px, hora ~11px); o −4px de
+     baixo evita que a hora estique a última linha quando cabe nela. */
+  margin:6px 0 -4px 8px;
+  position:relative;
 }
 
 .wa-bubble-textInline > .wa-link{
@@ -3466,6 +3494,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 }
 
 .wa-bubble-textInline > .wa-bubble-textBody{
+  display:inline;
   min-width:0;
   max-width:100%;
   overflow-wrap:anywhere;
@@ -5071,6 +5100,23 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   user-select: none;
 }
 
+/*
+ * A2-06 (27/11/2026): no toque, "Abrir" e "Salvar como…" eram links de 17px de altura. Alvo de
+ * 40px; a margem negativa devolve o espaço, então o cartão NÃO muda de altura (sem salto na
+ * thread virtualizada). O cartão inteiro continua NÃO sendo "Abrir": o toque longo/seleção
+ * dependem dele.
+ */
+@media (pointer: coarse) {
+  .wa-bubble-fileAction {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 8px;
+    /* (17px da linha − 40px) ÷ 2: a caixa de margem volta aos 17px de antes. */
+    margin: -11.5px -4px;
+  }
+}
+
 /* Enviadas — ícone com contraste no fundo verde */
 .wa-bubble-fileCard--out .wa-bubble-fileIconWrap {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.08);
@@ -5140,6 +5186,69 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
+/*
+ * A1-03 (27/11/2026): o balão ENVIADO é azul-claro nos dois temas, mas os cartões de arquivo e
+ * de contato herdavam os tokens do modo escuro (texto quase branco): nome do arquivo 1.16:1,
+ * "Abrir" 1.86:1, nome do contato 1.18:1. Dentro do balão enviado os cartões usam os tokens
+ * escuros do próprio balão (o mesmo #0B2A4A do texto) — ≥ 4.5:1 em tudo.
+ */
+[data-theme="dark"] .wa-bubble-out :is(.wa-bubble-fileCard, .wa-bubble-contactCard) {
+  --wa-text: #0b2a4a;
+  --wa-text-muted: rgba(11, 42, 74, 0.72);
+  color: #0b2a4a;
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-bubble-fileCard {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(11, 42, 74, 0.14);
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-bubble-fileCard:hover {
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(11, 42, 74, 0.2);
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-bubble-fileActions,
+[data-theme="dark"] .wa-bubble-out .wa-bubble-contactList {
+  border-top-color: rgba(11, 42, 74, 0.14);
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-bubble-contactDivider {
+  background: rgba(11, 42, 74, 0.14);
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-bubble-contactListRow {
+  border-bottom-color: rgba(11, 42, 74, 0.1);
+}
+
+/* Ações (Abrir · Salvar como… / Conversar · Adicionar a um grupo) no balão enviado: azul
+   escuro nos dois temas — o accent claro do tema dava 4.3:1 no claro e 1.8:1 no escuro. */
+.wa-bubble-out :is(.wa-bubble-fileAction, .wa-bubble-contactAction, .wa-bubble-contactMiniAction) {
+  color: #1d4ed8;
+}
+
+.wa-bubble-out :is(.wa-bubble-fileAction, .wa-bubble-contactAction):hover:not(:disabled):not([aria-disabled="true"]) {
+  color: #1e3a8a;
+}
+
+.wa-bubble-out .wa-bubble-contactMiniAction:hover:not(:disabled) {
+  background: rgba(29, 78, 216, 0.1);
+}
+
+/* Produto do catálogo enviado (modo escuro): mesmo problema — nome #e9edef sobre o azul-claro. */
+[data-theme="dark"] .wa-bubble-out .wa-productMsg {
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(11, 42, 74, 0.1);
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-productMsg-name {
+  color: #0b2a4a;
+}
+
+[data-theme="dark"] .wa-bubble-out .wa-productMsg-price {
+  color: #04694f;
+}
+
 /* ===========================================
    CARTÃO DE CONTATO (tipo contact)
    =========================================== */
@@ -5193,6 +5302,18 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   font-weight: 600;
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+/* Contato sem letra no nome (só o número): boneco genérico, como a lista (A1-16). */
+svg.wa-bubble-contactPersonIcon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
+.wa-bubble-contactStack svg.wa-bubble-contactPersonIcon {
+  width: 21px;
+  height: 21px;
 }
 
 .wa-bubble-contactInfo {
@@ -5552,9 +5673,11 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
 
 /* Balão ENVIADO (azul claro nos 2 temas): card de localização com texto escuro legível.
    Sem isto, no modo escuro o card herdava --wa-text (claro) sobre o fundo azul-claro = ilegível. */
+/* A1-03, revisão (27/11): .66 (×.9 de opacidade nas coordenadas) e .58 no rodapé davam 3.5–3.6:1
+   para texto de 11–12px nos dois temas. Mesmos tokens dos cartões de arquivo/contato: ≥ 4.5:1. */
 .wa-bubble-locationCard--out .wa-bubble-locationBadge,
 .wa-bubble-locationCard--out .wa-bubble-locationCoords {
-  color: rgba(11, 42, 74, 0.66);
+  color: rgba(11, 42, 74, 0.8);
 }
 .wa-bubble-locationCard--out .wa-bubble-locationAddress {
   color: #0B2A4A;
@@ -5566,7 +5689,7 @@ html:not([data-theme="dark"]) .wa-bubble-in .wa-bubble-text a {
   color: #0B3D91;
 }
 .wa-bubble-locationCard--out .wa-bubble-locationFooter {
-  color: rgba(11, 42, 74, 0.58);
+  color: rgba(11, 42, 74, 0.72);
   border-top-color: rgba(11, 42, 74, 0.14);
 }
 [data-theme="dark"] .wa-bubble-locationCard--out .wa-bubble-locationFooter {
@@ -7575,6 +7698,37 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   }
 }
 
+/*
+ * A2-12 (27/11/2026): em 320px (iPhone SE 1.ª geração, Androids pequenos) as três velocidades
+ * não cabiam ao lado da onda — o "2×" era cortado na borda da bolha. Em 360–414px cabiam, mas
+ * espremiam a onda a ~22px (impossível de arrastar). Em celular as velocidades descem para uma
+ * linha própria, à direita, e a onda volta a ocupar a largura (~110–150px). Só CSS: o
+ * AudioWavePlayer (troca de src / el.load()) não muda.
+ * Revisão (27/11): vale para todo o celular e para o tablet em pé / janela estreita (≤899px).
+ * Com o corte em 420px, de 421 a 640px (iPhone Pro Max 430, Androids grandes) a bolha continua
+ * com ~305px e a onda caía para 12–20px, com as barras cortadas; de 641 a 899px (lista + conversa
+ * lado a lado, iPad em pé) a onda ficava com 8–37px e, em 641px, o "2×" saía da bolha. A partir
+ * de 900px a bolha atinge o teto (378px) e a onda inline tem ~55px: lá nada muda.
+ */
+@media (max-width: 899px) {
+  .wa-bubble-audio .wa-audioWaveRow,
+  .wa-bubble.audio-message .wa-audioWaveRow {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .wa-bubble-audio .wa-audioWave,
+  .wa-bubble.audio-message .wa-audioWave {
+    flex: 1 1 0;
+  }
+
+  .wa-bubble-audio .wa-audioWaveRow .wa-audioSpeedGroup,
+  .wa-bubble.audio-message .wa-audioWaveRow .wa-audioSpeedGroup {
+    flex: 1 0 100%;
+    justify-content: flex-end;
+  }
+}
+
 /* Vídeo — player nativo */
 .wa-bubble-video {
   padding: 3px;
@@ -7839,7 +7993,13 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
   bottom: 7px;
   right: 7px;
   transform: none;
-  background: rgba(0, 0, 0, 0.34);
+  /* R7-06: .34 dava 2.4:1 para a hora branca sobre foto clara (documento, print, produto no
+     branco). .55 dá ~4.7:1 no pior caso (foto branca) e continua discreto em foto escura. */
+  background: rgba(0, 0, 0, 0.55);
+  /* Revisão (27/11): no celular o `.wa-bubble-meta { opacity: .76 }` do bloco ≤640px esmaecia o
+     chip inteiro (fundo + texto) — sobre foto branca a hora caía para 3.0:1 e o tique azul de
+     lida para 2.3:1. O chip já tem fundo próprio: opacidade cheia. */
+  opacity: 1;
   color: #fff;
   border-radius: 8px;
   padding: 2px 6px;
@@ -7941,7 +8101,6 @@ html:not([data-theme="dark"]) .wa-bubble-out .wa-audioPlayer {
 
 .wa-bubble-media.image-message:not(:has(.wa-bubble-caption)) .wa-bubble-meta,
 .wa-bubble-media.sticker-message .wa-bubble-meta,
-.wa-bubble-video:not(:has(.wa-bubble-caption)) .wa-bubble-meta,
 .wa-bubble-image .wa-bubble-meta{
   top:6px;
   bottom:auto;
@@ -9466,14 +9625,49 @@ html:not([data-theme="dark"]) .wa-selectBar {
 }
 
 /* highlight ao scroll para mensagem citada (reply) — inovador: glow + leve breathe */
+/*
+ * Pulo para uma mensagem (busca, citação, fixada) — 26/11/2026: realce suave NA BOLHA, como no
+ * WhatsApp. Antes era um retângulo azul de canto vivo na LINHA inteira (largura da coluna) com
+ * scale(1.01), que parecia contorno de depuração e deslocava as bolhas. Outline segue o raio da
+ * bolha e não entra no fluxo (o virtualizer não remede nada). Tinta leve na linha.
+ */
 .highlight-reply {
-  animation: flash-reply 1.5s ease-out;
+  animation: wa-jump-tint 1.6s ease-out;
 }
-@keyframes flash-reply {
-  0% { box-shadow: 0 0 0 2px var(--wa-green, #2E86FF); transform: translateY(-0.5px); }
-  20% { box-shadow: 0 0 0 4px var(--wa-green, #2E86FF); transform: translateY(-0.5px) scale(1.01); }
-  50% { box-shadow: 0 0 0 3px var(--wa-green, #2E86FF); transform: translateY(-0.5px) scale(1.01); }
-  100% { box-shadow: none; transform: none; }
+.highlight-reply :is(.wa-bubble, .wa-internalNote-card, .wa-internalMovement-card, .wa-botTriage-pill) {
+  animation: wa-jump-flash 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes wa-jump-flash {
+  0%, 35% {
+    outline: 3px solid color-mix(in srgb, var(--ds-accent, #2E86FF) 55%, transparent);
+    outline-offset: 2px;
+  }
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 6px;
+  }
+}
+@keyframes wa-jump-tint {
+  0%, 30% { background-color: color-mix(in srgb, var(--ds-accent, #2E86FF) 9%, transparent); }
+  100% { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * R7-07 (27/11/2026): `!important` de propósito. A regra global de zap-animations.css
+   * (`*, *::before, *::after { animation-duration: 0.01ms !important }`) zerava este realce
+   * estático e, com movimento reduzido, o pulo (busca, citação, fixada) não indicava QUAL
+   * mensagem era o alvo. Contorno fixo + tinta que só esmaece: nada se move.
+   */
+  .highlight-reply {
+    animation: wa-jump-tint 1.6s ease-out !important;
+  }
+  .highlight-reply :is(.wa-bubble, .wa-internalNote-card, .wa-internalMovement-card, .wa-botTriage-pill) {
+    animation: wa-jump-flash-rm 1s linear !important;
+  }
+  @keyframes wa-jump-flash-rm {
+    0%, 50% { outline: 3px solid color-mix(in srgb, var(--ds-accent, #2E86FF) 55%, transparent); outline-offset: 2px; }
+    100% { outline: 3px solid transparent; outline-offset: 2px; }
+  }
 }
 
 
@@ -10424,8 +10618,45 @@ main.main-content--crm .wa-mediaPreview-composer {
   max-height: 100%;
 }
 
-.wa-imageSend-reactCrop .ReactCrop__crop-mask {
-  background: rgba(0, 0, 0, 0.72);
+/*
+ * A caixa do recorte abraça a foto (26/11/2026). O `max-height: 100%` da imagem resolvia
+ * contra o wrapper de altura auto (não valia nada): foto em retrato saía cortada em cima e
+ * embaixo, e a seleção cobria as faixas pretas — o que se via não era o que se enviava. Com
+ * unidades de container o limite é o palco de verdade, e % do recorte = % da foto.
+ */
+@supports (height: 1cqh) {
+  .wa-imageSend-photoStage {
+    container-type: size;
+  }
+
+  .wa-imageSend-reactCrop.ReactCrop {
+    display: inline-block;
+    width: auto;
+    height: auto;
+  }
+
+  .wa-imageSend-reactCrop .ReactCrop__child-wrapper {
+    display: block !important;
+  }
+
+  .wa-imageSend-reactCrop .ReactCrop__child-wrapper > img {
+    max-width: 100cqw !important;
+    max-height: 100cqh !important;
+  }
+}
+
+/*
+ * A máscara do react-image-crop é um <svg> por cima de tudo, que já desenha o escurecido FORA
+ * da seleção (retângulo com um furo). Um `background` no próprio svg pintava também o furo:
+ * a foto inteira aparecia a ~28% do brilho no editor (26/11/2026). Escurece só o retângulo.
+ */
+.wa-imageSend-reactCrop .ReactCrop__crop-mask > rect {
+  fill-opacity: 0.6;
+}
+
+/* Grade dos terços só enquanto arrasta a seleção (foto limpa ao abrir, como no WhatsApp). */
+.wa-imageSend-reactCrop:not(.ReactCrop--active) :is(.ReactCrop__rule-of-thirds-hz, .ReactCrop__rule-of-thirds-vt) {
+  display: none;
 }
 
 .wa-imageSend-reactCrop .ReactCrop__crop-selection {
@@ -11628,8 +11859,9 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
 
 .wa-stickerPanel {
   position: fixed;
-  left: 70px;
-  bottom: 82px;
+  /* Ancorado no botão de emoji pelo StickerEmojiPicker (variáveis); o fallback é o antigo. */
+  left: var(--wa-mp-left, 70px);
+  bottom: var(--wa-mp-bottom, 82px);
   width: min(360px, calc(100vw - 32px));
   max-height: min(460px, calc(100vh - 120px));
   max-height: min(460px, calc(100dvh - 120px));
@@ -12336,6 +12568,13 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Participante sem letra no nome (A3-06): boneco no lugar de "5" / "(1". */
+.wa-groupPersonAvatar svg {
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
 }
 
 .wa-groupPersonMeta {
@@ -13532,23 +13771,24 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
     font-size: 17px;
   }
 
+  /* A2-02: largura da TRILHA, sem o `94%` cíclico (ver o bloco ≤480px). 428 = 420 + 8. */
   .wa-bubble.wa-bubble-media.image-message.hasInlineMeta,
   .wa-bubble.wa-bubble-media.image-message {
-    max-width: min(420px, calc(100vw - 24px), 94%);
+    max-width: min(428px, calc((100vw - 26px) * 0.84));
     padding: 2px 3px 3px 3px;
     border-radius: 12px;
     overflow: visible;
   }
 
   .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) {
-    max-width: min(420px, calc(100vw - 24px), 94%);
+    max-width: min(428px, calc((100vw - 26px) * 0.84));
     padding: 2px 3px 3px 3px;
     border-radius: 12px;
     overflow: visible;
   }
 
   .wa-bubble.image-message .wa-bubble-mediaStack {
-    max-width: min(420px, calc(100vw - 24px));
+    max-width: min(420px, calc((100vw - 26px) * 0.84 - 8px));
   }
 
   .wa-bubble-sticker .wa-bubble-imgLink,
@@ -13558,10 +13798,11 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   }
 
   .wa-bubble.image-message .wa-bubble-imgLink {
-    /* Mobile preenche mais a coluna; a altura continua saindo de largura × proporção. */
-    --wa-media-max-w: min(420px, calc(100vw - 24px));
+    /* Mobile preenche mais a coluna; a altura continua saindo de largura × proporção.
+       A2-02: teto = trilha − 8px, para a moldura nunca passar da bolha. */
+    --wa-media-max-w: min(420px, calc((100vw - 26px) * 0.84 - 8px));
     --wa-media-max-h: min(480px, 68vh);
-    max-width: min(420px, calc(100vw - 24px));
+    max-width: min(420px, calc((100vw - 26px) * 0.84 - 8px));
   }
 
   .wa-bubble.image-message .wa-bubble-img {
@@ -13956,17 +14197,28 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
     line-height: 1.38;
   }
 
-  /* Reforça cartão de imagem após .wa-bubble genérico (≤480px) */
+  /*
+   * Reforça cartão de imagem após .wa-bubble genérico (≤480px).
+   *
+   * A2-02 (27/11/2026): foto e legenda eram cortadas à direita em todo celular. Duas causas:
+   * (1) a moldura saía de `100vw - 14px`, mais larga que a trilha da linha (`min(84%, 520px)`
+   *     no bloco ≤640px), e (2) o `96%` da bolha resolvia contra .wa-swipeReplyShift, que
+   *     encolhe até a própria bolha — a bolha ficava sempre ~4% mais estreita que o conteúdo.
+   * Agora tudo sai da LARGURA DA TRILHA, sem porcentagem cíclica:
+   *   trilha  ≈ (100vw − 20px de padding da thread) × 0.84  → usamos −26px (folga p/ a
+   *             barra de rolagem de 5px num navegador de desktop estreito);
+   *   moldura = trilha − 8px (padding 3+3 e borda 1+1 da bolha).
+   */
   .wa-bubble.wa-bubble-media.image-message,
   .wa-bubble.wa-bubble-media.image-message.hasInlineMeta {
-    max-width: min(calc(100vw - 14px), 420px, 96%);
+    max-width: calc((100vw - 26px) * 0.84);
     padding: 2px 3px 3px 3px;
     border-radius: 12px;
     overflow: hidden;
   }
 
   .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) {
-    max-width: min(calc(100vw - 14px), 420px, 96%);
+    max-width: calc((100vw - 26px) * 0.84);
     padding: 2px 3px 3px 3px;
     border-radius: 12px;
     overflow: hidden;
@@ -13976,12 +14228,18 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
   .wa-bubble.image-message .wa-bubble-imgLink,
   .wa-bubble.image-message .wa-bubble-img,
   .wa-bubble.image-message .wa-bubble-caption {
-    max-width: min(calc(100vw - 14px), 420px);
+    max-width: min(calc((100vw - 26px) * 0.84 - 8px), 420px);
   }
 
   .wa-bubble.image-message .wa-bubble-imgLink {
-    --wa-media-max-w: min(calc(100vw - 14px), 420px);
+    --wa-media-max-w: min(calc((100vw - 26px) * 0.84 - 8px), 420px);
     --wa-media-max-h: min(480px, 68vh);
+  }
+
+  /* Vídeo: a moldura de `min(78vw, 320px)` passava a trilha em 320–360px (corte de 8–12px). */
+  .wa-bubble-videoLink,
+  .wa-bubble.wa-bubble-video:has(.wa-bubble-caption) .wa-bubble-videoLink {
+    max-width: min(calc(100vw - 74px), calc((100vw - 26px) * 0.84 - 8px));
   }
 
   .wa-bubble.image-message .wa-bubble-img {
@@ -15525,6 +15783,11 @@ html:not([data-theme="dark"]) .wa-sendBtn:hover:not(:disabled) {
       0 8px 22px -20px rgba(15, 23, 42, 0.42);
   }
 
+  /* Vídeo preenche a bolha como a foto (a regra genérica acima deixava um vão de 41px à direita). */
+  .wa-bubble.wa-bubble-video {
+    padding: 3px;
+  }
+
   .wa-bubble:hover {
     transform: none;
   }
@@ -16232,6 +16495,42 @@ html[data-theme="dark"] .wa-internalNote-card {
   }
 }
 
+/*
+ * A2-05 (27/11/2026): no toque a seta tinha 22px, colada no "enviar" — um toque 3px à esquerda
+ * MANDAVA o rascunho ao cliente em vez de abrir o seletor Cliente/Nota interna. Alvo de 36px e
+ * divisória mais visível; o enviar encolhe 4px (continua ≥ 44px) para a pílula crescer pouco.
+ */
+@media (pointer: coarse) {
+  .wa-sendSplit-main {
+    width: 48px;
+  }
+
+  .wa-sendSplit-arrow {
+    width: 36px;
+  }
+
+  .wa-sendSplit-divider {
+    height: 24px;
+    background: rgba(255, 255, 255, 0.38);
+  }
+
+  /* Variantes (revisão 27/11): as regras de cor de cada pele vêm DEPOIS deste bloco com a mesma
+     especificidade — nota âmbar logo abaixo, escuro azul no fim do arquivo — e venciam (a nota
+     ficava em .3, o escuro em .28). `data-theme` sempre existe (main.jsx), então não há bloco
+     prefers-color-scheme: o antigo pintava de verde uma pílula que no escuro é azul. */
+  .wa-sendSplit.wa-sendSplit--nota .wa-sendSplit-divider {
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  html:root[data-theme="dark"] .wa-sendSplit:not(.wa-sendSplit--nota) .wa-sendSplit-divider {
+    background: rgba(255, 255, 255, 0.4);
+  }
+
+  :root[data-theme="dark"] .wa-sendSplit.wa-sendSplit--nota .wa-sendSplit-divider {
+    background: rgba(245, 158, 11, 0.55);
+  }
+}
+
 /* ---- Nota mode — amber pill ---- */
 .wa-sendSplit--nota {
   background: #f59e0b;
@@ -16922,4 +17221,437 @@ html:not([data-theme="dark"]) .wa-shell .wa-header {
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
     transition-delay: var(--wa-ar-glide-delay, 0ms) !important;
   }
+}
+
+/* =========================================================
+   Experiência premium do atendimento (26/11/2026)
+   Auditoria das rotinas mais usadas (escrever, ações na mensagem, seleção).
+========================================================= */
+
+/* Selos de fixada/favorita: ícones (lucide), não glifos unicode. Ao lado da hora no texto. */
+.wa-inlineMeta-badge {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  opacity: 0.72;
+  margin-right: 1px;
+  vertical-align: -1px;
+}
+
+svg.wa-bubble-badge {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-left: 2px;
+  opacity: 0.85;
+}
+
+/* Bottom-sheet do celular: qual mensagem foi pressionada. */
+.wa-msgMenu-preview {
+  margin: 2px 6px 8px;
+  padding: 8px 10px 8px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 3px solid color-mix(in srgb, var(--wa-green, #25d366) 85%, #fff);
+  min-width: 0;
+}
+
+.wa-msgMenu-previewHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.wa-msgMenu-previewAuthor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-msgMenu-previewTime {
+  flex: none;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.wa-msgMenu-previewText {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.74);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* Reações no bottom-sheet: alvo de toque maior (eram 30×30, abaixo dos 44px recomendados). */
+.wa-msgMenu--sheet .wa-reactionPicker--menuMobile .wa-reactionPicker-btn {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 32px;
+  max-width: 44px;
+  height: 40px;
+}
+
+/* Arrastar para responder: seta que cresce atrás da bolha. */
+.wa-swipeReplyHint {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  z-index: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--wa-text-muted, #54656f);
+  background: color-mix(in srgb, var(--wa-panel, #fff) 88%, transparent);
+  box-shadow: 0 1px 3px rgba(11, 20, 26, 0.18);
+  pointer-events: none;
+}
+
+.wa-swipeReplyHint--out {
+  left: auto;
+  right: 2px;
+}
+
+.wa-swipeReplyHint.isArmed {
+  color: #fff;
+  background: var(--wa-green, #25d366);
+}
+
+/* Confirmação curta (pílula) acima do composer, centrada na área da conversa. */
+.wa-snack {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--wa-keyboard-inset, 0px) + var(--wa-composer-stack-h, 92px) + 14px);
+  z-index: 12500;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(17, 27, 33, 0.9);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 22px rgba(11, 20, 26, 0.28);
+  pointer-events: none;
+  animation: wa-snack-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.wa-snack--error {
+  background: rgba(176, 32, 32, 0.94);
+}
+
+@keyframes wa-snack-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+[data-theme="dark"] .wa-snack {
+  background: rgba(233, 237, 239, 0.95);
+  color: #111b21;
+}
+
+/*
+ * R7-05 (27/11/2026): no desktop `--wa-composer-stack-h` não existe (o hook do teclado só a
+ * publica no celular) e a pílula ficava a 92px fixos do rodapé — por cima do cartão de
+ * "Responder", da barra de edição e do modo nota interna. Aqui ela se ancora no TOPO REAL do
+ * composer (CSS anchor positioning), 14px acima. Sem suporte ao recurso, vale a regra de
+ * sempre. O celular não muda (teclado/visualViewport: zona de perigo).
+ */
+@supports (anchor-name: --a) and (position-anchor: --a) {
+  @media (min-width: 641px) {
+    .atendimento-chat-area :is(.wa-composerStack, .wa-closedPanel) {
+      anchor-name: --wa-composer-top;
+    }
+
+    .wa-snack {
+      position-anchor: --wa-composer-top;
+      bottom: calc(anchor(top, 92px) + 14px);
+    }
+  }
+}
+
+/* Diálogo de apagar: prévia da mensagem + explicação curta. */
+.wa-confirmPreview {
+  margin: 0 0 10px;
+  padding: 8px 10px 8px 11px;
+  border-radius: 10px;
+  border-left: 3px solid var(--ds-error, #d93025);
+  background: color-mix(in srgb, var(--ds-error, #d93025) 6%, transparent);
+  font-size: 13.5px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.wa-confirmBody {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+/* Teclado: controles da bolha que só aparecem no hover aparecem também com foco de teclado. */
+.wa-bubble:has(:focus-visible) :is(.wa-msgMenuBtn--top, .wa-reactionBtn, .wa-selectChk--hover) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wa-msgMenu:focus {
+  outline: none;
+}
+
+/* Celular: microfone e enviar com a mesma altura de bloco — o composer não muda 2px a cada envio. */
+@media (max-width: 640px) {
+  .wa-footer-right {
+    min-height: 44px;
+  }
+}
+
+/* Desktop: a barra de resposta/edição vira um cartão de citação logo acima do composer, no
+   mesmo estilo da citação dentro da bolha (antes era uma faixa branca de ponta a ponta). */
+@media (min-width: 641px) {
+  .wa-shell .wa-replyBar {
+    margin: 6px 16px 6px;
+    padding: 8px 10px 8px 12px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--wa-panel-border, #d1d7db) 85%, rgba(46, 134, 255, 0.35));
+    background: var(--wa-panel, #fff);
+    box-shadow: 0 2px 10px rgba(11, 20, 26, 0.06);
+  }
+
+  .wa-shell .wa-replyBar-left {
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--wa-input-bg, #f0f2f5) 75%, transparent);
+  }
+}
+
+/* Nota interna salvando: barra fina âmbar (cor da nota) no topo do composer. */
+.wa-composerStack--noteSaving::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 3;
+  background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: wa-noteSaving 0.9s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes wa-noteSaving {
+  from { background-position: -50% 0; }
+  to { background-position: 150% 0; }
+}
+
+/* Botão "Buscar histórico no WhatsApp" da conversa vazia: tinha a cor padrão do navegador
+   (preto, sem forma de botão) e sumia no tema escuro (contraste ~1.3:1). */
+.wa-messages-emptyCard .wa-btn-secondary {
+  color: var(--wa-text);
+  background: color-mix(in srgb, var(--ds-accent, #2e86ff) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-accent, #2e86ff) 32%, transparent);
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.wa-messages-emptyCard .wa-btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-accent, #2e86ff) 16%, transparent);
+}
+
+.wa-messages-emptyCard .wa-btn-secondary:focus-visible {
+  outline: 2px solid var(--ds-focus-ring, #2e86ff);
+  outline-offset: 2px;
+}
+
+.wa-messages-emptyCard .wa-btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Tema escuro: o botão de enviar ficou com o verde-esmeralda da pele antiga enquanto todo o
+   resto do app (e o tema claro) usa o azul de destaque. Azul mais fundo para o ícone branco
+   manter contraste. A variante âmbar de nota interna continua como estava. */
+:root[data-theme="dark"] .wa-sendSplit:not(.wa-sendSplit--nota) {
+  background: color-mix(in srgb, var(--ds-accent, #78a5ff) 62%, #0b1f44);
+  border-color: color-mix(in srgb, var(--ds-accent, #78a5ff) 70%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ds-accent, #78a5ff) 14%, transparent),
+    0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="dark"] .wa-sendSplit:not(.wa-sendSplit--nota) :is(.wa-sendSplit-main, .wa-sendSplit-arrow) {
+  color: #fff;
+}
+
+:root[data-theme="dark"] .wa-sendSplit:not(.wa-sendSplit--nota) .wa-sendSplit-divider {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Aviso de mídia local em bolha de foto/vídeo: não alarga a bolha além da mídia e não fica por
+   baixo do chip da hora (26/11/2026). Recusa definitiva em vermelho discreto. */
+.wa-bubble:is(.wa-bubble-media, .wa-bubble-video) .wa-local-media-notice {
+  width: 0;
+  min-width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding-right: 62px;
+}
+
+.wa-local-media-notice--erro {
+  color: var(--ds-error, #c62828);
+  font-weight: 500;
+}
+
+[data-theme="dark"] .wa-local-media-notice--erro {
+  color: #ff8e85;
+}
+
+/*
+ * Celular: menu de anexos em GRADE de ícones redondos, como no WhatsApp (26/11/2026). A lista de
+ * 11 linhas ocupava 72% da tela e ainda rolava ("Catálogo" escondido), com uma linha inteira só
+ * para o X e o fundo transparente. Agora cabe inteiro em ~300px, com fundo escurecido.
+ */
+@media (max-width: 640px) {
+  .wa-attachBackdrop.wa-attachBackdrop--portal {
+    background: rgba(11, 20, 26, 0.28);
+    animation: wa-attachScrimIn 180ms ease-out both;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-content: start;
+    row-gap: 14px;
+    column-gap: 4px;
+    padding: 22px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+    max-height: min(78vh, 560px);
+  }
+
+  /* Alça de arrastar no lugar da linha com o X (o fundo escurecido já fecha). */
+  .wa-attachMenu.wa-attachMenu--portal::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--wa-text, #111b21) 22%, transparent);
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachMenu-head,
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachDivider {
+    display: none;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 6px;
+    min-height: 0;
+    padding: 4px 2px;
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+    border-radius: 12px;
+    background: transparent;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem > span:last-child {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    /* A2-11: com 1.2 a caixa de 14.4px cortava a perna do "g"/"p"/"ç" ("Configurar Pix").
+       Sem padding-bottom: numa caixa com line-clamp ele deixaria vazar o topo da 3.ª linha. */
+    line-height: 1.32;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem-icon {
+    width: 54px;
+    height: 54px;
+    flex: none;
+    border-radius: 50%;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Preferência (correção automática) fica numa linha inteira embaixo da grade. */
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem--autocorrect {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 10px 12px 2px;
+    font-size: 14px;
+    text-align: left;
+    border-top: 1px solid color-mix(in srgb, var(--wa-text, #111b21) 8%, transparent);
+    border-radius: 0;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem--autocorrect .wa-attachItem-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .wa-attachMenu.wa-attachMenu--portal .wa-attachItem--autocorrect .wa-attachItem-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@keyframes wa-attachScrimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Prévia de mídia com resposta aberta: aviso de que a citação não vai junto com o arquivo. */
+.wa-mediaPreview-replyNote {
+  margin: 0 auto 8px;
+  max-width: min(640px, calc(100% - 24px));
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12.5px;
+  line-height: 1.35;
+  text-align: center;
 }

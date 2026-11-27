@@ -1,0 +1,272 @@
+/* =========================================================================================
+   Painel "Pesquisar mensagens" — camada própria (26/11/2026, C3 · C8 · E19)
+
+   Importado pelo ConversaMessageSearchPanel, que entra no chunk DEPOIS do conversa.css,
+   conversa.polish.css e conversa.whatsapp.css (ConversaView importa os três antes do
+   ConversaViewOverlays). Mesmo assim os seletores levam um degrau de especificidade a mais
+   (`.wa-shell > …`), para não dependerem da ordem do bundle.
+   A base do painel (cabeçalho, caixa, resultados) continua no conversa.css; aqui só o que
+   mudou: encaixe como coluna, sobreposição que não tapa o composer, estado "a pesquisar",
+   erro com "Tentar de novo", contagem e resultado ativo do teclado.
+========================================================================================= */
+
+/* ---------------------------------------------------------------------------------------
+   1) Desktop largo: COLUNA encaixada, como no WhatsApp Web (C3)
+
+   Flutuando por cima da thread, o painel tapava as bolhas ENVIADAS (alinhadas à direita) e o
+   composer. Encaixado, a thread e o composer cedem a largura do painel. A classe `--dock` só
+   aparece quando o componente mediu espaço (janela ≥1024px e ≥440px de mensagens ao lado do
+   painel); o @media é a rede de segurança.
+
+   `--wa-msgsearch-w` em %: na `width` do painel (absoluto) e na `margin-right` dos filhos em
+   fluxo, a percentagem é das DUAS vezes a largura do `.wa-shell` — os dois lados batem sempre.
+   O ConversaMessageSearchPanel usa a mesma conta (32%, entre 320 e 400px) para decidir.
+   `width: auto` na pilha do composer: o conversa.css dá-lhe `width: 100%`, que somado à
+   margem passaria da borda (o mesmo problema de `margin-inline` + `width: 100%` da lista).
+--------------------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  .wa-shell:has(> .wa-msgSearchPanel--dock) {
+    --wa-msgsearch-w: clamp(320px, 32%, 400px);
+  }
+
+  .wa-shell:has(> .wa-msgSearchPanel--dock) > .wa-messages,
+  .wa-shell:has(> .wa-msgSearchPanel--dock) > .wa-composerStack {
+    margin-right: var(--wa-msgsearch-w);
+    width: auto;
+    max-width: none;
+  }
+
+  /* A barra de seleção é absoluta no rodapé do shell: acaba onde a coluna começa. */
+  .wa-shell:has(> .wa-msgSearchPanel--dock) > .wa-selectBar {
+    right: var(--wa-msgsearch-w);
+  }
+
+  /* Histórico (Ctrl+H) com a busca encaixada (27/11/2026, R5-08): o painel do histórico é
+     absoluto em `right: 0` com z-index abaixo da coluna — abria inteiro POR BAIXO dela e o
+     atalho parecia não fazer nada. Encosta à esquerda da coluna, por cima da thread, como
+     faz sem a busca. O Esc fecha o histórico antes da busca (ESCAPE_PANEL_ORDER). */
+  .wa-shell:has(> .wa-msgSearchPanel--dock) > .wa-timeline {
+    right: var(--wa-msgsearch-w);
+  }
+
+  /* Dados do contato com a busca encaixada (27/11/2026, revisão G3): o painel do contato é
+     absoluto em `right: 0`, z 22 — abria inteiro POR BAIXO da coluna (z 42) e só o título
+     aparecia; o Esc fechava esse painel invisível. Como no WhatsApp Web, enquanto aberto ele
+     ocupa o lugar da coluna: fica por cima e com pelo menos a largura dela (nenhuma fresta da
+     busca espreita ao lado). Fechou (X, Esc, clique fora), a busca volta como estava. */
+  .wa-shell:has(> .wa-msgSearchPanel--dock) > .wa-sideCliente {
+    z-index: 43;
+    width: max(380px, var(--wa-msgsearch-w));
+  }
+
+  .wa-shell > .wa-msgSearchPanel.wa-msgSearchPanel--dock {
+    top: var(--wa-header-h, 72px);
+    right: 0;
+    bottom: 0;
+    width: var(--wa-msgsearch-w);
+    max-width: none;
+    border-width: 0 0 0 1px;
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--wa-panel-border) 88%, transparent);
+    border-radius: 0;
+    background: var(--wa-panel);
+    box-shadow: none;
+    animation: wa-msgSearchDockIn 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .wa-shell > .wa-msgSearchPanel--dock .wa-msgSearch-head {
+    background: var(--wa-panel);
+  }
+}
+
+@keyframes wa-msgSearchDockIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+   2) Sobreposto (641px+ sem espaço para a coluna): acaba ACIMA do composer.
+   `--wa-msgsearch-overlay-bottom` é a altura da `.wa-composerStack`, medida pelo componente
+   (ResizeObserver) e posta no próprio painel. No celular (≤640) o painel é ecrã inteiro,
+   como sempre.
+--------------------------------------------------------------------------------------- */
+@media (min-width: 641px) {
+  .wa-shell > .wa-msgSearchPanel:not(.wa-msgSearchPanel--dock) {
+    bottom: calc(var(--wa-msgsearch-overlay-bottom, 0px) + 12px);
+  }
+}
+
+/* 740–1024px o conversa.css estica o painel a `width: 100%` (folha de largura inteira, sem
+   cantos) mas deixava o `right: 12px` e os 10/12px de folga da base: a folha começava 12px
+   FORA do shell (recortada à esquerda) e a thread espreitava por frestas em cima e em baixo.
+   Aqui ela encosta no cabeçalho e no composer, com uma hairline em cada borda. */
+@media (min-width: 740px) and (max-width: 1024px) {
+  .wa-shell > .wa-msgSearchPanel:not(.wa-msgSearchPanel--dock) {
+    top: var(--wa-header-h, 72px);
+    right: 0;
+    bottom: var(--wa-msgsearch-overlay-bottom, 0px);
+    border-width: 1px 0;
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--wa-panel-border) 88%, transparent);
+    box-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.35);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+   3) "A pesquisar" sem piscar (C8): os resultados anteriores ficam, esmaecidos, com uma
+   barra fina por cima. A barra ocupa sempre os mesmos 2px (só a opacidade muda), por isso
+   nada se mexe quando ela acende. As margens negativas devolvem o espaço à caixa de cima.
+--------------------------------------------------------------------------------------- */
+.wa-msgSearchPanel .wa-msgSearch-progress {
+  position: relative;
+  flex: 0 0 auto;
+  height: 2px;
+  margin: -6px 18px 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.wa-msgSearchPanel .wa-msgSearch-progress.is-active {
+  opacity: 1;
+  transition-delay: 120ms; /* busca rápida não chega a acender a barra */
+}
+
+.wa-msgSearchPanel .wa-msgSearch-progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  border-radius: inherit;
+  background: var(--wa-green);
+  transform: translateX(-110%);
+}
+
+.wa-msgSearchPanel .wa-msgSearch-progress.is-active::before {
+  animation: wa-msgSearchProgress 1.05s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes wa-msgSearchProgress {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(270%);
+  }
+}
+
+.wa-msgSearchPanel .wa-msgSearch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: opacity 120ms ease-out;
+}
+
+.wa-msgSearchPanel .wa-msgSearch-results.is-refreshing .wa-msgSearch-list {
+  opacity: 0.55;
+}
+
+/* Contagem: "2 resultados" / "Mais de 30 resultados" — e a dica do teclado no desktop. */
+.wa-msgSearchPanel .wa-msgSearch-status {
+  flex: 0 0 auto;
+  padding: 0 22px 6px;
+  color: var(--wa-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-msgSearchPanel .wa-msgSearch-statusHint {
+  font-weight: 400;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .wa-msgSearchPanel .wa-msgSearch-statusHint {
+    display: none;
+  }
+}
+
+/* Resultado ativo do teclado (↑/↓): mesmo fundo da passagem do cursor + anel fino na tinta
+   do destaque, para se ler mesmo com o cursor parado noutro resultado. */
+.wa-msgSearchPanel .wa-msgSearch-result.is-active {
+  background: var(--ds-hover);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wa-green) 42%, transparent);
+}
+
+/* Estados (dica, a pesquisar, nada encontrado, erro) — coluna centrada. */
+.wa-msgSearchPanel .wa-msgSearch-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Erro: o vermelho puro dava ~3.9:1 no escuro. Misturado com a cor do texto fica legível nos
+   dois temas (escurece no claro, clareia no escuro) e continua a ler como erro. */
+.wa-msgSearchPanel .wa-msgSearch-state.isError {
+  color: color-mix(in srgb, var(--ds-danger, #dc2626) 72%, var(--wa-text));
+}
+
+.wa-msgSearchPanel .wa-msgSearch-state--inline {
+  padding: 14px 12px 6px;
+  font-size: 13px;
+}
+
+.wa-msgSearchPanel .wa-msgSearch-retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--wa-panel-border) 86%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wa-panel) 86%, transparent);
+  color: var(--wa-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.wa-msgSearchPanel .wa-msgSearch-retry:hover {
+  background: color-mix(in srgb, var(--wa-green) 10%, var(--wa-panel));
+}
+
+.wa-msgSearchPanel .wa-msgSearch-retry:focus-visible,
+.wa-msgSearchPanel .wa-msgSearch-more:focus-visible,
+.wa-msgSearchPanel .wa-msgSearch-close:focus-visible,
+.wa-msgSearchPanel .wa-msgSearch-clear:focus-visible {
+  outline: 2px solid var(--ds-focus-ring, var(--wa-green));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-shell > .wa-msgSearchPanel.wa-msgSearchPanel--dock {
+    animation: none;
+  }
+
+  .wa-msgSearchPanel .wa-msgSearch-progress,
+  .wa-msgSearchPanel .wa-msgSearch-list,
+  .wa-msgSearchPanel .wa-msgSearch-retry {
+    transition: none;
+  }
+
+  /* Sem varrimento: a barra fica parada, meio cheia, enquanto pesquisa. */
+  .wa-msgSearchPanel .wa-msgSearch-progress.is-active::before {
+    animation: none;
+    width: 50%;
+    transform: none;
+  }
+}

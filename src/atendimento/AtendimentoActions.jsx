@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { RotateCcw, Undo2, UserCheck } from "lucide-react";
 import { useAuthStore } from "../auth/authStore";
 import { useConversaStore } from "../conversa/conversaStore";
 import { useNotificationStore } from "../notifications/notificationStore";
@@ -29,6 +30,9 @@ import AguardarPagamentoModal from "./AguardarPagamentoModal";
 import AguardarClienteModal from "./AguardarClienteModal";
 import AguardandoClienteCountdown from "./AguardandoClienteCountdown";
 import EncerrarSplitButton from "./EncerrarSplitButton";
+import TransferirAtendimentoModal from "./TransferirAtendimentoModal";
+import { useMenuKeyboard } from "./useMenuKeyboard";
+import { useMobileOverlayBack } from "./useMobileOverlayBack";
 import "./aguardarPagamento.css";
 
 /** Erro de timeout/rede do axios (sem resposta do servidor). */
@@ -56,13 +60,25 @@ function getApiErrorMessage(e) {
   return e?.message || "Erro na operação.";
 }
 
-/** Usuário desativado não pode receber transferência (backend também rejeita). */
-function isUsuarioAtivoParaTransferencia(u) {
-  if (!u || typeof u !== "object") return false;
-  const v = u.ativo;
-  if (v === false || v === 0 || v === "0") return false;
-  if (typeof v === "string" && v.trim().toLowerCase() === "false") return false;
-  return true;
+/**
+ * Timeout/rede sem resposta: a mensagem diz "A tela foi atualizada com o estado atual". As
+ * ações otimistas já fazem esse refresh (runAcaoOtimista); as outras (transferir, aguardar,
+ * retomar, puxar) também precisam, senão o texto mente — o servidor pode ter aplicado a ação.
+ */
+function refreshSeSemResposta(e) {
+  if (!isSemRespostaDoServidor(e)) return;
+  try {
+    useConversaStore.getState().refresh?.({ silent: true });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Erro que sobe para o modal aberto (linha role="alert" dentro dele), em vez do toast. */
+function erroParaOModal(message) {
+  const erro = new Error(message);
+  erro.userMessage = message;
+  return erro;
 }
 
 function getAguardandoClienteErrorMessage(e) {
@@ -165,8 +181,18 @@ function IconAtendOrcamento() {
   );
 }
 
+/*
+ * Ícone em TODA ação da barra (26/11/2026): Assumir, Puxar e Retomar eram só texto ao lado de
+ * vizinhos com ícone de 16px. Mesmo traço (lucide, 1.9) e mesmo tamanho dos SVG da casa.
+ */
 function AtendimentoActionIcon({ id }) {
   switch (id) {
+    case "assumir":
+      return <UserCheck size={16} strokeWidth={1.9} aria-hidden="true" />;
+    case "puxar_novamente":
+      return <Undo2 size={16} strokeWidth={1.9} aria-hidden="true" />;
+    case "retomar_atendimento":
+      return <RotateCcw size={16} strokeWidth={1.9} aria-hidden="true" />;
     case "orcamento":
       return <IconAtendOrcamento />;
     case "transferir":
@@ -215,7 +241,8 @@ function renderOverflowSheetIcon(id) {
         </svg>
       );
     default:
-      return null;
+      // Toda ação no menu ⋯ leva ícone (antes "Aguardar pagamento" e "Puxar" vinham sem).
+      return <AtendimentoActionIcon id={id} />;
   }
 }
 
@@ -230,6 +257,9 @@ const MOBILE_TOOLBAR_PINNED_BASE = ["assumir", "transferir", "encerrar"];
  * @param {boolean} [props.splitCompactHeader] — mobile 2 linhas: ⋯ na linha 1, botões inline na linha 2 (grid do header)
  * @param {boolean} [props.showOrcamento] — Orçamento WM: gate de módulo+permissão+conversa já resolvido pelo cabeçalho (doc 36)
  * @param {() => void} [props.onOrcamento] — abre o drawer de orçamento da conversa atual
+ * @param {(t: object) => void} [props.showToast] — toast DA CONVERSA (useConversationToast). Com
+ *   ele, a confirmação de sucesso vira a pílula curta acima do composer (`variant: "snack"`) em
+ *   vez do cartão que cobria o nome e o selo que acabaram de mudar. Sem ele, cai no toast global.
  */
 export default function AtendimentoActions({
   compactToolbar = false,
@@ -238,6 +268,7 @@ export default function AtendimentoActions({
   splitCompactHeader = false,
   showOrcamento = false,
   onOrcamento,
+  showToast: showConversationToast,
 }) {
   const user = useAuthStore((s) => s?.user) ?? null;
 
@@ -250,7 +281,29 @@ export default function AtendimentoActions({
   const marcarAguardandoPagamentoConversa = useConversaStore((s) => s?.marcarAguardandoPagamentoConversa);
   const retomarAtendimentoConversa = useConversaStore((s) => s?.retomarAtendimentoConversa);
   const puxarConversaNovamente = useConversaStore((s) => s?.puxarConversaNovamente);
-  const showToast = useNotificationStore((s) => s?.showToast);
+  const showGlobalToast = useNotificationStore((s) => s?.showToast);
+
+  /*
+   * Toasts das ações (26/11/2026). Antes nenhum passava `type`: o 409 "Erro ao assumir" saía
+   * com o ícone azul de INFO, e o sucesso era um cartão no topo, por cima do cabeçalho que
+   * acabara de mudar. Agora:
+   *  - erro → `type: "error"` (vermelho), no toast global — sobrevive se a conversa fechar;
+   *  - sucesso → `type: "success"`; com o toast da conversa disponível, pílula curta acima do
+   *    composer (`variant: "snack"`), que não cobre o cabeçalho.
+   */
+  const showToast = useCallback(
+    (payload) => {
+      if (!payload) return;
+      if (payload.type === "success" && typeof showConversationToast === "function") {
+        // A pílula é UMA linha (max 420px, reticências): leva só o texto curto (`snack`).
+        showConversationToast({ type: "success", variant: "snack", title: payload.snack || payload.title });
+        return;
+      }
+      const { snack: _snack, ...card } = payload;
+      showGlobalToast?.(card);
+    },
+    [showConversationToast, showGlobalToast]
+  );
 
   const [departamentosLista, setDepartamentosLista] = useState(() => {
     const cached = getChatListFiltersDataCache();
@@ -259,16 +312,65 @@ export default function AtendimentoActions({
   const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
   const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
-  const [atendentes, setAtendentes] = useState([]);
-  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef(null);
   const overflowTriggerRef = useRef(null);
   const overflowMenuRef = useRef(null);
+  const actionsBarRef = useRef(null);
   const [overflowMenuPos, setOverflowMenuPos] = useState(null);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const { onMenuKeyDown } = useMenuKeyboard({
+    open: menuOpen && Boolean(overflowMenuPos),
+    menuRef: overflowMenuRef,
+    triggerRef: overflowTriggerRef,
+    onClose: closeMenu,
+  });
+  // Celular: o "voltar" fecha o menu ⋯, não a conversa (R4-05/A2-04).
+  useMobileOverlayBack(menuOpen, closeMenu, "atendMore");
+
+  /*
+   * Plano B do foco ao fechar um modal (useDialogFocus): quem abriu pode ter sumido — o item do
+   * menu ⋯ desmonta, e "Aguardar cliente" vira "Retomar" depois de confirmar. Aí o foco vai a
+   * um alvo NEUTRO: o gatilho ⋯ (celular) ou o ⋯ do cabeçalho (desktop). R4-07: antes caía no
+   * 1.º botão vivo da barra — que, depois de "Iniciar espera", é justamente "Retomar
+   * atendimento": um Enter repetido desfazia a espera na hora. A barra só entra em último
+   * caso, e nunca numa ação principal (preenchida), que muda o estado da conversa.
+   */
+  const modalReturnFocusRef = useMemo(
+    () => ({
+      get current() {
+        const trigger = overflowTriggerRef.current;
+        if (trigger && document.contains(trigger)) return trigger;
+        const bar = actionsBarRef.current;
+        const more = bar?.closest?.(".wa-header")?.querySelector?.(".wa-header-moreBtn");
+        if (more && document.contains(more) && !more.disabled) return more;
+        return bar?.querySelector?.("button:not([disabled]):not(.wa-btn-primary)") || null;
+      },
+    }),
+    []
+  );
+
+  /** Lidos nos catch: com o modal aberto, o erro vai PARA DENTRO dele (R7-04) — o toast
+      global (z 9999) nasce por baixo do véu desfocado dos modais (z 12000). */
+  const transferOpenRef = useRef(false);
+  const clienteModalOpenRef = useRef(false);
+  const pagamentoModalOpenRef = useRef(false);
+
+  /* Guarda síncrona de reentrância das ações otimistas (ver runAcaoOtimista). Fica ANTES do
+     `return null` abaixo: hook depois de um retorno condicional quebra a ordem dos hooks. */
+  const acoesOtimistasEmVooRef = useRef(null);
+  if (acoesOtimistasEmVooRef.current === null) acoesOtimistasEmVooRef.current = new Set();
+
+  const openTransfer = useCallback(() => {
+    setTransferOpen(true);
+    setMenuOpen(false);
+  }, []);
+  const closeTransfer = useCallback(() => setTransferOpen(false), []);
+  transferOpenRef.current = transferOpen;
+  clienteModalOpenRef.current = clienteModalOpen;
+  pagamentoModalOpenRef.current = pagamentoModalOpen;
 
   useLayoutEffect(() => {
     if (!menuOpen || !overflowTriggerRef.current) {
@@ -311,6 +413,8 @@ export default function AtendimentoActions({
 
   useEffect(() => {
     if (!menuOpen) return;
+    // Rede de segurança: ESC com o foco FORA do menu (ex.: ainda no gatilho). Com o foco
+    // dentro, o `onMenuKeyDown` trata primeiro e devolve o foco ao gatilho.
     const onKey = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -366,38 +470,13 @@ export default function AtendimentoActions({
     };
   }, [user?.id, user?.company_id]);
 
+  // Trocou de conversa: nenhum modal pode sobrar aberto apontando para a anterior.
+  const conversaIdAtual = conversa?.id ?? null;
   useEffect(() => {
-    if (!transferOpen) return;
-
-    let alive = true;
-
-    async function load() {
-      try {
-        const { data } = await api.get("/usuarios", { params: { ativo: true } });
-        if (!alive) return;
-        const list = Array.isArray(data) ? data : [];
-        setAtendentes(list.filter(isUsuarioAtivoParaTransferencia));
-      } catch (e) {
-        if (!alive) return;
-        setAtendentes([]);
-        console.error("Erro ao carregar /usuarios:", e);
-      }
-    }
-
-    load();
-
-    return () => {
-      alive = false;
-    };
-  }, [transferOpen]);
-
-  const filtrados = useMemo(() => {
-    const term = String(search || "").toLowerCase();
-    return (atendentes || []).filter((a) => {
-      if (!isUsuarioAtivoParaTransferencia(a)) return false;
-      return String(a?.nome || "").toLowerCase().includes(term);
-    });
-  }, [atendentes, search]);
+    setTransferOpen(false);
+    setClienteModalOpen(false);
+    setPagamentoModalOpen(false);
+  }, [conversaIdAtual]);
 
   if (!conversa || !user) return null;
 
@@ -539,8 +618,6 @@ export default function AtendimentoActions({
    * que estava a processar. Resolvido com `aria-busy` + `cursor: progress` na barra (ver
    * `conversa.polish.css`), não removendo a trava.
    */
-  const acoesOtimistasEmVooRef = useRef(null);
-  if (acoesOtimistasEmVooRef.current === null) acoesOtimistasEmVooRef.current = new Set();
   async function runAcaoOtimista(id, fn, tituloErro) {
     if (busy || acoesOtimistasEmVooRef.current.has(id)) return;
     acoesOtimistasEmVooRef.current.add(id);
@@ -549,7 +626,7 @@ export default function AtendimentoActions({
       await fn();
     } catch (e) {
       console.error(`${tituloErro}:`, e);
-      if (showToast) showToast({ title: tituloErro, message: getApiErrorMessage(e) });
+      showToast({ type: "error", title: tituloErro, message: getApiErrorMessage(e) });
       /* Sem resposta não quer dizer que falhou: o servidor pode ter encerrado/assumido e só a
          resposta se perdeu. O store reverteu o otimista às cegas; um refresh silencioso traz
          o estado real em vez de deixar a tela a mentir. */
@@ -579,15 +656,17 @@ export default function AtendimentoActions({
     try {
       if (typeof puxarConversaNovamente === "function") {
         await puxarConversaNovamente(conversa.id);
-        if (showToast)
-          showToast({
-            title: "Você voltou a atender",
-            message: "Agora você atende esta conversa junto com o atendente atual.",
-          });
+        showToast({
+          type: "success",
+          title: "Você voltou a atender",
+          message: "Agora você atende esta conversa junto com o atendente atual.",
+          snack: "Você voltou a atender esta conversa",
+        });
       }
     } catch (e) {
       console.error("Erro ao puxar conversa novamente:", e);
-      if (showToast) showToast({ title: "Não foi possível puxar a conversa", message: getApiErrorMessage(e) });
+      refreshSeSemResposta(e);
+      showToast({ type: "error", title: "Não foi possível puxar a conversa", message: getApiErrorMessage(e) });
     } finally {
       setBusy(false);
     }
@@ -629,7 +708,12 @@ export default function AtendimentoActions({
       logActionScroll("reabrir", "antes");
       await reabrirConversa(conversa.id);
       logActionScroll("reabrir", "depois");
-      if (showToast) showToast({ title: "Conversa reaberta", message: "Atendimento disponível novamente." });
+      showToast({
+        type: "success",
+        title: "Conversa reaberta",
+        message: "Atendimento disponível novamente.",
+        snack: "Conversa reaberta",
+      });
     }, "Erro ao reabrir");
   }
 
@@ -640,19 +724,21 @@ export default function AtendimentoActions({
       if (typeof marcarAguardandoPagamentoConversa === "function") {
         await marcarAguardandoPagamentoConversa(conversa.id, { prazo, data });
         setPagamentoModalOpen(false);
-        if (showToast)
-          showToast({
-            title: "Pagamento pendente",
-            message: "A cobrança está aguardando pagamento dentro do prazo definido.",
-          });
+        showToast({
+          type: "success",
+          title: "Pagamento pendente",
+          message: "A cobrança está aguardando pagamento dentro do prazo definido.",
+          snack: "Aguardando pagamento · prazo definido",
+        });
       }
     } catch (e) {
       console.error("Erro ao marcar aguardando pagamento:", e);
-      if (showToast)
-        showToast({
-          title: "Não foi possível atualizar",
-          message: getAguardandoClienteErrorMessage(e),
-        });
+      refreshSeSemResposta(e);
+      const message = getAguardandoClienteErrorMessage(e);
+      // Modal aberto: o erro aparece dentro dele (o toast ficaria por baixo do véu). Fechado
+      // (voltar do celular durante o envio): cai no toast de sempre.
+      if (pagamentoModalOpenRef.current) throw erroParaOModal(message);
+      showToast({ type: "error", title: "Não foi possível atualizar", message });
     } finally {
       setBusy(false);
     }
@@ -665,19 +751,19 @@ export default function AtendimentoActions({
       if (typeof marcarAguardandoClienteConversa === "function") {
         await marcarAguardandoClienteConversa(conversa.id, { prazo, data });
         setClienteModalOpen(false);
-        if (showToast)
-          showToast({
-            title: "Aguardando cliente",
-            message: "Alarme iniciado. Avisamos e sinalizamos a conversa quando o prazo vencer.",
-          });
+        showToast({
+          type: "success",
+          title: "Aguardando cliente",
+          message: "Alarme iniciado. Avisamos e sinalizamos a conversa quando o prazo vencer.",
+          snack: "Aguardando cliente · alarme iniciado",
+        });
       }
     } catch (e) {
       console.error("Erro ao marcar aguardando cliente:", e);
-      if (showToast)
-        showToast({
-          title: "Não foi possível atualizar",
-          message: getAguardandoClienteErrorMessage(e),
-        });
+      refreshSeSemResposta(e);
+      const message = getAguardandoClienteErrorMessage(e);
+      if (clienteModalOpenRef.current) throw erroParaOModal(message);
+      showToast({ type: "error", title: "Não foi possível atualizar", message });
     } finally {
       setBusy(false);
     }
@@ -689,19 +775,21 @@ export default function AtendimentoActions({
     try {
       if (typeof retomarAtendimentoConversa === "function") {
         await retomarAtendimentoConversa(conversa.id);
-        if (showToast)
-          showToast({
-            title: "Atendimento retomado",
-            message: "A conversa voltou para em atendimento.",
-          });
+        showToast({
+          type: "success",
+          title: "Atendimento retomado",
+          message: "A conversa voltou para em atendimento.",
+          snack: "Atendimento retomado",
+        });
       }
     } catch (e) {
       console.error("Erro ao retomar atendimento:", e);
-      if (showToast)
-        showToast({
-          title: "Não foi possível retomar",
-          message: getAguardandoClienteErrorMessage(e),
-        });
+      refreshSeSemResposta(e);
+      showToast({
+        type: "error",
+        title: "Não foi possível retomar",
+        message: getAguardandoClienteErrorMessage(e),
+      });
     } finally {
       setBusy(false);
     }
@@ -713,19 +801,21 @@ export default function AtendimentoActions({
     try {
       if (typeof retomarAtendimentoConversa === "function") {
         await retomarAtendimentoConversa(conversa.id);
-        if (showToast)
-          showToast({
-            title: "Pagamento confirmado",
-            message: "O pagamento foi registrado e o atendimento foi retomado.",
-          });
+        showToast({
+          type: "success",
+          title: "Pagamento confirmado",
+          message: "O pagamento foi registrado e o atendimento foi retomado.",
+          snack: "Pagamento confirmado · atendimento retomado",
+        });
       }
     } catch (e) {
       console.error("Erro ao confirmar pagamento:", e);
-      if (showToast)
-        showToast({
-          title: "Não foi possível confirmar",
-          message: getAguardandoClienteErrorMessage(e),
-        });
+      refreshSeSemResposta(e);
+      showToast({
+        type: "error",
+        title: "Não foi possível confirmar",
+        message: getAguardandoClienteErrorMessage(e),
+      });
     } finally {
       setBusy(false);
     }
@@ -738,31 +828,34 @@ export default function AtendimentoActions({
       if (typeof transferirConversa === "function") {
         await transferirConversa(conversa.id, id);
         setTransferOpen(false);
-        setSearch("");
         const paraMim = String(id) === String(meuId);
-        if (showToast) {
-          showToast({
-            title: "Atendimento transferido",
-            message: paraMim
-              ? modoSimplesAtivo
-                ? "A conversa foi atribuída a você."
-                : "A conversa foi atribuída a você. Use Encerrar ou Transferir quando precisar."
-              : "A conversa foi atribuída ao atendente selecionado.",
-          });
-        }
+        showToast({
+          type: "success",
+          title: "Atendimento transferido",
+          message: paraMim
+            ? modoSimplesAtivo
+              ? "A conversa foi atribuída a você."
+              : "A conversa foi atribuída a você. Use Encerrar ou Transferir quando precisar."
+            : "A conversa foi atribuída ao atendente selecionado.",
+          snack: paraMim ? "Conversa atribuída a você" : "Atendimento transferido",
+        });
       }
     } catch (e) {
       console.error("Erro ao transferir conversa:", e);
-      if (showToast) showToast({ title: "Erro ao transferir", message: getApiErrorMessage(e) });
+      refreshSeSemResposta(e);
+      const message = getApiErrorMessage(e);
+      /*
+       * R7-04: o modal continua aberto no erro, e o toast global (z 9999) nascia POR BAIXO do
+       * véu desfocado dele (z 12000) — o atendente não via nada e clicava de novo. Com o modal
+       * aberto, o erro sobe para ele (linha role="alert" acima da lista). Fechado (voltar do
+       * celular, troca de conversa), cai no toast de sempre.
+       */
+      if (transferOpenRef.current) throw erroParaOModal(message);
+      showToast({ type: "error", title: "Erro ao transferir", message });
     } finally {
       setBusy(false);
     }
   }
-
-  const openTransfer = useCallback(() => {
-    setTransferOpen(true);
-    closeMenu();
-  }, [closeMenu]);
 
   const actions = [];
   if (podeAssumir) {
@@ -781,6 +874,7 @@ export default function AtendimentoActions({
       id: "puxar_novamente",
       className: "wa-btn-primary wa-btn-assumir-destaque",
       labelLong: "Puxar conversa",
+      labelMid: "Puxar",
       labelShort: "Puxar",
       onClick: handlePuxarNovamente,
       title: "Voltar a atender esta conversa junto com o atendente atual",
@@ -803,6 +897,7 @@ export default function AtendimentoActions({
       id: "retomar_atendimento",
       className: "wa-btn-primary",
       labelLong: "Retomar atendimento",
+      labelMid: "Retomar",
       labelShort: "Retomar",
       onClick: handleRetomarAtendimento,
       title: "Voltar para em atendimento",
@@ -840,6 +935,7 @@ export default function AtendimentoActions({
       id: "aguardar_pagamento",
       className: "wa-btn-aguardar-pagamento",
       labelLong: "Aguardar pagamento",
+      labelMid: "Aguardar",
       labelShort: "Pagam.",
       onClick: () => setPagamentoModalOpen(true),
       title: "Marcar cobrança enviada e definir prazo de pagamento",
@@ -851,6 +947,7 @@ export default function AtendimentoActions({
       id: "aguardar_cliente",
       className: "wa-btn-aguardar-cliente",
       labelLong: "Aguardar cliente",
+      labelMid: "Aguardar",
       labelShort: "Aguard.",
       onClick: () => setClienteModalOpen(true),
       title: "Definir alarme de espera pela resposta do cliente",
@@ -873,6 +970,7 @@ export default function AtendimentoActions({
       id: "reabrir",
       className: "wa-btn-primary wa-btn-assumir-destaque",
       labelLong: "Reabrir atendimento",
+      labelMid: "Reabrir",
       labelShort: "Reabrir",
       onClick: handleReabrir,
       title: "Reabrir conversa",
@@ -894,91 +992,18 @@ export default function AtendimentoActions({
   const showCompactOverflowMenu =
     compactToolbar && (Boolean(overflowExtra) || compactOverflowActions.length > 0);
 
-  const transferModal =
-    transferOpen
-      ? createPortal(
-          <div
-            className="wa-modalOverlay"
-            role="dialog"
-            aria-label="Transferir atendimento"
-            onMouseDown={() => {
-              if (busy) return;
-              setTransferOpen(false);
-              setSearch("");
-            }}
-          >
-            <div className="wa-modal wa-transferModal" onMouseDown={(e) => e.stopPropagation()}>
-              <div className="wa-modal-head">
-                <div className="wa-modal-title">Transferir atendimento</div>
-                <button
-                  type="button"
-                  className="wa-header-btn"
-                  onClick={() => {
-                    if (busy) return;
-                    setTransferOpen(false);
-                    setSearch("");
-                  }}
-                  aria-label="Fechar"
-                  title="Fechar"
-                  style={{ width: 34, height: 34 }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="wa-modal-body">
-                <input
-                  className="wa-transferSearch"
-                  placeholder="Buscar atendente..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  autoFocus
-                />
-
-                <div className="wa-transferList" role="list">
-                  {filtrados.map((a) => {
-                    const souEu = String(a?.id) === String(meuId);
-                    return (
-                      <button
-                        key={a.id}
-                        type="button"
-                        className={`wa-transferItem ${souEu ? "isMe" : ""}`}
-                        onClick={() => handleTransferir(a.id)}
-                        disabled={busy}
-                        role="listitem"
-                        title={a?.nome || ""}
-                      >
-                        <span className="wa-transferName">{a.nome}</span>
-                        {souEu ? <span className="wa-transferBadge">você</span> : null}
-                      </button>
-                    );
-                  })}
-
-                  {filtrados.length === 0 ? (
-                    <div className="wa-transferEmpty">Nenhum atendente encontrado</div>
-                  ) : null}
-                </div>
-
-                <div className="wa-transferFooter">
-                  <button
-                    type="button"
-                    className="wa-btn-secondary"
-                    onClick={() => {
-                      if (busy) return;
-                      setTransferOpen(false);
-                      setSearch("");
-                    }}
-                    disabled={busy}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
+  const transferModal = (
+    <TransferirAtendimentoModal
+      open={transferOpen}
+      busy={busy}
+      meuId={meuId}
+      atendenteAtualId={atendenteId}
+      companyKey={user?.company_id ?? null}
+      onClose={closeTransfer}
+      onTransfer={handleTransferir}
+      returnFocusRef={modalReturnFocusRef}
+    />
+  );
 
   function renderToolbarButton(a) {
     const icon = <AtendimentoActionIcon id={a.id} />;
@@ -1003,7 +1028,9 @@ export default function AtendimentoActions({
             {icon}
           </span>
         ) : null}
-        <span className="wa-atendLabel--long">{a.labelLong}</span>
+        <span className={`wa-atendLabel--long${a.labelMid ? " wa-atendLabel--hasMid" : ""}`}>{a.labelLong}</span>
+        {/* Rótulo médio, sem abreviação: só no desktop apertado (conversaHeaderPremium.css). */}
+        {a.labelMid ? <span className="wa-atendLabel--mid">{a.labelMid}</span> : null}
         <span className="wa-atendLabel--short">{a.labelShort}</span>
         {isEncerrarSplit ? <span className="wa-encerrarSplit-spacer" aria-hidden="true" /> : null}
       </button>
@@ -1036,12 +1063,14 @@ export default function AtendimentoActions({
         busy={busy}
         onClose={() => setPagamentoModalOpen(false)}
         onConfirm={handleConfirmarAguardarPagamento}
+        returnFocusRef={modalReturnFocusRef}
       />
       <AguardarClienteModal
         open={clienteModalOpen}
         busy={busy}
         onClose={() => setClienteModalOpen(false)}
         onConfirm={handleConfirmarAguardarCliente}
+        returnFocusRef={modalReturnFocusRef}
       />
     </>
   );
@@ -1052,7 +1081,7 @@ export default function AtendimentoActions({
         {/* `aria-busy`: a barra fica travada (e a 45%) enquanto a ação viaja à rede. Sem isto
             o estado lia-se como "morto" em vez de "a processar" — o CSS pendura aqui o
             `cursor: progress`, e o leitor de ecrã anuncia a região como ocupada. */}
-        <div className="wa-actions" aria-busy={busy ? "true" : undefined}>
+        <div className="wa-actions" ref={actionsBarRef} aria-busy={busy ? "true" : undefined}>
           <AguardandoClienteCountdown conversa={conversa} />
           {actions.map((a) => renderToolbarButton(a))}
         </div>
@@ -1076,6 +1105,13 @@ export default function AtendimentoActions({
         aria-label="Mais opções"
         title="Mais opções"
         onClick={() => setMenuOpen((v) => !v)}
+        onKeyDown={(e) => {
+          // ↓ no gatilho abre o menu (o foco entra no 1.º item via useMenuKeyboard).
+          if (e.key === "ArrowDown" && !menuOpen) {
+            e.preventDefault();
+            setMenuOpen(true);
+          }
+        }}
       >
         <IconDotsHorizontal />
       </button>
@@ -1093,19 +1129,24 @@ export default function AtendimentoActions({
                 className="wa-atendToolbar-dropdown wa-atendToolbar-dropdown--portal"
                 role="menu"
                 aria-label="Mais opções"
+                onKeyDown={onMenuKeyDown}
                 style={{
                   top: overflowMenuPos.top,
                   right: overflowMenuPos.right,
                 }}
               >
-                <div className="wa-atendToolbar-menuExtras">
+                <div className="wa-atendToolbar-menuExtras" role="none">
                   {overflowExtra}
+                  {compactOverflowActions.length > 0 && overflowExtra ? (
+                    <div className="wa-atendToolbar-menuSep" role="separator" />
+                  ) : null}
                   {compactOverflowActions.map((a) => {
                     const sheetIcon = renderOverflowSheetIcon(a.id);
                     return (
                       <button
                         key={a.id}
                         type="button"
+                        role="menuitem"
                         className="wa-atendToolbar-sheetBtn"
                         onClick={() => {
                           a.onClick?.();

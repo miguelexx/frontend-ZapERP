@@ -1,4 +1,7 @@
+import { useRef } from "react";
 import { createPortal } from "react-dom";
+import { campoDoComposer, isPonteiroFino, useDialogFocus } from "../../atendimento/useDialogFocus";
+import { useMobileOverlayBack } from "../../atendimento/useMobileOverlayBack";
 import { formatDia, formatHora, safeString } from "../utils/conversaViewHelpers";
 import { snippetFromMsg } from "../utils/conversaMessageDisplay";
 import { IconClose } from "../conversaViewIcons";
@@ -33,8 +36,23 @@ function statusLegivel(msg) {
   return STATUS_LABEL[cru] || cru;
 }
 
+/*
+ * 27/11/2026: o diálogo toma o foco (botão Fechar), prende o Tab e devolve o foco a quem abriu
+ * (no desktop, o campo de mensagem quando o item do menu já saiu da tela). No celular, o
+ * "voltar" fecha o diálogo e a conversa continua aberta.
+ */
 export default function MsgInfoModal({ open, msgInfo, onClose }) {
-  if (!open || !msgInfo) return null;
+  const dialogRef = useRef(null);
+  const closeRef = useRef(null);
+  const aberto = Boolean(open && msgInfo);
+  useDialogFocus({
+    open: aberto,
+    dialogRef,
+    getInitialFocus: () => closeRef.current,
+    getReturnFocus: () => (isPonteiroFino() ? campoDoComposer() : null),
+  });
+  useMobileOverlayBack(aberto, onClose, "msgInfo");
+  if (!aberto) return null;
 
   // F9 do doc 33: horário de entrega/leitura (colunas entregue_em/lida_em, preenchidas pelo
   // ACK). Nulo = sem informação — a linha nem aparece, em vez de mostrar "—" como se fosse dado.
@@ -44,14 +62,21 @@ export default function MsgInfoModal({ open, msgInfo, onClose }) {
   return createPortal(
     <div
       className="wa-modalOverlay"
-      role="dialog"
-      aria-label="Dados da mensagem"
+      role="presentation"
       onMouseDown={onClose}
     >
-      <div className="wa-modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="wa-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Dados da mensagem"
+        tabIndex={-1}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="wa-modal-head">
           <div className="wa-modal-title">Dados da mensagem</div>
-          <button type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
+          <button ref={closeRef} type="button" className="wa-iconBtn" onClick={onClose} title="Fechar" aria-label="Fechar">
             <IconClose />
           </button>
         </div>

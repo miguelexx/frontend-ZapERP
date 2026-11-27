@@ -1,5 +1,6 @@
 ﻿import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lazyWithRetry as lazy } from "../runtime/lazyWithRetry";
+import { TriangleAlert } from "lucide-react";
 import { shallow } from "zustand/shallow";
 import { useMatchMedia } from "../hooks/useMatchMedia";
 import {
@@ -94,7 +95,14 @@ import { useChatListResync } from "./hooks/useChatListResync";
 import { useChatListPagination } from "./hooks/useChatListPagination";
 import { markPushEntryReady } from "../push/deferredPushSync";
 import { getClientesPendentesSupervisao, getResumoSupervisao } from "../api/supervisaoService";
-import { clearConversation, deleteConversation, resultadoExclusaoNoWhatsapp } from "./conversationActionsService";
+import {
+  clearConversation,
+  deleteConversation,
+  resultadoExclusaoNoWhatsapp,
+  toggleBlockContact,
+  rememberContactBlockState,
+} from "./conversationActionsService";
+import { friendlyApiError } from "../utils/friendlyApiError";
 import {
   isAppAdmin,
   countDistinctConversas,
@@ -363,6 +371,8 @@ export default function ChatList() {
   const [showOrcamentoAvulso, setShowOrcamentoAvulso] = useState(false);
   const [confirmClear, setConfirmClear] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  /** Bloquear/desbloquear: `{ chatId, bloquear, nome }` — ConfirmDialog em vez do window.confirm (A3-03). */
+  const [confirmBlock, setConfirmBlock] = useState(null);
 
   // menu "Novo" (botão +)
   const [showNovoMenu, setShowNovoMenu] = useState(false);
@@ -1138,10 +1148,12 @@ export default function ChatList() {
       if (!(useChatStore.getState().chats?.length > 0)) {
         setChats([]);
       }
+      // Texto amigável (A3-01/A3-02): o painel de erro da lista mostra isto — nunca o
+      // "Network Error" cru do axios.
       setChatListPage((prev) => ({
         ...prev,
         loading: false,
-        error: e?.response?.data?.error || e?.message || "Erro ao carregar conversas.",
+        error: friendlyApiError(e, "Não foi possível carregar as conversas."),
       }));
       // OFFLINE: troca de filtro sem rede cai no snapshot DAQUELA aba (gravado quando ela
       // foi vista online). Só sem resposta HTTP (rede), fora de busca e fora de load em
@@ -1263,9 +1275,11 @@ export default function ChatList() {
       const r = await postFinalizacaoAusenciaLote({ conversa_ids: ids, dry_run: true });
       const res = Array.isArray(r?.resultados) ? r.resultados : [];
       const ok = res.filter((x) => x.ok).length;
-      setLoteAusenciaMsg(`Simulação: ${ok} de ${ids.length} conversa(s) elegível(is) ao critério do servidor.`);
+      setLoteAusenciaMsg(
+        `Simulação: ${ok} de ${ids.length} ${ids.length === 1 ? "conversa elegível" : "conversas elegíveis"} pelo critério do servidor.`
+      );
     } catch (e) {
-      const msg = e?.response?.data?.error || e?.message || "Falha na simulação";
+      const msg = friendlyApiError(e, "Não foi possível simular o lote.");
       showToast({ type: "error", title: "Lote por ausência", message: String(msg) });
       setLoteAusenciaMsg(String(msg));
     } finally {
@@ -1298,11 +1312,11 @@ export default function ChatList() {
       });
       const res = Array.isArray(r?.resultados) ? r.resultados : [];
       const ok = res.filter((x) => x.ok).length;
-      setLoteAusenciaMsg(`Concluído: ${ok} conversa(s) processada(s).`);
+      setLoteAusenciaMsg(`Concluído: ${ok} ${ok === 1 ? "conversa processada" : "conversas processadas"}.`);
       setLoteAusenciaConfirm("");
       loadRef.current?.();
     } catch (e) {
-      const msg = e?.response?.data?.error || e?.message || "Falha na execução";
+      const msg = friendlyApiError(e, "Não foi possível executar o lote.");
       showToast({ type: "error", title: "Lote por ausência", message: String(msg) });
       setLoteAusenciaMsg(String(msg));
     } finally {
@@ -1910,14 +1924,13 @@ export default function ChatList() {
           message: "Não foi possível abrir a conversa deste número.",
         });
       } catch (err) {
-        const status = err?.response?.status;
+        const data = err?.response?.data;
         const msg =
-          err?.response?.data?.erro ||
-          err?.response?.data?.error ||
-          err?.response?.data?.detalhe ||
-          err?.message ||
-          (status ? `Erro ${status}` : "Não foi possível abrir a conversa deste número.");
-        showToast({ type: "error", title: "Abrir conversa", message: String(msg) });
+          (typeof data?.erro === "string" && data.erro.trim()) ||
+          (typeof data?.error === "string" && data.error.trim()) ||
+          (typeof data?.detalhe === "string" && data.detalhe.trim()) ||
+          friendlyApiError(err, "Não foi possível abrir a conversa deste número.");
+        showToast({ type: "error", title: "Não foi possível abrir a conversa", message: String(msg) });
       } finally {
         openByPhoneBusyRef.current = false;
       }
@@ -1926,17 +1939,76 @@ export default function ChatList() {
     return () => window.removeEventListener(OPEN_CONVERSA_BY_PHONE_EVENT, onOpenByPhone);
   }, [addChat, carregarConversa, setUnread, showToast, isMobileLayout]);
 
+  /*
+   * Foco depois de Limpar/Apagar/Bloquear (revisão A3-03): quem abriu o diálogo é o item do
+   * menu, que já saiu da tela — o foco caía no body e o teclado recomeçava do topo. O plano B
+   * do ConfirmDialog é o chevron da MESMA linha, procurado só na hora de fechar (a lista é
+   * virtual: o nó do momento da abertura pode já ter sido trocado). Linha apagada → nada.
+   */
+  const confirmChatIdRef = useRef(null);
+  const confirmReturnFocusRef = useMemo(
+    () => ({
+      get current() {
+        const id = confirmChatIdRef.current;
+        if (id == null || typeof document === "undefined") return null;
+        const sel = `.chat-list-root .chat-list-row[data-chat-id="${String(id).replace(/["\\]/g, "")}"]`;
+        const row = document.querySelector(sel);
+        return row?.querySelector(".chat-row-action-trigger") || row || null;
+      },
+    }),
+    []
+  );
+
   const onRequestConfirmClear = useCallback((payload) => {
+    confirmChatIdRef.current = payload?.chatId ?? null;
     setConfirmClear(payload);
   }, []);
 
   const onRequestConfirmDelete = useCallback((payload) => {
+    confirmChatIdRef.current = payload?.chatId ?? null;
     setConfirmDelete(payload);
+  }, []);
+
+  const onRequestConfirmBlock = useCallback((payload) => {
+    confirmChatIdRef.current = payload?.chatId ?? null;
+    setConfirmBlock(payload);
   }, []);
 
   const onReloadList = useCallback(() => {
     loadRef.current?.({ background: true });
   }, []);
+
+  /**
+   * "Tentar de novo" do painel de erro da lista (A3-01). Sem `background` forçado: lista vazia
+   * recarrega em primeiro plano (o esqueleto aparece e o atendente vê que algo aconteceu);
+   * com linhas antigas à vista, recarrega por trás sem apagá-las.
+   */
+  const onRetryList = useCallback(() => {
+    loadRef.current?.();
+  }, []);
+
+  const runConfirmedBlock = useCallback(async () => {
+    if (!confirmBlock?.chatId) return;
+    const { chatId, bloquear } = confirmBlock;
+    setConfirmBlock(null);
+    try {
+      const data = await toggleBlockContact(chatId, bloquear);
+      rememberContactBlockState(chatId, data?.bloqueado ?? bloquear);
+      showToast({
+        type: "success",
+        title: bloquear ? "Contato bloqueado" : "Contato desbloqueado",
+        message: bloquear
+          ? "O contato foi bloqueado no seu WhatsApp."
+          : "O contato foi desbloqueado no seu WhatsApp.",
+      });
+    } catch (e) {
+      showToast({
+        type: "error",
+        title: bloquear ? "Não foi possível bloquear" : "Não foi possível desbloquear",
+        message: friendlyApiError(e, "Não foi possível concluir esta ação. Tente de novo."),
+      });
+    }
+  }, [confirmBlock, showToast]);
 
   const runConfirmedClear = useCallback(async () => {
     if (!confirmClear?.chatId) return;
@@ -1962,8 +2034,8 @@ export default function ChatList() {
       });
       loadRef.current?.();
     } catch (e) {
-      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível limpar a conversa.";
-      showToast({ type: "error", title: "Falha ao limpar", message: msg });
+      const msg = friendlyApiError(e, "Não foi possível limpar a conversa.");
+      showToast({ type: "error", title: "Não foi possível limpar", message: msg });
       loadRef.current?.();
     }
   }, [confirmClear, showToast]);
@@ -1991,8 +2063,8 @@ export default function ChatList() {
       );
       loadRef.current?.();
     } catch (e) {
-      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Não foi possível apagar a conversa.";
-      showToast({ type: "error", title: "Falha ao apagar", message: msg });
+      const msg = friendlyApiError(e, "Não foi possível apagar a conversa.");
+      showToast({ type: "error", title: "Não foi possível apagar", message: msg });
       loadRef.current?.();
     }
   }, [confirmDelete, showToast]);
@@ -2111,30 +2183,10 @@ export default function ChatList() {
 
   return (
     <div className="chat-list-root">
-      {zapiStatusLoaded && zapiConnected === false && (
-        <div className="chat-list-zapi-alert" role="alert">
-          <span className="chat-list-zapi-alert__icon" aria-hidden>⚠️</span>
-          <span>
-            WhatsApp desconectado — mensagens não serão entregues.{" "}
-            <button
-              type="button"
-              className="chat-list-zapi-alert__link"
-              onClick={() =>
-                // Quem pode abrir a tela de conexão vai direto para o QR Code
-                // (a página gera o código sozinha); os demais, para Configurações.
-                navigate(
-                  podeAbrirConexaoWhatsapp ? "/configuracoes/whatsapp" : "/configuracoes"
-                )
-              }
-            >
-              Reconectar
-            </button>
-          </span>
-        </div>
-      )}
       <ChatListHeaderBar
         novoBtnRef={novoBtnRef}
         showNovoMenu={showNovoMenu}
+        showFilters={showFilters}
         menuPosition={menuPosition}
         novoMenuRef={novoMenuRef}
         onToggleNovoMenu={handleToggleNovoMenu}
@@ -2204,7 +2256,9 @@ export default function ChatList() {
         onOpenClienteSemConversa={handleOpenClienteSemConversa}
         onRequestConfirmClear={onRequestConfirmClear}
         onRequestConfirmDelete={onRequestConfirmDelete}
+        onRequestConfirmBlock={onRequestConfirmBlock}
         onReloadList={onReloadList}
+        onRetryList={onRetryList}
         canLoadMoreChats={chatListPage.hasMore}
         loadingMoreChats={chatListPage.loading}
         loadMoreChatsError={chatListPage.error}
@@ -2215,12 +2269,43 @@ export default function ChatList() {
         conversaIdsPendenciaAtiva={conversaIdsPendenciaAtiva}
         hasActivePendencia={!!pendenciaAtiva}
       />
+      {/*
+        Aviso "WhatsApp desconectado" no RODAPÉ da coluna (27/11/2026). O status só é lido depois
+        da 1.ª pintura (400ms; 3,2s no celular), então no topo ele chegava DEPOIS da lista e
+        empurrava todas as conversas 49px para baixo — debaixo do cursor de quem ia clicar
+        (clique na conversa errada; também era a causa do "flake" do toggle do menu de ações no
+        e2e). No rodapé só a área de rolagem encolhe: nada do que está à vista se mexe.
+      */}
+      {zapiStatusLoaded && zapiConnected === false && (
+        <div className="chat-list-zapi-alert" role="alert">
+          <TriangleAlert className="chat-list-zapi-alert__icon" size={16} strokeWidth={2} aria-hidden="true" />
+          <span>
+            WhatsApp desconectado — mensagens não serão entregues.{" "}
+            <button
+              type="button"
+              className="chat-list-zapi-alert__link"
+              onClick={() =>
+                // Quem pode abrir a tela de conexão vai direto para o QR Code
+                // (a página gera o código sozinha); os demais, para Configurações.
+                navigate(
+                  podeAbrirConexaoWhatsapp ? "/configuracoes/whatsapp" : "/configuracoes"
+                )
+              }
+            >
+              Reconectar
+            </button>
+          </span>
+        </div>
+      )}
 
+      {/* `danger` (A3-07): limpar é irreversível e limpa também no WhatsApp conectado. */}
       <ConfirmDialog
         open={confirmClear != null}
         title="Limpar esta conversa?"
         confirmLabel="Limpar mensagens"
         cancelLabel="Cancelar"
+        danger
+        returnFocusRef={confirmReturnFocusRef}
         onCancel={() => setConfirmClear(null)}
         onConfirm={() => {
           void runConfirmedClear();
@@ -2238,6 +2323,7 @@ export default function ChatList() {
         confirmLabel="Apagar"
         cancelLabel="Cancelar"
         danger
+        returnFocusRef={confirmReturnFocusRef}
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
           void runConfirmedDelete();
@@ -2246,6 +2332,29 @@ export default function ChatList() {
         <p style={{ margin: 0 }}>
           Esta ação não pode ser desfeita. O histórico e dados vinculados podem ser removidos conforme as regras do sistema.
           A conversa também será apagada no seu WhatsApp (o número conectado). Isso não apaga a conversa no aparelho do cliente.
+        </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmBlock != null}
+        title={
+          confirmBlock?.bloquear
+            ? `Bloquear ${confirmBlock?.nome || "este contato"}?`
+            : `Desbloquear ${confirmBlock?.nome || "este contato"}?`
+        }
+        confirmLabel={confirmBlock?.bloquear ? "Bloquear" : "Desbloquear"}
+        cancelLabel="Cancelar"
+        danger={confirmBlock?.bloquear === true}
+        returnFocusRef={confirmReturnFocusRef}
+        onCancel={() => setConfirmBlock(null)}
+        onConfirm={() => {
+          void runConfirmedBlock();
+        }}
+      >
+        <p style={{ margin: 0 }}>
+          {confirmBlock?.bloquear
+            ? "O contato será bloqueado no seu WhatsApp (o número conectado): ele não poderá enviar mensagens nem ligar para você. Você pode desbloquear depois."
+            : "O contato será desbloqueado no seu WhatsApp (o número conectado) e voltará a poder trocar mensagens normalmente."}
         </p>
       </ConfirmDialog>
 

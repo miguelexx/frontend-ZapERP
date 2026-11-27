@@ -57,9 +57,15 @@ export function getRetryUiState(msg, classified, { onReenviarFalha, onReenviarAu
     isAudioOrVoice &&
     msg?.retry_local === true &&
     String(msg?.tempId ?? msg?.client_temp_id ?? "").trim() !== "";
+  // Foto/vídeo/arquivo recusado antes de ser salvo: o blob local ainda está na bolha (26/11/2026).
+  const retryLocalMedia =
+    !temIdServidor &&
+    (isImg || isVideo || isFile || isSticker) &&
+    String(msg?._optimisticBlobUrl || "").startsWith("blob:") &&
+    String(msg?.tempId ?? msg?.client_temp_id ?? "").trim() !== "";
   const canShowRetry =
     out &&
-    (temIdServidor || retryLocalAudio) &&
+    (temIdServidor || retryLocalAudio || retryLocalMedia) &&
     typeof onRetry === "function" &&
     retryFailedConfirmed &&
     !retryBlockedStatus &&

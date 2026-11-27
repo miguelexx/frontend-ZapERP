@@ -27,6 +27,10 @@ function listaAtalhos(mac) {
     { teclas: [mod, "K"], desc: "Ir para o campo de mensagem" },
     { teclas: [mod, "H"], desc: "Abrir/fechar o histórico do atendimento" },
     { teclas: [mod, "Shift", "F"], desc: "Buscar mensagem nesta conversa" },
+    // `sep: "/"`: teclas alternativas, não uma combinação.
+    { teclas: ["↑", "↓", "Enter"], sep: "/", desc: "Na busca de mensagens: percorrer os resultados e ir até o escolhido" },
+    { teclas: ["Esc"], desc: "No campo de busca da lista: limpa a busca (não fecha a conversa)" },
+    { teclas: ["←", "→"], sep: "/", desc: "No visualizador de fotos e vídeos: anterior / próxima" },
     { teclas: ["?"], desc: "Mostrar esta lista" },
   ];
 }
@@ -101,11 +105,11 @@ export default function ShortcutsOverlay({ open, onClose }) {
 
         <ul className="wa-shortcuts__list">
           {atalhos.map((item) => (
-            <li className="wa-shortcuts__item" key={item.teclas.join("+")}>
+            <li className="wa-shortcuts__item" key={item.desc}>
               <span className="wa-shortcuts__keys">
                 {item.teclas.map((tecla, i) => (
                   <span key={tecla}>
-                    {i > 0 ? <span className="wa-shortcuts__plus">+</span> : null}
+                    {i > 0 ? <span className="wa-shortcuts__plus">{item.sep || "+"}</span> : null}
                     <kbd className="wa-shortcuts__kbd">{tecla}</kbd>
                   </span>
                 ))}

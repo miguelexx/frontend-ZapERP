@@ -156,6 +156,38 @@ function previewLabelForTipo(tipo, file, caption) {
   return file?.name || "arquivo";
 }
 
+/** Rótulos de prévia que a bolha local guarda em `texto` quando não há legenda. */
+const ROTULOS_PREVIA_MIDIA = new Set([
+  "(imagem)",
+  "(foto)",
+  "(vídeo)",
+  "(video)",
+  "(figurinha)",
+  "(áudio)",
+  "(audio)",
+  "(arquivo)",
+  "(documento)",
+  "(mídia)",
+  "(midia)",
+]);
+
+/**
+ * Legenda a reenviar quando uma mídia LOCAL (blob, sem id no servidor) é reenviada pelo
+ * "Tentar novamente" (27/11/2026). Antes o reenvio usava `texto`, que guarda o rótulo de
+ * prévia — o cliente recebia a foto com a legenda "(imagem)". Figurinha nunca tem legenda.
+ */
+export function legendaParaReenvioLocal(msg) {
+  if (!msg) return "";
+  if (String(msg.tipo || "").toLowerCase() === "sticker") return "";
+  if (typeof msg._legendaEnvio === "string") return msg._legendaEnvio.trim();
+  // Bolha sem o campo (montada fora do builder): só aceita `texto` que não seja rótulo/arquivo.
+  const t = typeof msg.texto === "string" ? msg.texto.trim() : "";
+  if (!t || ROTULOS_PREVIA_MIDIA.has(t.toLowerCase())) return "";
+  const nome = String(msg.nome_arquivo || "").trim();
+  if (nome && t.toLowerCase() === nome.toLowerCase()) return "";
+  return t;
+}
+
 /**
  * Bolha outbound imediata (texto ou mídia local).
  * @param {object} params
@@ -206,6 +238,11 @@ export function buildOptimisticOutgoingMessage(params) {
       tipo: forceVoice ? "voice" : tipo,
       texto: preview,
       conteudo: preview,
+      // Legenda REAL digitada pelo atendente (27/11/2026). `texto` guarda o rótulo de prévia
+      // ("(imagem)", "(vídeo)", "(figurinha)", nome do arquivo) quando não há legenda — o
+      // reenvio local (ConversaView.reenviarMensagemFalha) lê ESTE campo para nunca mandar o
+      // rótulo ao cliente como se fosse a legenda.
+      _legendaEnvio: String(params?.caption ?? "").trim(),
       nome_arquivo: nome,
       tamanho: file.size,
       ...(file?.size != null ? { tamanho_bytes: file.size } : {}),

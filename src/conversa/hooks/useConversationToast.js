@@ -17,8 +17,12 @@ export function useConversationToast() {
 
   const showToast = useCallback(
     (next) => {
-      setToast(next);
-      toastT.set(() => setToast(null), 3500);
+      /* `variant: "snack"`: confirmação curta (pílula, ~1,8s). `seq` remonta a pílula quando a
+         mesma confirmação se repete (a animação de entrada roda de novo). */
+      const snack = next?.variant === "snack";
+      setToast(snack ? { ...next, seq: Date.now() } : next);
+      /* Erro fica 6s: é o aviso que pede leitura (motivo + o que fazer). */
+      toastT.set(() => setToast(null), snack ? 1800 : next?.type === "error" ? 6000 : 3500);
     },
     [toastT]
   );

@@ -14,6 +14,7 @@ const WITH_VITE_ENV_SHIM = new Set([
   "test-mic-stream-service.mjs",
   "test-optimistic-send-glitch.mjs",
   "test-thread-media-prefetch.mjs",
+  "test-upload-progress.mjs",
 ]);
 
 const tests = [
@@ -80,6 +81,7 @@ const tests = [
   "test-sw-asset-cache-prune.mjs",
   "test-sw-index-fresco.mjs",
   "test-thread-media-prefetch.mjs",
+  "test-upload-progress.mjs",
   "test-whapi-reconnect-qr.mjs",
 ];
 

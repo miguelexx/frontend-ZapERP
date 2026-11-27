@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import useMotionPresence from "../../../components/ui/useMotionPresence";
+import { useMobileOverlayBack } from "../../../atendimento/useMobileOverlayBack";
 import {
   IconCamera as TablerCamera,
   IconChartBar,
@@ -9,6 +10,7 @@ import {
   IconPhoto,
   IconSettings2,
   IconShoppingBag,
+  IconTextSpellcheck,
   IconUser,
 } from "@tabler/icons-react";
 import {
@@ -47,6 +49,49 @@ function AttachmentMenu({
 }) {
   const motion = useMotionPresence(open);
   const motionProps = { "data-motion-state": motion.state, inert: !open ? "" : undefined, "aria-hidden": !open || undefined };
+  /*
+   * Teclado (26/11/2026): aberto por Enter/Espaço no "+", o foco vai ao 1.º item e as setas
+   * andam pelo menu; ao fechar, volta ao "+". Aberto por rato/toque nada muda (o foco fica no
+   * campo e o teclado do celular não abre/fecha).
+   */
+  const openedByKeyboardRef = useRef(false);
+  const plusBtnRef = useRef(null);
+  /* "Voltar" do celular fecha o menu de anexos, não a conversa (27/11/2026). */
+  useMobileOverlayBack(Boolean(open), onClose, "attach");
+  /*
+   * Item ativado (Contato, Enquete, Respostas salvas…): a superfície que ele abre é dona do
+   * foco. Devolver ao "+" punha o foco ATRÁS do modal recém-aberto — o Enter seguinte reabria
+   * o menu por baixo dele. Só ESC, o X e o clique fora devolvem o foco ao "+" (27/11/2026).
+   */
+  const onPanelClickCapture = (e) => {
+    if (e.target?.closest?.(".wa-attachItem")) openedByKeyboardRef.current = false;
+  };
+  useEffect(() => {
+    if (open) {
+      if (!openedByKeyboardRef.current) return undefined;
+      const id = requestAnimationFrame(() => {
+        panelRef?.current?.querySelector?.(".wa-attachItem:not(:disabled)")?.focus?.();
+      });
+      return () => cancelAnimationFrame(id);
+    }
+    if (openedByKeyboardRef.current) {
+      openedByKeyboardRef.current = false;
+      plusBtnRef.current?.focus?.();
+    }
+    return undefined;
+  }, [open, panelRef]);
+  const onMenuKeyDown = (e) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    const list = Array.from(e.currentTarget.querySelectorAll(".wa-attachItem:not(:disabled)"));
+    if (!list.length) return;
+    e.preventDefault();
+    const i = list.indexOf(document.activeElement);
+    let n = 0;
+    if (e.key === "End") n = list.length - 1;
+    else if (e.key === "ArrowDown") n = i < 0 ? 0 : (i + 1) % list.length;
+    else if (e.key === "ArrowUp") n = i < 0 ? list.length - 1 : (i - 1 + list.length) % list.length;
+    list[n]?.focus?.();
+  };
   const items = (
     <>
       <div className="wa-attachMenu-head">
@@ -226,7 +271,7 @@ function AttachmentMenu({
           }}
         >
           <span className="wa-attachItem-icon wa-attachIcon-clip" aria-hidden="true">
-            ✓
+            <IconTextSpellcheck size={16} strokeWidth={1.6} />
           </span>
           <span>
             {autoCorrectEnabled ? "Desativar correção automática" : "Ativar correção automática"}
@@ -239,10 +284,12 @@ function AttachmentMenu({
   return (
     <div className="wa-attachWrap" ref={wrapRef}>
       <button
+        ref={plusBtnRef}
         type="button"
         className={`wa-iconBtn wa-attachPlus ${open ? "isOpen" : ""}`}
         onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
+        onClick={(event) => {
+          openedByKeyboardRef.current = !open && event.detail === 0;
           onBeforeOpen();
           onToggle();
         }}
@@ -270,6 +317,8 @@ function AttachmentMenu({
                   className="wa-attachMenu wa-attachMenu--portal"
                   role="menu"
                   aria-label="Anexos"
+                  onKeyDown={onMenuKeyDown}
+                  onClickCapture={onPanelClickCapture}
                 >
                   {items}
                 </div>
@@ -277,7 +326,15 @@ function AttachmentMenu({
               document.body
             )
           : (
-              <div ref={panelRef} {...motionProps} className="wa-attachMenu" role="menu" aria-label="Anexos">
+              <div
+                ref={panelRef}
+                {...motionProps}
+                className="wa-attachMenu"
+                role="menu"
+                aria-label="Anexos"
+                onKeyDown={onMenuKeyDown}
+                onClickCapture={onPanelClickCapture}
+              >
                 {items}
               </div>
             )

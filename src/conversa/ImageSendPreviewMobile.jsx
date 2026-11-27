@@ -77,6 +77,7 @@ export default function ImageSendPreviewMobile({
   onCancel,
   onSend,
   sendIcon,
+  replyNotice = false,
 }) {
   const imgRef = useRef(null);
   const stageRef = useRef(null);
@@ -603,6 +604,14 @@ export default function ImageSendPreviewMobile({
         </button>
       </div>
 
+          {replyNotice ? (
+            /* Responder com mídia (26/11/2026): o envio de arquivo ainda não leva citação (falta o
+               backend). Avisa em vez de deixar o atendente achar que citou; a citação continua
+               pronta para a próxima mensagem de texto. */
+            <p className="wa-mediaPreview-replyNote" role="note">
+              A mídia vai sem a citação — ela continua pronta para a próxima mensagem de texto.
+            </p>
+          ) : null}
       <div className="wa-mediaPreview-composer">
         <div className="wa-mediaPreview-inputWrap">
           <textarea

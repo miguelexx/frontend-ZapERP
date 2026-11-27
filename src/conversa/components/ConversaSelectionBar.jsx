@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { IconClose, IconForward } from "../conversaViewIcons";
-import { IconTrash } from "@tabler/icons-react";
+import { IconTrash, IconCopy } from "@tabler/icons-react";
 
 /**
  * Barra de seleção estilo WhatsApp: fina, fixada no rodapé (overlay do .wa-shell).
@@ -13,15 +13,17 @@ function ConversaSelectionBar({
   compactMessageUx,
   selectedCount,
   forwardSending,
+  deleteBusy = false,
   onDismiss,
   onForward,
   onDelete,
+  onCopy,
 }) {
   if (!open) return null;
 
   const hasSelection = selectedCount > 0;
   const forwardDisabled = !hasSelection || forwardSending;
-  const deleteDisabled = !hasSelection;
+  const deleteDisabled = !hasSelection || deleteBusy;
 
   return (
     <div
@@ -47,14 +49,28 @@ function ConversaSelectionBar({
       </div>
 
       <div className="wa-selectBar-actions">
+        {/* Copiar várias (26/11/2026): trecho da conversa com data/hora e autor, como no WhatsApp. */}
+        {!forwardSelectIntent && onCopy ? (
+          <button
+            type="button"
+            className="wa-selectBar-iconBtn"
+            onClick={onCopy}
+            disabled={!hasSelection}
+            title="Copiar selecionadas"
+            aria-label="Copiar mensagens selecionadas"
+          >
+            <IconCopy size={20} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        ) : null}
         {!forwardSelectIntent ? (
           <button
             type="button"
             className="wa-selectBar-iconBtn wa-selectBar-iconBtn--danger"
             onClick={onDelete}
             disabled={deleteDisabled}
-            title="Apagar selecionadas"
-            aria-label="Apagar mensagens selecionadas"
+            aria-busy={deleteBusy ? "true" : undefined}
+            title={deleteBusy ? "Apagando…" : "Apagar selecionadas"}
+            aria-label={deleteBusy ? "Apagando mensagens selecionadas" : "Apagar mensagens selecionadas"}
           >
             <IconTrash size={20} strokeWidth={1.8} aria-hidden="true" />
           </button>

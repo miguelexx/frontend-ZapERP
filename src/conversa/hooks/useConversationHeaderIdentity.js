@@ -1,21 +1,46 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
+import { UserRound } from "lucide-react";
 import {
   getStatusAtendimentoEffective,
   exibirBadgePagamentoConcluido,
   resolveModoSimplesAguardandoEffective,
   buildConversaModoSimplesUiSource,
 } from "../../utils/conversaUtils";
-import { getDisplayName } from "../../chats/chatListDisplay";
+import { formatPhoneForDisplay, getDisplayName } from "../../chats/chatListDisplay";
 import { contactIdentitiesConflict } from "../../chats/chatContactIdentity";
 import { useChatStore, getChatByIdFromStore } from "../../chats/chatsStore";
 import { chatRowListStoreKey } from "../../chats/chatListStoreCompare";
 import { useWhatsappInstancesStore } from "../../chats/whatsappInstancesStore";
-import { initials, statusBadge, safeString, resolveConversaAvatarUrl } from "../utils/conversaViewHelpers";
+import { statusBadge, safeString, resolveConversaAvatarUrl } from "../utils/conversaViewHelpers";
 import { getAvatarImageSrc } from "../../utils/avatarProxyUrl";
 
 function isLidValue(v) {
   return v != null && String(v).trim().toLowerCase().startsWith("lid:");
 }
+
+/**
+ * Iniciais do cabeçalho: só LETRAS (`\p{L}`), 1.ª da primeira e da última palavra que tenham
+ * alguma. Contato sem nome mostra o telefone formatado como título, e as "iniciais" disso
+ * eram "(1" (26/11/2026, E03). Sem letra → "" e o avatar vira o boneco genérico.
+ */
+function letterInitials(nome = "") {
+  const letras = safeString(nome)
+    .split(/\s+/)
+    .map((parte) => parte.match(/\p{L}/u)?.[0] || "")
+    .filter(Boolean);
+  if (!letras.length) return "";
+  return (letras[0] + (letras.length > 1 ? letras[letras.length - 1] : "")).toUpperCase();
+}
+
+/* Boneco genérico (avatar padrão do WhatsApp). Elemento estável: o ConversaHeader desenha `avatar`
+   como filho do `.wa-avatar`, e o SVG herda a cor do texto de lá (claro e escuro). */
+const AVATAR_PESSOA = createElement(UserRound, {
+  size: 22,
+  strokeWidth: 1.8,
+  "aria-hidden": true,
+  focusable: "false",
+  className: "wa-avatar-personIcon",
+});
 
 export function useConversationHeaderIdentity({
   conversa,
@@ -81,7 +106,8 @@ export function useConversationHeaderIdentity({
       conversa?.cliente_telefone ||
       conversa?.telefone ||
       "";
-    if (tel && !isLidValue(tel)) return String(tel).trim();
+    // Mesmo formato do card (formatPhoneForDisplay): lista e cabeçalho mostram o MESMO número.
+    if (tel && !isLidValue(tel)) return formatPhoneForDisplay(tel) || String(tel).trim();
     return "Contato";
   }, [conversa, nomeLista, conversaId, isGroup, listaConfereComAberta]);
 
@@ -101,7 +127,7 @@ export function useConversationHeaderIdentity({
     const resolvida = resolveConversaAvatarUrl(rawAvatarUrl);
     return resolvida ? getAvatarImageSrc(resolvida) || resolvida : resolvida;
   }, [rawAvatarUrl]);
-  const avatar = useMemo(() => (isGroup ? "👥" : initials(nome)), [isGroup, nome]);
+  const avatar = useMemo(() => (isGroup ? "👥" : letterInitials(nome) || AVATAR_PESSOA), [isGroup, nome]);
   const [avatarImgError, setAvatarImgError] = useState(false);
   const showAvatarImg = Boolean(avatarUrl && !avatarImgError);
 

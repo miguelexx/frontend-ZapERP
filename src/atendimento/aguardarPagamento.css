@@ -650,3 +650,148 @@
     animation: none;
   }
 }
+
+/* Anel de foco do teclado (26/11/2026): o modal agora recebe o foco ao abrir e o prende —
+   sem anel, o atendente não via onde estava. Só :focus-visible (o clique do rato não pinta). */
+.zap-pg-card:focus-visible,
+.zap-pg-close:focus-visible,
+.zap-pg-btn:focus-visible {
+  outline: 2px solid var(--ds-accent, #2e86ff);
+  outline-offset: 2px;
+}
+
+.zap-pg-modal:focus {
+  outline: none;
+}
+
+/* "Aguardar cliente" é a variação AZUL deste modal, mas herdava pedaços do dourado do
+   financeiro: borda do ícone, hover dos cartões, anel do escolhido e o ícone do cartão
+   escolhido saíam âmbar (26/11/2026). Agora o azul vale em tudo, nos dois temas. */
+.zap-ac-modal .zap-pg-header__icon {
+  border-color: color-mix(in srgb, #2563eb 30%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, #2563eb 16%, transparent);
+}
+
+.zap-ac-modal .zap-pg-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #2563eb 38%, var(--ds-border, #e2e8f0));
+}
+
+.zap-ac-modal .zap-pg-card.is-selected {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #2563eb 22%, transparent),
+    0 8px 20px -8px color-mix(in srgb, #2563eb 26%, transparent);
+}
+
+.zap-ac-modal .zap-pg-card.is-selected .zap-pg-card__icon {
+  color: #2563eb;
+}
+
+[data-theme="dark"] .zap-ac-modal {
+  border-color: color-mix(in srgb, #3b82f6 26%, #334155);
+}
+
+[data-theme="dark"] .zap-ac-modal .zap-pg-header__icon {
+  background: color-mix(in srgb, #3b82f6 22%, var(--zap-pg-surface, #1a2332));
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .zap-ac-modal .zap-pg-card.is-selected {
+  background: color-mix(in srgb, #3b82f6 14%, var(--zap-pg-surface, #1a2332));
+  border-color: color-mix(in srgb, #60a5fa 60%, transparent);
+}
+
+[data-theme="dark"] .zap-ac-modal .zap-pg-card__icon,
+[data-theme="dark"] .zap-ac-modal .zap-pg-card.is-selected .zap-pg-card__icon {
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .zap-ac-modal .zap-pg-card.is-selected .zap-pg-card__radio {
+  border-color: #60a5fa;
+}
+
+[data-theme="dark"] .zap-ac-modal .zap-pg-card.is-selected .zap-pg-card__radio-dot {
+  background: #60a5fa;
+}
+
+/* Erro do envio dentro do modal (R7-04, 27/11/2026). O toast global (z 9999) nascia por baixo
+   do véu desfocado destes modais (z 12000): o atendente clicava "Iniciar espera", nada
+   acontecia à vista e ele tentava de novo. Fica entre o corpo e o rodapé, perto do botão. */
+.zap-pg-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+  margin: 4px 22px 12px;
+  padding: 9px 6px 9px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ds-error, #dc2626) 32%, transparent);
+  background: color-mix(in srgb, var(--ds-error, #dc2626) 8%, var(--zap-pg-surface, #fff));
+  color: var(--zap-pg-text, #0f172a);
+  font-size: 13px;
+  line-height: 1.4;
+  animation: zap-pg-error-in 160ms ease-out;
+}
+
+.zap-pg-error__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.zap-pg-error__text strong {
+  font-weight: 600;
+}
+
+.zap-pg-error__close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--zap-pg-muted, #64748b);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.zap-pg-error__close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.zap-pg-error__close:hover {
+  background: color-mix(in srgb, var(--zap-pg-text, #0f172a) 7%, transparent);
+  color: var(--zap-pg-text, #0f172a);
+}
+
+.zap-pg-error__close:focus-visible {
+  outline: 2px solid var(--ds-accent, #2e86ff);
+  outline-offset: 1px;
+}
+
+@keyframes zap-pg-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .zap-pg-error {
+    margin: 4px 16px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zap-pg-error {
+    animation: none;
+  }
+}

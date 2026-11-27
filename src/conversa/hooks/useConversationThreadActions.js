@@ -10,6 +10,26 @@ import { carregarMensagensAntigasContato } from "../../chats/chatService";
 import { useConversaStore } from "../conversaStore";
 import { useChatStore } from "../../chats/chatsStore";
 
+/**
+ * "3 mensagens importadas, 1 atualizada e 2 carregadas na conversa." — só as partes > 0, plural
+ * de verdade (antes: "3 mensagem(ns) importada(s), 0 atualizada(s)..."). 27/11/2026.
+ */
+function resumoHistoricoCarregado({ importadas, atualizadas, carregadas }) {
+  const partes = [
+    [importadas, "importada", "importadas"],
+    [atualizadas, "atualizada", "atualizadas"],
+    [carregadas, "carregada na conversa", "carregadas na conversa"],
+  ]
+    .filter(([n]) => n > 0)
+    .map(([n, sing, plur], i) => {
+      const nome = i === 0 ? (n === 1 ? "mensagem " : "mensagens ") : "";
+      return `${n} ${nome}${n === 1 ? sing : plur}`;
+    });
+  if (!partes.length) return "";
+  const texto = partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
+  return `${texto}.`;
+}
+
 export function useConversationThreadActions({
   conversa,
   conversaId,
@@ -215,7 +235,7 @@ export function useConversationThreadActions({
       await refresh({ silent: true });
       const loadResult = await useConversaStore.getState().loadAllMessages?.();
       if (loadResult && loadResult.ok === false && !loadResult.aborted) {
-        throw loadResult.error || new Error("Nao foi possivel carregar todas as mensagens salvas.");
+        throw loadResult.error || new Error("Não foi possível carregar todas as mensagens salvas.");
       }
       const importadas = Number(res?.mensagens_importadas || 0);
       const atualizadas = Number(res?.mensagens_atualizadas || 0);
@@ -223,15 +243,15 @@ export function useConversationThreadActions({
       const carregadas = Number(loadResult?.messagesAdded || 0);
       showToast({
         type: (alteradas + carregadas) > 0 ? "success" : "info",
-        title: (alteradas + carregadas) > 0 ? "Historico carregado" : "Sem mensagens antigas",
+        title: (alteradas + carregadas) > 0 ? "Histórico carregado" : "Sem mensagens antigas",
         message: alteradas > 0 || carregadas > 0
-          ? `${importadas} mensagem(ns) importada(s), ${atualizadas} atualizada(s) e ${carregadas} carregada(s) na conversa.`
+          ? resumoHistoricoCarregado({ importadas, atualizadas, carregadas })
           : (res?.message || "Nenhuma mensagem antiga encontrada para este contato."),
       });
     } catch (e) {
       showToast({
         type: "error",
-        title: "Falha ao carregar historico",
+        title: "Não foi possível carregar o histórico",
         message: e?.response?.data?.error || e?.message || "Tente novamente.",
       });
     } finally {

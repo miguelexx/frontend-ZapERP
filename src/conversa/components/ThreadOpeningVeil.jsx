@@ -12,6 +12,9 @@ import { memo, useLayoutEffect, useRef } from "react";
  * Fica FORA do `.wa-messages` de propósito: dentro do scroller ele entraria no fluxo (gap do
  * flex, offsetTop da lista, scrollHeight) — exatamente as grandezas que o virtualizer e o
  * snap de abertura medem. Aqui é um irmão absoluto que copia a caixa do scroller.
+ *
+ * Desde 26/11/2026 o ConversaView só ativa o véu quando a conversa abriu SEM lista (sem cache):
+ * com mensagens já em mãos o esqueleto era um flash de fantasmas sobre conteúdo que existe.
  */
 const ROWS = [
   { dir: "in", w: "46%", h: 38 },
@@ -24,8 +27,45 @@ const ROWS = [
   { dir: "out", w: "44%", h: 38 },
 ];
 
+/*
+ * Lê TUDO primeiro e escreve depois, e só o que mudou (26/11/2026). Ler offsetLeft depois de
+ * escrever style.top (e assim por diante) forçava um recálculo de estilo do conversa.css inteiro
+ * por propriedade — ~6 recálculos na montagem de cada conversa, pesado em celular fraco.
+ */
+function readBox(t, withPadding) {
+  const box = {
+    top: t.offsetTop,
+    left: t.offsetLeft,
+    width: t.offsetWidth,
+    height: t.offsetHeight,
+  };
+  if (withPadding) {
+    try {
+      const cs = getComputedStyle(t);
+      box.padL = cs.paddingLeft;
+      box.padR = cs.paddingRight;
+      box.padB = cs.paddingBottom;
+    } catch {
+      /* ignore */
+    }
+  }
+  return box;
+}
+
+function writeBox(veil, box, last) {
+  if (last.top !== box.top) veil.style.top = `${box.top}px`;
+  if (last.left !== box.left) veil.style.left = `${box.left}px`;
+  if (last.width !== box.width) veil.style.width = `${box.width}px`;
+  if (last.height !== box.height) veil.style.height = `${box.height}px`;
+  if (box.padL != null && last.padL !== box.padL) veil.style.setProperty("--veil-pad-x-l", box.padL);
+  if (box.padR != null && last.padR !== box.padR) veil.style.setProperty("--veil-pad-x-r", box.padR);
+  if (box.padB != null && last.padB !== box.padB) veil.style.setProperty("--veil-pad-b", box.padB);
+  Object.assign(last, box);
+}
+
 function ThreadOpeningVeil({ active, targetRef }) {
   const veilRef = useRef(null);
+  const lastRef = useRef({});
 
   useLayoutEffect(() => {
     const target = targetRef?.current;
@@ -33,19 +73,8 @@ function ThreadOpeningVeil({ active, targetRef }) {
     if (!target || !veil) return undefined;
     const sync = () => {
       const t = targetRef.current;
-      if (!t) return;
-      veil.style.top = `${t.offsetTop}px`;
-      veil.style.left = `${t.offsetLeft}px`;
-      veil.style.width = `${t.offsetWidth}px`;
-      veil.style.height = `${t.offsetHeight}px`;
-      try {
-        const cs = getComputedStyle(t);
-        veil.style.setProperty("--veil-pad-x-l", cs.paddingLeft);
-        veil.style.setProperty("--veil-pad-x-r", cs.paddingRight);
-        veil.style.setProperty("--veil-pad-b", cs.paddingBottom);
-      } catch {
-        /* ignore */
-      }
+      if (!t || !veilRef.current) return;
+      writeBox(veilRef.current, readBox(t, true), lastRef.current);
     };
     sync();
     if (typeof ResizeObserver === "undefined") return undefined;
@@ -61,10 +90,7 @@ function ThreadOpeningVeil({ active, targetRef }) {
     const t = targetRef?.current;
     const veil = veilRef.current;
     if (!t || !veil) return;
-    veil.style.top = `${t.offsetTop}px`;
-    veil.style.left = `${t.offsetLeft}px`;
-    veil.style.width = `${t.offsetWidth}px`;
-    veil.style.height = `${t.offsetHeight}px`;
+    writeBox(veil, readBox(t, false), lastRef.current);
   }, [active, targetRef]);
 
   return (

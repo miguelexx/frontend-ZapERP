@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Reply } from "lucide-react";
 
 /** Arraste máximo visual (px) — bolha volta com mola ao soltar. */
 const MAX_SHIFT = 76;
@@ -48,10 +49,13 @@ export function SwipeReplyTrack({ enabled, outgoing, onCommit, gestureBlocked, c
   const [spring, setSpring] = useState(true);
   const dragRef = useRef(null);
   const lastCommitRef = useRef(0);
+  /* Vibração curta UMA vez ao cruzar o ponto de "responder" (como no WhatsApp; no iOS é no-op). */
+  const crossedRef = useRef(false);
 
   const resetVisual = useCallback((animate) => {
     setSpring(animate !== false);
     shiftRef.current = 0;
+    crossedRef.current = false;
     setShift(0);
   }, []);
 
@@ -115,6 +119,13 @@ export function SwipeReplyTrack({ enabled, outgoing, onCommit, gestureBlocked, c
         next = dx > 0 ? Math.min(dx, MAX_SHIFT) : 0;
       }
       shiftRef.current = next;
+      const crossed = Math.abs(next) >= ACTIVATE_THRESHOLD;
+      if (crossed && !crossedRef.current) {
+        try {
+          navigator.vibrate?.(10);
+        } catch (_) {}
+      }
+      crossedRef.current = crossed;
       setShift(next);
     },
     [outgoing, resetVisual]
@@ -175,6 +186,25 @@ export function SwipeReplyTrack({ enabled, outgoing, onCommit, gestureBlocked, c
       onPointerCancel={handlePointerCancel}
       style={{ touchAction: "pan-y" }}
     >
+      {/*
+       * Seta de responder que cresce atrás da bolha durante o gesto (26/11/2026): antes ficava um
+       * vão vazio e o atendente não sabia se o gesto "pegou" antes de soltar. Absoluta (sem
+       * layout); só existe enquanto a bolha está deslocada.
+       */}
+      {shift !== 0 ? (
+        <span
+          className={`wa-swipeReplyHint${outgoing ? " wa-swipeReplyHint--out" : ""}${
+            Math.abs(shift) >= ACTIVATE_THRESHOLD ? " isArmed" : ""
+          }`}
+          aria-hidden="true"
+          style={{
+            opacity: Math.min(1, Math.abs(shift) / ACTIVATE_THRESHOLD),
+            transform: `translateY(-50%) scale(${0.6 + 0.4 * Math.min(1, Math.abs(shift) / ACTIVATE_THRESHOLD)})`,
+          }}
+        >
+          <Reply size={16} strokeWidth={2.2} />
+        </span>
+      ) : null}
       <div
         className={`wa-swipeReplyShift ${spring ? "wa-swipeReplyShift--spring" : "wa-swipeReplyShift--dragging"}`}
         style={{

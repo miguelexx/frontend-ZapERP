@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import DSToast from "../components/feedback/Toast";
 
@@ -188,19 +189,69 @@ export function IconLinkOut(props) {
    UI helpers
 ========================================================= */
 
+/*
+ * Confirmação curta ("Copiado", "Fixada para você"…) como pílula discreta acima do composer,
+ * centrada na área da conversa (26/11/2026). O cartão grande cobria o nome/ações do cabeçalho
+ * por 3,5s para coisas triviais. Erros e avisos continuam no cartão.
+ */
+function SnackToast({ toast }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const chat = document.querySelector(".atendimento-chat-area");
+    const r = chat?.getBoundingClientRect?.();
+    if (r && r.width > 0) el.style.left = `${Math.round(r.left + r.width / 2)}px`;
+  }, [toast]);
+  const text = [toast.title, toast.message].filter(Boolean).join(" · ");
+  return (
+    <div ref={ref} className={`wa-snack wa-snack--${toast.type || "info"}`} role="status" aria-live="polite">
+      {text}
+    </div>
+  );
+}
+
 export function ChatToast({ toast, onClose }) {
   if (!toast) return null;
-  const node = (
+  if (toast.variant === "snack") {
+    const snack = <SnackToast key={`${toast.title}|${toast.message}|${toast.seq || ""}`} toast={toast} />;
+    return typeof document !== "undefined" ? createPortal(snack, document.body) : snack;
+  }
+  const node = <ChatCardToast toast={toast} onClose={onClose} />;
+  /* Portal no body: o toast é fixed centrado no viewport, mas dentro da área do chat
+     (`isolation: isolate`) ficava por baixo da lista/rail e do backdrop dos modais. */
+  return typeof document !== "undefined" ? createPortal(node, document.body) : node;
+}
+
+/*
+ * Cartão de aviso da conversa (27/11/2026): fica LOGO ABAIXO do cabeçalho e centrado na área
+ * da conversa. Antes era o `.ds-toast` global (top 18px, centro do viewport) e cobria
+ * exatamente o nome/estado/botões que ele anunciava. Sem cabeçalho medido (fora da conversa),
+ * cai no posicionamento padrão do `.ds-toast`. Só esta instância muda — o toast global das
+ * outras páginas continua igual.
+ */
+function ChatCardToast({ toast, onClose }) {
+  useLayoutEffect(() => {
+    const el = document.querySelector(".ds-toast--chat");
+    if (!el) return;
+    const header = document.querySelector(".atendimento-chat-area .wa-header");
+    const chat = document.querySelector(".atendimento-chat-area");
+    const h = header?.getBoundingClientRect?.();
+    const c = chat?.getBoundingClientRect?.();
+    if (h && h.height > 0 && h.bottom > 0 && h.bottom < window.innerHeight / 2) {
+      el.style.top = `${Math.round(h.bottom + 10)}px`;
+    }
+    if (c && c.width > 0) el.style.left = `${Math.round(c.left + c.width / 2)}px`;
+  }, [toast]);
+  return (
     <DSToast
+      className="ds-toast--chat"
       title={toast.title || "Aviso"}
       message={toast.message}
       type={toast.type || "info"}
       onClose={onClose}
     />
   );
-  /* Portal no body: o toast é fixed centrado no viewport, mas dentro da área do chat
-     (`isolation: isolate`) ficava por baixo da lista/rail e do backdrop dos modais. */
-  return typeof document !== "undefined" ? createPortal(node, document.body) : node;
 }
 
 /**

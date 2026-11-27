@@ -231,6 +231,11 @@ function ConversaThread({
       /* A reação local é guardada por `msg.id` (useConversationReactions) e a linha usa a chave
          React (tempId primeiro): na mensagem que você acabou de enviar o selo nunca aparecia.
          Procura pelas duas (25/11/2026). */
+      /* Seleção, fixadas e favoritas são guardadas por `msg.id` (useConversationSelection); a
+         chave React põe o tempId primeiro. Na mensagem enviada nesta sessão a caixa nunca
+         aparecia marcada e o selo de fixada não surgia (26/11/2026). */
+      const idKey =
+        item.id != null && String(item.id).trim() !== "" ? String(item.id) : String(messageKey);
       const localReaction =
         safeLocalReactions[String(messageKey)] ||
         (item.id != null ? safeLocalReactions[String(item.id)] : undefined);
@@ -249,9 +254,9 @@ function ConversaThread({
           peerAvatarUrl={avatarUrl}
           peerName={nome}
           selectMode={selectMode}
-          isSelected={safeSelectedSet.has(String(messageKey))}
-          isPinned={safePinnedSet.has(String(messageKey))}
-          isStarred={safeStarredSet.has(String(messageKey))}
+          isSelected={safeSelectedSet.has(idKey)}
+          isPinned={safePinnedSet.has(idKey)}
+          isStarred={safeStarredSet.has(idKey)}
           reactionForMessage={localReaction || item.__reaction}
           /* Reação que veio do CLIENTE (inbound): não é "Sua reação" nem pode ser removida
              pelo atendente. */
@@ -260,7 +265,7 @@ function ConversaThread({
             safeReactionLoading[String(messageKey)] ??
               (item.id != null ? safeReactionLoading[String(item.id)] : undefined)
           )}
-          showMobileReactionPicker={Boolean(showSelectedReactionPicker && safeSelectedSet.has(String(messageKey)))}
+          showMobileReactionPicker={Boolean(showSelectedReactionPicker && safeSelectedSet.has(idKey))}
           currentUserId={myUserId}
           whatsappInstanceProvider={whatsappInstanceProvider}
           mostrarNomeAoCliente={mostrarNomeAoCliente}
@@ -427,9 +432,9 @@ function ConversaThread({
                 className="wa-btn wa-btn-secondary"
                 onClick={onContactOldSync}
                 disabled={contactOldSyncBusy}
-                title="Importa as mensagens que a UltraMSG armazenou desde a conexão do WhatsApp (histórico anterior à conexão fica apenas no celular)"
+                title="Importa do WhatsApp conectado o histórico que ainda não está salvo aqui (o que é anterior à conexão fica só no celular)"
               >
-                {contactOldSyncBusy ? "Carregando..." : "Buscar histórico no WhatsApp"}
+                {contactOldSyncBusy ? "Buscando histórico…" : "Buscar histórico no WhatsApp"}
               </button>
             ) : null}
             {showLidPhoneMissingHint ? (
@@ -460,9 +465,9 @@ function ConversaThread({
               onClick={onContactOldSync}
               disabled={contactOldSyncBusy}
               aria-busy={contactOldSyncBusy}
-              title="Busca no WhatsApp conectado o histórico antigo deste contato e salva no sistema"
+              title="Importa do WhatsApp conectado o histórico que ainda não está salvo aqui (o que é anterior à conexão fica só no celular)"
             >
-              {contactOldSyncBusy ? "Carregando..." : "Buscar histórico no WhatsApp"}
+              {contactOldSyncBusy ? "Buscando histórico…" : "Buscar histórico no WhatsApp"}
             </button>
           ) : null}
           {showLidPhoneMissingHint ? (
@@ -483,10 +488,11 @@ function ConversaThread({
               Carregar mensagens salvas
             </button>
           ) : !hasMore ? (
+            /* Uma linha discreta (26/11/2026): antes eram 4 linhas técnicas no topo de toda
+               conversa curta, citando a UltraMSG (errado para quem usa Whapi). A explicação
+               do botão "Buscar histórico" mora no title dele. */
             <p className="wa-loadOlderEnd" role="status">
-              {showContactOldSyncCta
-                ? "Todas as mensagens salvas foram carregadas. “Buscar histórico no WhatsApp” importa o que a UltraMSG tem armazenado desde a conexão — conversas mais antigas ficam apenas no celular."
-                : "Todas as mensagens salvas foram carregadas."}
+              Início do histórico salvo
             </p>
           ) : null}
         </div>

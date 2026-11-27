@@ -41,6 +41,13 @@ export function useConversationDepartments({ conversaId, conversa, refresh, show
     carregarDepartamentos();
   }, [carregarDepartamentos]);
 
+  /*
+   * Trocar setor (26/11/2026): o PUT já é a confirmação. Antes o painel esperava o PUT E um
+   * GET completo da conversa (~2,6s com a latência de produção) e fechava sem dizer nada —
+   * "remover setor" tinha toast, "trocar" não. Agora fecha e confirma logo após o PUT; o
+   * refresh silencioso segue em 2.º plano e atualiza o cabeçalho (mesmo padrão do Transferir,
+   * doc 14 "Ações do cabeçalho"). Nada de patch otimista na lista: o GET é a autoridade.
+   */
   const handleTransferirSetor = useCallback(
     async (departamentoId) => {
       if (!conversaId || !departamentoId || transferirSetorLoading) return;
@@ -49,8 +56,14 @@ export function useConversationDepartments({ conversaId, conversa, refresh, show
         await api.put(`/chats/${conversaId}/departamento`, {
           departamento_id: Number(departamentoId),
         });
-        await refresh({ silent: true });
         setShowTransferirSetor(false);
+        const nome = (departamentos || []).find((d) => Number(d?.id) === Number(departamentoId))?.nome;
+        showToast({
+          type: "success",
+          variant: "snack",
+          title: nome ? `Setor alterado para ${nome}` : "Setor alterado",
+        });
+        Promise.resolve(refresh({ silent: true })).catch(() => {});
       } catch (e) {
         console.error("Erro ao transferir setor:", e);
         showToast({
@@ -62,7 +75,7 @@ export function useConversationDepartments({ conversaId, conversa, refresh, show
         setTransferirSetorLoading(false);
       }
     },
-    [conversaId, refresh, showToast, transferirSetorLoading]
+    [conversaId, departamentos, refresh, showToast, transferirSetorLoading]
   );
 
   const handleRemoverSetor = useCallback(
@@ -71,9 +84,9 @@ export function useConversationDepartments({ conversaId, conversa, refresh, show
       setTransferirSetorLoading(true);
       try {
         await api.put(`/chats/${conversaId}/departamento`, { remover_setor: true });
-        await refresh({ silent: true });
         setShowTransferirSetor(false);
-        showToast({ type: "success", title: "Setor removido", message: "A conversa não possui mais setor vinculado." });
+        showToast({ type: "success", variant: "snack", title: "Setor removido da conversa" });
+        Promise.resolve(refresh({ silent: true })).catch(() => {});
       } catch (e) {
         console.error("Erro ao remover setor:", e);
         showToast({

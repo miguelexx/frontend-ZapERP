@@ -42,6 +42,55 @@
   max-width: 100%;
 }
 
+/*
+ * Lista estreita no desktop (27/11/2026, A1-18). A 1280–1366 a coluna tem ~340px: a busca
+ * ficava com 120px e lia "Buscar por nome c", e o filtro "Por aten…". Sem atendente
+ * escolhido, o filtro vira só o ícone (como já é no celular) — o rótulo vai para o `title` e
+ * o `aria-label` continua — e a busca ganha o espaço do texto inteiro. Com atendente
+ * escolhido o nome fica à vista: é estado, não rótulo. Container query na própria linha (e não
+ * na largura da janela): vale para qualquer largura de coluna. `inline-size` não muda a
+ * largura da linha — ela já é 100% da faixa da busca.
+ */
+.chat-list-search-row {
+  container: chat-list-search / inline-size;
+}
+
+.chat-list-search-row .chat-list-search-input {
+  text-overflow: ellipsis;
+}
+
+@container chat-list-search (max-width: 440px) {
+  .chat-list-search-row .admin-atendente-filter:has(> .admin-atendente-filter__trigger.is-idle) {
+    max-width: none;
+  }
+
+  .chat-list-search-row .admin-atendente-filter__trigger.is-idle {
+    position: relative;
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .chat-list-search-row .admin-atendente-filter__trigger.is-idle .admin-atendente-filter__trigger-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .chat-list-search-row .admin-atendente-filter__trigger.is-idle .admin-atendente-filter__chevron {
+    display: none;
+  }
+}
+
 /* Row 2 — chips em até duas linhas (wrap natural) */
 .chat-list-chips-wrap--compact {
   display: block;

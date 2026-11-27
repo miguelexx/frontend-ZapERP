@@ -1,0 +1,1012 @@
+/* =========================================================================================
+   CABEÇALHO, MENUS E PAINÉIS LATERAIS DA CONVERSA — acabamento premium (26/11/2026)
+
+   Dono: ConversaHeader.jsx (importa este ficheiro). Carrega DEPOIS de conversa.css,
+   conversa.polish.css e conversa.whatsapp.css (o ConversaView importa os três antes do
+   cabeçalho), por isso empate de especificidade é nosso. Onde o polish/whatsapp usam
+   `!important`, a regra daqui sobe a especificidade E usa `!important` (doc 14).
+
+   Regras da casa respeitadas: tokens --ds-* / --wa-* / --zs-st-* (nos dois temas), contraste
+   ≥ 4.5:1, ícones lucide, anel de foco só em :focus-visible, transições 150–200ms só de
+   opacity/transform/cor, `prefers-reduced-motion`, e o modo simples (pele WhatsApp,
+   html[data-zap-simple="1"]) intocado: as regras de cor ficam atrás de :not([data-zap-simple]).
+
+   Índice
+     1. Utilitários
+     2. Selo de estado (E02)
+     3. Avatar na cor do contacto (E12)
+     4. Setor como chip na linha do selo — desktop (E18)
+     5. Barra de ações: uma linguagem de cor (E13)
+     6. Celular: identidade na largura toda, rótulos e AA (E08 / C5 / E02)
+     7. Menus "Mais opções" (E10)
+     8. Painéis: Histórico (E06), Tags (E07), Setor (E16)
+   ========================================================================================= */
+
+/* 1. Utilitários ------------------------------------------------------------------------- */
+
+.wa-srOnly {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* 2. Selo de estado ----------------------------------------------------------------------
+   "Uma cápsula e cinco tintas" — as MESMAS da lista. Marca redonda em currentColor.
+   Forma (caixa, bolinha, gap) atrás de :not([data-zap-simple]): no modo simples o selo é a
+   linha de status do WhatsApp ("online"), texto puro — a pele de lá zera fundo/borda/fonte
+   com !important, mas não o ::before nem o gap, e a bolinha de 6px vazava (R4-04). */
+
+html:not([data-zap-simple="1"]) .wa-header .wa-header-metaStrip .wa-status-pill--meta:is(
+    .wa-status-pill--live,
+    .wa-status-pill--wait,
+    .wa-status-pill--staff,
+    .wa-status-pill--done,
+    .wa-status-pill--neutral
+  ) {
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 10px 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  box-shadow: none;
+}
+
+html:not([data-zap-simple="1"]) .wa-header .wa-header-metaStrip .wa-status-pill--meta:is(
+    .wa-status-pill--live,
+    .wa-status-pill--wait,
+    .wa-status-pill--staff,
+    .wa-status-pill--done,
+    .wa-status-pill--neutral
+  )::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.wa-header .wa-header-metaStrip .wa-status-pill--meta.wa-status-pill--live {
+  color: var(--zs-st-live-fg, #4338ca);
+  background: var(--zs-st-live-bg, rgba(99, 102, 241, 0.12));
+}
+
+/* Âmbar sobre âmbar fica no limite (4.5:1) no claro: um passo mais escuro só no tema claro. */
+.wa-header .wa-header-metaStrip .wa-status-pill--meta.wa-status-pill--wait {
+  color: color-mix(in srgb, var(--zs-st-wait-fg, #b45309) 86%, #000);
+  background: var(--zs-st-wait-bg, rgba(245, 158, 11, 0.14));
+}
+
+[data-theme="dark"] .wa-header .wa-header-metaStrip .wa-status-pill--meta.wa-status-pill--wait {
+  color: var(--zs-st-wait-fg, #fcd34d);
+}
+
+.wa-header .wa-header-metaStrip .wa-status-pill--meta.wa-status-pill--staff {
+  color: var(--zs-st-staff-fg, #1d4ed8);
+  background: var(--zs-st-staff-bg, rgba(37, 99, 235, 0.11));
+}
+
+.wa-header .wa-header-metaStrip .wa-status-pill--meta.wa-status-pill--done {
+  color: var(--zs-st-done-fg, #475569);
+  background: var(--zs-st-done-bg, rgba(100, 116, 139, 0.13));
+}
+
+.wa-header .wa-header-metaStrip .wa-status-pill--meta.wa-status-pill--neutral {
+  color: var(--wa-text-muted);
+  background: color-mix(in srgb, var(--wa-text) 7%, transparent);
+}
+
+/* 3. Avatar na cor do contacto ---------------------------------------------------------- */
+
+.wa-header .wa-header-left .wa-avatar.wa-avatar--tint {
+  background: var(--wa-avatar-tint, #64748b);
+  color: #fff;
+  font-weight: 600;
+  border-color: transparent;
+}
+
+.wa-header .wa-header-left .wa-avatar .wa-avatar-icon {
+  display: block;
+  opacity: 0.95;
+}
+
+/* 4. Setor como chip na linha do selo (desktop largo) -------------------------------------
+   O bloco de identidade vira <div> com um botão transparente esticado por cima (abre os
+   dados do contato); o chip do setor fica acima dele (z-index) com clique e foco próprios. */
+
+.wa-header .wa-header-left.wa-header-left--split {
+  position: relative;
+}
+
+.wa-header .wa-header-left--split > .wa-header-leftHit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wa-header .wa-header-left--split > .wa-header-leftHit:disabled {
+  cursor: default;
+}
+
+.wa-header .wa-header-left--split > .wa-header-leftHit:focus-visible {
+  outline: 2px solid var(--ds-accent, #2e86ff);
+  outline-offset: 1px;
+}
+
+.wa-header .wa-header-left--split:has(> .wa-header-leftHit:focus-visible) {
+  background: color-mix(in srgb, var(--ds-hover, rgba(17, 27, 33, 0.06)) 88%, transparent);
+}
+
+/* Cursor sobre o chip: o bloco inteiro não pode "acender" como se o clique abrisse o perfil. */
+.wa-header .wa-header-left--split:has(.wa-header-setorChip:hover) {
+  background: transparent;
+}
+
+.wa-header .wa-header-setorChip {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(240px, 100%);
+  height: 24px;
+  padding: 0 8px 0 7px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--wa-text) 12%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wa-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.wa-header .wa-header-setorChip > svg {
+  flex: 0 0 auto;
+  color: var(--wa-text-muted);
+}
+
+.wa-header .wa-header-setorChip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-header .wa-header-setorChip.is-empty .wa-header-setorChip-text {
+  color: var(--wa-text-muted);
+  font-weight: 500;
+}
+
+.wa-header .wa-header-setorChip.is-static {
+  cursor: default;
+  border-color: transparent;
+  padding-left: 2px;
+}
+
+.wa-header button.wa-header-setorChip:hover {
+  background: color-mix(in srgb, var(--wa-text) 7%, transparent);
+  border-color: color-mix(in srgb, var(--wa-text) 18%, transparent);
+}
+
+.wa-header button.wa-header-setorChip:focus-visible {
+  outline: 2px solid var(--ds-accent, #2e86ff);
+  outline-offset: 2px;
+}
+
+.wa-header button.wa-header-setorChip:active {
+  transform: scale(0.97);
+}
+
+.wa-header .wa-header-setorChip-caret {
+  transition: transform 150ms ease;
+}
+
+/*
+ * R4-01 / A1-01 — a faixa "selo · chip" NUNCA sai do bloco de identidade. Antes, com `nowrap`
+ * e nada a cortar, ela transbordava sobre Pesquisar/CRM/Transferir (1040–1440px) e, como o
+ * bloco é posicionado (link esticado) e o chip tem z-index, o clique na lupa abria "Transferir
+ * setor". Agora o bloco de texto ocupa o que sobra e pode encolher até 0; a faixa tem no máximo
+ * a largura dele; e a ordem de quem cede é: 1.º o nome do setor (reticências) até o chip virar
+ * só o ícone, 2.º o texto do selo (reticências, alinhado à esquerda — antes ficava centrado e
+ * cortado dos dois lados). O que ainda não couber é cortado: nada pinta fora do bloco (clip, com
+ * folga para os anéis de foco e o halo do avatar).
+ */
+.wa-header .wa-header-left.wa-header-left--split {
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+
+.wa-header--setorInline .wa-header-left--split > .wa-header-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+
+.wa-header--setorInline .wa-header-metaBlock {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.wa-header--setorInline .wa-header-metaStrip {
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+
+/* O selo não cede para o chip (qualquer fração de pixel já virava "Em atendime…"); só é
+   limitado pela largura da faixa, quando nem ele cabe. */
+.wa-header--setorInline .wa-header-metaStrip > .wa-header-statusStack {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  align-items: flex-start;
+}
+
+.wa-header--setorInline .wa-header-metaStrip .wa-status-pill--meta {
+  min-width: 0;
+  max-width: 100%;
+  width: auto;
+  overflow: hidden;
+}
+
+.wa-header--setorInline .wa-header-metaStrip .wa-status-pill-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-header--setorInline .wa-header-metaStrip > .wa-header-setorChip {
+  /* Quem cede é o nome do setor (reticências), até o chip virar só o ícone. */
+  flex: 0 1 auto;
+  min-width: 24px;
+  overflow: hidden;
+}
+
+/* Nem o ícone coube (o ConversaHeader marca `data-clipped`): o chip some de vez — sem isto ele
+   ficava invisível mas focável pelo Tab. `visibility` mantém a caixa, então a medida não oscila.
+   O separador "·" vai junto, e o setor fica no "Mais opções" (Transferir setor). */
+.wa-header--setorInline .wa-header-metaStrip > .wa-header-setorChip[data-clipped],
+.wa-header--setorInline .wa-header-metaStrip > .wa-header-metaSep:has(+ .wa-header-setorChip[data-clipped]) {
+  visibility: hidden;
+}
+
+/* Rótulos médios (sem abreviação) no desktop apertado: o bloco de identidade ganha ~100px para
+   o nome e o chip do setor. Abaixo de 1500px a lista ocupa ~410px e a conversa fica com ~1090px
+   ou menos; com Puxar + Transferir + Aguardar + Encerrar + CRM a barra passava de 550px. */
+html body .wa-atendLabel--mid {
+  display: none;
+}
+
+@media (min-width: 641px) and (max-width: 739px), (min-width: 1025px) and (max-width: 1499px) {
+  html:not([data-zap-simple="1"]) body .wa-header .wa-header-actionsRow .wa-atendLabel--long.wa-atendLabel--hasMid {
+    display: none;
+  }
+
+  html:not([data-zap-simple="1"]) body .wa-header .wa-header-actionsRow .wa-atendLabel--mid {
+    display: inline;
+  }
+}
+
+/* 5. Barra de ações: uma linguagem de cor (desktop, fora do modo simples) -----------------
+   Antes: CRM azul, Transferir índigo, Aguardar âmbar, Encerrar vermelho — quatro tintas lado
+   a lado. Agora: secundárias NEUTRAS (mesma superfície, mesmo texto), UM preenchido de accent
+   para a ação principal do estado (Assumir / Retomar / Reabrir / Puxar — já vem do polish),
+   e vermelho só no texto do Encerrar, que é a única ação que fecha algo. */
+
+@media (min-width: 641px) {
+  html:not([data-zap-simple="1"]) body .app-layout #main-content .wa-header :is(
+      .wa-btn-transferir,
+      .wa-btn-orcamento,
+      .wa-btn-aguardar-cliente,
+      .wa-btn-aguardar-pagamento,
+      .wa-crmSendBtn
+    ) {
+    background: color-mix(in srgb, var(--wa-text) 6%, transparent) !important;
+    color: var(--wa-text) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wa-text) 9%, transparent) !important;
+  }
+
+  html:not([data-zap-simple="1"]) body .app-layout #main-content .wa-header :is(
+      .wa-btn-transferir,
+      .wa-btn-orcamento,
+      .wa-btn-aguardar-cliente,
+      .wa-btn-aguardar-pagamento,
+      .wa-crmSendBtn
+    ):hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wa-text) 11%, transparent) !important;
+    color: var(--wa-text) !important;
+  }
+
+  html:not([data-zap-simple="1"]) body .app-layout #main-content .wa-header :is(
+      .wa-btn-transferir,
+      .wa-btn-orcamento,
+      .wa-btn-aguardar-cliente,
+      .wa-btn-aguardar-pagamento,
+      .wa-crmSendBtn
+    ) svg {
+    color: var(--wa-text-muted);
+  }
+
+  html:not([data-zap-simple="1"]) body .app-layout #main-content .wa-header .wa-btn-danger {
+    background: color-mix(in srgb, var(--wa-text) 6%, transparent) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wa-text) 9%, transparent) !important;
+    color: #be123c !important;
+  }
+
+  [data-theme="dark"]:not([data-zap-simple="1"]) body .app-layout #main-content .wa-header .wa-btn-danger {
+    color: #fda4af !important;
+  }
+
+  html:not([data-zap-simple="1"]) body .app-layout #main-content .wa-header .wa-btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, #e11d48 12%, transparent) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, #e11d48 24%, transparent) !important;
+  }
+}
+
+/* 6. Celular (≤640px) -------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  /* C5 / E08 — o nome ocupava 115px com ~150px vazios ao lado: a coluna 3 (auto) toma a
+     largura das AÇÕES da 2.ª linha, mas na 1.ª só tem o ⋯ de 32px. A identidade passa a
+     cobrir as colunas 2–3 da 1.ª linha; o ⋯ (z-index 6, justify-self end) fica por cima
+     do recuo de 40px. Medido: nome 115 → ~255px, cabeçalho com a MESMA altura. */
+  .wa-header.wa-header--atendMobile:not(.wa-header--setorBelow) .wa-header-left {
+    grid-column: 2 / -1;
+    grid-row: 1;
+    padding-right: 40px;
+    min-width: 0;
+  }
+
+  /* E02 — selo legível (era 9–10px). Mesma caixa: a fonte sobe, o respiro vertical desce.
+     Mesmo guarda do modo simples da secção 2 (e especificidade acima da regra desktop). */
+  html:not([data-zap-simple="1"]) .wa-header.wa-header--atendMobile .wa-header-metaStrip .wa-status-pill--meta:is(
+      .wa-status-pill--live,
+      .wa-status-pill--wait,
+      .wa-status-pill--staff,
+      .wa-status-pill--done,
+      .wa-status-pill--neutral
+    ) {
+    min-height: 18px;
+    padding: 1px 7px 1px 6px;
+    gap: 4px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  html:not([data-zap-simple="1"]) .wa-header.wa-header--atendMobile .wa-header-metaStrip .wa-status-pill--meta:is(
+      .wa-status-pill--live,
+      .wa-status-pill--wait,
+      .wa-status-pill--staff,
+      .wa-status-pill--done,
+      .wa-status-pill--neutral
+    )::before {
+    width: 5px;
+    height: 5px;
+  }
+
+  /* E08 — 2.ª linha. O setor vira UM chip-botão ("Comercial ▾", 12px) que começa sob a seta
+     de voltar (colunas 1–2), em vez de "Comercial" 10px + "Trocar" 9px espremidos na coluna 2.
+     A caixa cinza que embrulhava os dois sai; quem tem borda agora é o próprio chip. */
+  html body .wa-header.wa-header--atendMobile .wa-header-mobileRow2-sector {
+    grid-column: 1 / 3;
+    max-width: 100%;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    /* R4-06: o chip nunca pinta sobre as ações vizinhas (3px de folga para o anel de foco). */
+    min-width: 0;
+    overflow: clip;
+    overflow-clip-margin: 3px;
+  }
+
+  html body .wa-header.wa-header--atendMobile .wa-header-mobileRow2-sector .wa-header-setorChip {
+    /* No celular não há "link esticado" por baixo: sem z-index, as ações (depois no DOM)
+       ficam por cima e recebem o toque se alguma vez se encostarem (R4-06). */
+    z-index: auto;
+    height: 32px;
+    max-width: 100%;
+    padding: 0 9px 0 8px;
+    gap: 5px;
+    border-radius: 10px;
+    border-color: color-mix(in srgb, var(--wa-text) 12%, transparent);
+    background: color-mix(in srgb, var(--wa-text) 4%, transparent);
+    font-size: 12px;
+  }
+
+  html body .wa-header.wa-header--atendMobile .wa-header-mobileRow2-sector .wa-header-setorChip.is-static {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  /* Rótulos das ações: 12px (eram 10.5–11.25px) e texto com ≥ 4.5:1 sobre a tinta. */
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact :is(
+      .wa-btn-primary,
+      .wa-btn-transferir,
+      .wa-btn-danger,
+      .wa-btn-secondary,
+      .wa-btn-aguardar-cliente
+    ) {
+    font-size: 12px !important;
+  }
+
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-btn-transferir {
+    color: var(--zs-st-staff-fg, #1d4ed8) !important;
+  }
+
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-btn-danger {
+    color: #be123c !important;
+  }
+
+  [data-theme="dark"] body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-btn-transferir {
+    color: var(--zs-st-staff-fg, #bfdbfe) !important;
+  }
+
+  [data-theme="dark"] body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-btn-danger {
+    color: #fda4af !important;
+  }
+
+  /* Assumir / Reabrir (preenchidos). R4-03: a regra de 12px tem de vencer a de 11px do
+     conversa.css (`…--assumir-hero.wa-btn-primary`, 0,5,0 com !important) — daí o :is() (0,5,2).
+     No escuro, 80% de accent dava 3.7:1 com o texto branco; 62% dá ~5.7:1 (AA a 12px/700). */
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-atendBtn--assumir-hero:is(.wa-btn-primary, .wa-btn-assumir-destaque) {
+    font-size: 12px !important;
+  }
+
+  [data-theme="dark"] body .wa-header.wa-header--atendMobile .wa-atendToolbar--compact .wa-atendBtn--assumir-hero:is(.wa-btn-primary, .wa-btn-assumir-destaque) {
+    background: color-mix(in srgb, var(--ds-accent, #2e86ff) 62%, #000) !important;
+    background-image: none !important;
+    color: #fff !important;
+  }
+}
+
+/* Com até DUAS ações na fileira (sem o cronómetro do "aguardando") e ≥ 380px, cabem por
+   extenso: "Transferir" / "Encerrar" em vez de "Transf." / "Encerr.". Com três, os curtos. */
+@media (min-width: 380px) and (max-width: 640px) {
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar-primaryRow--headerRow2:not(:has(> :nth-child(3))) .wa-atendLabel--long {
+    display: inline !important;
+  }
+
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar-primaryRow--headerRow2:not(:has(> :nth-child(3))) .wa-atendLabel--short {
+    display: none !important;
+  }
+}
+
+/* R4-06 — TRÊS ações (Assumir + Transf. + Encerr., conversa sem dono vista por supervisor)
+   abaixo de 420px: a fileira passava da coluna dela e invadia o chip do setor (a 320px o chip
+   ficava por cima do Assumir e roubava o toque; a 360px lia-se "🏢 P ⌄"). Sem os ícones — os
+   rótulos já dizem tudo — sobram ~50px: o chip mostra ícone + seta a 320px e o nome a 360px. */
+@media (max-width: 419px) {
+  html body .wa-header.wa-header--atendMobile .wa-atendToolbar-primaryRow--headerRow2:has(> :is(button, .wa-encerrarSplit) ~ :is(button, .wa-encerrarSplit) ~ :is(button, .wa-encerrarSplit)) .wa-atendBtn-icon {
+    display: none !important;
+  }
+}
+
+/* 7. Menus "Mais opções" ------------------------------------------------------------------ */
+
+html body .wa-atendToolbar-sheetIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wa-atendToolbar-sheetBtn:focus-visible,
+.wa-atendToolbar-sheetBtn:focus {
+  outline: none;
+}
+
+html body .wa-atendToolbar-sheetBtn:focus-visible {
+  background: var(--premium-hover, var(--ds-hover));
+  box-shadow: inset 0 0 0 2px var(--ds-accent, #2e86ff);
+}
+
+/* Foco programático ao abrir pelo teclado: o item ganha o mesmo realce do hover. */
+html body .wa-atendToolbar-sheetBtn:focus:not(:focus-visible) {
+  background: var(--premium-hover, var(--ds-hover));
+}
+
+.wa-atendToolbar-sheetKbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--ds-border, rgba(15, 23, 42, 0.12));
+  background: color-mix(in srgb, var(--wa-text) 4%, transparent);
+  color: var(--wa-text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+@media (pointer: coarse) {
+  .wa-atendToolbar-sheetKbd {
+    display: none;
+  }
+}
+
+.wa-atendToolbar-menuSep {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--premium-edge, var(--ds-border));
+}
+
+/* 8a. Histórico (timeline) ---------------------------------------------------------------- */
+
+.wa-timeline.wa-timeline--premium .wa-timeline-body {
+  padding: 8px 16px 20px;
+}
+
+.wa-tl-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wa-tl-day {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 6px;
+}
+
+.wa-tl-day > span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--ds-surface-1, var(--wa-panel));
+  border: 1px solid var(--ds-border, var(--wa-panel-border));
+  color: var(--wa-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.wa-tl-list {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Trilho vertical ligando os eventos. */
+.wa-tl-list::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--wa-text) 9%, transparent);
+}
+
+.wa-tl-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 0;
+  --wa-tl-fg: var(--wa-text-muted);
+  --wa-tl-bg: color-mix(in srgb, var(--wa-text) 8%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-item--accent {
+  --wa-tl-fg: var(--zs-accent-text, #1e6fe8);
+  --wa-tl-bg: color-mix(in srgb, var(--ds-accent, #2e86ff) 14%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-item--live {
+  --wa-tl-fg: var(--zs-st-live-fg, #4338ca);
+  --wa-tl-bg: color-mix(in srgb, var(--zs-st-live-fg, #4338ca) 13%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-item--wait {
+  --wa-tl-fg: var(--zs-st-wait-fg, #b45309);
+  --wa-tl-bg: color-mix(in srgb, var(--zs-st-wait-fg, #b45309) 14%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-item--staff {
+  --wa-tl-fg: var(--zs-st-staff-fg, #1d4ed8);
+  --wa-tl-bg: color-mix(in srgb, var(--zs-st-staff-fg, #1d4ed8) 13%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-item--done {
+  --wa-tl-fg: var(--zs-st-done-fg, #475569);
+  --wa-tl-bg: color-mix(in srgb, var(--zs-st-done-fg, #475569) 14%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-item--due {
+  --wa-tl-fg: var(--zs-st-due-fg, #9a3412);
+  --wa-tl-bg: color-mix(in srgb, var(--zs-st-due-fg, #9a3412) 14%, var(--ds-surface-1, #fff));
+}
+
+.wa-tl-dot {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--wa-tl-fg);
+  background: var(--wa-tl-bg);
+  box-shadow: 0 0 0 3px var(--ds-surface-1, var(--wa-panel));
+}
+
+.wa-tl-dot--empty::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.wa-tl-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.wa-tl-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--wa-text);
+  overflow-wrap: anywhere;
+}
+
+.wa-tl-detail {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--wa-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.wa-tl-time {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--wa-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wa-tl-empty {
+  padding: 32px 12px;
+  text-align: center;
+}
+
+.wa-tl-emptyTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wa-text);
+}
+
+.wa-tl-emptyHint {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--wa-text-muted);
+}
+
+.wa-tl-skel {
+  display: block;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wa-text) 9%, transparent);
+  animation: wa-tl-pulse 1.2s ease-in-out infinite;
+}
+
+.wa-tl-dot.wa-tl-skel {
+  border-radius: 50%;
+}
+
+.wa-tl-skel--line {
+  height: 12px;
+  margin-top: 4px;
+}
+
+.wa-tl-skel--time {
+  width: 38px;
+  height: 10px;
+  margin-top: 6px;
+}
+
+@keyframes wa-tl-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* 8b. Tags do cliente -------------------------------------------------------------------- */
+
+.wa-tagsPanel--premium .wa-tagsPanel-grabber {
+  display: none;
+}
+
+.wa-tagsPanel--premium .wa-tagsPanel-titleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.wa-tagsPanel--premium .wa-tagsPanel-count {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+}
+
+.wa-tagsPanel--premium .wa-tagChip {
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px 0 10px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--wa-text);
+}
+
+.wa-tagsPanel--premium .wa-tagChip-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tag-cor, var(--wa-text-muted));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #000 8%, transparent);
+}
+
+.wa-tagsPanel--premium .wa-tagChip-dot.is-neutral {
+  background: color-mix(in srgb, var(--wa-text) 30%, transparent);
+}
+
+.wa-tagsPanel--premium .wa-tagChip-check {
+  flex: 0 0 auto;
+}
+
+/* A escolhida continua azul sob o cursor: o hover genérico (0,3,0) vencia o `.isSelected`. */
+.wa-tagChip.isSelected:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-accent, #2e86ff) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ds-accent, #2e86ff) 50%, transparent);
+  color: var(--wa-green);
+}
+
+.wa-tagsPanel--premium .wa-tagChip.isSelected {
+  color: var(--zs-accent-text, #1e6fe8);
+  font-weight: 600;
+}
+
+.wa-tagsPanel--premium .wa-tagChip.isSelected:hover:not(:disabled) {
+  color: var(--zs-accent-text, #1e6fe8);
+}
+
+/* Só a etiqueta em voo fica travada — e não "apagada": um pulso discreto diz "salvando". */
+.wa-tagsPanel--premium .wa-tagChip.isPending:disabled {
+  opacity: 1;
+  cursor: progress;
+  animation: wa-tag-pending 900ms ease-in-out infinite;
+}
+
+@keyframes wa-tag-pending {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.wa-tagsPanel--premium .wa-tagChip:focus-visible {
+  outline: 2px solid var(--ds-accent, #2e86ff);
+  outline-offset: 2px;
+}
+
+.wa-tagChip.wa-tagChip--skeleton {
+  height: 32px;
+  padding: 0;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--wa-text) 8%, transparent);
+  animation: wa-tl-pulse 1.2s ease-in-out infinite;
+  cursor: default;
+}
+
+/* 8c. Setor ------------------------------------------------------------------------------ */
+
+/* O painel recebe o foco ao abrir (A1-05); o anel fica nos itens, não na folha inteira. */
+.wa-tagsPanel.wa-tagsPanel--setor:focus {
+  outline: none;
+}
+
+/* A1-09 — aberto pelo chip do setor (desktop com o chip na linha do selo): a folha nasce logo
+   abaixo do chip, alinhada à esquerda dele, e não no canto oposto do cabeçalho. A posição vem
+   do ConversaSetorPanel (--wa-setor-left/--wa-setor-top, já limitadas à área da conversa). O
+   tablet (740–1024) e o celular mantêm as folhas próprias. */
+@media (min-width: 641px) and (max-width: 739px), (min-width: 1025px) {
+  .wa-tagsPanel.wa-tagsPanel--setor.wa-tagsPanel--anchored {
+    top: var(--wa-setor-top, calc(var(--wa-header-h, 60px) + 4px));
+    left: var(--wa-setor-left, auto);
+    right: auto;
+    transform-origin: top left;
+  }
+}
+
+.wa-setorList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-tagsPanel--premium .wa-setorItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--wa-text);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.wa-tagsPanel--premium .wa-setorItem:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa-text) 6%, transparent);
+}
+
+.wa-tagsPanel--premium .wa-setorItem:focus-visible {
+  outline: 2px solid var(--ds-accent, #2e86ff);
+  outline-offset: -2px;
+}
+
+.wa-tagsPanel--premium .wa-setorItem:disabled {
+  cursor: default;
+}
+
+.wa-tagsPanel--premium .wa-setorItem:disabled:not(.is-current):not(.is-pending) {
+  opacity: 0.5;
+}
+
+.wa-setorItem-icon {
+  flex: 0 0 auto;
+  color: var(--wa-text-muted);
+}
+
+.wa-setorItem-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-tagsPanel--premium .wa-setorItem.is-current {
+  background: color-mix(in srgb, var(--ds-accent, #2e86ff) 9%, transparent);
+  color: var(--zs-accent-text, #1e6fe8);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.wa-tagsPanel--premium .wa-setorItem.is-current .wa-setorItem-icon {
+  color: inherit;
+}
+
+.wa-setorItem-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--zs-accent-text, #1e6fe8);
+}
+
+.wa-setorItem-spinner {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--ds-accent, #2e86ff) 25%, transparent);
+  border-top-color: var(--ds-accent, #2e86ff);
+  animation: wa-setor-spin 0.7s linear infinite;
+}
+
+@keyframes wa-setor-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wa-tagsPanel--premium .wa-setorItem.is-pending {
+  background: color-mix(in srgb, var(--ds-accent, #2e86ff) 7%, transparent);
+  cursor: progress;
+}
+
+.wa-tagsPanel--premium .wa-tagItem--remover.wa-setorItem--remover {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--wa-text) 8%, transparent);
+  border-radius: 0 0 10px 10px;
+  color: var(--wa-text-muted);
+}
+
+.wa-tagsPanel--premium .wa-tagItem--remover.wa-setorItem--remover:hover:not(:disabled) {
+  color: var(--ds-error, #dc2626);
+  background: color-mix(in srgb, var(--ds-error, #dc2626) 6%, transparent);
+}
+
+.wa-setorItem.wa-setorItem--skeleton {
+  pointer-events: none;
+}
+
+.wa-setorItem-skel {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wa-text) 9%, transparent);
+  animation: wa-tl-pulse 1.2s ease-in-out infinite;
+}
+
+/* Folha inferior do celular: alça de arrastar (sinal de "isto é uma folha"). */
+@media (max-width: 640px) {
+  .wa-tagsPanel--premium .wa-tagsPanel-grabber {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 8px auto 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--wa-text) 22%, transparent);
+    flex-shrink: 0;
+  }
+
+  .wa-tagsPanel--premium .wa-tagsPanel-head {
+    padding-top: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-tl-skel,
+  .wa-tagChip--skeleton,
+  .wa-setorItem-skel,
+  .wa-tagsPanel--premium .wa-tagChip.isPending:disabled {
+    animation: none !important;
+  }
+
+  .wa-header button.wa-header-setorChip:active {
+    transform: none;
+  }
+}

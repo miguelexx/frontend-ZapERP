@@ -124,21 +124,49 @@ html body .wa-encerrarSplit > button.wa-encerrarSplit-main:active:not(:disabled)
   cursor: progress;
 }
 
-/* Mobile: cápsula de 34px com padding 10px — seta um tico mais estreita. */
-@media (max-width: 640px) {
+/* Desktop (ponteiro fino): alvo de 24px — o mínimo do WCAG 2.5.8 (era 22px). */
+@media (pointer: fine) and (min-width: 641px) {
   .wa-encerrarSplit-spacer {
-    width: 13px;
+    width: 16px;
   }
   .wa-encerrarSplit-caret {
-    top: 3px;
-    bottom: 3px;
-    right: 2px;
-    width: 21px;
-    /* A cápsula no celular tem cantos de 9px (não é pílula): a seta acompanha. */
-    border-radius: 7px;
+    width: 24px;
+  }
+}
+
+/*
+ * Toque (A2-05, 27/11/2026). A seta era um alvo de 21×28px DENTRO do "Encerrar": um toque
+ * 3–4px à esquerda caía no corpo do botão e encerrava na hora — sem volta, e com a mensagem de
+ * finalização indo ao cliente quando a empresa a envia. Agora a seta ocupa a ALTURA TODA da
+ * cápsula e 32px de largura, encostada à direita; o espaçador cresce na mesma medida, para o
+ * alvo da seta nunca cobrir o rótulo nem o rótulo encostar nela. E o "Encerrar" ganha 8px de
+ * respiro do "Transferir" (eram 3px).
+ */
+@media (max-width: 640px), (pointer: coarse) {
+  .wa-encerrarSplit-spacer {
+    width: 23px;
+  }
+  .wa-encerrarSplit-caret {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 32px;
+    border-radius: 0 999px 999px 0;
   }
   .wa-encerrarSplit-caret::before {
-    height: 12px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .wa-encerrarSplit-caret {
+    /* A cápsula no celular tem cantos de 9px (não é pílula): a seta acompanha. */
+    border-radius: 0 9px 9px 0;
+  }
+
+  /* A fileira usa gap de 3px: +5px = 8px entre "Transferir" e o irreversível "Encerrar". */
+  .wa-atendToolbar-primaryRow--headerRow2 > .wa-encerrarSplit {
+    margin-left: 5px;
   }
 }
 

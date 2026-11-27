@@ -101,3 +101,15 @@
 .ds-confirm-btn--danger:hover {
   background: #b91c1c;
 }
+
+/* tabIndex -1 (alvo de foco de reserva do useDialogFocus): sem anel no contêiner. */
+.ds-confirm-dialog:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-confirm-overlay,
+  .ds-confirm-dialog {
+    animation: none;
+  }
+}

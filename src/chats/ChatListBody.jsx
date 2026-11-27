@@ -1,5 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
+import { Ban, Bell, BellOff, CircleCheck, Eraser, Pin, PinOff, Star, StarOff, Trash2 } from "lucide-react";
 import { useChatStore } from "./chatsStore";
 import { chatListsStoreEquivalent } from "./chatListStoreCompare";
 import { useConversaStore } from "../conversa/conversaStore";
@@ -9,17 +10,36 @@ import { useConversationActionMenu } from "./useConversationActionMenu";
 import { useChatListFilters } from "./hooks/useChatListFilters";
 import { useChatListCounts, getActiveFilterTotalCount } from "./hooks/useChatListCounts";
 import { rowPrefs } from "./chatListRowAtendimento";
+import { getDisplayName } from "./chatListDisplay";
 import {
+  getKnownContactBlockState,
   mergePrefsFromPatchResponse,
-  toggleBlockContact,
   toggleFavoriteConversation,
   toggleMuteConversation,
   togglePinConversation,
 } from "./conversationActionsService";
+import { friendlyApiError } from "../utils/friendlyApiError";
 import { initZapDomEnhancements } from "./zapDomEnhancements";
 import { CHAT_LIST_VIRTUAL_THRESHOLD } from "./ChatListRows";
 import ChatListToolbar from "./ChatListToolbar";
 import ChatListRowsPane from "./ChatListRowsPane";
+
+/*
+ * Ícones do menu da conversa (A3-04): lucide, como o menu da bolha e a thread — antes eram
+ * emoji coloridos, desenhados diferente em cada sistema e com a estrela em glifo de texto.
+ * Elementos criados uma vez: o menu não recria SVG a cada abertura.
+ */
+const MENU_ICON = { size: 16, strokeWidth: 1.8, "aria-hidden": true };
+const ICON_MUTE = <BellOff {...MENU_ICON} />;
+const ICON_UNMUTE = <Bell {...MENU_ICON} />;
+const ICON_PIN = <Pin {...MENU_ICON} />;
+const ICON_UNPIN = <PinOff {...MENU_ICON} />;
+const ICON_FAVORITE = <Star {...MENU_ICON} />;
+const ICON_UNFAVORITE = <StarOff {...MENU_ICON} />;
+const ICON_BLOCK = <Ban {...MENU_ICON} />;
+const ICON_UNBLOCK = <CircleCheck {...MENU_ICON} />;
+const ICON_CLEAR = <Eraser {...MENU_ICON} />;
+const ICON_DELETE = <Trash2 {...MENU_ICON} />;
 
 /**
  * Único bloco que assina `chats` na store.
@@ -83,7 +103,9 @@ function ChatListBody({
   onOpenClienteSemConversa,
   onRequestConfirmClear,
   onRequestConfirmDelete,
+  onRequestConfirmBlock,
   onReloadList,
+  onRetryList,
   canLoadMoreChats = false,
   loadingMoreChats = false,
   loadMoreChatsError = "",
@@ -207,53 +229,58 @@ function ChatListBody({
     const p = rowPrefs(chat);
     // Bloqueio de contato só existe no Whapi (blacklist). No UltraMSG o item fica oculto.
     const isWhapi = String(chat?.whatsapp_instance_provider || "").toLowerCase() === "whapi";
+    const canBlock = !isGroup && isWhapi;
+    // Uma ação só (A3-12): o backend não informa o bloqueio na linha. Conhecido nesta sessão
+    // (resposta do último bloquear/desbloquear) → a ação contrária; desconhecido → "Bloquear",
+    // o caso de quase todo contato (bloquear de novo quem já está bloqueado não muda nada).
+    const bloqueado = canBlock ? getKnownContactBlockState(chat) === true : false;
     return [
       {
         id: "mute",
         label: p.silenciado ? "Remover silêncio" : "Silenciar notificações",
-        icon: "🔕",
+        icon: p.silenciado ? ICON_UNMUTE : ICON_MUTE,
         visible: true,
         disabled: false,
       },
       {
         id: "pin",
         label: p.fixada ? "Desafixar conversa" : "Fixar conversa",
-        icon: "📌",
+        icon: p.fixada ? ICON_UNPIN : ICON_PIN,
         visible: true,
         disabled: false,
       },
       {
         id: "favorite",
-        label: p.favorita ? "Remover dos favoritos" : "Adicionar aos Favoritos",
-        icon: "★",
+        label: p.favorita ? "Remover dos favoritos" : "Adicionar aos favoritos",
+        icon: p.favorita ? ICON_UNFAVORITE : ICON_FAVORITE,
         visible: true,
         disabled: false,
       },
       {
         id: "block",
         label: "Bloquear contato",
-        icon: "🚫",
-        visible: !isGroup && isWhapi,
+        icon: ICON_BLOCK,
+        visible: canBlock && !bloqueado,
         disabled: isGroup,
       },
       {
         id: "unblock",
         label: "Desbloquear contato",
-        icon: "✅",
-        visible: !isGroup && isWhapi,
+        icon: ICON_UNBLOCK,
+        visible: canBlock && bloqueado,
         disabled: isGroup,
       },
       {
         id: "clear",
         label: "Limpar conversa",
-        icon: "🧹",
+        icon: ICON_CLEAR,
         visible: true,
         disabled: false,
       },
       {
         id: "delete",
         label: "Apagar conversa",
-        icon: "🗑",
+        icon: ICON_DELETE,
         danger: true,
         visible: true,
         disabled: isGroup,
@@ -322,32 +349,12 @@ function ChatListBody({
         return;
       }
       if (action.id === "block" || action.id === "unblock") {
+        // Confirmação no ConfirmDialog do chatList (A3-03), como Limpar e Apagar — antes era o
+        // window.confirm cinza do navegador.
         const bloquear = action.id === "block";
-        const nome = String(openMenuChat?.contato_nome || openMenuChat?.nome || "este contato").trim() || "este contato";
-        const ok = window.confirm(
-          bloquear
-            ? `Bloquear ${nome} no WhatsApp?\n\nEnquanto bloqueado, ele NÃO consegue enviar nem receber suas mensagens. Você pode desbloquear depois.`
-            : `Desbloquear ${nome} no WhatsApp?\n\nVoltará a poder trocar mensagens normalmente.`
-        );
+        const nome = getDisplayName(openMenuChat) || "este contato";
+        onRequestConfirmBlock?.({ chatId, bloquear, nome });
         closeMenu();
-        if (!ok) return;
-        try {
-          await toggleBlockContact(chatId, bloquear);
-          showToast({
-            type: "success",
-            title: bloquear ? "Contato bloqueado" : "Contato desbloqueado",
-            message: bloquear
-              ? "O contato foi bloqueado no seu WhatsApp."
-              : "O contato foi desbloqueado no seu WhatsApp.",
-          });
-        } catch (e) {
-          const msg =
-            e?.response?.data?.error ||
-            e?.response?.data?.message ||
-            e?.message ||
-            "Não foi possível concluir esta ação.";
-          showToast({ type: "error", title: "Falha ao atualizar bloqueio", message: msg });
-        }
         return;
       }
 
@@ -405,20 +412,15 @@ function ChatListBody({
           });
         }
       } catch (e) {
-        const msg =
-          e?.response?.data?.error ||
-          e?.response?.data?.message ||
-          e?.message ||
-          "Não foi possível concluir esta ação.";
         showToast({
           type: "error",
-          title: "Falha ao executar ação",
-          message: msg,
+          title: "Ação não concluída",
+          message: friendlyApiError(e, "Não foi possível concluir esta ação. Tente de novo."),
         });
         onReloadList();
       }
     },
-    [openMenuChat, closeMenu, showToast, onRequestConfirmClear, onRequestConfirmDelete, onReloadList]
+    [openMenuChat, closeMenu, showToast, onRequestConfirmClear, onRequestConfirmDelete, onRequestConfirmBlock, onReloadList]
   );
 
   return (
@@ -513,6 +515,8 @@ function ChatListBody({
         loadingMoreChats={loadingMoreChats}
         loadMoreChatsError={loadMoreChatsError}
         onLoadMoreChats={onLoadMoreChats}
+        onRetryList={onRetryList}
+        listRefreshing={listRefreshing}
       />
     </>
   );

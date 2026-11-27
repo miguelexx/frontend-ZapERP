@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clamp, getVisualViewportLayout } from "../../utils/conversaViewHelpers";
+import { useMobileOverlayBack } from "../../../atendimento/useMobileOverlayBack";
 
 function shallowStyleEqual(a, b) {
   if (a === b) return true;
@@ -23,6 +24,8 @@ export function useMessageMenu({ menuUsesBottomSheet, anchoredWidth = 220, reflo
   const menuPointRef = useRef(null);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  /* "Voltar" do celular fecha o menu de baixo (bottom-sheet), não a conversa (26/11/2026). */
+  useMobileOverlayBack(menuOpen && Boolean(menuUsesBottomSheet), closeMenu, "msgSheet");
 
   // Desktop: clique-direito abre o menu ancorado no cursor (estilo WhatsApp Web).
   const openMenuAtPoint = useCallback((x, y) => {
@@ -52,6 +55,9 @@ export function useMessageMenu({ menuUsesBottomSheet, anchoredWidth = 220, reflo
       const m = menuElRef.current;
       if (a && a.contains(e.target)) return;
       if (m && m.contains(e.target)) return;
+      /* O fundo escurecido fecha sozinho, no clique (MessageMenu): fechar aqui, no touchstart,
+         tirava o fundo antes do clique e o toque atravessava para o que estava por baixo. */
+      if (e.target?.closest?.(".wa-msgMenuBackdrop")) return;
       setMenuOpen(false);
     };
     const onKey = (e) => {

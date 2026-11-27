@@ -65,7 +65,13 @@ function ChatListAdvancedFiltersPanel({
   if (!open) return null;
 
   return (
-    <div className="chat-list-filters" aria-busy={filtersAuxLoading || undefined}>
+    <div
+      id="chat-list-filtros-avancados"
+      className="chat-list-filters"
+      role="region"
+      aria-label="Filtros e tags"
+      aria-busy={filtersAuxLoading || undefined}
+    >
       {filtersAuxLoading ? (
         <div className="chat-list-ausencia-lote-msg" role="status">
           Carregando opções…
@@ -86,7 +92,7 @@ function ChatListAdvancedFiltersPanel({
             ) : null}
             <option value="em_atendimento">Em atendimento</option>
             <option value="aguardando_cliente">Aguardando cliente</option>
-            <option value="fechada">Fechada</option>
+            <option value="fechada">Finalizada</option>
           </select>
         </label>
         <label className="chat-list-field">

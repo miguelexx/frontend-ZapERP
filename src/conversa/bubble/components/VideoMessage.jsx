@@ -9,13 +9,25 @@ import {
   rememberAspectRatio,
 } from "../utils/mediaAspectRatio";
 import MessageCaption from "./MessageCaption";
+import UploadProgressRing, { uploadTempIdOf, useUploadProgress } from "./UploadProgressRing";
 
-/** Preview estavel de video: evita salto de layout e oferece affordance clara no mobile. */
+/** Preview estável de vídeo: evita salto de layout e oferece affordance clara no mobile. */
 export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onClick }) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [durationSec, setDurationSec] = useState(0);
   const optimistic = !!msg?._optimisticBlobUrl;
+  /* Upload em curso (26/11/2026): anel determinado com X no lugar do spinner.
+     null = sem upload acompanhado (reenvio da outbox, mídia já reconciliada) → spinner antigo. */
+  const uploadProgress = useUploadProgress(msg);
+  /* Envio recusado (27/11/2026): a bolha guarda o blob de propósito (reenvio local), então
+     `optimistic` seguia true — spinner e "Enviando vídeo…" ao lado de "Não foi possível
+     enviar". Com falha, a prévia volta a ter o play (o vídeo local continua tocável). */
+  const statusEnvio = String(msg?.status_mensagem ?? msg?.status ?? "").toLowerCase();
+  const envioFalhou =
+    msg?.envio_erro === true || ["erro", "error", "failed", "falhou", "blocked"].includes(statusEnvio);
+  const enviandoLocal = optimistic && !envioFalhou;
+  const enviando = enviandoLocal || uploadProgress != null;
   const ratioKey = useMemo(() => mediaRatioKey(msg, src), [
     msg?.whatsapp_id,
     msg?.id,
@@ -68,7 +80,7 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onClick={onClick}
-      aria-label={failed ? "Abrir arquivo de video" : "Reproduzir video"}
+      aria-label={failed ? "Abrir arquivo de vídeo" : "Reproduzir vídeo"}
     >
       <video
         src={src}
@@ -81,8 +93,11 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
         onError={() => setFailed(true)}
       />
       <span className="wa-videoPreviewShade" aria-hidden="true" />
-      <span className="wa-videoPreviewAction" aria-hidden="true">
-        {optimistic ? (
+      {/* Com anel não é aria-hidden: o progresso e o "Cancelar este envio" precisam ser lidos. */}
+      <span className="wa-videoPreviewAction" aria-hidden={uploadProgress != null ? undefined : "true"}>
+        {uploadProgress != null ? (
+          <UploadProgressRing tempId={uploadTempIdOf(msg)} progress={uploadProgress} variant="video" />
+        ) : enviandoLocal ? (
           <span className="wa-videoPreviewSpinner" />
         ) : (
           <span className="wa-videoPreviewPlay"><IconPlay width="22" height="22" /></span>
@@ -91,8 +106,12 @@ export function VideoBubblePreview({ msg, src, onPointerDown, onPointerUp, onCli
       {durationSec > 0 && !failed ? (
         <span className="wa-videoPreviewDuration" aria-hidden="true">{formatMmSs(durationSec)}</span>
       ) : null}
-      {optimistic ? <span className="wa-videoPreviewStatus">Enviando video...</span> : null}
-      {failed ? <span className="wa-videoPreviewError">Previa indisponivel</span> : null}
+      {/* Sem o % aqui: o anel já mostra o avanço, e "Enviando vídeo… 44%" encostava na hora
+          (canto inferior direito) em vídeo retrato estreito. O % fica no aria-valuetext do anel. */}
+      {enviando ? <span className="wa-videoPreviewStatus">Enviando vídeo…</span> : null}
+      {/* As duas pílulas ocupam o mesmo lugar (rodapé, centro): enquanto envia, o estado do
+          envio vale mais do que a prévia local não decodificar (ex.: HEVC no Chrome). */}
+      {failed && !enviando ? <span className="wa-videoPreviewError">Prévia indisponível</span> : null}
     </button>
   );
 }

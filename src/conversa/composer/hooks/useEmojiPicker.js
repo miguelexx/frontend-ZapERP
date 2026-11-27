@@ -12,6 +12,15 @@ export function useEmojiPicker({ texto, setTexto, inputRef }) {
     setQuery("");
   }, []);
 
+  /*
+   * Toque (27/11/2026): focar o campo depois de cada emoji, ainda dentro do gesto, fazia o
+   * Chrome do Android abrir o teclado POR CIMA do painel a cada escolha. Como no WhatsApp, com
+   * o campo sem foco o painel continua no lugar: o texto entra sem foco e a posição do cursor
+   * fica guardada aqui (o React move a seleção para o fim ao trocar o valor). Desktop e campo
+   * já focado: igual a antes.
+   */
+  const caretRef = useRef(null);
+
   const insert = useCallback((emoji) => {
     const value = String(emoji || "");
     if (!value) return;
@@ -21,10 +30,26 @@ export function useEmojiPicker({ texto, setTexto, inputRef }) {
       return;
     }
     const current = String(texto || "");
-    const start = typeof input.selectionStart === "number" ? input.selectionStart : current.length;
-    const end = typeof input.selectionEnd === "number" ? input.selectionEnd : current.length;
+    const hadFocus = typeof document !== "undefined" && document.activeElement === input;
+    let start;
+    let end;
+    if (!hadFocus && caretRef.current && caretRef.current.texto === current) {
+      start = Math.min(caretRef.current.pos, current.length);
+      end = start;
+    } else {
+      start = typeof input.selectionStart === "number" ? input.selectionStart : current.length;
+      end = typeof input.selectionEnd === "number" ? input.selectionEnd : current.length;
+    }
     const next = current.slice(0, start) + value + current.slice(end);
+    caretRef.current = { pos: start + value.length, texto: next };
     setTexto(next);
+    let coarse = false;
+    try {
+      coarse = window.matchMedia?.("(pointer: coarse)")?.matches === true;
+    } catch {
+      coarse = false;
+    }
+    if (!hadFocus && coarse) return;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         try {

@@ -1,4 +1,5 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BellOff, ChartBar, Pin, Star } from "lucide-react";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { formatHoraEmpresa } from "../utils/companyTimezone";
 import { formatChatListTimeLabel } from "./chatListTimeLabel";
@@ -127,10 +128,19 @@ function formatHora(ts) {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Só LETRAS (`\p{L}`): a 1.ª letra da primeira e da última palavra que tenham alguma.
+ * Sem letra nenhuma (telefone, emoji, pontuação) devolve "" — quem chama desenha o boneco.
+ */
 function initials(nome = "") {
-  const parts = String(nome).trim().split(/\s+/).filter(Boolean);
-  const a = parts[0]?.[0] || "";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+  const letras = String(nome)
+    .trim()
+    .split(/\s+/)
+    .map((parte) => parte.match(/\p{L}/u)?.[0] || "")
+    .filter(Boolean);
+  if (!letras.length) return "";
+  const a = letras[0];
+  const b = letras.length > 1 ? letras[letras.length - 1] : "";
   return (a + b).toUpperCase();
 }
 
@@ -589,9 +599,7 @@ function PreviewLine({ chat, audioDurationSec }) {
     return (
       <span className={`chat-list-previewLine ${out ? "is-out" : ""}`}>
         {out ? <ChatTicks msg={last} isGroup={isGroup} /> : null}
-        <span className="chat-list-previewText" aria-hidden="true">
-          📊
-        </span>
+        <ChartBar className={`chat-preview-ico ${out ? "is-accent" : ""}`} size={14} strokeWidth={2} aria-hidden="true" />
         <span className="chat-list-previewText">{atendentePrefix}{line}</span>
       </span>
     );
@@ -788,6 +796,30 @@ function IconeGrupoAvatar() {
       <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
       <path d="M16 5.6a3 3 0 0 1 0 5.8" />
       <path d="M17.5 14.3A5.5 5.5 0 0 1 20.5 19" />
+    </svg>
+  );
+}
+
+function IconePessoaAvatar() {
+  /*
+   * Contato sem nome (só o número): boneco genérico, como o avatar padrão do WhatsApp.
+   * Antes era "#" — e as "iniciais" de um telefone formatado davam "(1". Mesmo traço
+   * do ícone de grupo acima.
+   */
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.8 20a7.2 7.2 0 0 1 14.4 0" />
     </svg>
   );
 }
@@ -1651,6 +1683,11 @@ function ChatRow({
     }
   }
 
+  /*
+   * `aria-current` diz ao leitor de ecrã qual conversa está aberta (26/11/2026). `active` e
+   * `unread` (que entra no nome acessível) já fazem parte do chatRowPropsAreEqual: nenhum
+   * render a mais. Sem listbox/option de propósito — exigiria navegação por setas na lista.
+   */
   return (
     <div
       tabIndex={0}
@@ -1661,16 +1698,19 @@ function ChatRow({
       onClick={handleClick}
       onKeyDown={handleRowKeyDown}
       aria-disabled={semConversa && opening ? "true" : "false"}
+      aria-current={active ? "true" : undefined}
       data-chat-id={id ?? undefined}
       data-cliente-id={clienteId ?? undefined}
-      aria-label={`Conversa com ${displayName}`}
+      aria-label={`Conversa com ${displayName}${
+        unread > 0 ? `, ${unread === 1 ? "1 mensagem não lida" : `${unread} mensagens não lidas`}` : ""
+      }`}
     >
       <div className="chat-list-avatar" style={{ background: color }} aria-hidden="true">
         {/* Iniciais SEMPRE desenhadas por baixo: enquanto a foto baixa (ou se falhar) o
             círculo mostra as iniciais coloridas em vez de um anel vazio. A foto entra por
-            cima com fade quando carrega (.is-loaded). */}
+            cima com fade quando carrega (.is-loaded). Sem nome (ou nome sem letras) → boneco. */}
         <span className="chat-list-avatar-text">
-          {isGroup ? <IconeGrupoAvatar /> : hasName ? initials(displayName) : "#"}
+          {isGroup ? <IconeGrupoAvatar /> : (hasName && initials(displayName)) || <IconePessoaAvatar />}
         </span>
         {showAvatarImg ? (
           /* decoding="async": era o único <img> da lista sem isto, e a descodificação corria
@@ -1697,9 +1737,22 @@ function ChatRow({
               <div className="chat-list-title" title={displayName}>
                 {displayName}
               </div>
-              {showMutedIndicator ? <span className="chat-list-inline-indicator" title="Notificações silenciadas" aria-label="Notificações silenciadas">🔕</span> : null}
-              {showPinnedIndicator ? <span className="chat-list-inline-indicator" title="Conversa fixada" aria-label="Conversa fixada">📌</span> : null}
-              {showFavoriteIndicator ? <span className="chat-list-inline-indicator" title="Conversa favorita" aria-label="Conversa favorita">★</span> : null}
+              {/* Ícones lucide (A3-04), os mesmos da thread — antes emoji coloridos 🔕 📌 e o ★ de texto. */}
+              {showMutedIndicator ? (
+                <span className="chat-list-inline-indicator" role="img" title="Notificações silenciadas" aria-label="Notificações silenciadas">
+                  <BellOff size={13} strokeWidth={2} aria-hidden="true" />
+                </span>
+              ) : null}
+              {showPinnedIndicator ? (
+                <span className="chat-list-inline-indicator" role="img" title="Conversa fixada" aria-label="Conversa fixada">
+                  <Pin size={13} strokeWidth={2} aria-hidden="true" />
+                </span>
+              ) : null}
+              {showFavoriteIndicator ? (
+                <span className="chat-list-inline-indicator" role="img" title="Conversa favorita" aria-label="Conversa favorita">
+                  <Star size={13} strokeWidth={1.8} fill="currentColor" aria-hidden="true" />
+                </span>
+              ) : null}
               {isGroup ? (
                 <span className="chat-list-badge-grupo" title="Conversa de grupo">Grupo</span>
               ) : null}
@@ -1735,7 +1788,7 @@ function ChatRow({
               </div>
             ) : null}
             {!isGroup && whatsappInstanceLabel ? (
-              <div className="chat-list-whatsapp-instance" title={`Numero WhatsApp: ${whatsappInstanceLabel}`}>
+              <div className="chat-list-whatsapp-instance" title={`Número WhatsApp: ${whatsappInstanceLabel}`}>
                 {whatsappInstanceLabel}
               </div>
             ) : null}

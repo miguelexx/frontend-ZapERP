@@ -32,6 +32,27 @@ import { OUTBOX_MODO_OFFLINE, OUTBOX_MODO_INCERTO } from "../offlineOutbox";
 import { enqueueMediaOutboxItem, removeMediaOutboxItem } from "../mediaOutbox";
 import { scheduleOutboxAutoFlush } from "../outboxAutoFlush";
 import { audioTraceMarca, audioTraceFim } from "../composer/utils/audioSendTrace";
+import { startUploadProgress } from "../uploadProgressStore";
+
+/**
+ * Cancelado pelo X do anel (uploadProgressStore)? Só quando o próprio job abortou e o servidor
+ * NÃO respondeu: abortar não é falta de rede nem envio incerto — não vai para a outbox, não
+ * marca erro, não reenvia. Com resposta HTTP o servidor decidiu; segue o tratamento normal.
+ */
+function envioCanceladoPeloAtendente(uploadJob, err) {
+  return uploadJob?.isCanceled?.() === true && !err?.response;
+}
+
+const TOAST_ENVIO_CANCELADO = { type: "info", variant: "snack", title: "Envio cancelado" };
+
+/** "2 fotos enviadas. 1 falhou." — plural de verdade (antes "foto(s) enviada(s)... falhou(aram)"). */
+function resumoEnvioParcial(ok, falhas, tipo) {
+  const foto = tipo === "foto";
+  const enviados = ok === 1
+    ? `1 ${foto ? "foto enviada" : "documento enviado"}`
+    : `${ok} ${foto ? "fotos enviadas" : "documentos enviados"}`;
+  return `${enviados}. ${falhas} ${falhas === 1 ? "falhou" : "falharam"}.`;
+}
 
 /**
  * Persiste a mídia na outbox durável (IndexedDB) quando a falha é de rede/incerta — a
@@ -179,6 +200,11 @@ export function useConversationOutboundMedia({
   
       const legenda = String(opts.caption ?? "").trim();
       const isVideoSend = isVideoFile(file);
+      // Predicado ANTIGO de "vídeo" (antes do conserto do .webm em isVideoFile, 26/11/2026):
+      // a nota de voz do Chrome (audio/webm, `audio-*.webm`) contava como vídeo pela extensão
+      // e por isso não travava o composer nem refazia a conversa após o envio. Vale SÓ para
+      // esses dois pontos — classificação, prévia, outbox e `tipo` seguem os helpers corrigidos.
+      const uploadEmSegundoPlano = isVideoSend || /\.webm$/i.test(file?.name || "");
       // Retry por item: reusa o tempId (⇒ mesmo client_temp_id) para o back-end deduplicar e
       // não gerar áudio duplicado. Remove a bolha de erro antiga antes de reanexar a nova (pending).
       const optimisticMsg = buildOptimisticOutgoingMessage({
@@ -318,13 +344,17 @@ export function useConversationOutboundMedia({
   
       // Vídeos grandes continuam em background sem bloquear o composer inteiro.
       // A bolha otimista + lock por arquivo já impedem duplo envio do mesmo vídeo.
-      if (!isVideoSend) setSendingTracked(true);
+      if (!uploadEmSegundoPlano) setSendingTracked(true);
+      // Anel de progresso + X para cancelar na bolha (foto/vídeo/documento). Áudio e figurinha
+      // ficam de fora: nota de voz segue exatamente o caminho de antes (sem signal/progresso).
+      const uploadJob = !isAudioSend && !opts.forceStickerType ? startUploadProgress(tempId) : null;
       try {
         audioTraceMarca("upload começou");
         const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
           timeout: resolveUploadTimeoutMs(file),
           skipGlobalNetworkToast: true,
           skipGlobal500Toast: true,
+          ...(uploadJob ? { signal: uploadJob.signal, onUploadProgress: uploadJob.onUploadProgress } : {}),
         });
   
         audioTraceFim("servidor respondeu");
@@ -358,7 +388,7 @@ export function useConversationOutboundMedia({
           knownIds,
           // O status chega por socket. Refazer toda a conversa após 2,6 s durante um
           // upload de vídeo era a principal fonte de pulo/travada visual.
-          skipPendingStatusRefresh: isVideoSend,
+          skipPendingStatusRefresh: uploadEmSegundoPlano,
         });
         // Enviado (persistido no back-end): não precisa mais reter o File para retry.
         if (isAudioSend) audioRetryFilesRef.current.delete(tempId);
@@ -367,6 +397,14 @@ export function useConversationOutboundMedia({
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
+        // X do anel: antes de qualquer classificação (o classificador trataria o abort como
+        // "incerto" e a mídia iria para a outbox). Mesma limpeza de uma bolha descartada.
+        if (envioCanceladoPeloAtendente(uploadJob, err)) {
+          removerMensagemTemp(tempId);
+          removerPreGravado();
+          showToast(TOAST_ENVIO_CANCELADO);
+          return;
+        }
         const persistedFailure = Array.isArray(err?.response?.data?.results)
           ? err.response.data.results.find(
               (row) =>
@@ -430,9 +468,10 @@ export function useConversationOutboundMedia({
           if (entry) entry.attempts = (entry.attempts || 0) + 1;
         }
       } finally {
+        uploadJob?.finish();
         releaseAudioUpload?.();
         arquivoEnvioInFlightRef.current.delete(flightKey);
-        if (!isVideoSend) setSendingTracked(false);
+        if (!uploadEmSegundoPlano) setSendingTracked(false);
         focusMessageInput();
       }
     },
@@ -498,7 +537,7 @@ export function useConversationOutboundMedia({
           message:
             grandes.length === files.length
               ? mensagemArquivoExcedeLimite(grandes[0])
-              : `${grandes.length} arquivo(s) acima do limite (32 MB foto / 128 MB vídeo) não serão enviados. Os demais seguem normalmente.`,
+              : `${grandes.length === 1 ? "1 arquivo acima do limite (32 MB foto / 128 MB vídeo) não será enviado" : `${grandes.length} arquivos acima do limite (32 MB foto / 128 MB vídeo) não serão enviados`}. Os demais seguem normalmente.`,
         });
         files = files.filter((f) => !arquivoExcedeLimiteUpload(f));
         if (!files.length) return;
@@ -561,12 +600,16 @@ export function useConversationOutboundMedia({
       if (conversa?.cliente_id != null) formData.append("cliente_id", String(conversa.cliente_id));
       if (conversa?.telefone != null) formData.append("phone", String(conversa.telefone));
       setSendingTracked(true);
+      // Lote = um pedido só: todas as bolhas do lote mostram o mesmo anel e o X cancela o lote.
+      const uploadJob = startUploadProgress(tempIds);
       try {
         const batchBytes = files.reduce((sum, f) => sum + (Number(f?.size) || 0), 0);
         const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
           timeout: resolveUploadTimeoutMs(batchBytes),
           skipGlobalNetworkToast: true,
           skipGlobal500Toast: true,
+          signal: uploadJob.signal,
+          onUploadProgress: uploadJob.onUploadProgress,
         });
         const reconciliations = extractArquivoApiReconciliations(data, conversaId, tempIds);
         reconciliations.forEach(({ tempId, realMsg }) => reconciliarMensagem(tempId, realMsg));
@@ -607,7 +650,7 @@ export function useConversationOutboundMedia({
             title: okCount > 0 ? "Envio parcial" : "Falha ao enviar",
             message:
               okCount > 0
-                ? `${okCount} foto(s) enviada(s). ${failures.length} falhou(aram).`
+                ? resumoEnvioParcial(okCount, failures.length, "foto")
                 : failures[0]?.error || "Não foi possível enviar as fotos. Tente novamente.",
           });
         }
@@ -615,6 +658,12 @@ export function useConversationOutboundMedia({
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
+        // X do anel: o lote inteiro sai da tela; nada de outbox, erro ou refresh.
+        if (envioCanceladoPeloAtendente(uploadJob, err)) {
+          tempIds.forEach((tid) => removerMensagemTemp(tid));
+          showToast(TOAST_ENVIO_CANCELADO);
+          return;
+        }
         const is403 = err?.response?.status === 403;
         const apiMsg = err?.response?.data?.error;
         const partialFailures = extractArquivoApiFailures(err?.response?.data, tempIds);
@@ -629,7 +678,7 @@ export function useConversationOutboundMedia({
             title: reconciliations.length > 0 ? "Envio parcial" : is403 ? "Acesso restrito" : "Falha ao enviar",
             message:
               reconciliations.length > 0
-                ? `${reconciliations.length} foto(s) enviada(s). ${partialFailures.length} falhou(aram).`
+                ? resumoEnvioParcial(reconciliations.length, partialFailures.length, "foto")
                 : apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar as fotos. Tente novamente."),
           });
         } else {
@@ -672,6 +721,7 @@ export function useConversationOutboundMedia({
           }
         }
       } finally {
+        uploadJob.finish();
         setSendingTracked(false);
         focusMessageInput();
       }
@@ -687,6 +737,7 @@ export function useConversationOutboundMedia({
       focusMessageInput,
       marcarMensagemTempErro,
       marcarMensagemEnvioIncerto,
+      removerMensagemTemp,
       refresh,
       reconciliarMensagem,
       appendOutgoingOptimisticMessage,
@@ -722,7 +773,7 @@ export function useConversationOutboundMedia({
           message:
             grandes.length === files.length
               ? mensagemArquivoExcedeLimite(grandes[0])
-              : `${grandes.length} arquivo(s) acima do limite de 32 MB não serão enviados. Os demais seguem normalmente.`,
+              : `${grandes.length === 1 ? "1 arquivo acima do limite de 32 MB não será enviado" : `${grandes.length} arquivos acima do limite de 32 MB não serão enviados`}. Os demais seguem normalmente.`,
         });
         files = files.filter((f) => !arquivoExcedeLimiteUpload(f));
         if (!files.length) return;
@@ -786,12 +837,16 @@ export function useConversationOutboundMedia({
       if (conversa?.cliente_id != null) formData.append("cliente_id", String(conversa.cliente_id));
       if (conversa?.telefone != null) formData.append("phone", String(conversa.telefone));
       setSendingTracked(true);
+      // Lote = um pedido só: todas as bolhas do lote mostram o mesmo anel e o X cancela o lote.
+      const uploadJob = startUploadProgress(tempIds);
       try {
         const batchBytes = files.reduce((sum, f) => sum + (Number(f?.size) || 0), 0);
         const { data } = await api.post(`/chats/${conversaId}/arquivo`, formData, {
           timeout: resolveUploadTimeoutMs(batchBytes),
           skipGlobalNetworkToast: true,
           skipGlobal500Toast: true,
+          signal: uploadJob.signal,
+          onUploadProgress: uploadJob.onUploadProgress,
         });
         const reconciliations = extractArquivoApiReconciliations(data, conversaId, tempIds);
         reconciliations.forEach(({ tempId, realMsg }) => reconciliarMensagem(tempId, realMsg));
@@ -832,7 +887,7 @@ export function useConversationOutboundMedia({
             title: okCount > 0 ? "Envio parcial" : "Falha ao enviar",
             message:
               okCount > 0
-                ? `${okCount} documento(s) enviado(s). ${failures.length} falhou(aram).`
+                ? resumoEnvioParcial(okCount, failures.length, "documento")
                 : failures[0]?.error || "Não foi possível enviar os documentos. Tente novamente.",
           });
         }
@@ -840,6 +895,12 @@ export function useConversationOutboundMedia({
       } catch (err) {
         revertModoSimples?.();
         revertOutgoingStatus?.();
+        // X do anel: o lote inteiro sai da tela; nada de outbox, erro ou refresh.
+        if (envioCanceladoPeloAtendente(uploadJob, err)) {
+          tempIds.forEach((tid) => removerMensagemTemp(tid));
+          showToast(TOAST_ENVIO_CANCELADO);
+          return;
+        }
         const is403 = err?.response?.status === 403;
         const apiMsg = err?.response?.data?.error;
         const partialFailures = extractArquivoApiFailures(err?.response?.data, tempIds);
@@ -854,7 +915,7 @@ export function useConversationOutboundMedia({
             title: reconciliations.length > 0 ? "Envio parcial" : is403 ? "Acesso restrito" : "Falha ao enviar",
             message:
               reconciliations.length > 0
-                ? `${reconciliations.length} documento(s) enviado(s). ${partialFailures.length} falhou(aram).`
+                ? resumoEnvioParcial(reconciliations.length, partialFailures.length, "documento")
                 : apiMsg || (is403 ? "Assuma a conversa antes de enviar mensagens." : "Não foi possível enviar os documentos. Tente novamente."),
           });
         } else {
@@ -897,6 +958,7 @@ export function useConversationOutboundMedia({
           }
         }
       } finally {
+        uploadJob.finish();
         setSendingTracked(false);
         focusMessageInput();
       }
@@ -913,6 +975,7 @@ export function useConversationOutboundMedia({
       focusMessageInput,
       marcarMensagemTempErro,
       marcarMensagemEnvioIncerto,
+      removerMensagemTemp,
       refresh,
       reconciliarMensagem,
       appendOutgoingOptimisticMessage,

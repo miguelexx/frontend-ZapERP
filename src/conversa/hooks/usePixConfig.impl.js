@@ -99,6 +99,17 @@ export async function handleSalvarPixConfig(ctx, opts = {}) {
   }
 }
 
+/*
+ * Confirmação + trava de reenvio do Pix (27/11/2026). O menu fecha no clique, então o rótulo
+ * "Enviando Pix..." nunca aparecia, e o sucesso não dava retorno nenhum (a bolha vem pelo
+ * socket). Com o socket atrasado o atendente tocava "Pix" de novo e o cliente recebia a chave
+ * duas vezes. Agora: pílula "Chave Pix enviada" e, por alguns segundos, um 2.º toque na MESMA
+ * conversa só avisa que já foi.
+ */
+const PIX_REENVIO_JANELA_MS = 4000;
+/** conversaId (string) → instante do último envio de Pix aceito pelo servidor. */
+const pixEnviadoEm = new Map();
+
 export async function handlePixMenuClick(ctx) {
   const {
     conversaId,
@@ -133,6 +144,12 @@ export async function handlePixMenuClick(ctx) {
       setPixModalOpen(true);
       return;
     }
+    const chaveConversa = String(conversaId);
+    const ultimoEnvio = pixEnviadoEm.get(chaveConversa) || 0;
+    if (Date.now() - ultimoEnvio < PIX_REENVIO_JANELA_MS) {
+      showToast({ type: "info", variant: "snack", title: "Chave Pix já enviada" });
+      return;
+    }
     // Backend monta e envia: cartão nativo com "Copiar chave Pix" (Whapi) ou texto (UltraMSG).
     // A bolha chega pela conversa via socket, como enquete/produto.
     const data = await enviarMensagemPix(conversaId);
@@ -141,6 +158,8 @@ export async function handlePixMenuClick(ctx) {
         response: { status: 422, data },
       });
     }
+    pixEnviadoEm.set(chaveConversa, Date.now());
+    showToast({ type: "success", variant: "snack", title: "Chave Pix enviada" });
     moverParaMinhaFilaSeEnvioVeioDaBusca(conversaId);
   } catch (err) {
     showToast({

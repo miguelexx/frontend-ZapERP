@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Phone, User } from "lucide-react";
+import { Phone, User, X } from "lucide-react";
 import { criarCliente } from "../api/configService";
 import { parsePostClientesResponse } from "../api/parseCriarClienteResponse";
 import { useNotificationStore } from "../notifications/notificationStore";
+import { friendlyApiError } from "../utils/friendlyApiError";
 import {
   AJUDA_TELEFONE_PADRAO,
   EXEMPLO_TELEFONE_PADRAO,
@@ -203,12 +204,12 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
       });
     } catch (err) {
       const data = err?.response?.data;
-      const status = err?.response?.status;
+      // Sem texto do servidor: mensagem amigável (A3-02) — antes "Erro 500" ou "Network Error".
       const detalhe =
         (typeof data?.detalhe === "string" && data.detalhe.trim()) ||
         (typeof data?.erro === "string" && data.erro.trim()) ||
         (typeof data?.error === "string" && data.error.trim()) ||
-        (status ? `Erro ${status}` : err?.message || "Não foi possível salvar o contato.");
+        friendlyApiError(err, "Não foi possível salvar o contato.");
       const exemplos = Array.isArray(data?.exemplos) ? data.exemplos.filter(Boolean) : [];
       setApiError({
         detalhe,
@@ -258,7 +259,7 @@ export default function NovoContatoModal({ open, onClose, onSuccess }) {
             </div>
           </div>
           <button type="button" className="ncm-close" onClick={() => !submitting && onClose()} aria-label="Fechar">
-            ×
+            <X size={18} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
 

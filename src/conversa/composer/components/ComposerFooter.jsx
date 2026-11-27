@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { IconChevronUp } from "@tabler/icons-react";
 import { IconNote as TablerNote } from "@tabler/icons-react";
 import {
@@ -12,6 +12,31 @@ import { INTERNAL_NOTE_MAX_LEN } from "../../internalNote";
 import AttachmentInputs from "./AttachmentInputs";
 import AttachmentMenu from "./AttachmentMenu";
 import VoiceRecorder from "./VoiceRecorder";
+import { useMobileOverlayBack } from "../../../atendimento/useMobileOverlayBack";
+
+/*
+ * Painel de emojis/figurinhas (lazy): o chunk era buscado e avaliado no 1.º clique, somado ao
+ * custo de pintar a grade (27/11/2026). Aquece o import (e os glifos, ver aquecerGlifosEmoji)
+ * num momento ocioso depois de o composer montar, e de novo ao passar o rato/focar o botão — o
+ * React.lazy do shell reaproveita o módulo.
+ */
+let emojiPanelAquecido = false;
+function aquecerPainelEmoji() {
+  if (emojiPanelAquecido) return;
+  emojiPanelAquecido = true;
+  import("./StickerEmojiPicker")
+    .then((mod) => mod.aquecerGlifosEmoji?.())
+    .catch(() => {
+      emojiPanelAquecido = false;
+    });
+}
+
+/* Itens do menu "Cliente / Nota interna": o clique não tira o foco do campo — antes o texto
+   digitado logo depois de trocar de modo não ia para lugar nenhum (26/11/2026). */
+function keepComposerFocus(e) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+}
 
 export default function ComposerFooter({
   conversaId,
@@ -83,6 +108,21 @@ export default function ComposerFooter({
     [setAttachMenuOpen]
   );
   const handleAttachClose = useCallback(() => setAttachMenuOpen(false), [setAttachMenuOpen]);
+  /* "Voltar" do celular fecha o painel de emojis/figurinhas, não a conversa (27/11/2026). */
+  useMobileOverlayBack(
+    Boolean(stickerPicker.open) && !voiceRecording.isRecording,
+    stickerPicker.close,
+    "emoji"
+  );
+  useEffect(() => {
+    if (emojiPanelAquecido || typeof window === "undefined") return undefined;
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(aquecerPainelEmoji, { timeout: 5000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(aquecerPainelEmoji, 2500);
+    return () => window.clearTimeout(id);
+  }, []);
   const inputMaxLength = editMode
     ? editMaxLength
     : notaInternaAtiva
@@ -143,6 +183,8 @@ export default function ComposerFooter({
             type="button"
             className={`wa-iconBtn wa-mediaBtn ${stickerPicker.open ? "isActive" : ""}`}
             onMouseDown={(event) => event.preventDefault()}
+            onPointerEnter={aquecerPainelEmoji}
+            onFocus={aquecerPainelEmoji}
             onClick={() => {
               onCloseSavedReplies();
               stickerPicker.setOpen((value) => !value);
@@ -272,12 +314,15 @@ export default function ComposerFooter({
                 ref={modePickerRef}
               >
                 {modePickerOpen ? (
-                  <div className="wa-modePicker" role="menu">
+                  <div className="wa-modePicker" role="menu" aria-label="Modo de envio">
                     {notaInternaAtiva ? (
                       <>
                         <button
                           type="button"
                           className="wa-modePicker-item wa-modePicker-item--nota isActive"
+                          role="menuitemradio"
+                          aria-checked="true"
+                          onMouseDown={keepComposerFocus}
                           onClick={() => onSetModePickerOpen(false)}
                         >
                           <TablerNote size={16} strokeWidth={2} style={{ color: "#f59e0b", flexShrink: 0 }} />
@@ -289,6 +334,9 @@ export default function ComposerFooter({
                         <button
                           type="button"
                           className="wa-modePicker-item"
+                          role="menuitemradio"
+                          aria-checked="false"
+                          onMouseDown={keepComposerFocus}
                           onClick={() => { onToggleNotaInterna(); onSetModePickerOpen(false); }}
                         >
                           <IconSend size={16} style={{ color: "var(--wa-green)", flexShrink: 0 }} />
@@ -303,6 +351,9 @@ export default function ComposerFooter({
                         <button
                           type="button"
                           className="wa-modePicker-item isActive"
+                          role="menuitemradio"
+                          aria-checked="true"
+                          onMouseDown={keepComposerFocus}
                           onClick={() => onSetModePickerOpen(false)}
                         >
                           <IconSend size={16} style={{ color: "var(--wa-green)", flexShrink: 0 }} />
@@ -314,6 +365,9 @@ export default function ComposerFooter({
                         <button
                           type="button"
                           className="wa-modePicker-item wa-modePicker-item--nota"
+                          role="menuitemradio"
+                          aria-checked="false"
+                          onMouseDown={keepComposerFocus}
                           onClick={() => { onToggleNotaInterna(); onSetModePickerOpen(false); }}
                         >
                           <TablerNote size={16} strokeWidth={2} style={{ color: "#f59e0b", flexShrink: 0 }} />
@@ -346,7 +400,7 @@ export default function ComposerFooter({
                   title="Mudar modo de envio"
                   aria-label="Selecionar modo de envio"
                   aria-expanded={modePickerOpen}
-                  aria-haspopup="true"
+                  aria-haspopup="menu"
                 >
                   <IconChevronUp size={12} strokeWidth={2.8} />
                 </button>

@@ -24,6 +24,7 @@ export function composerPropsAreEqual(prev, next) {
   if (prev.editAllowEmpty !== next.editAllowEmpty) return false;
   if (prev.editMaxLength !== next.editMaxLength) return false;
   if (prev.onSaveEdit !== next.onSaveEdit) return false;
+  if (prev.onPasteFiles !== next.onPasteFiles) return false;
   const previousReply = prev.replyBarPreview;
   const nextReply = next.replyBarPreview;
   if (previousReply !== nextReply) {

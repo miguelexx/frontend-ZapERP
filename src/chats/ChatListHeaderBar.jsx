@@ -5,7 +5,11 @@ import { Icon } from "./chatListUiPrimitives";
 import { IconFileInvoice, IconRefresh, IconUserPlus, IconUsers, IconWorld } from "@tabler/icons-react";
 import useMotionPresence from "../components/ui/useMotionPresence";
 
-function HeaderButton({ title, onClick, children, innerRef, disabled }) {
+/**
+ * `expanded`/`haspopup`/`controls` (A3-10): o "+" abre um menu e o de filtros abre um painel —
+ * o leitor de tela agora ouve que o botão abre algo e se está aberto.
+ */
+function HeaderButton({ title, onClick, children, innerRef, disabled, expanded, haspopup, controls }) {
   return (
     <button
       ref={innerRef}
@@ -13,6 +17,9 @@ function HeaderButton({ title, onClick, children, innerRef, disabled }) {
       className="chat-list-header-btn"
       title={title}
       aria-label={title}
+      aria-haspopup={haspopup || undefined}
+      aria-expanded={typeof expanded === "boolean" ? expanded : undefined}
+      aria-controls={controls || undefined}
       type="button"
       disabled={disabled}
     >
@@ -28,6 +35,7 @@ function HeaderButton({ title, onClick, children, innerRef, disabled }) {
 function ChatListHeaderBar({
   novoBtnRef,
   showNovoMenu,
+  showFilters = false,
   menuPosition,
   novoMenuRef,
   onToggleNovoMenu,
@@ -57,6 +65,8 @@ function ChatListHeaderBar({
           innerRef={novoBtnRef}
           title="Novo contato, grupo ou comunidade"
           onClick={onToggleNovoMenu}
+          haspopup="menu"
+          expanded={!!showNovoMenu}
         >
           <Icon size={14}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -70,7 +80,12 @@ function ChatListHeaderBar({
           </Icon>
         </HeaderButton>
 
-        <HeaderButton title="Filtros e tags" onClick={onToggleFilters}>
+        <HeaderButton
+          title="Filtros e tags"
+          onClick={onToggleFilters}
+          expanded={!!showFilters}
+          controls={showFilters ? "chat-list-filtros-avancados" : undefined}
+        >
           <Icon size={14}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path
@@ -155,6 +170,7 @@ function ChatListHeaderBar({
 
 function headerPropsAreEqual(prev, next) {
   if (prev.showNovoMenu !== next.showNovoMenu) return false;
+  if (prev.showFilters !== next.showFilters) return false;
   if (prev.canCriarOrcamentoWm !== next.canCriarOrcamentoWm) return false;
   if (prev.onOpenOrcamentoAvulso !== next.onOpenOrcamentoAvulso) return false;
   if (prev.menuPosition?.top !== next.menuPosition?.top) return false;

@@ -3,6 +3,7 @@ import { getApiBaseUrl } from "../../api/baseUrl";
 import { CAPTION_BUNDLE_MAX_SEC, STICKER_RECENTS_LIMIT } from "../conversaConstants";
 import { parseToDate } from "../../utils/parseToDate.js";
 import {
+  companyDayKey,
   formatDiaEmpresa,
   formatHoraEmpresa,
   isSameCompanyDay,
@@ -39,6 +40,73 @@ export function formatDia(ts) {
   } catch {
     return "";
   }
+}
+
+/*
+ * Dia RELATIVO, como o WhatsApp e o resto da tela (lista: "Ontem"/"Seg"; visualizador:
+ * "Hoje às 10:50") — 27/11/2026, A1-15:
+ *   hoje → "Hoje" · ontem → "Ontem" · 2 a 6 dias → "Segunda-feira" · antes → "03/11/2026".
+ * Decidido pelas chaves AAAA-MM-DD do dia civil NO FUSO DA EMPRESA (companyDayKey), sem
+ * aritmética de horas — perto da meia-noite o fuso do aparelho discordaria.
+ * `formatDia` continua absoluto: Dados da mensagem e o aviso de apagada dizem a data exata.
+ * Calcular na RENDERIZAÇÃO (nunca dentro de uma lista memoizada), senão um "Hoje" calculado
+ * ontem fica velho depois da meia-noite.
+ */
+const DIA_MS = 86_400_000;
+let semanaFmtUtc = null;
+
+function chaveDiaParaUtcMs(key) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ""));
+  if (!m) return null;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/** "segunda-feira" → "Segunda-feira". O dia da semana de uma data civil não depende de fuso. */
+function diaDaSemanaPorUtcMs(utcMs) {
+  try {
+    if (!semanaFmtUtc) semanaFmtUtc = new Intl.DateTimeFormat("pt-BR", { weekday: "long", timeZone: "UTC" });
+    const s = String(semanaFmtUtc.format(new Date(utcMs)) || "").trim();
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+  } catch {
+    return "";
+  }
+}
+
+function rotuloRelativoPorChave(key, now, fallback) {
+  const alvo = chaveDiaParaUtcMs(key);
+  const hoje = chaveDiaParaUtcMs(companyDayKey(now instanceof Date ? now : new Date()));
+  if (alvo == null || hoje == null) return fallback;
+  const dias = Math.round((hoje - alvo) / DIA_MS);
+  if (dias === 0) return "Hoje";
+  if (dias === 1) return "Ontem";
+  if (dias > 1 && dias < 7) return diaDaSemanaPorUtcMs(alvo) || fallback;
+  // Futuro (relógio do aparelho atrasado) ou mais antigo: a data por extenso.
+  return fallback;
+}
+
+/** "Hoje" / "Ontem" / "Segunda-feira" / "03/11/2026" para um instante. "" se inválido. */
+export function formatDiaRelativo(ts, now = new Date()) {
+  if (!ts) return "";
+  let d = null;
+  try {
+    d = parseToDate(ts) || new Date(ts);
+  } catch {
+    return "";
+  }
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const absoluto = formatDiaEmpresa(d);
+  return rotuloRelativoPorChave(companyDayKey(d), now, absoluto) || absoluto;
+}
+
+/**
+ * Mesmo rótulo a partir do texto que `formatDia` já produziu ("27/11/2026") — para quem só
+ * recebe o rótulo pronto (o separador de dia da thread). Texto fora desse formato volta igual.
+ */
+export function rotuloDiaRelativo(label, now = new Date()) {
+  const texto = String(label ?? "").trim();
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(texto);
+  if (!m) return label ?? "";
+  return rotuloRelativoPorChave(`${m[3]}-${m[2]}-${m[1]}`, now, texto);
 }
 
 // Mesmo dia = mesmo dia civil NO FUSO DA EMPRESA. Precisa casar com formatDia: comparar
@@ -408,18 +476,29 @@ export function isEditableImageForSend(file) {
   return true;
 }
 
+/*
+ * isAudioFile / isVideoFile: MIME explícito manda; a extensão só decide quando o navegador não
+ * disse nada (MIME vazio ou application/octet-stream). Antes a extensão valia sempre e `.webm`
+ * casava nos DOIS: um `video/webm` virava bolha de ÁUDIO e um `audio/webm` ia ao servidor com
+ * `tipo=video` (26/11/2026). Atenção: a nota de voz do Chrome (`audio-*.webm`) deixou de contar
+ * como vídeo — o envio preserva o comportamento antigo dela em `uploadEmSegundoPlano`.
+ */
 export function isAudioFile(file) {
   if (!file) return false;
-  const t = String(file.type || "").toLowerCase();
+  const t = String(file.type || "").toLowerCase().trim();
   if (t.startsWith("audio/")) return true;
+  if (t.startsWith("video/")) return false;
+  if (t !== "" && t !== "application/octet-stream") return false;
   const name = String(file.name || "").toLowerCase();
   return /\.(mp3|ogg|wav|m4a|webm|aac|opus|amr)$/i.test(name);
 }
 
 export function isVideoFile(file) {
   if (!file) return false;
-  const t = String(file.type || "").toLowerCase();
+  const t = String(file.type || "").toLowerCase().trim();
   if (t.startsWith("video/")) return true;
+  if (t.startsWith("audio/")) return false;
+  if (t !== "" && t !== "application/octet-stream") return false;
   const name = String(file.name || "").toLowerCase();
   return /\.(mp4|mov|webm|mkv|avi|3gp|m4v)$/i.test(name);
 }

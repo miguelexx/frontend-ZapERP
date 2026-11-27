@@ -63,7 +63,8 @@ async function setup(page, { failSave = false } = {}) {
 
 async function openPicker(page) {
   await page.getByRole("button", { name: "Mais opções", exact: true }).click();
-  await page.getByRole("button", { name: "Etiquetas do WhatsApp", exact: true }).click();
+  // "Mais opções" é um menu de verdade desde 26/11/2026 (itens com role="menuitem").
+  await page.getByRole("menuitem", { name: "Etiquetas do WhatsApp", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Etiquetas do WhatsApp" });
   await expect(dialog.getByRole("button", { name: "COTAÇÃO NOVO", exact: true })).toBeVisible();
   return dialog;

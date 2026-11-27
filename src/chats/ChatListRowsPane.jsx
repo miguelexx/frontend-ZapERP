@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef } from "react";
+import { CloudOff, RotateCw } from "lucide-react";
 import EmptyState from "../components/feedback/EmptyState";
 import { SkeletonChatList } from "../components/feedback/Skeleton";
 import ConversationActionMenu from "./ConversationActionMenu";
@@ -40,17 +41,75 @@ function ChatListRowsPane({
   loadingMoreChats = false,
   loadMoreChatsError = "",
   onLoadMoreChats,
+  onRetryList,
+  listRefreshing = false,
 }) {
   const filteredLen = chatsFiltrados.length;
   const loadMoreSentinelRef = useRef(null);
+  /*
+   * A lista NÃO carregou (27/11/2026, A3-01): erro sem próxima página para pedir. Antes a
+   * Minha fila caía em "Nenhuma conversa encontrada" (a fila parecia vazia, sem aviso) e as
+   * outras abas em "Carregando conversas… Há mais conversas além desta página", com um
+   * "Carregar mais" que não fazia nada e o "Network Error" cru. Vale em TODAS as abas.
+   * Erro do "Carregar mais" (há próxima página) continua no rodapé, com o botão de sempre.
+   */
+  const listLoadFailed =
+    Boolean(loadMoreChatsError) &&
+    !loading &&
+    !loadingMoreChats &&
+    // Minha fila não pagina (sem rodapé nem "Carregar mais"): ali todo erro é da lista.
+    (!canLoadMoreChats || (tab === "minha_fila" && !searchAtivo));
   const showPaginationFooter =
     (tab !== "minha_fila" || searchAtivo) &&
     !loading &&
+    !listLoadFailed &&
     (canLoadMoreChats || loadingMoreChats || loadMoreChatsError);
+  /*
+   * Nenhuma linha à vista, há próxima página e o "Carregar mais" falhou (revisão A3-01): o
+   * ramo abaixo dizia "Carregando conversas…" sem nada a carregar. Mesmo painel de erro; o
+   * "Tentar novamente" pede a próxima página (a 1.ª já veio).
+   */
+  const emptyLoadMoreFailed =
+    filteredLen === 0 &&
+    !listLoadFailed &&
+    Boolean(loadMoreChatsError) &&
+    !loading &&
+    !loadingMoreChats &&
+    canLoadMoreChats;
+  const retryFailedLoad = listLoadFailed ? onRetryList : onLoadMoreChats;
+  const canRetryList = typeof retryFailedLoad === "function";
+
+  /*
+   * Foco do "Tentar novamente" (revisão A3-01, 27/11/2026): a nova tentativa troca o painel
+   * pelo esqueleto (ou desabilita o botão do rodapé) e, se falha de novo, o botão volta — mas
+   * o foco já tinha caído no <body> e o teclado recomeçava do topo da página. Devolve o foco
+   * ao botão quando a tentativa termina com erro, só se ninguém o levou para outro lugar.
+   * Sucesso: o botão some e nada é focado.
+   */
+  const retryBtnRef = useRef(null);
+  const retryFocusPendingRef = useRef(false);
+  const runRetry = (fn) => (e) => {
+    retryFocusPendingRef.current = e.currentTarget === document.activeElement;
+    fn?.();
+  };
+  useEffect(() => {
+    if (!retryFocusPendingRef.current) return;
+    if (loading || listRefreshing || loadingMoreChats) return;
+    retryFocusPendingRef.current = false;
+    const btn = retryBtnRef.current;
+    if (!btn?.isConnected || btn.disabled) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== btn) return;
+    if (active !== btn) btn.focus({ preventScroll: true });
+  }, [loading, listRefreshing, loadingMoreChats, loadMoreChatsError, filteredLen]);
 
   // Infinite scroll: ao aproximar do fim da lista, pede a próxima página.
+  // Com erro, PARA (27/11/2026, revisão A3-01): o observer recriado dispara na hora com o
+  // sentinela à vista, e a falha virava um laço — "Carregando…" eterno (o erro nunca ficava na
+  // tela) e um GET a cada ~1s contra o servidor fora do ar. Depois do erro, só o botão
+  // "Carregar mais conversas" tenta de novo; o sucesso limpa o erro e o scroll volta a pedir.
   useEffect(() => {
-    if (!showPaginationFooter || !canLoadMoreChats || loadingMoreChats) return undefined;
+    if (!showPaginationFooter || !canLoadMoreChats || loadingMoreChats || loadMoreChatsError) return undefined;
     if (typeof onLoadMoreChats !== "function") return undefined;
     const root = scrollRef?.current;
     const sentinel = loadMoreSentinelRef.current;
@@ -70,10 +129,32 @@ function ChatListRowsPane({
     showPaginationFooter,
     canLoadMoreChats,
     loadingMoreChats,
+    loadMoreChatsError,
     onLoadMoreChats,
     scrollRef,
     filteredLen,
   ]);
+
+  /* Linhas antigas à vista e a recarga falhou: aviso discreto no fim, sem apagar o que há. */
+  const listErrorFooter = listLoadFailed && filteredLen > 0 ? (
+    <div className="chat-list-pagination-footer chat-list-load-error-footer">
+      <p className="chat-list-pagination-error" role="alert">
+        {loadMoreChatsError}
+      </p>
+      {canRetryList ? (
+        <button
+          ref={retryBtnRef}
+          type="button"
+          className="chat-list-load-more-btn"
+          onClick={runRetry(onRetryList)}
+          disabled={listRefreshing}
+          aria-busy={listRefreshing || undefined}
+        >
+          {listRefreshing ? "Tentando…" : "Tentar novamente"}
+        </button>
+      ) : null}
+    </div>
+  ) : null;
 
   const paginationFooter = showPaginationFooter ? (
     <div className="chat-list-pagination-footer">
@@ -90,7 +171,7 @@ function ChatListRowsPane({
           disabled={loadingMoreChats}
           aria-busy={loadingMoreChats}
         >
-          {loadingMoreChats ? "Carregando..." : "Carregar mais conversas"}
+          {loadingMoreChats ? "Carregando…" : "Carregar mais conversas"}
         </button>
       ) : null}
       <div ref={loadMoreSentinelRef} className="chat-list-load-more-sentinel" aria-hidden="true" />
@@ -110,7 +191,32 @@ function ChatListRowsPane({
           </div>
         ) : filteredLen === 0 ? (
           <div className="chat-list-empty-wrap">
-            {showPaginationFooter ? (
+            {listLoadFailed || emptyLoadMoreFailed ? (
+              <div className="chat-list-load-error">
+                <EmptyState
+                  className="chat-list-load-error__state"
+                  icon={<CloudOff size={44} strokeWidth={1.5} aria-hidden="true" />}
+                  title="Não foi possível carregar as conversas"
+                  description={loadMoreChatsError}
+                  actionLabel="Tentar novamente"
+                  action={
+                    canRetryList ? (
+                      <button
+                        ref={retryBtnRef}
+                        type="button"
+                        className="ds-btn ds-btn--primary chat-list-load-error__retry"
+                        onClick={runRetry(retryFailedLoad)}
+                        disabled={listRefreshing}
+                        aria-busy={listRefreshing || undefined}
+                      >
+                        <RotateCw size={15} strokeWidth={2} aria-hidden="true" />
+                        {listRefreshing ? "Tentando…" : "Tentar novamente"}
+                      </button>
+                    ) : null
+                  }
+                />
+              </div>
+            ) : showPaginationFooter && (canLoadMoreChats || loadingMoreChats) ? (
               <>
                 <EmptyState
                   icon={<ConversationEmptyIllustration />}
@@ -169,6 +275,7 @@ function ChatListRowsPane({
           />
         )}
         {filteredLen > 0 ? paginationFooter : null}
+        {listErrorFooter}
       </div>
 
       <ConversationActionMenu
@@ -214,6 +321,8 @@ function rowsPanePropsAreEqual(prev, next) {
   if (prev.loadingMoreChats !== next.loadingMoreChats) return false;
   if (prev.loadMoreChatsError !== next.loadMoreChatsError) return false;
   if (prev.onLoadMoreChats !== next.onLoadMoreChats) return false;
+  if (prev.onRetryList !== next.onRetryList) return false;
+  if (prev.listRefreshing !== next.listRefreshing) return false;
   return true;
 }
 

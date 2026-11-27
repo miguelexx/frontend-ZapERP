@@ -21,6 +21,8 @@ export default function BubbleTypedContent({
   requireVideoUrl,
   classified,
   msg,
+  isPinned = false,
+  isStarred = false,
   mediaUrl,
   audioPlaybackCandidates,
   selectMode,
@@ -191,7 +193,7 @@ export default function BubbleTypedContent({
     return (
       <>
         <AdReferralMessage ad={adMeta} />
-        <TextMessage texto={textoVisivel} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />
+        <TextMessage texto={textoVisivel} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} isPinned={isPinned} isStarred={isStarred} />
       </>
     );
   }
@@ -201,13 +203,13 @@ export default function BubbleTypedContent({
       <>
         <LinkPreviewMessage meta={linkPreviewMeta} msg={msg} />
         {hasText ? (
-          <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />
+          <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} isPinned={isPinned} isStarred={isStarred} />
         ) : null}
       </>
     );
   }
   if (hasText) {
-    return <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} />;
+    return <TextMessage texto={texto} inlineMeta={inlineMeta} msg={msg} isGroup={isGroup} isPinned={isPinned} isStarred={isStarred} />;
   }
   // Áudio recebido sem URL: o player não monta, então o "tentar de novo" dele não existe.
   // Esta bolha oferece a busca da mídia no provedor em vez de ficar um chip morto.
@@ -227,6 +229,8 @@ export default function BubbleTypedContent({
       inlineMeta={inlineMeta}
       msg={msg}
       isGroup={isGroup}
+      isPinned={isPinned}
+      isStarred={isStarred}
     />
   );
 }

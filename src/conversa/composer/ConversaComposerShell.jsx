@@ -69,6 +69,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     onAudioPlaceholder,
     onAudioPlaceholderDiscard,
     onPasteImageFile,
+    onPasteFiles,
     onFileInputChange,
     onFototecaInputChange,
     onDocumentInputChange,
@@ -111,6 +112,9 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   );
   const { texto, setTexto, textoRef } = useComposerDraft(conversaId, { getPersistText });
   const [notaInternaAtiva, setNotaInternaAtiva] = useState(false);
+  /* Nota interna a caminho do servidor: a caixa já limpou e a nota ainda não está na conversa —
+     uma barra fina no topo do composer mostra que está salvando (26/11/2026). */
+  const [noteSaving, setNoteSaving] = useState(false);
   notaAtivaRef.current = notaInternaAtiva;
   // Aba ativa do painel unificado de emojis + figurinhas (persiste entre aberturas).
   const [mediaTab, setMediaTab] = useState("emoji");
@@ -280,7 +284,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     setNotaInternaAtiva((prev) => !prev);
   }, []);
 
-  const focusInput = useCallback(({ force = false } = {}) => {
+  const focusInput = useCallback(({ force = false, caretEnd = false } = {}) => {
     if (typeof window !== "undefined" && !force) {
       const isCoarse = window.matchMedia?.("(pointer: coarse)")?.matches;
       const el = inputRef.current;
@@ -294,6 +298,17 @@ const ConversaComposer = forwardRef(function ConversaComposer(
           el.focus({ preventScroll: true });
         } catch {
           el.focus();
+        }
+        /* Texto carregado na caixa (editar, texto devolvido após falha): cursor no FIM, como no
+           WhatsApp — antes ficava no início e a 1.ª tecla entrava antes do texto (26/11/2026). */
+        if (caretEnd) {
+          const n = String(el.value || "").length;
+          try {
+            el.setSelectionRange(n, n);
+          } catch {
+            /* ignore */
+          }
+          el.scrollTop = el.scrollHeight;
         }
       });
     });
@@ -320,7 +335,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
   /** Comprimento do valor na última medição (decide se pode encolher). */
   const lastMeasuredLenRef = useRef(-1);
   /** min/max-height do CSS por largura de janela (media queries mudam com o resize). */
-  const textareaBoundsRef = useRef({ width: -1, cap: 0, floor: 0 });
+  const textareaBoundsRef = useRef({ width: -1, cap: 0, floor: 0, borderY: 0 });
 
   const syncTextareaHeight = useCallback(() => {
     const el = inputRef.current;
@@ -342,8 +357,13 @@ const ConversaComposer = forwardRef(function ConversaComposer(
       bounds.width = vw;
       bounds.cap = Number.isFinite(maxPx) && maxPx > 0 ? maxPx : WA_INPUT_FALLBACK_MAX_HEIGHT_PX;
       bounds.floor = Number.isFinite(minPx) && minPx > 0 ? minPx : 44;
+      /* box-sizing: border-box — scrollHeight não inclui a borda. Sem somá-la a caixa de 1 linha
+         ficava 2px mais baixa que a vazia (o composer tremia 2px a cada envio). */
+      const bt = parseFloat(computed.borderTopWidth) || 0;
+      const bb = parseFloat(computed.borderBottomWidth) || 0;
+      bounds.borderY = computed.boxSizing === "border-box" ? bt + bb : 0;
     }
-    const { cap, floor } = bounds;
+    const { cap, floor, borderY } = bounds;
     /*
      * Reflow por tecla (16/11/2026): antes TODA tecla fazia height=auto → ler scrollHeight →
      * escrever height, o que obriga 2 layouts síncronos da coluna inteira (thread incluída).
@@ -355,12 +375,12 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     lastMeasuredLenRef.current = value.length;
     if (shrunk) el.style.height = "auto";
     const contentHeight = Math.ceil(el.scrollHeight);
-    const next = Math.max(floor, Math.min(contentHeight, cap));
+    const next = Math.max(floor, Math.min(contentHeight + borderY, cap));
     if (shrunk || contentHeight > el.clientHeight + 1) {
       const nextPx = `${next}px`;
       if (el.style.height !== nextPx) el.style.height = nextPx;
     }
-    const scrollable = contentHeight > cap + 1 ? "true" : "false";
+    const scrollable = contentHeight + borderY > cap + 1 ? "true" : "false";
     const multiline = contentHeight > floor + 2 ? "true" : "false";
     if (el.dataset.scrollable !== scrollable) el.dataset.scrollable = scrollable;
     if (el.dataset.multiline !== multiline) el.dataset.multiline = multiline;
@@ -397,6 +417,12 @@ const ConversaComposer = forwardRef(function ConversaComposer(
 
   const closePanels = useCallback(() => {
     /* Um painel por ESC (cascata). */
+    /* Menu "Cliente / Nota interna" da seta do enviar: sem isto o ESC caía no "fechar a
+       conversa" (26/11/2026). */
+    if (modePickerOpen) {
+      setModePickerOpen(false);
+      return true;
+    }
     if (cameraCaptureOpen) {
       closeCameraCapture();
       return true;
@@ -426,6 +452,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
     closeCameraCapture,
     closeSavedReplies,
     emojiOpen,
+    modePickerOpen,
     savedRepliesOpen,
     stickerOpen,
   ]);
@@ -550,7 +577,13 @@ const ConversaComposer = forwardRef(function ConversaComposer(
         sendLockedRef.current = t;
         setTexto("");
         const conversaDaNota = conversaIdAtualRef.current;
-        const saved = await onSendInternalNote(t);
+        setNoteSaving(true);
+        let saved;
+        try {
+          saved = await onSendInternalNote(t);
+        } finally {
+          setNoteSaving(false);
+        }
         /* Trocou de conversa durante o POST: nunca despejar a nota no composer de OUTRA
            conversa (o toast de falha já avisou). */
         if (saved === false && String(conversaIdAtualRef.current ?? "") !== String(conversaDaNota ?? "")) {
@@ -676,9 +709,16 @@ const ConversaComposer = forwardRef(function ConversaComposer(
       if (pickedFile && isImageFile(pickedFile)) {
         e.preventDefault();
         onPasteImageFile?.(pickedFile);
+        return;
+      }
+      /* Arquivo que não é imagem (PDF copiado do Explorer etc.): mesmo caminho do arrastar,
+         com prévia para revisar (26/11/2026). Antes era ignorado sem nenhum aviso. */
+      if (files.length > 0 && onPasteFiles) {
+        e.preventDefault();
+        onPasteFiles(files);
       }
     },
-    [conversaId, notaInternaAtiva, editMode, onPasteImageFile]
+    [conversaId, notaInternaAtiva, editMode, onPasteImageFile, onPasteFiles]
   );
 
   const hasDraft = Boolean(safeString(texto).trim());
@@ -738,7 +778,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
 
   return (
     <>
-      <div className="wa-composerStack">
+      <div className={`wa-composerStack${noteSaving ? " wa-composerStack--noteSaving" : ""}`} aria-busy={noteSaving || undefined}>
       {showScrollToRecent && !isRecording ? (
         <button
           type="button"
@@ -874,6 +914,7 @@ const ConversaComposer = forwardRef(function ConversaComposer(
             open={stickerOpen}
             isRecording={isRecording}
             panelRef={stickerPanelRef}
+            anchorRef={stickerBtnRef}
             activeTab={mediaTab}
             onTabChange={setMediaTab}
             canSendSticker={Boolean(conversaId) && podeEnviar && !editMode && !notaInternaAtiva}

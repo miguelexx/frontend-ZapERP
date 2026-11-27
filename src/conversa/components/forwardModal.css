@@ -227,18 +227,40 @@
    ENCAMINHAR (painel)
 ========================================================= */
 
+/*
+ * A1-10 (27/11/2026): o chip ficava com 10px de altura e o texto cortado ao meio. Com
+ * `overflow: hidden` o tamanho mínimo automático dele vira 0, e o corpo do modal (grid/flex com
+ * rolagem) o espremia. Agora o chip não encolhe nem estica (fica do tamanho do texto, à
+ * esquerda) e as reticências moram no <span>.
+ */
 .wa-forwardPreviewChip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex: none;
+  justify-self: start;
+  align-self: flex-start;
+  min-height: max-content;
+  box-sizing: border-box;
   padding: 5px 10px;
   border-radius: 20px;
   background: color-mix(in srgb, var(--wa-green) 12%, transparent);
   color: var(--wa-green);
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.4;
   margin-bottom: 8px;
   max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.wa-forwardPreviewChip > svg {
+  flex: none;
+}
+
+.wa-forwardPreviewChip > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

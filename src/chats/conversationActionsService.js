@@ -78,6 +78,70 @@ export function resultadoExclusaoNoWhatsapp(resp) {
   }
 }
 
+/*
+ * Estado de bloqueio CONHECIDO (A3-12). O backend não guarda nem devolve o bloqueio na linha
+ * da conversa (a blacklist do WhatsApp é a fonte de verdade) — só o `bloqueado` na resposta
+ * do POST /bloquear. O menu mostrava "Bloquear" e "Desbloquear" juntos; agora mostra só a
+ * ação que faz sentido. Fica fora do store para sobreviver ao recarregamento da lista, que
+ * traz as linhas sem esse campo.
+ *
+ * Também no localStorage deste navegador (revisão A3-12, 27/11/2026): só em memória, um F5
+ * (ou deploy/reinício) apagava o que se sabia e quem foi bloqueado aqui ontem voltava a
+ * mostrar só "Bloquear" — sem caminho direto para desbloquear. Continua sendo só uma pista
+ * deste navegador: bloqueio feito pelo celular ou em outro aparelho segue desconhecido.
+ * Erro de storage (aba anônima, cota) não quebra nada: cai para a memória.
+ */
+const BLOCK_STATE_STORAGE_KEY = "zaperp.contatoBloqueado.v1"
+const BLOCK_STATE_MAX = 300
+let knownBlockState = null
+
+function blockStateMap() {
+  if (knownBlockState) return knownBlockState
+  knownBlockState = new Map()
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(BLOCK_STATE_STORAGE_KEY) : null
+    // Lista de pares [id, bloqueado] (não objeto: chaves numéricas perderiam a ordem de idade).
+    const parsed = raw ? JSON.parse(raw) : null
+    if (Array.isArray(parsed)) {
+      for (const par of parsed) {
+        if (Array.isArray(par) && par[0] != null && typeof par[1] === "boolean") knownBlockState.set(String(par[0]), par[1])
+      }
+    }
+  } catch {
+    /* storage indisponível ou corrompido: só memória */
+  }
+  return knownBlockState
+}
+
+export function rememberContactBlockState(conversaId, bloqueado) {
+  if (conversaId == null) return
+  const map = blockStateMap()
+  const id = String(conversaId)
+  // Reinsere no fim: a ordem do Map é a idade, e o corte abaixo descarta as mais antigas.
+  map.delete(id)
+  map.set(id, bloqueado === true)
+  while (map.size > BLOCK_STATE_MAX) map.delete(map.keys().next().value)
+  try {
+    localStorage.setItem(BLOCK_STATE_STORAGE_KEY, JSON.stringify([...map]))
+  } catch {
+    /* sem storage: vale só nesta aba */
+  }
+}
+
+/**
+ * true/false quando o estado é conhecido (campo `bloqueado` do backend, se um dia vier na
+ * linha, ou o resultado do último bloquear/desbloquear feito neste navegador); null quando
+ * não se sabe.
+ */
+export function getKnownContactBlockState(chat) {
+  if (!chat) return null
+  if (typeof chat.bloqueado === "boolean") return chat.bloqueado
+  const id = chat.id != null ? String(chat.id) : ""
+  if (!id) return null
+  const map = blockStateMap()
+  return map.has(id) ? map.get(id) : null
+}
+
 /** Bloqueia/desbloqueia o contato no WhatsApp (opt-out real). Só Whapi suporta. */
 export async function toggleBlockContact(conversaId, bloquear) {
   const { data } = await api.post(`/chats/${conversaId}/bloquear`, { bloquear: !!bloquear })

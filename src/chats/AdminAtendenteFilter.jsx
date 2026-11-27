@@ -181,12 +181,15 @@ export default function AdminAtendenteFilter({
 
   return (
     <div className="admin-atendente-filter">
+      {/* Lista estreita (1280–1366): sem filtro, só o ícone (A1-18) — o rótulo vai para a dica
+          e a busca ao lado ganha o espaço para não cortar o texto a meio. */}
       <button
         ref={triggerRef}
         type="button"
-        className="admin-atendente-filter__trigger"
+        className={`admin-atendente-filter__trigger${selected ? "" : " is-idle"}`}
         aria-haspopup="listbox"
         aria-expanded={open}
+        title={selected ? `Filtrando por ${label}` : "Filtrar por atendente"}
         aria-label={
           selected
             ? `Filtrando conversas por ${label}. Limpar filtro ou escolher outro atendente.`

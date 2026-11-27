@@ -8,6 +8,7 @@ import { useChatStore } from "../chats/chatsStore";
 import { useAuthStore } from "../auth/authStore";
 import { useNotificationStore } from "../notifications/notificationStore";
 import { getDisplayName } from "../chats/chatList";
+import { formatPhoneForDisplay } from "../chats/chatListDisplay";
 import * as cfg from "../api/configService";
 import { getStatusAtendimentoEffective } from "../utils/conversaUtils";
 import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
@@ -15,13 +16,26 @@ import { IconClipboard, IconClose, IconLinkOut, IconPencil, IconPhone, IconTrash
 import SidebarGrupo from "./SidebarGrupo";
 import { removeChatIdFromFilterRowCaches } from "../chats/chatListSidebarCache";
 import { getAvatarImageSrc } from "../utils/avatarProxyUrl";
+import { avatarInitials, getAvatarColor } from "../utils/avatarColor";
+import { useMobileOverlayBack } from "../atendimento/useMobileOverlayBack";
+import { User } from "lucide-react";
 
-function initials(nome = "") {
-  const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
-  const a = parts[0]?.[0] || "";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
-  return (a + b).toUpperCase() || "Z";
+/** true se o texto tem ao menos uma letra (nome de verdade, não um telefone formatado). */
+function temLetra(s) {
+  try {
+    return /\p{L}/u.test(String(s || ""));
+  } catch {
+    return /[a-zA-ZÀ-ÿ]/.test(String(s || ""));
+  }
 }
+
+/*
+ * Iniciais só de LETRAS (26/11/2026): um contato só com número virava "(1" (ou "#"/"Z") no
+ * avatar grande. Sem nenhuma letra devolve "" e o avatar mostra o boneco na cor do contato.
+ * 27/11: a regra mora num helper só (`avatarInitials`, utils/avatarColor.js), o mesmo do
+ * visualizador de mídia, do cartão de contato e dos participantes do grupo.
+ */
+const initials = avatarInitials;
 
 function digitsOnly(v) {
   return String(v || "").replace(/\D/g, "");
@@ -157,12 +171,15 @@ function ProfilePhotoButton({
   initialsLabel,
   canZoom,
   name,
+  tint = null,
   onError,
   onOpen,
 }) {
   const label = canZoom
     ? `Ver foto de ${name || "contato"}`
     : (name ? `Foto de ${name}` : "Foto do contato");
+  // Sem foto: a mesma cor OKLCH do card da lista e do cabeçalho (26/11/2026), não o cinza.
+  const semFoto = !photoUrl || photoError;
   return (
     <button
       type="button"
@@ -172,8 +189,14 @@ function ProfilePhotoButton({
       title={canZoom ? "Ver foto ampliada" : undefined}
       aria-label={label}
     >
-      <span className="wa-sideCliente-photo" aria-hidden="true">
-        <span className="wa-sideCliente-avatarFallback">{initialsLabel}</span>
+      <span
+        className={`wa-sideCliente-photo${semFoto && tint ? " wa-sideCliente-photo--tint" : ""}`}
+        style={semFoto && tint ? { "--wa-avatar-tint": tint } : undefined}
+        aria-hidden="true"
+      >
+        <span className="wa-sideCliente-avatarFallback">
+          {initialsLabel || <User className="wa-sideCliente-avatarIcon" strokeWidth={1.75} aria-hidden="true" />}
+        </span>
         {photoUrl && !photoError ? (
           <img
             className="wa-sideCliente-avatarImg"
@@ -219,6 +242,13 @@ export default function SidebarCliente({
   const skipNomeBlurSaveRef = useRef(false);
   const savingNomeLockRef = useRef(false);
   const [avatarImgError, setAvatarImgError] = useState(false);
+
+  /*
+   * A2-04 (27/11/2026): no celular o "voltar" fecha o painel "Dados do contato" (e o do grupo,
+   * que sai daqui também), não a conversa. Autocontido: o ConversaView não precisa saber.
+   * A foto ampliada por cima empilha a própria entrada — o voltar fecha só ela.
+   */
+  useMobileOverlayBack(Boolean(open), onClose, "sideCliente");
 
   useEffect(() => {
     if (!open) return undefined;
@@ -312,13 +342,19 @@ export default function SidebarCliente({
   const [savingNomeContato, setSavingNomeContato] = useState(false);
   const [deletingContact, setDeletingContact] = useState(false);
   const skipClienteHydrateRef = useRef(false);
+  /* Nome gravado SEM letras (o telefone salvo como nome, bug antigo): a tela mostra o campo vazio
+     com "Adicionar nome", mas salvar outros campos não pode apagar o que está no banco. */
+  const nomeGravadoSemLetrasRef = useRef("");
 
   const hydrateFromCliente = useCallback((c) => {
     if (skipClienteHydrateRef.current) return;
     const fromCliente = c?.nome != null ? String(c.nome).trim() : "";
     const liveConv = useConversaStore.getState().conversa;
     const fromConversa = String(getDisplayName(liveConv) || getDisplayName(conversa) || "").trim();
-    const nome = fromCliente || (fromConversa && fromConversa !== "Contato" ? fromConversa : "");
+    const nomeBruto = fromCliente || (fromConversa && fromConversa !== "Contato" ? fromConversa : "");
+    // Sem nenhuma letra não é nome (é o telefone formatado do getDisplayName ou o número gravado).
+    const nome = temLetra(nomeBruto) ? nomeBruto : "";
+    nomeGravadoSemLetrasRef.current = fromCliente && !temLetra(fromCliente) ? fromCliente : "";
     const email = c?.email != null ? String(c.email) : "";
     const empresa = c?.empresa != null ? String(c.empresa) : "";
     const obsRaw = c?.observacoes != null ? String(c.observacoes) : "";
@@ -560,6 +596,7 @@ export default function SidebarCliente({
     const isPhoneLabel =
       !dn ||
       dn === "Contato" ||
+      !temLetra(dn) ||
       (fallbackPhone && (dn === fallbackPhone || dn === telefoneCadastro));
     const initial = isPhoneLabel ? "" : dn;
     setCliNome(initial);
@@ -1046,7 +1083,7 @@ export default function SidebarCliente({
         proximo_contato_lembrete: clienteBase.nextNote,
       };
       const payload = {
-        nome: String(cliNome || "").trim() || null,
+        nome: String(cliNome || "").trim() || nomeGravadoSemLetrasRef.current || null,
         email: String(cliEmail || "").trim() || null,
         empresa: String(cliEmpresa || "").trim() || null,
         observacoes,
@@ -1292,6 +1329,7 @@ export default function SidebarCliente({
             photoUrl={fotoPerfil}
             photoError={avatarImgError}
             initialsLabel={initials(cliNome || clienteNome)}
+            tint={getAvatarColor(getDisplayName(conversa) || telefone || conversa?.id || "")}
             canZoom={canZoomPhoto}
             name={cliNome || clienteNome}
             onError={() => setAvatarImgError(true)}
@@ -1330,7 +1368,7 @@ export default function SidebarCliente({
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="Digite o nome do contato"
+                  placeholder="Adicionar nome"
                   disabled={savingAny}
                   aria-labelledby="side-cliente-nome-label"
                   title="Editar nome do contato"
@@ -1339,8 +1377,8 @@ export default function SidebarCliente({
                   enterKeyHint="done"
                 />
               ) : (
-                <h2 className="wa-sideCliente-profileName" title={clienteNome || "Sem nome"}>
-                  {clienteNome || "Sem nome"}
+                <h2 className="wa-sideCliente-profileName" title={temLetra(clienteNome) ? clienteNome : "Sem nome"}>
+                  {temLetra(clienteNome) ? clienteNome : "Sem nome"}
                 </h2>
               )}
               <button
@@ -1382,7 +1420,11 @@ export default function SidebarCliente({
             </p>
           </div>
           <p className="wa-sideCliente-profilePhone">
-            {telefone ? <span className="wa-sideCliente-mono">{telefone}</span> : <span className="wa-sideCliente-muted">Sem telefone</span>}
+            {telefone ? (
+              <span className="wa-sideCliente-mono">{formatPhoneForDisplay(telefone) || telefone}</span>
+            ) : (
+              <span className="wa-sideCliente-muted">Sem telefone</span>
+            )}
           </p>
           {empresaDisplay ? (
             <p className="wa-sideCliente-profileMeta" title={`Empresa: ${empresaDisplay}`}>{empresaDisplay}</p>
@@ -1442,24 +1484,11 @@ export default function SidebarCliente({
               </button>
             )}
           </div>
-          {canDeleteContact ? (
-            <button
-              type="button"
-              className="wa-sideCliente-dangerBtn"
-              title="Excluir conversa, mensagens e cadastro do cliente"
-              aria-label="Excluir contato"
-              disabled={deletingContact || savingAny}
-              onClick={handleExcluirContato}
-            >
-              <IconTrash />
-              <span>{deletingContact ? "Excluindo…" : "Excluir contato"}</span>
-            </button>
-          ) : null}
         </section>
 
         <section className="wa-sideCliente-card" aria-label="Informações do contato">
           <ProfileInfoRow label="Telefone">
-            {telefone ? <span className="wa-sideCliente-mono">{telefone}</span> : "—"}
+            {telefone ? <span className="wa-sideCliente-mono">{formatPhoneForDisplay(telefone) || telefone}</span> : "—"}
           </ProfileInfoRow>
           <ProfileInfoRow label="Setor">{setorAtual || "Sem setor"}</ProfileInfoRow>
           <ProfileInfoRow label="WhatsApp">{instanceLabel}</ProfileInfoRow>
@@ -1619,6 +1648,25 @@ export default function SidebarCliente({
             <span className="wa-sideCliente-charCount">{String(cliObsText || "").length}/2000</span>
           </div>
         </section>
+
+        {/* Ação destrutiva no FIM do painel, como linha de texto (26/11/2026). Era o botão
+            vermelho de largura total logo abaixo de Ligar/Copiar/CRM — a ação mais visível do
+            painel depois da foto. A confirmação (handleExcluirContato) não mudou. */}
+        {canDeleteContact ? (
+          <section className="wa-sideCliente-dangerZone" aria-label="Ações irreversíveis">
+            <button
+              type="button"
+              className="wa-sideCliente-dangerBtn wa-sideCliente-dangerBtn--row"
+              title="Excluir conversa, mensagens e cadastro do cliente"
+              disabled={deletingContact || savingAny}
+              onClick={handleExcluirContato}
+            >
+              <IconTrash />
+              <span>{deletingContact ? "Excluindo…" : "Excluir contato"}</span>
+            </button>
+            <p className="wa-sideCliente-dangerHint">Apaga a conversa, as mensagens e o cadastro deste cliente.</p>
+          </section>
+        ) : null}
 
         <div className="wa-sideCliente-saveBar" role="region" aria-label="Salvar alterações">
           <div className="wa-sideCliente-saveLeft">

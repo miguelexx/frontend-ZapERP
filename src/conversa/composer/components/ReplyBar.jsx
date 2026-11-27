@@ -33,6 +33,11 @@ export default function ReplyBar({ preview, isRecording, sending, onCancel, vari
       <button
         type="button"
         className="wa-iconBtn"
+        /* Não rouba o foco do campo (no celular fecharia o teclado): o atendente segue digitando. */
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+        }}
         onClick={onCancel}
         title={isEdit ? "Cancelar edição" : "Cancelar resposta"}
         aria-label={isEdit ? "Cancelar edição" : "Cancelar resposta"}

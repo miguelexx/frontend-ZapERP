@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   printImageFromUrl,
   printImageBlob,
@@ -11,23 +11,8 @@ import {
   mediaViewerSupportsPrint,
 } from "../utils/conversaViewHelpers";
 import { salvarMidiaComFeedback } from "../mediaDownload";
-
-/**
- * Normaliza aliases de tipo apenas para o visualizador.
- * Não altera o contrato externo: quem chama pode continuar enviando "imagem", "video", "arquivo" etc.
- */
-function normalizeViewerType(type, fileName) {
-  const t = String(type || "").trim().toLowerCase();
-  const fn = String(fileName || "").trim().toLowerCase();
-
-  if (t === "image") return "imagem";
-  if (t === "foto" || t === "photo" || t === "figurinha") return "imagem";
-  if (t === "vídeo") return "video";
-  if (t === "document" || t === "file" || t === "documento" || t === "pdf") return "arquivo";
-
-  if (!t && fn.endsWith(".pdf")) return "arquivo";
-  return t || "imagem";
-}
+import { useConversaStore } from "../conversaStore";
+import { buildMediaViewerGallery, normalizeViewerType, refreshViewerItem } from "./mediaViewerGallery";
 
 function revokeObjectUrl(url) {
   if (!url || typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function") return;
@@ -38,12 +23,29 @@ function revokeObjectUrl(url) {
   }
 }
 
+/** Elemento com foco no instante da abertura: é para ele que o foco volta ao fechar. */
+function captureActiveElement() {
+  try {
+    const el = typeof document !== "undefined" ? document.activeElement : null;
+    if (!el || el === document.body || el === document.documentElement) return null;
+    return el;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Visualizador de mídia em tela cheia (imagem, vídeo, PDF) e impressão.
+ * Visualizador de mídia em tela cheia (imagem, vídeo, PDF), galeria e impressão.
  * UI em MediaViewerOverlay; lógica concentrada neste hook.
+ *
+ * `mediaViewer` continua a ser o item EXIBIDO ({ url, type, fileName, sourceMsg, ... }): o
+ * ConversaView lê `sourceMsg` para encaminhar e a cadeia de Escape lê `!!mediaViewer`. A galeria
+ * viaja dentro dele (`mediaViewer.gallery`) porque o overlay recebe as props por um caminho fixo
+ * (ConversaViewOverlays) — assim a navegação não exige mexer nos dois coordenadores.
  */
 export function useMediaViewer({ showToast }) {
-  const [mediaViewer, setMediaViewer] = useState(null); // { url, type, fileName }
+  /** { items, index, dir, returnFocusEl } | null */
+  const [viewerState, setViewerState] = useState(null);
   const [mediaPdfBlobUrl, setMediaPdfBlobUrl] = useState(null);
   const [mediaPdfLoading, setMediaPdfLoading] = useState(false);
   const [mediaPdfError, setMediaPdfError] = useState(null);
@@ -65,27 +67,82 @@ export function useMediaViewer({ showToast }) {
     []
   );
 
-  const openMediaViewer = useCallback((url, type = "imagem", fileName, sourceMsg) => {
+  /**
+   * Aceita a assinatura de sempre `(url, type, fileName, sourceMsg)` e também um objeto
+   * `{ src | url, name | fileName, type, sourceMsg }` — o SidebarGrupo chama assim
+   * (`onOpenAvatar({ src, name })`), e antes a foto do grupo abria com `url` = objeto.
+   */
+  const openMediaViewer = useCallback((urlOrSpec, type = "imagem", fileName, sourceMsg) => {
+    let url = urlOrSpec;
+    let tipo = type;
+    let nome = fileName;
+    let msg = sourceMsg;
+    if (urlOrSpec && typeof urlOrSpec === "object") {
+      url = urlOrSpec.src ?? urlOrSpec.url ?? "";
+      tipo = urlOrSpec.type ?? type ?? "imagem";
+      nome = urlOrSpec.fileName ?? urlOrSpec.name ?? fileName;
+      msg = urlOrSpec.sourceMsg ?? sourceMsg;
+    }
+    url = typeof url === "string" ? url.trim() : "";
     if (!url) return;
-    const normalizedType = normalizeViewerType(type, fileName);
-    const canForward = sourceMsg?.id != null && !sourceMsg?.apagada_para_todos;
-    setMediaViewer({
-      url,
-      type: normalizedType,
-      fileName: fileName || sourceMsg?.nome_arquivo || null,
-      originalType: type || null,
-      sourceMsg: canForward ? sourceMsg : null,
-      /*
-       * Salvar não depende de poder encaminhar: bolha otimista (ainda sem id do banco) e foto
-       * de perfil (sem mensagem nenhuma) também baixam. Só mídia revogada fica de fora.
-       */
-      downloadMsg: sourceMsg && !sourceMsg?.apagada_para_todos ? sourceMsg : null,
-    });
+    const returnFocusEl = captureActiveElement();
+    let gallery;
+    try {
+      gallery = buildMediaViewerGallery({ url, type: tipo, fileName: nome, sourceMsg: msg });
+    } catch (err) {
+      console.error(err);
+      gallery = null;
+    }
+    if (!gallery?.items?.length) return;
+    setViewerState({ items: gallery.items, index: gallery.index, dir: 0, returnFocusEl });
   }, []);
 
   const closeMediaViewer = useCallback(() => {
-    setMediaViewer(null);
+    setViewerState(null);
   }, []);
+
+  /*
+   * A galeria é da conversa em que abriu. O ConversaView não remonta ao trocar de conversa
+   * (notificação, atalho, desktop com a lista ao lado): sem isto o viewer ficava por cima da
+   * conversa nova mostrando as fotos da anterior.
+   */
+  const viewerAberto = viewerState != null;
+  useEffect(() => {
+    if (!viewerAberto) return undefined;
+    return useConversaStore.subscribe((state, prev) => {
+      if (String(state?.selectedId ?? "") !== String(prev?.selectedId ?? "")) setViewerState(null);
+    });
+  }, [viewerAberto]);
+
+  /** Navega na galeria: `delta` = +1 (próxima) / -1 (anterior). Fora dos limites não faz nada. */
+  const goToMedia = useCallback((delta) => {
+    setViewerState((v) => {
+      if (!v) return v;
+      const next = v.index + (delta > 0 ? 1 : -1);
+      if (next < 0 || next >= v.items.length) return v;
+      const alvo = v.items[next];
+      const fresco = refreshViewerItem(alvo);
+      const items = fresco === alvo ? v.items : v.items.map((it, i) => (i === next ? fresco : it));
+      return { ...v, items, index: next, dir: delta > 0 ? 1 : -1 };
+    });
+  }, []);
+
+  const mediaViewer = useMemo(() => {
+    if (!viewerState) return null;
+    const item = viewerState.items[viewerState.index];
+    if (!item) return null;
+    return {
+      ...item,
+      gallery: {
+        index: viewerState.index,
+        total: viewerState.items.length,
+        items: viewerState.items,
+        dir: viewerState.dir,
+        go: goToMedia,
+        returnFocusEl: viewerState.returnFocusEl,
+      },
+    };
+  }, [viewerState, goToMedia]);
 
   /**
    * "Salvar como…" do lightbox. Mesmo caminho do menu da bolha (binário autenticado +
@@ -123,6 +180,11 @@ export function useMediaViewer({ showToast }) {
 
     setMediaPrintLoading(true);
     try {
+      /*
+       * Vídeo: o overlay não oferece mais "Imprimir" (o `<video>` da API vem de outra origem
+       * sem CORS, o canvas sai "tainted" e a captura falhava quase sempre). O ramo fica para
+       * quem chamar este handler direto com um vídeo local (blob:).
+       */
       if (viewerType === "video") {
         const v = mediaViewerVideoRef.current;
         if (!v) {
@@ -180,25 +242,20 @@ export function useMediaViewer({ showToast }) {
     }
   }, [mediaViewer, mediaPrintLoading, showToast]);
 
+  /* O PDF só depende do item exibido: trocar de foto na galeria não refaz o pedido. */
+  const pdfSourceKey = useMemo(() => {
+    if (!mediaViewer) return null;
+    const viewerType = normalizeViewerType(mediaViewer.type, mediaViewer.fileName);
+    const fn = String(mediaViewer.fileName || "").toLowerCase();
+    const isPdf = viewerType === "arquivo" && (fn.endsWith(".pdf") || mediaViewer.originalType === "pdf");
+    return isPdf ? mediaViewer.url : null;
+  }, [mediaViewer]);
+
   useEffect(() => {
     let cancelled = false;
     let createdPdfUrl = null;
 
-    if (!mediaViewer) {
-      setMediaPdfBlobUrl((prev) => {
-        revokeObjectUrl(prev);
-        return null;
-      });
-      setMediaPdfLoading(false);
-      setMediaPdfError(null);
-      return undefined;
-    }
-
-    const viewerType = normalizeViewerType(mediaViewer.type, mediaViewer.fileName);
-    const fn = String(mediaViewer.fileName || "").toLowerCase();
-    const isPdf = viewerType === "arquivo" && (fn.endsWith(".pdf") || mediaViewer.originalType === "pdf");
-
-    if (!isPdf) {
+    if (!pdfSourceKey) {
       setMediaPdfBlobUrl((prev) => {
         revokeObjectUrl(prev);
         return null;
@@ -215,7 +272,7 @@ export function useMediaViewer({ showToast }) {
       return null;
     });
 
-    const abs = getMediaPlaybackUrl(mediaViewer.url, false) || getMediaUrl(mediaViewer.url, false);
+    const abs = getMediaPlaybackUrl(pdfSourceKey, false) || getMediaUrl(pdfSourceKey, false);
 
     (async () => {
       try {
@@ -243,7 +300,7 @@ export function useMediaViewer({ showToast }) {
     return () => {
       cancelled = true;
     };
-  }, [mediaViewer]);
+  }, [pdfSourceKey]);
 
   return {
     mediaViewer,
@@ -256,6 +313,7 @@ export function useMediaViewer({ showToast }) {
     mediaViewerVideoRef,
     openMediaViewer,
     closeMediaViewer,
+    goToMedia,
     handleMediaViewerPrint,
     handleMediaViewerDownload,
   };

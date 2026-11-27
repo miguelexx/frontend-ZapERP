@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { shallow } from "zustand/shallow";
+import { Pin as PinIcon } from "lucide-react";
+import ConfirmDialog from "../components/feedback/ConfirmDialog";
+import { formatDiaCurtoEmpresa, formatHoraEmpresa } from "../utils/companyTimezone";
 import { useCompanyTimezoneVersion } from "../utils/useCompanyTimezone";
 import { useConversaStore, getMessageListReactKey, isPendingOutgoingTemp } from "./conversaStore";
 import {
@@ -15,6 +18,7 @@ import {
   getStatusAtendimentoEffective,
   isClosedAttendance,
   isConversaModoSimplesAtiva,
+  resolveContactMetaFromMessage,
 } from "../utils/conversaUtils";
 import "./conversa.css";
 /* Barra de ações, alvos de toque e acabamento — todos os utilizadores. */
@@ -60,6 +64,7 @@ import {
   resolveConversaParaMinhaFila,
   requestMinhaFilaAposEnvioDaBusca,
   normalizeTextSendApiToMessage,
+  legendaParaReenvioLocal,
 } from "./conversaOptimisticMessage";
 import {
   isNearBottom,
@@ -80,6 +85,7 @@ import {
   getMediaUrl,
   fileToPreviewURL,
   isRichMediaMessage,
+  copyTextToClipboard,
 } from "./utils/conversaViewHelpers";
 import { buildMensagensComSeparadores } from "./utils/buildMensagensComSeparadores";
 import {
@@ -102,6 +108,8 @@ import {
   TEXT_EDIT_MAX_LEN,
   EDIT_WINDOW_MS,
   parseCriadoEmMs,
+  MEDIA_PLACEHOLDER_TEXTS,
+  isPlaceholderCaptionText,
 } from "./bubble/utils/bubbleClassify";
 import Bubble from "./ConversaBubble";
 import { useConversationToast } from "./hooks/useConversationToast";
@@ -177,6 +185,52 @@ function threadContentKey(list) {
   const arr = Array.isArray(list) ? list : [];
   const last = arr.length ? arr[arr.length - 1] : null;
   return last ? `${arr.length}:${String(last.tempId ?? last.id ?? last.whatsapp_id ?? "")}` : "0:";
+}
+
+/** Marcador de mídia no "Copiar" de várias mensagens (mídia sem legenda). */
+const MARCA_MIDIA_COPIA = {
+  imagem: "[foto]",
+  image: "[foto]",
+  video: "[vídeo]",
+  "vídeo": "[vídeo]",
+  sticker: "[figurinha]",
+  audio: "[áudio]",
+  voice: "[áudio]",
+  ptt: "[áudio]",
+};
+const TIPOS_ARQUIVO_COPIA = new Set(["arquivo", "documento", "document", "file"]);
+
+/**
+ * Corpo de uma linha do "Copiar" de várias mensagens (27/11/2026). Antes usava o resumo da
+ * prévia (snippetFromMsg): cortava em 80 caracteres com "…" e trocava qualquer texto entre
+ * parênteses do usuário — "(risos)" virava "[risos]". Agora o texto vai inteiro e sem
+ * reescrita; mídia leva a legenda ou, sem ela, um marcador ("[foto]", "[arquivo: nome]").
+ */
+function textoDaMensagemParaCopia(m) {
+  const tipo = String(m?.tipo || "").toLowerCase();
+  const corpo = String(m?.texto ?? m?.conteudo ?? "").trim();
+  const ehArquivo = TIPOS_ARQUIVO_COPIA.has(tipo);
+  const marca = ehArquivo
+    ? `[arquivo: ${String(m?.nome_arquivo || "").trim() || "arquivo"}]`
+    : MARCA_MIDIA_COPIA[tipo] || "";
+  if (marca) {
+    const semLegenda =
+      !corpo ||
+      MEDIA_PLACEHOLDER_TEXTS.has(corpo.toLowerCase()) ||
+      isPlaceholderCaptionText(corpo, m?.nome_arquivo);
+    return semLegenda ? marca : corpo;
+  }
+  if (tipo === "location") {
+    const lm = m?.location_meta && typeof m.location_meta === "object" ? m.location_meta : null;
+    const n = safeString(lm?.nome);
+    const e = safeString(lm?.endereco);
+    const linha = n && e ? `${n} • ${e}` : n || e;
+    return linha ? `[localização] ${linha}` : corpo || "[localização]";
+  }
+  // Cartão de contato: o texto cru é o vCard — vale o nome resolvido.
+  const contato = resolveContactMetaFromMessage(m);
+  if (contato?.nome) return `[contato] ${contato.nome}`;
+  return corpo || String(snippetFromMsg(m) || "");
 }
 
 function ConversaViewBody() {
@@ -297,7 +351,6 @@ function ConversaViewBody() {
      no desktop largo. Abaixo de 1024px o rótulo espremia a barra e o textarea quebrava
      letra a letra — nesses casos o toggle vai para o menu (+). Cobre o vão 641–739px
      que antes ainda mostrava o toggle inline. */
-  const autocorrectToggleInMenuPorLargura = useMatchMedia("(max-width: 1024px)");
   /** Mobile/tablet: tecla Retorno do teclado virtual insere nova linha; enviar só pelo botão (evita enterKeyHint=send esconder o enter). */
   const composerEnterInsertsNewline = headerCompact || atendimentoTabletComposer;
   const composerAppendQueue = useConversaStore((s) => s.composerAppendQueue);
@@ -310,8 +363,11 @@ function ConversaViewBody() {
   );
 
   /* Modo simples: o interruptor de correção sai do composer para o menu de anexos
-     em qualquer largura — no desktop ele ficava inline, ao lado do campo de texto. */
-  const autocorrectToggleInMenu = autocorrectToggleInMenuPorLargura || modoSimplesAtivo;
+     em qualquer largura — no desktop ele ficava inline, ao lado do campo de texto.
+     26/11/2026: em TODAS as larguras — o interruptor "Correção/A" na barra do composer era o
+     item mais enigmático e poluía a linha de digitação (preferência que se ajusta uma vez).
+     Continua no menu (+), com o mesmo efeito. */
+  const autocorrectToggleInMenu = true;
 
   const conversaElegivelAutoAssumir = useMemo(() => {
     if (modoSimplesAtivo) return false;
@@ -589,8 +645,8 @@ function ConversaViewBody() {
   const zapMsgsInitialPassRef = useRef(true);
   const zapPassConversaIdRef = useRef(null);
 
-  const focusMessageInput = useCallback(({ force = false } = {}) => {
-    composerRef.current?.focusInput?.({ force });
+  const focusMessageInput = useCallback(({ force = false, caretEnd = false } = {}) => {
+    composerRef.current?.focusInput?.({ force, caretEnd });
   }, []);
 
   const composerTextareaHeightRef = useRef({ threadKey: null, height: 0 });
@@ -683,6 +739,7 @@ function ConversaViewBody() {
     toggleStar,
     startSelect,
     toggleSelected,
+    deselectIds,
     exitSelectMode,
   } = useConversationSelection({
     conversaId,
@@ -740,6 +797,18 @@ function ConversaViewBody() {
   const threadOpening =
     openingThreadKey != null && (openSnapDoneKey !== openingThreadKey || awaitingFresh);
   threadOpeningRef.current = threadOpening;
+  /*
+   * Véu de bolhas-fantasma só quando a conversa abriu SEM lista em mãos (26/11/2026). Com cache,
+   * o esqueleto era um flash sobre conteúdo que já existe e pintava por cima das bolhas reais.
+   * Travado por abertura (estado ajustado no render, padrão React — não ref): decidir por "lista
+   * vazia agora" faria o véu sair quando o GET chega, com a thread ainda mascarada.
+   */
+  const hasListAtOpen = Array.isArray(mensagens) && mensagens.length > 0;
+  const [veilDecision, setVeilDecision] = useState({ key: null, want: false });
+  if (openingThreadKey != null && veilDecision.key !== openingThreadKey) {
+    setVeilDecision({ key: openingThreadKey, want: !hasListAtOpen });
+  }
+  const veilWanted = veilDecision.key === openingThreadKey ? veilDecision.want : !hasListAtOpen;
   const openingThreadKeyRef = useRef(openingThreadKey);
   openingThreadKeyRef.current = openingThreadKey;
   /**
@@ -965,7 +1034,7 @@ function ConversaViewBody() {
     if (diffMin < 1) return "Agora";
     if (diffMin < 60) return `${diffMin} min`;
     if (diffH < 24) return `${diffH}h`;
-    return `${diffD} dia(s)`;
+    return `${diffD} ${diffD === 1 ? "dia" : "dias"}`;
   }, [mensagens]);
 
   /** Só reancora ao fundo se o utilizador ainda está colado ao fim (evita “puxar” ao meio ao ler histórico). */
@@ -1516,7 +1585,12 @@ function ConversaViewBody() {
                 : classified.kind === OUTBOUND_ERROR_KIND.OFFLINE
                   ? "Sem conexão"
                   : "Verificando envio",
-            message: classified.message,
+            /* 5xx: a mensagem crua do servidor ("Erro interno") alarmava logo abaixo de um título
+               tranquilizador. O reenvio já está agendado pela outbox. */
+            message:
+              classified.kind === OUTBOUND_ERROR_KIND.HTTP
+                ? "Estamos confirmando com o WhatsApp. Não reenvie: se não tiver saído, tentamos de novo sozinhos."
+                : classified.message,
           });
         }
         return classified;
@@ -2309,6 +2383,10 @@ function ConversaViewBody() {
     enabled: Boolean(conversaId) && !mediaViewer,
     onFiles: handleIncomingFiles,
   });
+  /* Colar arquivo no campo: identidade estável (o composer é memo) sempre chamando a versão atual. */
+  const handleIncomingFilesRef = useRef(handleIncomingFiles);
+  handleIncomingFilesRef.current = handleIncomingFiles;
+  const handlePasteFiles = useCallback((files) => handleIncomingFilesRef.current?.(files), []);
 
   const enviarTextoEmAndamentoRef = useRef(false);
   const enviarTextoQueueRef = useRef(Promise.resolve());
@@ -2559,8 +2637,10 @@ function ConversaViewBody() {
           removeFromOutbox(tempId);
         }
         // Timeout/rede: preserva client_temp_id para reconciliar sem duplicar.
-        // Falha confirmada: mesmo texto no próximo clique reutiliza o tempId.
-        if (!is403 && (failureData?.id != null || classified.uncertain || !err?.response)) {
+        // Falha confirmada: mesmo texto no próximo clique reutiliza o tempId — inclusive a recusa
+        // definitiva SEM id (o texto volta ao campo): antes o Enter criava uma 2.ª bolha e a
+        // conversa ficava com a mesma frase duas vezes, uma com "!" e outra enviada (26/11/2026).
+        if (!is403) {
           manualTextRetryRef.current = {
             conversaId,
             texto: t,
@@ -2577,14 +2657,21 @@ function ConversaViewBody() {
         // mensagem (e a citação) de um cliente no campo de digitação de outro.
         const mesmaConversaAberta =
           String(useConversaStore.getState().selectedId) === String(conversaId);
+        let textoDevolvido = false;
         if (!classified.uncertain && mesmaConversaAberta) {
           const draftAtual = String(composerRef.current?.getText?.() ?? "").trim();
           if (!draftAtual) {
             composerRef.current?.setText?.(t);
+            textoDevolvido = true;
           }
-          if (replyTo) setReplyTo(replyTo);
+          // A citação volta junto com o texto, nunca sozinha: com o atendente já digitando
+          // outra mensagem, ela grudava no rascunho novo e a próxima mensagem saía citando a
+          // mensagem errada (27/11/2026).
+          if (replyTo && textoDevolvido) setReplyTo(replyTo);
         }
-        focusMessageInput();
+        // Cursor no fim SÓ quando o texto voltou ao campo: com o atendente já digitando outro
+        // rascunho, mover o cursor jogava a próxima tecla para o fim do texto (27/11/2026).
+        focusMessageInput(textoDevolvido ? { caretEnd: true } : undefined);
       } finally {
         enviarTextoEmAndamentoRef.current = false;
         setSendingTracked(false);
@@ -2703,8 +2790,23 @@ function ConversaViewBody() {
     if (editingMessageRef.current) {
       exitEditMode();
     }
+    /*
+     * Deslizar para responder na última mensagem (27/11/2026): o gesto segura a trava de
+     * scroll do toque, então a barra de resposta encolhia a thread sem reancorar e a mensagem
+     * citada ficava atrás da barra. Quem estava no fim continua no fim (um snap após o commit).
+     */
+    const threadEl = messagesContainerRef.current;
+    const estavaNoFim = !!threadEl && isNearBottom(threadEl, 120);
     setReplyTo(msg || null);
     focusMessageInput();
+    if (estavaNoFim) {
+      requestAnimationFrame(() => {
+        const c = messagesContainerRef.current;
+        if (!c) return;
+        shouldStickToBottomRef.current = true;
+        snapThreadToBottom(c, virtualThreadRef, { min: true, followUpFrame: false });
+      });
+    }
   }, [exitEditMode, focusMessageInput]);
 
   const handleEditAction = useCallback((msg) => {
@@ -2719,8 +2821,8 @@ function ConversaViewBody() {
       if (expirou) {
         showToast({
           type: "info",
-          title: "Prazo de edicao encerrado",
-          message: "O WhatsApp so permite editar mensagens enviadas ha menos de 15 minutos.",
+          title: "Prazo de edição encerrado",
+          message: "O WhatsApp só permite editar mensagens enviadas há menos de 15 minutos.",
         });
         return;
       }
@@ -2738,7 +2840,7 @@ function ConversaViewBody() {
     }
     setEditingMessage(msg);
     composerRef.current?.setText?.(getEditableComposerText(msg));
-    focusMessageInput({ force: true });
+    focusMessageInput({ force: true, caretEnd: true });
   }, [conversaId, focusMessageInput, showToast]);
 
   const handleSaveEdit = useCallback(async (forcedText) => {
@@ -2875,11 +2977,11 @@ function ConversaViewBody() {
   }, []);
 
   const handleCopyResult = useCallback((ok) => {
-    showToast({
-      type: ok ? "success" : "error",
-      title: ok ? "Copiado" : "Falha ao copiar",
-      message: ok ? "Mensagem copiada para a área de transferência." : "Não foi possível copiar. Tente novamente.",
-    });
+    showToast(
+      ok
+        ? { type: "success", variant: "snack", title: "Mensagem copiada" }
+        : { type: "error", title: "Falha ao copiar", message: "Não foi possível copiar. Tente novamente." }
+    );
   }, [showToast]);
 
   const handleForwardAction = useCallback((msg) => {
@@ -2918,30 +3020,47 @@ function ConversaViewBody() {
     openForwardFromSelection(orderedSelectedIds, useConversaStore.getState().mensagens);
   }, [openForwardFromSelection, orderedSelectedIds]);
 
+  /*
+   * Confirmação dentro do app (26/11/2026) no lugar do `window.confirm` — a caixa cinza do
+   * navegador ("127.0.0.1 diz…", com "(id 1023)" no texto) era o momento menos profissional do
+   * fluxo. Promessa: os handlers seguem lineares (`if (!(await askConfirm(...))) return`).
+   */
+  const [confirmReq, setConfirmReq] = useState(null);
+  const confirmReqRef = useRef(null);
+  confirmReqRef.current = confirmReq;
+  const askConfirm = useCallback(
+    (opts) =>
+      new Promise((resolve) => {
+        confirmReqRef.current?.resolve?.(false);
+        setConfirmReq({ ...opts, resolve });
+      }),
+    []
+  );
+  const settleConfirm = useCallback((value) => {
+    const req = confirmReqRef.current;
+    if (!req) return;
+    confirmReqRef.current = null;
+    setConfirmReq(null);
+    req.resolve(value);
+  }, []);
+  useEffect(() => {
+    /* Trocou de conversa com a confirmação aberta: responde "não". */
+    settleConfirm(false);
+  }, [conversaId, settleConfirm]);
+
   const handleDeleteForMe = useCallback(
     async (msg) => {
       if (!conversaId || !msg?.id) return;
       const preview = snippetFromMsg(msg).slice(0, 120);
       const isMedia = isRichMediaMessage(msg);
-      const ok = window.confirm(
-        isMedia
-          ? `Ocultar esta mídia só para você?
-
-` +
-              `• Ela continua no histórico para os outros atendentes.
-` +
-              `• Não apaga o arquivo no servidor nem no WhatsApp.
-
-` +
-              `Prévia: "${preview || "(mídia)"}"`
-          : `Ocultar esta mensagem só para você?
-
-` +
-              `Os outros da conversa continuam vendo.
-
-` +
-              `Prévia: "${preview || "(sem texto)"}"`
-      );
+      const ok = await askConfirm({
+        title: isMedia ? "Apagar mídia para você?" : "Apagar mensagem para você?",
+        confirmLabel: "Apagar para mim",
+        preview: preview || (isMedia ? "(mídia)" : "(sem texto)"),
+        body: isMedia
+          ? "Ela some só da sua visualização: continua para os outros atendentes, no servidor e no WhatsApp."
+          : "Ela some só da sua visualização. Os outros atendentes continuam vendo.",
+      });
       if (!ok) return;
       try {
         await excluirMensagem(conversaId, msg.id, { scope: "me" });
@@ -2952,7 +3071,7 @@ function ConversaViewBody() {
         showToast({ type: "error", title: "Falha ao apagar", message: e.response?.data?.error || "Não foi possível apagar a mensagem." });
       }
     },
-    [conversaId, showToast, removerMensagem]
+    [askConfirm, conversaId, showToast, removerMensagem]
   );
 
   const handleDeleteForEveryone = useCallback(
@@ -2970,8 +3089,8 @@ function ConversaViewBody() {
       if (!msg?.whatsapp_id) {
         showToast({
           type: "warning",
-          title: "Aguarde confirmacao",
-          message: "So e possivel apagar para todos depois que o WhatsApp confirmar a mensagem.",
+          title: "Aguarde a confirmação",
+          message: "Só é possível apagar para todos depois que o WhatsApp confirmar a mensagem.",
         });
         return;
       }
@@ -2987,29 +3106,14 @@ function ConversaViewBody() {
         });
         return;
       }
-      const pk = String(mid);
       const preview = snippetFromMsg(msg).slice(0, 120);
       const isMedia = isRichMediaMessage(msg);
-      const ok = window.confirm(
-        isMedia
-          ? `Apagar para todos esta mídia?
-
-` +
-              `• Só é permitido para mídias que você enviou.
-` +
-              `• Some do WhatsApp do contato.
-` +
-              `• Aqui no painel ela continua visível, com um aviso de que você a apagou.
-
-` +
-              `Prévia: "${preview || "(mídia)"}"
-(id ${pk})`
-          : `Apagar para todos esta mensagem?
-
-"${preview || "(sem texto)"}"
-
-Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), com um aviso de que você a apagou.`
-      );
+      const ok = await askConfirm({
+        title: isMedia ? "Apagar mídia para todos?" : "Apagar mensagem para todos?",
+        confirmLabel: "Apagar para todos",
+        preview: preview || (isMedia ? "(mídia)" : "(sem texto)"),
+        body: "Some do WhatsApp do contato. Aqui no painel fica um aviso de que você a apagou.",
+      });
       if (!ok) return;
       try {
         const res = await excluirMensagem(conversaId, mid);
@@ -3035,27 +3139,106 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
         });
       }
     },
-    [conversaId, myUserId, showToast, marcarMensagemApagadaParaTodos]
+    [askConfirm, conversaId, myUserId, showToast, marcarMensagemApagadaParaTodos]
   );
 
+  /*
+   * Apagar em lote (26/11/2026): antes eram pedidos um a um, a bolha só saía quando o socket
+   * avisava (sem socket, ficava na tela com o toast "Apagadas") e o toast dizia
+   * "mensagem(ns) removida(s)". Agora: 3 em paralelo, cada bolha sai assim que o servidor
+   * confirma, contagem real, e as que falharem continuam selecionadas.
+   */
+  const [deleteSelectedBusy, setDeleteSelectedBusy] = useState(false);
   const handleDeleteSelected = useCallback(async () => {
-    if (!conversaId) return;
+    if (!conversaId || deleteSelectedBusy) return;
     const ids = Array.from(selectedSet);
     if (ids.length === 0) return;
-    const ok = window.confirm(`Apagar ${ids.length} mensagem(ns) selecionada(s) do sistema?`);
+    const n = ids.length;
+    const ok = await askConfirm({
+      title: `Apagar ${n} ${n === 1 ? "mensagem" : "mensagens"} para você?`,
+      confirmLabel: "Apagar para mim",
+      body:
+        n === 1
+          ? "Ela some só da sua visualização. Os outros atendentes continuam vendo."
+          : "Elas somem só da sua visualização. Os outros atendentes continuam vendo.",
+    });
     if (!ok) return;
+    setDeleteSelectedBusy(true);
+    const okIds = [];
+    const failIds = [];
     try {
-      for (const id of ids) {
+      for (let i = 0; i < ids.length; i += 3) {
+        const lote = ids.slice(i, i + 3);
         // eslint-disable-next-line no-await-in-loop
-        await excluirMensagem(conversaId, id, { scope: "me" });
+        const res = await Promise.allSettled(
+          lote.map((id) => excluirMensagem(conversaId, id, { scope: "me" }))
+        );
+        res.forEach((r, j) => {
+          const id = lote[j];
+          if (r.status === "fulfilled") {
+            okIds.push(id);
+            removerMensagem(id);
+          } else {
+            console.error("Erro ao excluir selecionada:", r.reason);
+            failIds.push(id);
+          }
+        });
       }
-      showToast({ type: "success", title: "Apagadas", message: `${ids.length} mensagem(ns) removida(s).` });
-      exitSelectMode();
-    } catch (e) {
-      console.error("Erro ao excluir selecionadas:", e);
-      showToast({ type: "error", title: "Falha ao apagar", message: "Algumas mensagens podem não ter sido apagadas." });
+    } finally {
+      setDeleteSelectedBusy(false);
     }
-  }, [conversaId, selectedSet, exitSelectMode, showToast]);
+    if (!failIds.length) {
+      showToast({
+        type: "success",
+        variant: "snack",
+        title: `${okIds.length} ${okIds.length === 1 ? "mensagem apagada" : "mensagens apagadas"}`,
+      });
+      exitSelectMode();
+      return;
+    }
+    deselectIds(okIds);
+    showToast({
+      type: "error",
+      title: okIds.length
+        ? `${okIds.length} ${okIds.length === 1 ? "apagada" : "apagadas"}, ${failIds.length} ${failIds.length === 1 ? "falhou" : "falharam"}`
+        : "Não foi possível apagar",
+      message: "As que falharam continuam selecionadas. Tente de novo.",
+    });
+  }, [askConfirm, conversaId, deleteSelectedBusy, deselectIds, exitSelectMode, removerMensagem, selectedSet, showToast]);
+
+  /*
+   * Copiar várias (26/11/2026): trecho da conversa no formato do WhatsApp
+   * "[26/11 13:20] Autor: texto", sempre no fuso da empresa. Mídia sem legenda vira "[foto]" etc.
+   */
+  const handleCopySelected = useCallback(async () => {
+    const ids = new Set(orderedSelectedIds.map(String));
+    if (!ids.size) return;
+    const lista = (useConversaStore.getState().mensagens || [])
+      .filter((m) => m?.id != null && ids.has(String(m.id)))
+      .sort((a, b) => new Date(a?.criado_em || 0) - new Date(b?.criado_em || 0));
+    const nomeContato = String(nome || "").trim() || "Contato";
+    const linhas = lista.map((m) => {
+      const d = new Date(m?.criado_em || 0);
+      const quando = [formatDiaCurtoEmpresa(d), formatHoraEmpresa(d)].filter(Boolean).join(" ");
+      const autor = isOutgoingMessage(m)
+        ? String(m?.usuario_nome || "").trim() || "Você"
+        : String(m?.remetente_nome || "").trim() || String(m?.remetente_telefone || "").trim() || nomeContato;
+      const texto = textoDaMensagemParaCopia(m);
+      return `${quando ? `[${quando}] ` : ""}${autor}: ${texto}`;
+    });
+    if (!linhas.length) return;
+    const okCopy = await copyTextToClipboard(linhas.join("\n"));
+    if (okCopy) {
+      showToast({
+        type: "success",
+        variant: "snack",
+        title: `${linhas.length} ${linhas.length === 1 ? "mensagem copiada" : "mensagens copiadas"}`,
+      });
+      exitSelectMode();
+    } else {
+      showToast({ type: "error", title: "Falha ao copiar", message: "Não foi possível copiar. Tente novamente." });
+    }
+  }, [exitSelectMode, nome, orderedSelectedIds, showToast]);
 
   const flashMessageById = useCallback((msgId) => {
     if (!msgId) return;
@@ -3559,8 +3742,11 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
         console.error("[notaInterna] 500 debug:", dbg);
         showToast({
           type: "error",
-          title: "Erro ao salvar nota",
-          message: dbg?._debug || dbg?.error || "Tente novamente.",
+          title: "Não foi possível salvar a nota",
+          /* `_debug` traz código/mensagem do Postgres — só no console, nunca para o atendente. */
+          message: dbg?.error && !/^\d{5}\b|duplicate key|violates|syntax error/i.test(String(dbg.error))
+            ? String(dbg.error)
+            : "Tente novamente em instantes.",
         });
         return false;
       }
@@ -3586,6 +3772,55 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             reuseTempId: String(tempId),
           });
           return;
+        }
+        /*
+         * Foto/vídeo/arquivo recusado antes de ser salvo (26/11/2026): a cópia local (blob) ainda
+         * está na bolha. Remonta o arquivo e reenvia com o MESMO tempId (o backend deduplica por
+         * client_temp_id; handleEnviarArquivo troca a bolha antiga pela nova tentativa).
+         */
+        const msgLocal = tempId
+          ? (useConversaStore.getState().mensagens || []).find(
+              (m) => String(m?.tempId ?? m?.client_temp_id ?? "") === String(tempId)
+            )
+          : null;
+        const blobUrl = String(msgLocal?._optimisticBlobUrl || "");
+        if (conversaId && msgLocal && blobUrl.startsWith("blob:")) {
+          /*
+           * Um reenvio por bolha de cada vez (27/11/2026): clique duplo remontava um File novo a
+           * cada clique (lastModified = agora ⇒ trava por arquivo não casava) e subia o arquivo
+           * duas vezes com o mesmo client_temp_id. A trava vale até o envio terminar.
+           */
+          const lockKey = `local:${tempId}`;
+          if (audioRetryRequestInFlightRef.current.has(lockKey)) return;
+          audioRetryRequestInFlightRef.current.add(lockKey);
+          let file = null;
+          try {
+            const blob = await fetch(blobUrl).then((r) => r.blob());
+            const nome = String(msgLocal.nome_arquivo || "").trim() || "arquivo";
+            const lastModified = Number(msgLocal.file_last_modified);
+            file = new File([blob], nome, {
+              type: blob.type || msgLocal.mime_type || "",
+              ...(Number.isFinite(lastModified) && lastModified > 0 ? { lastModified } : {}),
+            });
+          } catch {
+            file = null; /* blob revogado (F5 etc.): cai no aviso abaixo */
+          }
+          if (file) {
+            // Legenda REAL (nunca o rótulo "(imagem)"/"(vídeo)"); figurinha volta como figurinha.
+            const ehSticker = String(msgLocal.tipo || "").toLowerCase() === "sticker";
+            const legenda = legendaParaReenvioLocal(msgLocal);
+            try {
+              await handleEnviarArquivo(file, {
+                reuseTempId: String(tempId),
+                ...(ehSticker ? { forceStickerType: true, waitSocketOnly: true } : {}),
+                ...(!ehSticker && legenda ? { caption: legenda } : {}),
+              });
+            } finally {
+              audioRetryRequestInFlightRef.current.delete(lockKey);
+            }
+            return;
+          }
+          audioRetryRequestInFlightRef.current.delete(lockKey);
         }
         showToast({
           type: "warning",
@@ -3851,6 +4086,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           whatsappInstanceLabel={whatsappInstanceLabel}
           whatsappLabelsContext={whatsappLabelsContext}
           clienteSideOpen={showClienteSide}
+          showToast={showToast}
         />
 
         <ConversaViewOverlays
@@ -4048,8 +4284,19 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             </div>
           ) : null}
           {!selectMode && pinnedTop ? (
-            <div className="wa-pinBar" role="button" tabIndex={0} onClick={() => scrollToMsg(pinnedTop.id)}>
-              <span className="wa-pinBar-ic" aria-hidden="true">📌</span>
+            <div
+              className="wa-pinBar"
+              role="button"
+              tabIndex={0}
+              title="Fixada só para você (neste navegador)"
+              onClick={() => scrollToMsg(pinnedTop.id)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                scrollToMsg(pinnedTop.id);
+              }}
+            >
+              <PinIcon size={15} className="wa-pinBar-ic" aria-hidden="true" strokeWidth={2.2} style={{ flex: "none" }} />
               <span className="wa-pinBar-text">Fixada: {snippetFromMsg(pinnedTop)}</span>
               <span className="wa-pinBar-hint">Ver</span>
             </div>
@@ -4064,7 +4311,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             mensagensComSeparadores={mensagensComSeparadores}
             mensagens={mensagens}
             loading={loading}
-            suppressLoadingSkeleton={threadOpening}
+            suppressLoadingSkeleton={threadOpening && veilWanted}
             loadingMore={loadingMore}
             hasMore={hasMore}
             cursor={cursor}
@@ -4100,7 +4347,10 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
             myUserId={myUserId}
             whatsappInstanceProvider={whatsappInstanceProvider}
             mostrarNomeAoCliente={user?.mostrar_nome_ao_cliente !== false}
-            swipeReplyEnabled={headerCompact && !selectMode}
+            /* Sem `!selectMode` (26/11/2026): alternar o wrapper do gesto remontava TODAS as bolhas ao
+               entrar/sair da seleção no celular (fotos redecodificavam, áudio parava). O gesto já
+               fica bloqueado na seleção (`gestureBlocked` no ConversaBubbleShell). */
+            swipeReplyEnabled={headerCompact}
             compactMessageUx={compactMessageUx}
             onToggleSelected={toggleSelected}
             onInfo={handleInfoAction}
@@ -4127,7 +4377,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
         </div>
 
         {/* Véu da abertura: bolhas-fantasma enquanto a máscara esconde a thread (fade cruzado). */}
-        <ThreadOpeningVeil active={threadOpening} targetRef={messagesContainerRef} />
+        <ThreadOpeningVeil active={threadOpening && veilWanted} targetRef={messagesContainerRef} />
 
         {/* Barra de seleção estilo WhatsApp — overlay fixo no rodapé (fora do scroll) */}
         <ConversaSelectionBar
@@ -4139,7 +4389,20 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           onDismiss={dismissSelectionOverlay}
           onForward={handleForwardAdvance}
           onDelete={handleDeleteSelected}
+          onCopy={handleCopySelected}
+          deleteBusy={deleteSelectedBusy}
         />
+        <ConfirmDialog
+          open={Boolean(confirmReq)}
+          danger
+          title={confirmReq?.title || ""}
+          confirmLabel={confirmReq?.confirmLabel || "Confirmar"}
+          onCancel={() => settleConfirm(false)}
+          onConfirm={() => settleConfirm(true)}
+        >
+          {confirmReq?.preview ? <p className="wa-confirmPreview">{confirmReq.preview}</p> : null}
+          {confirmReq?.body ? <p className="wa-confirmBody">{confirmReq.body}</p> : null}
+        </ConfirmDialog>
 
         <PendingMediaPreview
           pendingFile={pendingFile}
@@ -4153,6 +4416,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           onCancel={clearPending}
           onConfirmSendFile={handleConfirmSendFile}
           onConfirmSendImageMobile={handleConfirmSendImageMobile}
+          replyNotice={Boolean(replyTo)}
         />
 
         <ConversaComposer
@@ -4189,6 +4453,7 @@ Some do WhatsApp do contato. Aqui no painel ela continua visível (id ${pk}), co
           onAudioPlaceholder={handleComposerAudioPlaceholder}
           onAudioPlaceholderDiscard={handleComposerAudioPlaceholderDiscard}
           onPasteImageFile={handleComposerPasteImage}
+          onPasteFiles={handlePasteFiles}
           onFileInputChange={handleFileInputChange}
           onFototecaInputChange={handleFototecaInputChange}
           onDocumentInputChange={handleDocumentInputChange}

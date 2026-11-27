@@ -9,6 +9,7 @@ import {
   rememberAspectRatio,
 } from "../utils/mediaAspectRatio";
 import MessageCaption from "./MessageCaption";
+import { UploadProgressOverlay } from "./UploadProgressRing";
 
 /** Sem onLoad nem onError neste prazo, o download é tratado como travado (ver vigia abaixo). */
 const IMAGE_STALL_MS = 15000;
@@ -329,6 +330,9 @@ export default function ImageMessage({
             setRatio((atual) => (atual === r ? atual : r));
           }}
         />
+        {/* Foto ainda subindo (26/11/2026): véu + anel com X, absoluto na moldura. Assina o
+            progresso sozinho — a <img> acima não re-renderiza a cada passo. */}
+        <UploadProgressOverlay msg={msg} variant="image" />
       </button>
       <MessageCaption texto={texto} show={showCaption} />
     </div>

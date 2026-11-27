@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { resolveContactMetaFromMessage, resolveContactListFromMessage } from "../../../utils/conversaUtils";
 import { formatHora } from "../../utils/conversaViewHelpers";
+import { avatarInitials } from "../../../utils/avatarColor";
+import { User } from "lucide-react";
 import MessageStatus from "./MessageStatus";
 
 /** Exibe o telefone como o WhatsApp: +55 11 98765-4321 (fallback: dígitos crus). */
@@ -17,21 +19,14 @@ function formatContactPhone(telefone) {
   return `+${digits}`;
 }
 
-function iniciaisDe(nome) {
-  return (
-    String(nome || "")
-      .trim()
-      .split(/\s+/)
-      .map((s) => s[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "?"
-  );
-}
-
-/** Avatar (foto ou iniciais) reutilizado no cartão único e na lista de vários contatos. */
+/**
+ * Avatar (foto ou iniciais) reutilizado no cartão único e na lista de vários contatos.
+ * Iniciais só com letras (`avatarInitials`, o mesmo helper da thread): "Esposa — Joana" dava
+ * "E—" e um contato salvo só com o número dava "(9". Sem letra nenhuma, o boneco genérico.
+ */
 function ContactAvatar({ nome, foto }) {
   const fotoOk = foto && String(foto).trim().startsWith("http") ? String(foto).trim() : null;
+  const iniciais = fotoOk ? "" : avatarInitials(nome);
   return (
     <div className="wa-bubble-contactAvatarWrap">
       {fotoOk ? (
@@ -43,8 +38,10 @@ function ContactAvatar({ nome, foto }) {
           loading="eager"
           decoding="async"
         />
+      ) : iniciais ? (
+        <span className="wa-bubble-contactInitials" aria-hidden="true">{iniciais}</span>
       ) : (
-        <span className="wa-bubble-contactInitials" aria-hidden="true">{iniciaisDe(nome)}</span>
+        <User className="wa-bubble-contactInitials wa-bubble-contactPersonIcon" strokeWidth={1.75} aria-hidden="true" />
       )}
     </div>
   );

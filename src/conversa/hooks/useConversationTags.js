@@ -23,13 +23,21 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
   const [allTags, setAllTags] = useState([]);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [tagsLoading, setTagsLoading] = useState(false);
-  const [tagMutatingId, setTagMutatingId] = useState(null);
-  const mutationRef = useRef(null);
+  /*
+   * Mutações em voo POR ETIQUETA (26/11/2026). Antes era um único `mutationRef`: com uma
+   * etiqueta a caminho do servidor, o painel inteiro ficava desabilitado e um 2.º clique
+   * noutra etiqueta (150ms depois) era descartado em silêncio. Agora só a etiqueta em voo
+   * fica travada; as outras alternam em paralelo, cada uma com o seu rollback.
+   */
+  const inFlightRef = useRef(new Map());
+  const [mutatingIds, setMutatingIds] = useState([]);
   useEffect(() => {
-    mutationRef.current = null;
-    setTagMutatingId(null);
-    return () => { mutationRef.current = null; };
+    inFlightRef.current = new Map();
+    setMutatingIds([]);
+    return () => { inFlightRef.current = new Map(); };
   }, [conversaId]);
+  /** Compatível com o nome antigo: lista de ids (string) em voo, ou null. */
+  const tagMutatingId = mutatingIds.length > 0 ? mutatingIds : null;
 
   const selectedTagIds = useMemo(
     () => (Array.isArray(tags) ? tags.map((t) => String(t?.id)) : []),
@@ -72,17 +80,22 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
 
   const handleToggleTag = useCallback(
     async (tag) => {
-      if (!conversaId || !tag?.id || mutationRef.current) return;
-      if (String(useConversaStore.getState().selectedId) !== String(conversaId)) return;
+      const key = String(tag?.id ?? "");
+      if (!conversaId || !tag?.id || inFlightRef.current.has(key)) return;
+      const storeNow = useConversaStore.getState();
+      if (String(storeNow.selectedId) !== String(conversaId)) return;
       const mutation = {};
-      mutationRef.current = mutation;
-      const alreadySelected = selectedTagIds.includes(String(tag.id));
-      const previousTags = Array.isArray(tags) ? tags : [];
+      const inFlight = inFlightRef.current;
+      inFlight.set(key, mutation);
+      // Estado do CLIQUE, lido da store (não do closure do render): com alternâncias em
+      // paralelo o closure já estaria velho e uma sobrescreveria a outra.
+      const previousTags = Array.isArray(storeNow.tags) ? storeNow.tags : [];
+      const alreadySelected = previousTags.some((t) => String(t?.id) === key);
       const nextTags = alreadySelected
-        ? previousTags.filter((t) => String(t.id) !== String(tag.id))
+        ? previousTags.filter((t) => String(t.id) !== key)
         : [...previousTags, tag];
       try {
-        setTagMutatingId(tag.id);
+        setMutatingIds((prev) => (prev.includes(key) ? prev : [...prev, key]));
         setTags(nextTags);
         const chatStore = useChatStore.getState();
         if (alreadySelected) {
@@ -101,7 +114,7 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
         }
         // Reverte só a etiqueta alterada; eventos de outras etiquetas continuam válidos.
         const current = useConversaStore.getState();
-        if (mutationRef.current === mutation && String(current.selectedId) === String(conversaId)) {
+        if (inFlight.get(key) === mutation && String(current.selectedId) === String(conversaId)) {
           const currentTags = Array.isArray(current.tags) ? current.tags : [];
           setTags(alreadySelected
             ? [...currentTags.filter((t) => String(t.id) !== String(tag.id)), tag]
@@ -116,13 +129,16 @@ export function useConversationTags({ conversaId, tags, setTags, showToast }) {
           message: "Não foi possível atualizar as tags desta conversa.",
         });
       } finally {
-        if (mutationRef.current === mutation) {
-          mutationRef.current = null;
-          setTagMutatingId(null);
+        if (inFlight.get(key) === mutation) {
+          inFlight.delete(key);
+          // Só mexe no estado se ainda é a mesma conversa (o Map é trocado ao mudar de conversa).
+          if (inFlightRef.current === inFlight) {
+            setMutatingIds((prev) => prev.filter((id) => id !== key));
+          }
         }
       }
     },
-    [conversaId, selectedTagIds, setTags, showToast, tags]
+    [conversaId, setTags, showToast]
   );
 
   return {

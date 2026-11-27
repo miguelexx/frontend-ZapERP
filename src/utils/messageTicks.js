@@ -185,7 +185,9 @@ export function resolveTickState(msg, { isGroup = false, out = true } = {}) {
   const isSent = !isErr && !isPending && !isDelivered && !isRead &&
     (!s || s === "sent" || s === "enviada" || s === "enviado" || confirmadoPeloProvedor);
 
-  const title = isAguardandoConexao
+  const title = isErr
+    ? "Não enviada"
+    : isAguardandoConexao
     ? "Aguardando conexão"
     : isRetry
       ? "Aguardando reenvio automático"

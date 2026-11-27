@@ -158,6 +158,46 @@ html body .app-layout #main-content .chat-list-root .chat-list-search-input::pla
 }
 
 /*
+ * Botão × (26/11/2026, C7). 26px = a altura de conteúdo da caixa (40 − 12 de padding − 2 de
+ * borda): maior que isso a caixa cresceria ao digitar a 1.ª letra e empurraria a lista toda.
+ * A área de toque passa dos 26px pelo ::before, sem entrar no fluxo.
+ */
+html body .app-layout #main-content .chat-list-root .chat-list-search-clear {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 -8px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--zs-text-2);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-clear::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-clear:hover {
+  background: var(--zs-row-hover);
+  color: var(--zs-text);
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-search-clear:focus-visible {
+  outline: 2px solid var(--zs-accent);
+  outline-offset: 1px;
+  color: var(--zs-text);
+}
+
+/*
  * Faixa "N conversas". Sai — a contagem já está no chip ativo. O `:not(:has(…))`
  * preserva a faixa se algum dia voltar a levar o cartão de pendências (`middleSlot`).
  */
@@ -508,6 +548,22 @@ html body .app-layout #main-content .chat-list-root .chat-list-badge-grupo {
   height: auto !important;
   padding: 0 0 0 2px !important;
   box-shadow: none !important;
+}
+
+/* Silenciada / fixada / favorita ao lado do nome (A3-04): ícones lucide de 13px na cor do
+   texto secundário, como no WhatsApp Web. Cabem na altura do nome — a linha não cresce. */
+html body .app-layout #main-content .chat-list-root .chat-list-inline-indicator {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 4px;
+  color: var(--zs-text-2);
+  opacity: 1;
+  line-height: 1;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-inline-indicator svg {
+  display: block;
 }
 
 /* -----------------------------------------------------------------------
@@ -934,6 +990,33 @@ html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .c
   font-weight: 500 !important;
 }
 
+/*
+ * Não lida que se VÊ (26/11/2026, C14). Sobrava só o nome 600→700 e a hora azul; a prévia
+ * era idêntica à de uma conversa lida. Sem reintroduzir a pílula de contagem (saiu no
+ * 0c2dd6d37 pela largura da coluna 2 — doc 07):
+ *  - prévia em peso 600 e na cor do nome, como no WhatsApp;
+ *  - ponto de 8px na tinta da hora, DENTRO da faixa 1 (é o ::after da própria hora, que é
+ *    flex com gap de 4px). Custa ~12px de largura só à coluna da hora; a faixa 2 (selo)
+ *    e a altura da linha não mudam — o estimador fica intacto.
+ * Para voltar atrás, basta apagar este bloco.
+ */
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview-line .chat-list-preview,
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview-line .chat-list-previewText,
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview-line .chat-list-previewDur:not(.is-accent),
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread .chat-list-preview-line .chat-list-previewContactText {
+  font-weight: 600 !important;
+  color: var(--zs-text) !important;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-row.has-unread:not(.is-opening) .chat-list-time::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--zs-accent-text);
+}
+
 /* -----------------------------------------------------------------------
    Superfícies do browser — foco, seleção e barra de scroll saem do tema
    em vez do default do browser
@@ -992,6 +1075,40 @@ html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(
   color: var(--zs-text) !important;
 }
 
+/*
+ * Desktop (26/11/2026, C12): o chevron aparecia a meia altura da linha, entre a hora e o
+ * selo, e cobria a hora (trigger [408,273,30,30] contra a hora [406,267,34,16]). Agora ele
+ * ocupa o LUGAR da hora, como no WhatsApp Web: sobe para o centro da faixa 1 e a hora
+ * esmaece enquanto o chevron está à vista (passagem do cursor, foco de teclado no próprio
+ * chevron ou menu aberto). Só opacidade: a hora continua a ocupar a coluna, nada se mexe.
+ * `:focus-within` de propósito NÃO entra — a linha guarda o foco depois do clique e a hora
+ * ficaria apagada na conversa aberta.
+ * Linha "Sem conversa" fica de fora (27/11/2026, R5-05): ela não tem chevron para ocupar o
+ * lugar, e é nela que aparece o "Abrindo…" — com o cursor ainda em cima depois do clique, o
+ * único retorno em texto sumia.
+ */
+@media (hover: hover) and (pointer: fine) {
+  html body .app-layout #main-content .chat-list-root .chat-list-time {
+    transition: opacity 120ms ease-out;
+  }
+
+  html body .app-layout #main-content .chat-list-root .chat-list-row:not(.chat-list-row-sem-conversa):hover .chat-list-time,
+  html body .app-layout #main-content .chat-list-root .chat-list-row:has(> .chat-row-action-trigger:is(:focus-visible, .is-open)) .chat-list-time {
+    opacity: 0;
+  }
+
+  /* Centro da hora: padding (12) + os 5px com que a grelha nome|prévia (42px) fica centrada
+     ao lado do avatar (52px de conteúdo) + metade da hora (8). Medido: centro do chevron no
+     centro da hora na linha comum; nas linhas com sublinhas fica ≤5px abaixo, ainda na faixa 1
+     e dentro da coluna da hora (sem tocar no texto). O translateY(-50%) vem do
+     premium-interactions.css. */
+  html body .app-layout #main-content .chat-list-root .chat-row-action-trigger {
+    top: calc(var(--zs-m-pad-y) + 5px + (var(--zs-m-time) / 2));
+    width: 28px;
+    height: 28px;
+  }
+}
+
 /* No toque o botão está sempre visível: a linha reserva-lhe a direita. */
 @media (hover: none), (pointer: coarse) {
   html body .app-layout #main-content .chat-list-root .chat-list-row,
@@ -1023,6 +1140,23 @@ html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(
 }
 
 /* -----------------------------------------------------------------------
+   Lista que não carregou (A3-01) — ícone neutro, botão com ícone
+----------------------------------------------------------------------- */
+
+html body .app-layout #main-content .chat-list-root .chat-list-load-error .ds-empty-state__icon {
+  color: var(--zs-text-2);
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-load-error__retry {
+  gap: 8px;
+}
+
+html body .app-layout #main-content .chat-list-root .chat-list-load-error__retry:disabled {
+  opacity: 0.72;
+  cursor: progress;
+}
+
+/* -----------------------------------------------------------------------
    Movimento reduzido — o realce continua, sem a transição
 ----------------------------------------------------------------------- */
 
@@ -1030,7 +1164,9 @@ html body .app-layout #main-content .chat-list-root .chat-row-action-trigger:is(
   html body .app-layout #main-content .chat-list-root .chat-list-row,
   html body .app-layout #main-content .chat-list-root .chat-list-row:hover,
   html body .app-layout #main-content .chat-list-root .chat-list-row:active,
-  html body .app-layout #main-content .chat-list-root .chat-row-action-trigger {
+  html body .app-layout #main-content .chat-list-root .chat-row-action-trigger,
+  html body .app-layout #main-content .chat-list-root .chat-list-time,
+  html body .app-layout #main-content .chat-list-root .chat-list-search-clear {
     transition: none !important;
   }
 }

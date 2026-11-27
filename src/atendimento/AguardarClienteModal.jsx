@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { moverSelecaoRadio, useDialogFocus } from "./useDialogFocus";
+import { useMobileOverlayBack } from "./useMobileOverlayBack";
+import { hojeNoFusoDaEmpresa } from "./prazoDataMinima";
 import "./aguardarPagamento.css";
 
 /** Opções do alarme "Aguardar cliente". `id` casa com o backend (aguardarClientePrazo). */
@@ -78,39 +81,75 @@ function IconClose() {
   );
 }
 
-export default function AguardarClienteModal({ open, busy, onClose, onConfirm }) {
+export default function AguardarClienteModal({ open, busy, onClose, onConfirm, returnFocusRef }) {
   const [prazo, setPrazo] = useState("1h");
   const [data, setData] = useState("");
+  /** Falha do último envio (409, rede…), mostrada DENTRO do modal: o toast global nasce por
+      baixo do véu desfocado (z 9999 < 12000) e o atendente não via nada (R7-04). */
+  const [erro, setErro] = useState(null);
+  const dialogRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     setPrazo("1h");
     setData("");
+    setErro(null);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    /*
+     * CAPTURA + preventDefault (26/11/2026): o atalho global (useGlobalHotkeys, na window)
+     * só ignora o ESC já tratado. Sem isto o mesmo ESC fechava o modal E a conversa inteira.
+     * Ocupado (salvando) ainda consome o ESC, para a conversa nunca fechar por baixo.
+     */
     const onKey = (e) => {
-      if (e.key === "Escape" && !busy) onClose?.();
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!busy) onClose?.();
     };
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       document.body.style.overflow = prev;
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
   }, [open, busy, onClose]);
 
-  const handleConfirm = useCallback(() => {
+  // Foco entra no prazo escolhido (nunca num campo de texto: no celular abriria o teclado),
+  // fica preso no diálogo e volta ao botão "Aguardar cliente" ao fechar.
+  useDialogFocus({
+    open,
+    dialogRef,
+    returnFocusRef,
+    getInitialFocus: () => dialogRef.current?.querySelector('[role="radio"][aria-checked="true"]'),
+  });
+
+  // Celular: o "voltar" fecha só o modal, não a conversa (R4-05). Fecha MESMO salvando: o voltar
+  // já consumiu a entrada do histórico, e um modal que ficasse aberto sem ela fazia o voltar
+  // seguinte tirar a conversa da tela. O resultado chega igual (pílula de sucesso ou toast de
+  // erro — com o modal fechado, o AtendimentoActions manda o erro para o toast).
+  useMobileOverlayBack(open, () => onClose?.(), "aguardar");
+
+  const handleConfirm = useCallback(async () => {
     if (busy) return;
-    onConfirm?.({ prazo, data: prazo === "data" ? data : undefined });
+    setErro(null);
+    try {
+      await onConfirm?.({ prazo, data: prazo === "data" ? data : undefined });
+    } catch (e) {
+      setErro(e?.userMessage || e?.message || "Tente de novo em instantes.");
+    }
   }, [busy, onConfirm, prazo, data]);
 
   if (!open) return null;
 
-  const dataInvalida = prazo === "data" && !/^\d{4}-\d{2}-\d{2}$/.test(String(data || "").trim());
-  const minDate = new Date().toISOString().slice(0, 10);
+  // A3-11: "hoje" no fuso da EMPRESA (antes era o dia UTC: às 21h em São Paulo o calendário
+  // já bloqueava o próprio dia). Data digitada antes de hoje também não vale.
+  const minDate = hojeNoFusoDaEmpresa();
+  const dataTxt = String(data || "").trim();
+  const dataInvalida = prazo === "data" && (!/^\d{4}-\d{2}-\d{2}$/.test(dataTxt) || dataTxt < minDate);
 
   return createPortal(
     <div
@@ -121,10 +160,12 @@ export default function AguardarClienteModal({ open, busy, onClose, onConfirm })
       }}
     >
       <div
+        ref={dialogRef}
         className="zap-pg-modal zap-ac-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="zap-ac-title"
+        tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="zap-pg-modal__glow" aria-hidden="true" />
@@ -159,7 +200,12 @@ export default function AguardarClienteModal({ open, busy, onClose, onConfirm })
 
         <div className="zap-pg-body">
           <p className="zap-pg-section-label">Aguardar por</p>
-          <div className="zap-pg-grid" role="radiogroup" aria-label="Prazo da espera">
+          <div
+            className="zap-pg-grid"
+            role="radiogroup"
+            aria-label="Prazo da espera"
+            onKeyDown={(e) => moverSelecaoRadio(e, OPCOES, prazo, setPrazo)}
+          >
             {OPCOES.map((op) => {
               const selected = prazo === op.id;
               return (
@@ -168,6 +214,7 @@ export default function AguardarClienteModal({ open, busy, onClose, onConfirm })
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
                   className={`zap-pg-card${selected ? " is-selected" : ""}`}
                   disabled={busy}
                   onClick={() => setPrazo(op.id)}
@@ -202,6 +249,23 @@ export default function AguardarClienteModal({ open, busy, onClose, onConfirm })
             </div>
           ) : null}
         </div>
+
+        {erro ? (
+          <div className="zap-pg-error" role="alert">
+            <span className="zap-pg-error__text">
+              <strong>Não foi possível iniciar a espera.</strong> {erro}
+            </span>
+            <button
+              type="button"
+              className="zap-pg-error__close"
+              onClick={() => setErro(null)}
+              aria-label="Dispensar aviso"
+              title="Dispensar"
+            >
+              <IconClose />
+            </button>
+          </div>
+        ) : null}
 
         <footer className="zap-pg-footer">
           <button type="button" className="zap-pg-btn zap-pg-btn--ghost" disabled={busy} onClick={() => onClose?.()}>

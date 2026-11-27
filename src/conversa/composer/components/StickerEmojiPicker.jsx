@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconEmoji, IconSticker } from "../../conversaComposerIcons";
+import { campoDoComposer, isPonteiroFino } from "../../../atendimento/useDialogFocus";
 import {
   EMOJI_CATEGORIES,
   pushRecentEmoji,
@@ -20,6 +21,78 @@ import {
  */
 
 const SPY_LOCK_MS = 480;
+
+/*
+ * Primeira abertura sem travar (27/11/2026). As ~390 teclas de emoji eram montadas e
+ * rasterizadas de uma vez (glifo colorido é caro na 1.ª pintura): ~620 ms de thread presa
+ * antes de o painel aparecer. Agora o painel abre com o que cabe na tela (recentes + o
+ * começo da 1.ª categoria) e o resto entra em fatias, nos intervalos ociosos. Pular para uma
+ * categoria ainda não montada monta tudo antes de rolar.
+ */
+// ~uma tela de painel (10 colunas x 6-7 linhas); fatias pequenas mantêm cada tarefa perto de
+// 50 ms (o glifo colorido de 28px custa ~1-1,5 ms na 1.ª pintura).
+const EMOJI_BUDGET_INICIAL = 64;
+const EMOJI_BUDGET_FATIA = 32;
+
+function agendarOcioso(fn) {
+  if (typeof window === "undefined") return () => {};
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(fn, { timeout: 160 });
+    return () => window.cancelIdleCallback?.(id);
+  }
+  const id = window.setTimeout(fn, 32);
+  return () => window.clearTimeout(id);
+}
+
+/*
+ * Aquecimento dos glifos (27/11/2026). O grosso do custo da 1.ª abertura não é o React: é o
+ * navegador achar a fonte de emoji e formar cada glifo colorido de 28px (cache por fonte e
+ * tamanho; a 2.ª abertura é instantânea). O composer chama isto num momento ocioso: os emojis
+ * são formados num bloco invisível fora da tela, poucos por janela ociosa, e o bloco sai do
+ * DOM no fim. Uma vez por sessão da página.
+ */
+let glifosAquecidos = false;
+export function aquecerGlifosEmoji() {
+  if (glifosAquecidos || typeof document === "undefined" || !document.body) return;
+  glifosAquecidos = true;
+  let lista = [];
+  try {
+    lista = Array.from(new Set([...readRecentEmojis(), ...EMOJI_CATEGORIES.flatMap((c) => c.emojis)]));
+  } catch {
+    return;
+  }
+  const bloco = document.createElement("div");
+  bloco.setAttribute("aria-hidden", "true");
+  Object.assign(bloco.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "0",
+    width: "440px",
+    visibility: "hidden",
+    pointerEvents: "none",
+    fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif',
+    fontSize: "28px",
+    lineHeight: "1",
+  });
+  document.body.appendChild(bloco);
+  let i = 0;
+  const passo = (deadline) => {
+    let primeiro = true;
+    while (i < lista.length && (primeiro || (deadline?.timeRemaining?.() ?? 0) > 8)) {
+      primeiro = false;
+      const fatia = lista.slice(i, i + 6);
+      const linha = document.createElement("span");
+      // Um emoji por "palavra": é a chave do cache de forma, igual a cada tecla do painel.
+      linha.textContent = `${fatia.join(" ")} `;
+      bloco.appendChild(linha);
+      void bloco.offsetHeight; // forma os glifos AQUI, dentro da janela ociosa
+      i += 6;
+    }
+    if (i < lista.length) agendarOcioso(passo);
+    else bloco.remove();
+  };
+  agendarOcioso(passo);
+}
 
 const stroke = {
   viewBox: "0 0 24 24",
@@ -127,8 +200,52 @@ export default function StickerEmojiPicker(props) {
   return createPortal(<PickerPanel {...props} />, document.body);
 }
 
+/*
+ * Posição do painel no desktop (26/11/2026). Ele vai num portal para o body (o
+ * `.atendimento-chat-area` tem `isolation: isolate`) com `left: 70px` fixo — a largura da barra
+ * de navegação —, o que o desenhava em cima da LISTA de conversas, ~470px longe do botão. Agora
+ * ancora no botão de emoji, preso à área da conversa, logo acima do composer. Celular (≤520px)
+ * mantém as regras do CSS (esquerda/direita 10px acima do composer).
+ */
+function useAnchoredPanelPosition(panelRef, anchorRef) {
+  useLayoutEffect(() => {
+    const place = () => {
+      const panel = panelRef?.current;
+      if (!panel) return;
+      const narrow = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 520px)").matches;
+      const btn = anchorRef?.current;
+      if (narrow || !btn) {
+        panel.style.removeProperty("--wa-mp-left");
+        panel.style.removeProperty("--wa-mp-bottom");
+        return;
+      }
+      const b = btn.getBoundingClientRect();
+      const stack = btn.closest(".wa-composerStack")?.getBoundingClientRect();
+      const chat = btn.closest(".atendimento-chat-area")?.getBoundingClientRect();
+      const width = panel.offsetWidth || 360;
+      const minLeft = (chat?.left ?? 0) + 8;
+      const maxLeft = Math.max(minLeft, window.innerWidth - width - 8);
+      const left = Math.round(Math.min(maxLeft, Math.max(minLeft, b.left - 8)));
+      const top = stack ? stack.top : b.top;
+      const bottom = Math.round(Math.max(8, window.innerHeight - top + 8));
+      panel.style.setProperty("--wa-mp-left", `${left}px`);
+      panel.style.setProperty("--wa-mp-bottom", `${bottom}px`);
+    };
+    place();
+    window.addEventListener("resize", place);
+    const stackEl = anchorRef?.current?.closest?.(".wa-composerStack");
+    const ro = stackEl && typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
+    ro?.observe(stackEl);
+    return () => {
+      window.removeEventListener("resize", place);
+      ro?.disconnect();
+    };
+  }, [panelRef, anchorRef]);
+}
+
 function PickerPanel({
   panelRef,
+  anchorRef,
   activeTab,
   onTabChange,
   canSendSticker,
@@ -147,6 +264,26 @@ function PickerPanel({
   showToast,
 }) {
   const tab = canSendSticker ? activeTab : "emoji";
+  useAnchoredPanelPosition(panelRef, anchorRef);
+
+  /* Fechou com o foco dentro do painel (ESC na busca, por exemplo): no desktop o foco volta ao
+     campo de mensagem — antes caía no <body> e o que se digitava sumia. Toque: nunca (abriria o
+     teclado do celular). Layout effect: na desmontagem o painel ainda está no DOM. */
+  useLayoutEffect(() => {
+    const painel = panelRef?.current || null;
+    return () => {
+      const ativo = typeof document !== "undefined" ? document.activeElement : null;
+      if (!painel || !ativo || !painel.contains(ativo)) return;
+      if (!isPonteiroFino()) return;
+      const campo = campoDoComposer();
+      if (!campo) return;
+      try {
+        campo.focus({ preventScroll: true });
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [panelRef]);
 
   // Recentes congelados na abertura (como no WhatsApp): inserir um emoji não pode
   // empurrar a grade enquanto a pessoa ainda está escolhendo.
@@ -165,6 +302,18 @@ function PickerPanel({
   }, [shownRecents]);
 
   const [activeCat, setActiveCat] = useState(() => emojiSections[0]?.id || "smileys");
+
+  const totalEmojis = useMemo(
+    () => emojiSections.reduce((n, section) => n + section.emojis.length, 0),
+    [emojiSections]
+  );
+  const [emojiBudget, setEmojiBudget] = useState(() => shownRecents.length + EMOJI_BUDGET_INICIAL);
+  const tudoMontado = emojiBudget >= totalEmojis;
+  const pendingMountJumpRef = useRef(null);
+  useEffect(() => {
+    if (tudoMontado) return undefined;
+    return agendarOcioso(() => setEmojiBudget((b) => b + EMOJI_BUDGET_FATIA));
+  }, [emojiBudget, tudoMontado]);
 
   const query = String(emojiQuery || "");
   const searching = tab === "emoji" && query.trim().length > 0;
@@ -207,7 +356,7 @@ function PickerPanel({
       if (!body) return;
       const top = body.scrollTop;
       let current = emojiSections[0]?.id;
-      if (top + body.clientHeight >= body.scrollHeight - 2) {
+      if (tudoMontado && top + body.clientHeight >= body.scrollHeight - 2) {
         current = emojiSections[emojiSections.length - 1]?.id;
       } else {
         for (const section of emojiSections) {
@@ -217,17 +366,31 @@ function PickerPanel({
       }
       if (current) setActiveCat((prev) => (prev === current ? prev : current));
     });
-  }, [emojiSections, searching, tab]);
+  }, [emojiSections, searching, tab, tudoMontado]);
 
   const jumpToCategory = useCallback((id) => {
     if (searching) {
+      setEmojiBudget(Infinity);
       pendingJumpRef.current = id;
       onEmojiQueryChange?.("");
       return;
     }
     setActiveCat(id);
+    if (!tudoMontado) {
+      // As seções abaixo ainda não existem: monta tudo e rola no layout effect seguinte.
+      pendingMountJumpRef.current = id;
+      setEmojiBudget(Infinity);
+      return;
+    }
     scrollToSection(id, true);
-  }, [onEmojiQueryChange, scrollToSection, searching]);
+  }, [onEmojiQueryChange, scrollToSection, searching, tudoMontado]);
+
+  useLayoutEffect(() => {
+    const id = pendingMountJumpRef.current;
+    if (!id || !tudoMontado) return;
+    pendingMountJumpRef.current = null;
+    scrollToSection(id, true);
+  }, [tudoMontado, scrollToSection]);
 
   const insertEmoji = useCallback((emoji) => {
     recentsRef.current = pushRecentEmoji(emoji, recentsRef.current);
@@ -257,8 +420,10 @@ function PickerPanel({
     else sectionRefs.current.delete(id);
   };
 
+  /* Sem role="list"/"listitem": o papel explícito no <button> apagava o "botão" — o leitor de
+     tela anunciava cada emoji como item de lista, não como algo clicável (27/11/2026). */
   const renderEmojiGrid = (list, keyPrefix) => (
-    <div className="wa-mpEmojiGrid" role="list">
+    <div className="wa-mpEmojiGrid">
       {list.map((emoji) => (
         <button
           key={`${keyPrefix}-${emoji}`}
@@ -266,7 +431,6 @@ function PickerPanel({
           className="wa-mpEmoji"
           onMouseDown={preventFocusSteal}
           onClick={() => insertEmoji(emoji)}
-          role="listitem"
           aria-label={`Emoji ${emoji}`}
         >
           {emoji}
@@ -363,17 +527,26 @@ function PickerPanel({
               </div>
             )
           ) : (
-            emojiSections.map((section) => (
-              <section key={section.id} className="wa-mpSection" ref={setSectionRef(section.id)}>
-                <h3 className="wa-mpSectionTitle">{section.label}</h3>
-                {renderEmojiGrid(section.emojis, section.id)}
-              </section>
-            ))
+            (() => {
+              let restante = emojiBudget;
+              return emojiSections.map((section) => {
+                if (restante <= 0) return null;
+                const visiveis =
+                  restante >= section.emojis.length ? section.emojis : section.emojis.slice(0, restante);
+                restante -= section.emojis.length;
+                return (
+                  <section key={section.id} className="wa-mpSection" ref={setSectionRef(section.id)}>
+                    <h3 className="wa-mpSectionTitle">{section.label}</h3>
+                    {renderEmojiGrid(visiveis, section.id)}
+                  </section>
+                );
+              });
+            })()
           )
         ) : (
           <section className="wa-mpSection">
             <h3 className="wa-mpSectionTitle">{searchValue ? "Resultados" : "Recentes"}</h3>
-            <div className="wa-mpStickerGrid" role="list">
+            <div className="wa-mpStickerGrid">
               {!searchValue ? (
                 <button
                   type="button"
@@ -394,7 +567,6 @@ function PickerPanel({
                   className="wa-mpSticker"
                   onMouseDown={preventFocusSteal}
                   onClick={() => sendSticker(item)}
-                  role="listitem"
                   aria-label={`Enviar figurinha ${item?.name || ""}`.trim()}
                   title={item?.name || "Figurinha"}
                 >

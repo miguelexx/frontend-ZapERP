@@ -1300,14 +1300,18 @@ html:not([data-theme="dark"]) .chat-list-chips--secondary .admin-atendente-filte
 /* -----------------------------------------------------------------------
    UltraMSG alert (desconectado) — usa tokens do Design System
 ----------------------------------------------------------------------- */
+/* Rodapé da coluna (27/11/2026): entra deslizando de baixo, sem empurrar a lista. */
 .chat-list-zapi-alert {
+  flex-shrink: 0;
   background: var(--ds-warning-soft);
-  border-bottom: 1px solid var(--ds-warning);
+  border-top: 1px solid var(--ds-warning);
+  animation: chat-list-zapi-alert-in 180ms ease-out;
   /* Âmbar puro sobre o próprio fundo claro dava 2.8:1 (texto de 12px ilegível). Mesmo matiz,
      escurecido: ~6.5:1. O escuro tem regra própria abaixo e continua no âmbar claro. */
   color: color-mix(in srgb, var(--ds-warning) 62%, #000);
   font-size: 0.78rem;
   padding: 6px 12px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1319,8 +1323,16 @@ html:not([data-theme="dark"]) .chat-list-chips--secondary .admin-atendente-filte
 }
 
 .chat-list-zapi-alert__icon {
-  font-size: 1rem;
   flex-shrink: 0;
+}
+
+@keyframes chat-list-zapi-alert-in {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-list-zapi-alert { animation: none; }
 }
 
 .chat-list-zapi-alert__link {

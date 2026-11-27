@@ -69,15 +69,43 @@ export function getPhone(chat) {
   return s;
 }
 
+/**
+ * Telefone para EXIBIR (título do card, cabeçalho da conversa, fallback de nome).
+ *
+ * O formato antigo tratava os 2 primeiros dígitos de um número de 12–13 dígitos como DDD:
+ * o código do país virava DDD e o resto ficava com 6 dígitos no fim — `5511976543210` saía
+ * `(55) 11976-543210` (26/11/2026). Agora o 55 é reconhecido como país:
+ *   55 + 11 dígitos → `(DD) 9XXXX-XXXX`   55 + 10 dígitos → `(DD) XXXX-XXXX`
+ *   11 dígitos      → `(DD) 9XXXX-XXXX`   10 dígitos      → `(DD) XXXX-XXXX`
+ *   resto (outro país, número curto/longo) → `+dígitos` (ou os dígitos, se < 10)
+ * A máscara BR só entra com cara de número BR (27/11/2026, R5-06): DDD sem 0 (nenhum DDD do
+ * Brasil tem 0) e, com 11 dígitos, o 9 do celular na 3.ª posição. Sem isso `12025550123`
+ * (EUA, +1) saía `(12) 02555-0123`, um número que não existe. Os 10 dígitos aceitam 2–9 na
+ * 3.ª posição: cobre fixo e o celular antigo sem o 9 (`558187654321`), muito comum no WhatsApp.
+ * Só exibição: nunca gravar o resultado como nome nem usar como chave de identidade.
+ */
 export function formatPhoneForDisplay(phone) {
   const p = String(phone || "").replace(/\D/g, "");
-  if (p.length >= 10) {
-    const ddd = p.length >= 12 ? p.slice(0, 2) : p.length === 11 ? p.slice(0, 2) : "";
-    const rest = p.length >= 12 ? p.slice(2) : p.length === 11 ? p.slice(2) : p;
-    if (ddd && rest.length >= 8) return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
-    return `+${p}`;
+  if (!p) return "";
+  const local = p.startsWith("55") && (p.length === 12 || p.length === 13) ? p.slice(2) : p;
+  if (/^[1-9]{2}/.test(local)) {
+    if (local.length === 11 && local[2] === "9") return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+    if (local.length === 10 && /[2-9]/.test(local[2])) return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
   }
-  return p || "";
+  return p.length >= 10 ? `+${p}` : p;
+}
+
+/**
+ * Nome que é só um telefone BRASILEIRO (dígitos, espaços, `+ ( ) - .`) — o bug antigo de
+ * nome=telefone. Número estrangeiro digitado como nome fica como o atendente escreveu
+ * (`+1 (202) 555-0123` tem 11 dígitos, mas o `+` sem 55 diz que não é do Brasil).
+ */
+function looksLikeBrPhoneOnly(value) {
+  const s = String(value || "").trim();
+  if (!s || !/^[\d\s+().-]+$/.test(s)) return false;
+  const d = s.replace(/\D/g, "");
+  if (s.startsWith("+") && !d.startsWith("55")) return false;
+  return d.length === 10 || d.length === 11 || (d.startsWith("55") && (d.length === 12 || d.length === 13));
 }
 
 /**
@@ -90,7 +118,10 @@ export function getDisplayName(chat) {
     const nome = chat?.nome_grupo ?? chat?.contato_nome ?? chat?.nome_contato_cache ?? chat?.nome ?? "";
     const n = String(nome || "").trim();
     if (n && !n.toLowerCase().startsWith("lid:")) return n;
-    return formatPhoneForDisplay(getPhone(chat)) || "Grupo";
+    // Id de grupo (120363…, telefone-timestamp) não é telefone: formatado vira lixo.
+    const tel = getPhone(chat);
+    if (tel.replace(/\D/g, "").length > 13) return "Grupo";
+    return formatPhoneForDisplay(tel) || "Grupo";
   }
   const nestedOk = nestedClientBelongsToConversation(chat);
   const raw =
@@ -102,6 +133,17 @@ export function getDisplayName(chat) {
     chat?.nome ??
     "";
   const nome = String(raw || "").trim();
+  // Nome gravado como o próprio telefone (cadastro antigo) é exibido formatado, igual ao
+  // contato sem nome — senão o card mostrava `5511976543210` cru e o avatar um "5".
+  // Só troca quando sai a máscara BR, ou quando o nome É o telefone da conversa: um nome
+  // digitado como `0800 123 4567` ou `2025550123` virava `+08001234567`/`+2025550123`
+  // (o "+" inventava um código de país) — fica como o atendente escreveu.
+  if (nome && looksLikeBrPhoneOnly(nome)) {
+    const formatado = formatPhoneForDisplay(nome);
+    if (formatado.startsWith("(")) return formatado;
+    const tel = String(getPhone(chat) || "").replace(/\D/g, "");
+    if (tel && tel === nome.replace(/\D/g, "")) return formatado;
+  }
   if (nome && !nome.toLowerCase().startsWith("lid:")) return nome;
   const tel = getPhone(chat);
   return tel ? formatPhoneForDisplay(tel) : "Contato";

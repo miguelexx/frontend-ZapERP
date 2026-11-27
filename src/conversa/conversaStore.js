@@ -848,6 +848,21 @@ export const useConversaStore = create((set, get) => {
         atendimentosLoadedFor: null,
       })
 
+      /*
+       * Lida já no clique (26/11/2026): o badge, o negrito da linha e o "(16)" do título da aba
+       * só sumiam quando o GET respondia (~1,3s com latência de produção). Mesmo par do caminho
+       * de reaproveitamento acima; o emit marca no servidor JÁ, para o snapshot de não lidas
+       * (~1s) não ressuscitar o badge. As chamadas depois do GET continuam (idempotentes).
+       */
+      if (!isEmpresaModoSimplesAtivoCliente()) {
+        try {
+          getSocket?.()?.emit("marcar_conversa_lida", { conversa_id: normalizedId })
+        } catch {
+          /* socket indisponível: o GET marca como lida */
+        }
+        useChatStore.getState().clearUnread(normalizedId)
+      }
+
       try {
         const data = await getChatById(normalizedId, {
           limit: getInitialMessagesLimit(),

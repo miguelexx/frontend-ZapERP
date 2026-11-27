@@ -296,16 +296,17 @@ test("composer mantém teclado, carregamento lazy, pickers e cancelamento de ane
    */
   const mediaPanelBtn = page.getByRole("button", { name: "Emojis e figurinhas" });
   await mediaPanelBtn.click();
-  const mediaPanel = page.getByRole("dialog", { name: "Emojis e figurinhas" });
+  // O diálogo se chama pela aba aberta ("Emojis" / "Figurinhas"); abre na de emoji.
+  const mediaPanel = page.getByRole("dialog", { name: /^(Emojis|Figurinhas)$/ });
   await expect(mediaPanel).toBeVisible();
 
   if (!testInfo.project.name.includes("mobile")) {
-    await page.getByRole("listitem", { name: "Emoji 😀" }).click();
+    await page.getByRole("button", { name: "Emoji 😀", exact: true }).click();
     await expect(composer).toHaveValue(/😀/);
   }
 
   await mediaPanel.getByRole("tab", { name: "Figurinhas" }).click();
-  await expect(page.getByRole("button", { name: "Criar figurinha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Criar figurinha", exact: true })).toBeVisible();
   await mediaPanelBtn.click();
   await expect(mediaPanel).toBeHidden();
 

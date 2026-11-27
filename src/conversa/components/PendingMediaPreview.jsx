@@ -38,6 +38,7 @@ function getFileTypeInfo(file) {
   return { ext, label: "Arquivo", color: "#94a3b8", bg: "rgba(148,163,184,0.13)" };
 }
 import { IconSend, IconClose } from "../conversaViewIcons";
+import { useMobileOverlayBack } from "../../atendimento/useMobileOverlayBack";
 
 const ImageSendPreviewMobile = lazy(() => import("../ImageSendPreviewMobile.jsx"));
 
@@ -77,11 +78,17 @@ function PendingMediaPreview({
   onCancel,
   onConfirmSendFile,
   onConfirmSendImageMobile,
+  replyNotice = false,
 }) {
   const useUnifiedImageSendPreview =
     pendingFile &&
     pendingPreview &&
     isEditableImageForSend(pendingFile);
+
+  /* "Voltar" do celular fecha a prévia (e não a conversa, perdendo arquivo e legenda). */
+  useMobileOverlayBack(Boolean(pendingFile), () => {
+    if (!sending) onCancel?.();
+  }, "mediaPreview");
 
   // Auto-grow do textarea de legenda (preview de mídia, estilo WhatsApp).
   useLayoutEffect(() => {
@@ -106,47 +113,84 @@ function PendingMediaPreview({
     return () => clearTimeout(t);
   }, [pendingFile, captionRef]);
 
-  /* Preview de envio: inset do teclado (iOS) + foco preso com Tab dentro do diálogo. */
+  /*
+   * Preview de envio: inset do teclado (iOS) + foco preso com Tab dentro do diálogo.
+   *
+   * 27/11/2026: a raiz é lida A CADA uso. A prévia de foto abre em dois tempos (1.º quadro sem a
+   * URL → div genérica; no quadro seguinte o editor lazy, com o próprio nó). Ler `rootRef` uma
+   * vez prendia o Tab num nó já desmontado: o 4.º Tab saía da prévia, chegava ao campo de
+   * mensagem escondido atrás dela, e o Enter mandava esse texto ao cliente com a foto aberta.
+   * Além do trap, o composer de trás fica `inert` enquanto a prévia está aberta.
+   */
   useEffect(() => {
     if (!pendingFile) return undefined;
-    const root = rootRef?.current;
-    if (!root) return undefined;
+    const getRoot = () => {
+      const r = rootRef?.current;
+      return r instanceof HTMLElement && r.isConnected ? r : null;
+    };
 
     const previousActive =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
+    /* Segunda barreira: nada do composer de trás recebe foco nem Enter. */
+    const composerStacks = Array.from(document.querySelectorAll(".wa-composerStack")).filter(
+      (el) => !el.hasAttribute("inert")
+    );
+    composerStacks.forEach((el) => el.setAttribute("inert", ""));
+
     const selector =
       'button:not([disabled]), textarea:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-    const getFocusable = () =>
-      Array.from(root.querySelectorAll(selector)).filter(
-        (el) => el instanceof HTMLElement && root.contains(el) && !el.hasAttribute("disabled")
+    const getFocusable = () => {
+      const root = getRoot();
+      if (!root) return [];
+      return Array.from(root.querySelectorAll(selector)).filter(
+        (el) =>
+          el instanceof HTMLElement &&
+          !el.hasAttribute("disabled") &&
+          el.tabIndex >= 0 &&
+          el.getClientRects().length > 0
       );
+    };
 
     const raf = requestAnimationFrame(() => {
+      const root = getRoot();
+      if (root && root.contains(document.activeElement)) return;
       const nodes = getFocusable();
       if (nodes.length) nodes[0].focus?.();
     });
 
     const onTrapKeyDown = (e) => {
       if (e.key !== "Tab") return;
+      const root = getRoot();
       const nodes = getFocusable();
-      if (nodes.length === 0) return;
+      if (!root || nodes.length === 0) return;
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
+      const active = document.activeElement;
+      if (!root.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
       if (e.shiftKey) {
-        if (document.activeElement === first) {
+        if (active === first || active === root) {
           e.preventDefault();
           last.focus();
         }
-      } else if (document.activeElement === last) {
+      } else if (active === last) {
         e.preventDefault();
         first.focus();
       }
     };
     document.addEventListener("keydown", onTrapKeyDown, true);
 
+    let insetRoot = null;
     const syncKbInset = () => {
+      const root = getRoot();
+      if (insetRoot && insetRoot !== root) insetRoot.style.removeProperty("--wa-media-preview-kb-inset");
+      insetRoot = root;
+      if (!root) return;
       const captionEl = captionRef?.current;
       const captionFocused =
         captionEl instanceof HTMLElement && document.activeElement === captionEl;
@@ -177,7 +221,9 @@ function PendingMediaPreview({
       vv?.removeEventListener("scroll", syncKbInset);
       document.removeEventListener("focusin", onCaptionFocusChange, true);
       document.removeEventListener("focusout", onCaptionFocusChange, true);
-      root.style.removeProperty("--wa-media-preview-kb-inset");
+      insetRoot?.style?.removeProperty("--wa-media-preview-kb-inset");
+      // Antes de devolver o foco: o campo de mensagem precisa estar focável de novo.
+      composerStacks.forEach((el) => el.removeAttribute("inert"));
       if (previousActive && typeof previousActive.focus === "function") {
         try {
           previousActive.focus();
@@ -205,6 +251,7 @@ function PendingMediaPreview({
           onCancel={onCancel}
           onSend={onConfirmSendImageMobile}
           sendIcon={<IconSend />}
+          replyNotice={replyNotice}
         />
       </Suspense>
     );
@@ -329,6 +376,14 @@ function PendingMediaPreview({
         })()}
       </div>
 
+          {replyNotice ? (
+            /* Responder com mídia (26/11/2026): o envio de arquivo ainda não leva citação (falta o
+               backend). Avisa em vez de deixar o atendente achar que citou; a citação continua
+               pronta para a próxima mensagem de texto. */
+            <p className="wa-mediaPreview-replyNote" role="note">
+              A mídia vai sem a citação — ela continua pronta para a próxima mensagem de texto.
+            </p>
+          ) : null}
       <div className="wa-mediaPreview-composer">
         <div className="wa-mediaPreview-inputWrap">
           <textarea

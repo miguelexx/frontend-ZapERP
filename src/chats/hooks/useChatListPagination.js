@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { fetchChats, CHAT_LIST_PRESERVE_MAX_PAGES } from "../chatService";
 import { useChatStore } from "../chatsStore";
+import { friendlyApiError } from "../../utils/friendlyApiError";
 import { getChatListRowsCacheRevision, persistChatListRowsForFilterToSession, persistChatListSidebarToSession } from "../chatListSidebarCache";
 import {
   isAppAdmin,
@@ -122,11 +123,8 @@ export function useChatListPagination({
       });
     } catch (e) {
       if (!isCurrent() || isAbortError(e)) return;
-      const msg =
-        e?.response?.data?.error ||
-        e?.response?.data?.message ||
-        e?.message ||
-        "Não foi possível carregar mais conversas.";
+      // Texto amigável (A3-02): nunca o "Network Error"/"timeout of …" cru do axios.
+      const msg = friendlyApiError(e, "Não foi possível carregar mais conversas.");
       setChatListPage((prev) => ({ ...prev, loading: false, error: String(msg) }));
     } finally {
       if (requestRef.current === request) requestRef.current = null;

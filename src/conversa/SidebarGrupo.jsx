@@ -4,13 +4,14 @@ import { pickLoadedMediaSrcFromEvent } from "./utils/conversaViewHelpers";
 import { IconClose } from "./conversaViewIcons";
 import { useGroupWhatsapp } from "./hooks/useGroupWhatsapp";
 import GrupoBulkAddModal from "./components/GrupoBulkAddModal";
+import { avatarInitials } from "../utils/avatarColor";
+import { User, Users } from "lucide-react";
 
-function initials(nome = "") {
-  const parts = String(nome || "").trim().split(/\s+/).filter(Boolean);
-  const a = parts[0]?.[0] || "";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
-  return (a + b).toUpperCase() || "G";
-}
+/*
+ * Iniciais só com letras (A3-06, 27/11/2026) — o mesmo helper da lista e da thread. O nome de
+ * um participante fora da agenda é o telefone cru ("5511987654321") e virava "5"; um grupo
+ * chamado "(Loja) Centro" virava "(C". Sem letra: boneco (participante) ou ícone de grupo.
+ */
 
 function rankLabel(p) {
   if (p?.creator) return "Criador";
@@ -95,7 +96,9 @@ export default function SidebarGrupo({
             aria-label={`Foto de ${name}`}
           >
             <span className="wa-sideCliente-photo" aria-hidden="true">
-              <span className="wa-sideCliente-avatarFallback">{initials(name)}</span>
+              <span className="wa-sideCliente-avatarFallback">
+                {avatarInitials(name) || <Users className="wa-sideCliente-avatarIcon" strokeWidth={1.75} aria-hidden="true" />}
+              </span>
               {foto && !photoError ? (
                 <img className="wa-sideCliente-avatarImg" src={foto} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setPhotoError(true)} />
               ) : null}
@@ -323,7 +326,11 @@ export default function SidebarGrupo({
             {sorted.map((p) => (
               <li key={p.id || p.phone} className="wa-groupPerson">
                 <span className="wa-groupPersonAvatar" aria-hidden="true">
-                  {p.foto ? <img src={p.foto} alt="" referrerPolicy="no-referrer" /> : initials(p.nome)}
+                  {p.foto ? (
+                    <img src={p.foto} alt="" referrerPolicy="no-referrer" />
+                  ) : (
+                    avatarInitials(p.nome) || <User strokeWidth={1.75} aria-hidden="true" />
+                  )}
                 </span>
                 <span className="wa-groupPersonMeta">
                   <span className="wa-groupPersonName">{p.nome}</span>
